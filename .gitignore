@@ -1,8 +1,5 @@
 HELP.md
-README.md
-
 target/
-
 !**/src/main/**/target/
 !**/src/test/**/target/
 
@@ -50,3 +47,8 @@ logs/
 ### Local Configuration ###
 application-local.properties
 application-local.yml
+
+# Frontend (Vue)
+frontend/node_modules/
+frontend/dist/
+frontend/*.local
