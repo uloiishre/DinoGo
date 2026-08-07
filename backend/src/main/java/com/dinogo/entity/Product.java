@@ -47,7 +47,7 @@ public class Product {
     // 2 = 下架
     @Column(name = "status", nullable = false)
     @Builder.Default
-    private Integer status = 0;
+    private Byte status = (byte) 0;
 
     @Column(name = "view_count", nullable = false)
     @Builder.Default
@@ -85,7 +85,7 @@ public class Product {
         }
 
         if (status == null) {
-            status = 0;
+            status = (byte) 0;
         }
 
         if (viewCount == null) {
