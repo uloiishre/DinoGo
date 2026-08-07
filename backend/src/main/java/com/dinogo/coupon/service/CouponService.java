@@ -43,7 +43,7 @@ public class CouponService {
 
         couponRepository.findBySellerIdAndCouponCode(sellerId, request.couponCode())
                 .ifPresent(coupon -> {
-                    throw new IllegalArgumentException("???振??Ⅳ銝??");
+                    throw new IllegalArgumentException("此賣家的優惠券代碼已存在");
                 });
 
         Coupon coupon = new Coupon();
@@ -102,30 +102,30 @@ public class CouponService {
 
     private Coupon findSellerCoupon(Long sellerId, Long couponId) {
         return couponRepository.findBySellerIdAndCouponId(sellerId, couponId)
-                .orElseThrow(() -> new IllegalArgumentException("?曆??唳迨?振??"));
+                .orElseThrow(() -> new IllegalArgumentException("找不到指定的優惠券"));
     }
 
     private void validateTimeRange(java.time.LocalDateTime startAt, java.time.LocalDateTime endAt) {
         if (!endAt.isAfter(startAt)) {
-            throw new IllegalArgumentException("蝯???敹??????");
+            throw new IllegalArgumentException("結束時間必須在開始時間之後");
         }
     }
 
     private void validateDiscountType(String discountType) {
         if (!DISCOUNT_TYPES.contains(discountType)) {
-            throw new IllegalArgumentException("?憿??芾??PERCENT ??AMOUNT");
+            throw new IllegalArgumentException("無效的折扣類型，請選擇 PERCENT 或 AMOUNT");
         }
     }
 
     private void validateScopeType(String scopeType, Long categoryId, Long productId) {
         if (!SCOPE_TYPES.contains(scopeType)) {
-            throw new IllegalArgumentException("?拍蝭??芾??ALL?ATEGORY ??PRODUCT");
+            throw new IllegalArgumentException("無效的範圍類型，請選擇 ALL、CATEGORY 或 PRODUCT");
         }
         if ("CATEGORY".equals(scopeType) && categoryId == null) {
-            throw new IllegalArgumentException("???芣??詨???摰?categoryId");
+            throw new IllegalArgumentException("適用分類優惠券必須提供 categoryId");
         }
         if ("PRODUCT".equals(scopeType) && productId == null) {
-            throw new IllegalArgumentException("???芣??詨???摰?productId");
+            throw new IllegalArgumentException("適用商品優惠券必須提供 productId");
         }
     }
 }
