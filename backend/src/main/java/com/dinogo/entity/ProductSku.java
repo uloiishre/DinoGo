@@ -45,13 +45,13 @@ public class ProductSku {
     // 1 = 啟用
     @Column(name = "status", nullable = false)
     @Builder.Default
-    private Integer status = 1;
+    private Byte status = (byte) 1;
 
     @PrePersist
     protected void onCreate() {
 
         if (status == null) {
-            status = 1;
+            status = (byte) 1;
         }
     }
 }
