@@ -47,6 +47,7 @@ logs/
 ### Local Configuration ###
 application-local.properties
 application-local.yml
+AGENTS.local.md
 
 # Frontend (Vue)
 frontend/node_modules/
