@@ -1,11 +1,10 @@
 <script setup>
 import { RouterLink } from 'vue-router'
 
-const navItems = [
-  { label: '總覽儀表板', to: '/seller/dashboard', mark: 'grid' },
-  { label: '商品管理', to: '/seller/products', mark: 'box' },
-  { label: '訂單管理', to: '/seller/orders', mark: 'doc' },
-  { label: '店鋪資料', to: '/seller/profile', mark: 'store' },
+const sellerItems = [
+  { label: '儀表板', to: '/seller/dashboard', icon: 'bi-speedometer2' },
+  { label: '商品管理', to: '/seller/products', icon: 'bi-box-seam' },
+  { label: '訂單管理', to: '/seller/orders', icon: 'bi-receipt' },
 ]
 </script>
 
