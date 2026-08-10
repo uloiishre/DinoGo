@@ -1,4 +1,4 @@
-package com.dinogo.entity;
+package com.dinogo.member.entity;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;

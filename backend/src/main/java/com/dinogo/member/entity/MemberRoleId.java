@@ -1,4 +1,4 @@
-package com.dinogo.entity;
+package com.dinogo.member.entity;
 
 import java.io.Serializable;
 import java.util.Objects;

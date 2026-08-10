@@ -1,10 +1,10 @@
-package com.dinogo.repository;
+package com.dinogo.member.repository;
 
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import com.dinogo.entity.Member;
+import com.dinogo.member.entity.Member;
 
 public interface MemberRepository extends JpaRepository<Member, Integer> {
 
