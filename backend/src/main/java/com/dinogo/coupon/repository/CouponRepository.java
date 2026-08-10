@@ -7,9 +7,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface CouponRepository extends JpaRepository<Coupon, Long> {
 
-    List<Coupon> findBySellerIdOrderByCouponIdDesc(Long sellerId);
+    List<Coupon> findBySellerIdOrderByCouponIdDesc(Integer sellerId);
 
-    Optional<Coupon> findBySellerIdAndCouponId(Long sellerId, Long couponId);
+    Optional<Coupon> findBySellerIdAndCouponId(Integer sellerId, Integer couponId);
 
-    Optional<Coupon> findBySellerIdAndCouponCode(Long sellerId, String couponCode);
+    Optional<Coupon> findBySellerIdAndCouponCode(Integer sellerId, String couponCode);
 }

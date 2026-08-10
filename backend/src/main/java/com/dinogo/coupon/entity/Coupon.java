@@ -16,10 +16,10 @@ public class Coupon {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "coupon_id")
-    private Long couponId;
+    private Integer couponId;
 
     @Column(name = "seller_id", nullable = false)
-    private Long sellerId;
+    private Integer sellerId;
 
     @Column(name = "coupon_code", nullable = false, length = 100)
     private String couponCode;
@@ -52,27 +52,27 @@ public class Coupon {
     private String scopeType;
 
     @Column(name = "category_id")
-    private Long categoryId;
+    private Integer categoryId;
 
     @Column(name = "product_id")
-    private Long productId;
+    private Integer productId;
 
     @Column(name = "status", nullable = false, length = 30)
     private String status;
 
-    public Long getCouponId() {
+    public Integer getCouponId() {
         return couponId;
     }
 
-    public void setCouponId(Long couponId) {
+    public void setCouponId(Integer couponId) {
         this.couponId = couponId;
     }
 
-    public Long getSellerId() {
+    public Integer getSellerId() {
         return sellerId;
     }
 
-    public void setSellerId(Long sellerId) {
+    public void setSellerId(Integer sellerId) {
         this.sellerId = sellerId;
     }
 
@@ -156,19 +156,19 @@ public class Coupon {
         this.scopeType = scopeType;
     }
 
-    public Long getCategoryId() {
+    public Integer getCategoryId() {
         return categoryId;
     }
 
-    public void setCategoryId(Long categoryId) {
+    public void setCategoryId(Integer categoryId) {
         this.categoryId = categoryId;
     }
 
-    public Long getProductId() {
+    public Integer getProductId() {
         return productId;
     }
 
-    public void setProductId(Long productId) {
+    public void setProductId(Integer productId) {
         this.productId = productId;
     }
 

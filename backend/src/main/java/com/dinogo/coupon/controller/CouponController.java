@@ -29,19 +29,19 @@ public class CouponController {
     }
 
     @GetMapping
-    public List<CouponResponse> getCoupons(@RequestParam Long sellerId) {
+    public List<CouponResponse> getCoupons(@RequestParam Integer sellerId) {
         return couponService.getCoupons(sellerId);
     }
 
     @GetMapping("/{couponId}")
-    public CouponResponse getCoupon(@RequestParam Long sellerId, @PathVariable Long couponId) {
+    public CouponResponse getCoupon(@RequestParam Integer sellerId, @PathVariable Integer couponId) {
         return couponService.getCoupon(sellerId, couponId);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public CouponResponse createCoupon(
-            @RequestParam Long sellerId,
+            @RequestParam Integer sellerId,
             @Valid @RequestBody CouponCreateRequest request
     ) {
         return couponService.createCoupon(sellerId, request);
@@ -49,20 +49,20 @@ public class CouponController {
 
     @PutMapping("/{couponId}")
     public CouponResponse updateCoupon(
-            @RequestParam Long sellerId,
-            @PathVariable Long couponId,
+            @RequestParam Integer sellerId,
+            @PathVariable Integer couponId,
             @Valid @RequestBody CouponUpdateRequest request
     ) {
         return couponService.updateCoupon(sellerId, couponId, request);
     }
 
     @PatchMapping("/{couponId}/activate")
-    public CouponResponse activateCoupon(@RequestParam Long sellerId, @PathVariable Long couponId) {
+    public CouponResponse activateCoupon(@RequestParam Integer sellerId, @PathVariable Integer couponId) {
         return couponService.activateCoupon(sellerId, couponId);
     }
 
     @PatchMapping("/{couponId}/disable")
-    public CouponResponse disableCoupon(@RequestParam Long sellerId, @PathVariable Long couponId) {
+    public CouponResponse disableCoupon(@RequestParam Integer sellerId, @PathVariable Integer couponId) {
         return couponService.disableCoupon(sellerId, couponId);
     }
 }

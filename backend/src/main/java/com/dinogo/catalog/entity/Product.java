@@ -1,12 +1,30 @@
 package com.dinogo.catalog.entity;
 
-import jakarta.persistence.*;
-import lombok.*;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.dinogo.seller.entity.Seller;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "Product", schema = "catalog")
@@ -22,8 +40,9 @@ public class Product {
     @Column(name = "product_id")
     private Integer productId;
 
-    @Column(name = "seller_id", nullable = false)
-    private Integer sellerId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "seller_id", nullable = false)
+    private Seller seller;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "subcategory_id", nullable = false)
