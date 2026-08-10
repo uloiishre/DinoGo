@@ -53,4 +53,23 @@ const sellerItems = [
   color: var(--color-surface);
   background: var(--color-primary-700);
 }
+
+@media (max-width: 767.98px) {
+  .seller-nav {
+    min-height: auto;
+    padding: var(--space-3);
+  }
+  .seller-nav__brand {
+    padding: 0 0 var(--space-2);
+    font-size: var(--font-size-md);
+  }
+  .seller-nav .nav {
+    flex-flow: row nowrap !important;
+    overflow-x: auto;
+  }
+  .seller-nav__link {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
 </style>

@@ -18,8 +18,11 @@ import SellerNav from '@/components/seller/SellerNav.vue'
   width: 240px;
 }
 @media (max-width: 767.98px) {
+  .seller-layout {
+    flex-direction: column;
+  }
   .seller-layout__sidebar {
-    width: 190px;
+    width: 100%;
   }
 }
 </style>

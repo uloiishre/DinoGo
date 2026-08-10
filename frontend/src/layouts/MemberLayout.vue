@@ -12,11 +12,9 @@ import MemberNav from '@/components/member/MemberNav.vue'
     <UtilityBar />
     <AppHeader />
     <PrimaryNav />
-    <main class="container flex-grow-1 py-5">
-      <div class="row g-4">
-        <aside class="col-12 col-lg-3"><MemberNav /></aside>
-        <section class="col-12 col-lg-9"><RouterView /></section>
-      </div>
+    <MemberNav />
+    <main class="dg-member-layout-main flex-grow-1">
+      <RouterView />
     </main>
     <AppFooter />
   </div>
