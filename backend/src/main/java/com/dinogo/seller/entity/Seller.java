@@ -15,10 +15,10 @@ public class Seller {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "seller_id")
-    private Long sellerId;
+    private Integer sellerId;
 
     @Column(name = "member_id", nullable = false)
-    private Long memberId;
+    private Integer memberId;
 
     @Column(name = "store_name", nullable = false, length = 100)
     private String storeName;
@@ -38,11 +38,11 @@ public class Seller {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    public Long getSellerId() {
+    public Integer getSellerId() {
         return sellerId;
     }
 
-    public Long getMemberId() {
+    public Integer getMemberId() {
         return memberId;
     }
 
