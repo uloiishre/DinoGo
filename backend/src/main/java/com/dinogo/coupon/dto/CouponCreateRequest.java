@@ -16,7 +16,7 @@ public record CouponCreateRequest(
         @NotNull LocalDateTime endAt,
         Integer limitCount,
         @NotBlank String scopeType,
-        Long categoryId,
-        Long productId
+        Integer categoryId,
+        Integer productId
 ) {
 }

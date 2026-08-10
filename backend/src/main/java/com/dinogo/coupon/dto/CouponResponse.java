@@ -5,8 +5,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public record CouponResponse(
-        Long couponId,
-        Long sellerId,
+		Integer couponId,
+		Integer sellerId,
         String couponCode,
         String couponName,
         String discountType,
@@ -17,8 +17,8 @@ public record CouponResponse(
         Integer limitCount,
         Integer usedCount,
         String scopeType,
-        Long categoryId,
-        Long productId,
+        Integer categoryId,
+        Integer productId,
         String status
 ) {
     public static CouponResponse from(Coupon coupon) {

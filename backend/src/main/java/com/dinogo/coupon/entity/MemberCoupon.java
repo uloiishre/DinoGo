@@ -15,13 +15,13 @@ public class MemberCoupon {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "member_coupon_id")
-    private Long memberCouponId;
+    private Integer memberCouponId;
 
     @Column(name = "coupon_id", nullable = false)
-    private Long couponId;
+    private Integer couponId;
 
     @Column(name = "member_id", nullable = false)
-    private Long memberId;
+    private Integer memberId;
 
     @Column(name = "is_used", nullable = false)
     private Boolean used;
