@@ -1,7 +1,8 @@
-package com.dinogo.repository;
+package com.dinogo.catalog.repository;
 
-import com.dinogo.entity.Brand;
 import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.dinogo.catalog.entity.Brand;
 
 public interface BrandRepository extends JpaRepository<Brand, Integer> {
 }

@@ -1,11 +1,11 @@
-package com.dinogo.repository;
+package com.dinogo.catalog.repository;
 
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import com.dinogo.entity.ProductImage;
+import com.dinogo.catalog.entity.ProductImage;
 
 public interface ProductImageRepository extends JpaRepository<ProductImage, Integer> {
 
