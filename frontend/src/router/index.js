@@ -1,5 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
+import HomeView from '@/views/HomeView.vue'
+import OrderDetail from '@/views/OrderDetail.vue'
+import OrderList from '@/views/OrderList.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import DefaultStorefrontLayout from '@/layouts/DefaultStorefrontLayout.vue'
 import MemberLayout from '@/layouts/MemberLayout.vue'
