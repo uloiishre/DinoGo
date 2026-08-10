@@ -7,8 +7,23 @@ import { RouterLink } from 'vue-router'
     <div class="container py-5">
       <div class="row g-4">
         <div class="col-12 col-md-4">
-          <RouterLink class="footer-brand" to="/">DinoGo</RouterLink>
-          <p class="mt-3 mb-0 footer-copy">探索日常好物，連結值得信賴的品牌與商家。</p>
+          <RouterLink class="footer-brand" to="/"
+            ><span aria-hidden="true">D</span>DINO-GO</RouterLink
+          >
+          <p class="mt-3 footer-copy">
+            讓消費者安心選物，也讓商家專注經營。平台交易、訂單與售後資訊清楚可查。
+          </p>
+          <div class="d-flex gap-2" aria-label="社群連結">
+            <a href="#instagram" class="social-link" aria-label="Instagram"
+              ><i class="bi bi-instagram" aria-hidden="true"></i
+            ></a>
+            <a href="#facebook" class="social-link" aria-label="Facebook"
+              ><i class="bi bi-facebook" aria-hidden="true"></i
+            ></a>
+            <a href="#line" class="social-link" aria-label="LINE"
+              ><i class="bi bi-chat" aria-hidden="true"></i
+            ></a>
+          </div>
         </div>
         <div class="col-6 col-md-2">
           <h2 class="footer-title">購物協助</h2>
@@ -29,7 +44,16 @@ import { RouterLink } from 'vue-router'
           ><a href="#seller-contact" class="footer-link">商家客服</a>
         </div>
       </div>
-      <div class="footer-bottom mt-5 pt-3">© 2026 DinoGo. All rights reserved.</div>
+      <div
+        class="footer-bottom d-flex flex-column flex-md-row justify-content-between gap-3 mt-5 pt-3"
+      >
+        <span>© 2026 DINO-GO. All rights reserved.</span>
+        <nav class="d-flex flex-wrap gap-3" aria-label="Legal navigation">
+          <a href="#privacy" class="footer-legal-link">隱私權政策</a>
+          <a href="#terms" class="footer-legal-link">服務條款</a>
+          <a href="#usage" class="footer-legal-link">網站使用規範</a>
+        </nav>
+      </div>
     </div>
   </footer>
 </template>
@@ -40,11 +64,25 @@ import { RouterLink } from 'vue-router'
   background: var(--color-primary-900);
 }
 .footer-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   color: var(--color-surface);
   font-family: var(--font-heading);
   font-size: var(--font-size-xl);
   font-weight: 700;
   text-decoration: none;
+}
+.footer-brand span {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  color: var(--color-primary-800);
+  font-family: var(--font-body);
+  font-size: var(--font-size-base);
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
 }
 .footer-copy,
 .footer-bottom {
@@ -66,10 +104,28 @@ import { RouterLink } from 'vue-router'
   font-size: var(--font-size-sm);
   text-decoration: none;
 }
+.social-link {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  color: var(--color-secondary-100);
+  place-items: center;
+  border: 1px solid var(--color-primary-700);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+}
+.footer-legal-link {
+  color: var(--color-secondary-400);
+  text-decoration: none;
+}
 .footer-link:hover,
 .footer-link:focus-visible,
 .footer-brand:hover,
-.footer-brand:focus-visible {
+.footer-brand:focus-visible,
+.social-link:hover,
+.social-link:focus-visible,
+.footer-legal-link:hover,
+.footer-legal-link:focus-visible {
   color: var(--color-surface);
   text-decoration: underline;
 }

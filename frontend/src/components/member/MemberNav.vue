@@ -8,6 +8,8 @@ const memberItems = [
   { label: '優惠券', to: '/member/coupons', icon: 'bi-ticket-perforated' },
   { label: '訊息', to: '/member/messages', icon: 'bi-chat-circle' },
   { label: '帳戶設定', to: '/member/profile', icon: 'bi-person-gear' },
+  { label: '地址管理', to: '/member/addresses', icon: 'bi-geo-alt' },
+  { label: '修改密碼', to: '/member/password', icon: 'bi-lock' },
 ]
 </script>
 
@@ -46,5 +48,21 @@ const memberItems = [
 .member-nav__link.router-link-active {
   color: var(--color-primary-700);
   background: var(--color-primary-soft);
+}
+
+@media (max-width: 991.98px) {
+  .member-nav {
+    padding: var(--space-2);
+  }
+  .member-nav .list-group {
+    flex-direction: row;
+    gap: var(--space-1);
+    overflow-x: auto;
+  }
+  .member-nav__link {
+    flex: 0 0 auto;
+    width: auto;
+    white-space: nowrap;
+  }
 }
 </style>
