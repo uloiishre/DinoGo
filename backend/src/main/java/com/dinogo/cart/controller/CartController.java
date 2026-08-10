@@ -18,63 +18,64 @@ import com.dinogo.cart.service.CartService;
 @RestController
 @RequestMapping("/api/cart")
 public class CartController {
-	private  final CartService cartService;
+	private final CartService cartService;
+
 	public CartController(CartService cartService) {
 		this.cartService = cartService;
 	}
-	//取得購物車
+
+	// 取得購物車
 	@GetMapping("/{memberId}")
 	public Cart getCart(@PathVariable Integer memberId) {
 
-        return cartService.getOrCreateCart(memberId);
-    }
-	
-	//新增
+		return cartService.getOrCreateCart(memberId);
+	}
+
+	// 新增
 	@PostMapping("/{memberId}/items")
 	public CartItemResponse addItem(
 			@PathVariable Integer memberId,
-            @RequestBody CartItemRequest dto) {
+			@RequestBody CartItemRequest dto) {
 
-		CartItem item =cartService.addItem(
-        		memberId,
+		CartItem item = cartService.addItem(
+				memberId,
 				dto.skuId(),
-				dto.quantity()
-		);
+				dto.quantity());
 		return new CartItemResponse(
-	            item.getCartItemId(),
-	            item.getProductSku().getSkuId(),
-	            item.getQuantity()
-	    );
-    }
-	//修改
+				item.getCartItemId(),
+				item.getProductSku().getSkuId(),
+				item.getQuantity());
+	}
+
+	// 修改
 	@PutMapping("/items/{cartItemId}")
 	public CartItemResponse updateQuantity(
-            @PathVariable Integer cartItemId,
-            @RequestBody CartItemRequest dto) {
+			@PathVariable Integer cartItemId,
+			@RequestBody CartItemRequest dto) {
 
-		CartItem item=cartService.updateQuantity(
-	            cartItemId,
-	            dto.quantity()
-	    );
+		CartItem item = cartService.updateQuantity(
+				cartItemId,
+				dto.quantity());
 
 		return new CartItemResponse(
-	            item.getCartItemId(),
-	            item.getProductSku().getSkuId(),
-	            item.getQuantity()
-	    );
-    }
-	//刪除單筆
+				item.getCartItemId(),
+				item.getProductSku().getSkuId(),
+				item.getQuantity());
+	}
+
+	// 刪除單筆
 	@DeleteMapping("/items/{cartItemId}")
 	public void deleteItem(
-            @PathVariable Integer cartItemId) {
+			@PathVariable Integer cartItemId) {
 
-        cartService.deleteItem(cartItemId);
-    }
-	//清空購物車
+		cartService.deleteItem(cartItemId);
+	}
+
+	// 清空購物車
 	@DeleteMapping("/{cartId}/items")
 	public void clearCart(
-            @PathVariable Integer cartId) {
+			@PathVariable Integer cartId) {
 
-        cartService.clearCart(cartId);
-    }
+		cartService.clearCart(cartId);
+	}
 }

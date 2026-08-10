@@ -1,7 +1,7 @@
 package com.dinogo.cart.entity;
 
-import com.dinogo.member.entity.Member;
 import com.dinogo.catalog.entity.Product;
+import com.dinogo.member.entity.Member;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
