@@ -1,4 +1,4 @@
-package com.dinogo.entity;
+package com.dinogo.catalog.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
