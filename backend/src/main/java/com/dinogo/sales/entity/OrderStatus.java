@@ -1,4 +1,4 @@
-package com.dinogo.entity;
+package com.dinogo.sales.entity;
 
 public enum OrderStatus {
     PENDING_PAYMENT,

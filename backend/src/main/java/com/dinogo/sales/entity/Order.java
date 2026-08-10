@@ -1,4 +1,4 @@
-package com.dinogo.entity;
+package com.dinogo.sales.entity;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -30,18 +30,13 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(
-        name = "Orders",
-        schema = "sales",
-        uniqueConstraints = @UniqueConstraint(name = "uq_orders_order_no", columnNames = "order_no"),
-        indexes = {
-                @Index(name = "ix_orders_buyer_id", columnList = "buyer_id"),
-                @Index(name = "ix_orders_seller_id", columnList = "seller_id"),
-                @Index(name = "ix_orders_status", columnList = "status"),
-                @Index(name = "ix_orders_buyer_created_at", columnList = "buyer_id, created_at"),
-                @Index(name = "ix_orders_seller_status_created_at", columnList = "seller_id, status, created_at")
-        }
-)
+@Table(name = "Orders", schema = "sales", uniqueConstraints = @UniqueConstraint(name = "uq_orders_order_no", columnNames = "order_no"), indexes = {
+        @Index(name = "ix_orders_buyer_id", columnList = "buyer_id"),
+        @Index(name = "ix_orders_seller_id", columnList = "seller_id"),
+        @Index(name = "ix_orders_status", columnList = "status"),
+        @Index(name = "ix_orders_buyer_created_at", columnList = "buyer_id, created_at"),
+        @Index(name = "ix_orders_seller_status_created_at", columnList = "seller_id, status, created_at")
+})
 public class Order {
 
     @Id

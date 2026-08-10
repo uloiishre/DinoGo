@@ -1,4 +1,4 @@
-package com.dinogo.entity;
+package com.dinogo.sales.entity;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -27,56 +27,51 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(
-        name = "Payment",
-        schema = "sales",
-        uniqueConstraints = @UniqueConstraint(name = "uq_payment_payment_no", columnNames = "payment_no"),
-        indexes = {
+@Table(name = "Payment", schema = "sales", uniqueConstraints = @UniqueConstraint(name = "uq_payment_payment_no", columnNames = "payment_no"), indexes = {
                 @Index(name = "ix_payment_order_id", columnList = "order_id"),
                 @Index(name = "ix_payment_payment_method_id", columnList = "payment_method_id"),
                 @Index(name = "ix_payment_status", columnList = "status"),
                 @Index(name = "ix_payment_order_status", columnList = "order_id, status")
-        }
-)
+})
 public class Payment {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "payment_id")
-    private Integer paymentId;
+        @Id
+        @GeneratedValue(strategy = GenerationType.IDENTITY)
+        @Column(name = "payment_id")
+        private Integer paymentId;
 
-    @Column(name = "payment_no", nullable = false, length = 40)
-    private String paymentNo;
+        @Column(name = "payment_no", nullable = false, length = 40)
+        private String paymentNo;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "order_id", nullable = false)
-    private Order order;
+        @ManyToOne(fetch = FetchType.LAZY, optional = false)
+        @JoinColumn(name = "order_id", nullable = false)
+        private Order order;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "payment_method_id", nullable = false)
-    private PaymentMethod paymentMethod;
+        @ManyToOne(fetch = FetchType.LAZY, optional = false)
+        @JoinColumn(name = "payment_method_id", nullable = false)
+        private PaymentMethod paymentMethod;
 
-    @Column(name = "amount", nullable = false, precision = 12, scale = 2)
-    private BigDecimal amount;
+        @Column(name = "amount", nullable = false, precision = 12, scale = 2)
+        private BigDecimal amount;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 20)
-    private PaymentStatus status = PaymentStatus.PENDING;
+        @Enumerated(EnumType.STRING)
+        @Column(name = "status", nullable = false, length = 20)
+        private PaymentStatus status = PaymentStatus.PENDING;
 
-    @Column(name = "transaction_no", length = 100)
-    private String transactionNo;
+        @Column(name = "transaction_no", length = 100)
+        private String transactionNo;
 
-    @Column(name = "failure_reason", length = 255)
-    private String failureReason;
+        @Column(name = "failure_reason", length = 255)
+        private String failureReason;
 
-    @Column(name = "paid_at")
-    private LocalDateTime paidAt;
+        @Column(name = "paid_at")
+        private LocalDateTime paidAt;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+        @CreationTimestamp
+        @Column(name = "created_at", nullable = false, updatable = false)
+        private LocalDateTime createdAt;
 
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+        @UpdateTimestamp
+        @Column(name = "updated_at", nullable = false)
+        private LocalDateTime updatedAt;
 }
