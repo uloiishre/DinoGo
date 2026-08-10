@@ -23,7 +23,7 @@ public class CouponService {
     }
 
     @Transactional(readOnly = true)
-    public List<CouponResponse> getCoupons(Long sellerId) {
+    public List<CouponResponse> getCoupons(Integer sellerId) {
         return couponRepository.findBySellerIdOrderByCouponIdDesc(sellerId)
                 .stream()
                 .map(CouponResponse::from)
@@ -31,12 +31,12 @@ public class CouponService {
     }
 
     @Transactional(readOnly = true)
-    public CouponResponse getCoupon(Long sellerId, Long couponId) {
+    public CouponResponse getCoupon(Integer sellerId, Integer couponId) {
         return CouponResponse.from(findSellerCoupon(sellerId, couponId));
     }
 
     @Transactional
-    public CouponResponse createCoupon(Long sellerId, CouponCreateRequest request) {
+    public CouponResponse createCoupon(Integer sellerId, CouponCreateRequest request) {
         validateTimeRange(request.startAt(), request.endAt());
         validateDiscountType(request.discountType());
         validateScopeType(request.scopeType(), request.categoryId(), request.productId());
@@ -66,7 +66,7 @@ public class CouponService {
     }
 
     @Transactional
-    public CouponResponse updateCoupon(Long sellerId, Long couponId, CouponUpdateRequest request) {
+    public CouponResponse updateCoupon(Integer sellerId, Integer couponId, CouponUpdateRequest request) {
         validateTimeRange(request.startAt(), request.endAt());
         validateDiscountType(request.discountType());
         validateScopeType(request.scopeType(), request.categoryId(), request.productId());
@@ -87,20 +87,20 @@ public class CouponService {
     }
 
     @Transactional
-    public CouponResponse activateCoupon(Long sellerId, Long couponId) {
+    public CouponResponse activateCoupon(Integer sellerId, Integer couponId) {
         Coupon coupon = findSellerCoupon(sellerId, couponId);
         coupon.setStatus("ACTIVE");
         return CouponResponse.from(couponRepository.save(coupon));
     }
 
     @Transactional
-    public CouponResponse disableCoupon(Long sellerId, Long couponId) {
+    public CouponResponse disableCoupon(Integer sellerId, Integer couponId) {
         Coupon coupon = findSellerCoupon(sellerId, couponId);
         coupon.setStatus("DISABLED");
         return CouponResponse.from(couponRepository.save(coupon));
     }
 
-    private Coupon findSellerCoupon(Long sellerId, Long couponId) {
+    private Coupon findSellerCoupon(Integer sellerId, Integer couponId) {
         return couponRepository.findBySellerIdAndCouponId(sellerId, couponId)
                 .orElseThrow(() -> new IllegalArgumentException("找不到指定的優惠券"));
     }
@@ -117,7 +117,7 @@ public class CouponService {
         }
     }
 
-    private void validateScopeType(String scopeType, Long categoryId, Long productId) {
+    private void validateScopeType(String scopeType, Integer categoryId, Integer productId) {
         if (!SCOPE_TYPES.contains(scopeType)) {
             throw new IllegalArgumentException("無效的範圍類型，請選擇 ALL、CATEGORY 或 PRODUCT");
         }
