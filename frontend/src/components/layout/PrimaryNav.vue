@@ -14,9 +14,9 @@ const navItems = [
 
 <template>
   <nav class="primary-nav" aria-label="Primary navigation">
-    <div class="container">
+    <div class="container primary-nav__inner">
       <button
-        class="primary-nav__toggle d-flex d-md-none align-items-center justify-content-between"
+        class="primary-nav__toggle d-flex d-lg-none align-items-center justify-content-between"
         type="button"
         data-bs-toggle="collapse"
         data-bs-target="#primary-nav-menu"
@@ -28,7 +28,7 @@ const navItems = [
       </button>
       <div
         id="primary-nav-menu"
-        class="primary-nav__menu collapse d-md-flex align-items-md-center gap-md-1"
+        class="primary-nav__menu collapse d-lg-flex align-items-lg-center gap-lg-1"
       >
         <RouterLink
           v-for="item in navItems"
@@ -50,11 +50,17 @@ const navItems = [
 
 <style scoped>
 .primary-nav {
+  min-height: 72px;
   color: var(--color-text-muted);
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
 }
+.primary-nav__inner {
+  max-width: 1440px;
+  min-height: inherit;
+}
 .primary-nav__menu {
+  min-height: inherit;
   width: 100%;
 }
 .primary-nav__toggle {
@@ -70,16 +76,17 @@ const navItems = [
   flex: 0 0 auto;
   align-items: center;
   gap: var(--space-1);
-  min-height: 46px;
-  padding: 0 var(--space-3);
+  min-height: 52px;
+  padding: 0 var(--space-4);
   color: inherit;
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-base);
   text-decoration: none;
   border-bottom: 2px solid transparent;
 }
 .primary-nav__link--all {
-  min-height: 40px;
-  margin: 3px 0;
+  width: 160px;
+  min-height: 52px;
+  margin: 0;
   color: var(--color-surface);
   border-bottom-color: transparent;
   border-radius: var(--radius-md);
@@ -103,7 +110,13 @@ const navItems = [
   border-bottom-color: var(--color-primary);
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 991.98px) {
+  .primary-nav {
+    min-height: 0;
+  }
+  .primary-nav__inner {
+    min-height: 0;
+  }
   .primary-nav__menu {
     padding-bottom: var(--space-2);
   }
@@ -114,6 +127,7 @@ const navItems = [
     border-radius: var(--radius-md);
   }
   .primary-nav__link--all {
+    width: 100%;
     margin: 0;
   }
   .primary-nav__link--seller {

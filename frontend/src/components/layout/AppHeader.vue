@@ -5,7 +5,7 @@ import SearchBar from './SearchBar.vue'
 
 <template>
   <header class="app-header">
-    <div class="container d-flex align-items-center gap-4 py-3">
+    <div class="container app-header__main d-flex align-items-center gap-4">
       <RouterLink class="brand-mark flex-shrink-0" to="/" aria-label="DinoGo 首頁">
         <span class="brand-mark__badge" aria-hidden="true">D</span>
         <span class="brand-mark__copy">
@@ -27,17 +27,19 @@ import SearchBar from './SearchBar.vue'
           ><span class="header-action__label">通知</span></RouterLink
         >
         <RouterLink class="header-action header-action--badge" to="/cart" aria-label="購物車"
-          ><i class="bi bi-cart" aria-hidden="true"></i><span class="notification-badge">0</span
+          ><i class="bi bi-cart" aria-hidden="true"></i><span class="notification-badge">3</span
           ><span class="header-action__label">購物車</span></RouterLink
         >
         <RouterLink
-          class="member-action d-none d-lg-flex align-items-center gap-2"
+          class="header-action member-action d-none d-lg-inline-flex"
           to="/member/overview"
-          ><i class="bi bi-person-circle" aria-hidden="true"></i><span>會員中心</span></RouterLink
         >
+          <i class="bi bi-person-circle" aria-hidden="true"></i
+          ><span class="header-action__label">會員中心</span>
+        </RouterLink>
       </nav>
     </div>
-    <div class="container d-md-none pb-3"><SearchBar compact /></div>
+    <div class="container app-header__search-mobile d-md-none"><SearchBar compact /></div>
   </header>
 </template>
 
@@ -47,6 +49,16 @@ import SearchBar from './SearchBar.vue'
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
   box-shadow: var(--shadow-soft);
+}
+.app-header__main,
+.app-header__search-mobile {
+  max-width: 1440px;
+}
+.app-header__main {
+  min-height: 130px;
+}
+.app-header__search-mobile {
+  padding-bottom: var(--space-4);
 }
 .brand-mark {
   display: flex;
@@ -59,13 +71,13 @@ import SearchBar from './SearchBar.vue'
 }
 .brand-mark__badge {
   display: grid;
-  width: 48px;
-  height: 48px;
+  width: 64px;
+  height: 64px;
   color: var(--color-surface);
   font-family: var(--font-body);
   font-size: var(--font-size-lg);
   place-items: center;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--color-primary-700);
 }
 .brand-mark__copy {
@@ -75,13 +87,13 @@ import SearchBar from './SearchBar.vue'
 .brand-mark__name {
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-xl);
   line-height: 1.2;
 }
 .brand-mark__tagline {
   color: var(--color-text-subtle);
   font-family: var(--font-body);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-weight: 400;
 }
 .header-action,
@@ -92,17 +104,17 @@ import SearchBar from './SearchBar.vue'
 }
 .header-action {
   display: inline-flex;
-  min-width: 48px;
-  min-height: 52px;
+  min-width: 56px;
+  min-height: 64px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  font-size: 1.2rem;
+  gap: var(--space-1);
+  font-size: var(--font-size-md);
   border-radius: var(--radius-md);
 }
 .header-action__label {
-  font-size: 10px;
+  font-size: var(--font-size-sm);
   line-height: 1.2;
 }
 .header-action:hover,
@@ -114,12 +126,13 @@ import SearchBar from './SearchBar.vue'
 }
 .header-action--badge .notification-badge {
   position: absolute;
-  top: 2px;
-  right: 0;
-  min-width: 16px;
-  padding: 1px 4px;
+  top: 0;
+  right: 2px;
+  min-width: 20px;
+  min-height: 20px;
+  padding: 1px 5px;
   color: var(--color-surface);
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   line-height: 1.2;
   text-align: center;
   border-radius: var(--radius-pill);
@@ -140,9 +153,16 @@ import SearchBar from './SearchBar.vue'
   }
   .header-action {
     min-width: 40px;
+    min-height: 48px;
   }
   .header-action__label {
     display: none;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .app-header__main {
+    min-height: 72px;
   }
 }
 </style>
