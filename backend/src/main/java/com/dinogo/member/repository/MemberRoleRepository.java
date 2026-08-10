@@ -4,8 +4,8 @@ import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import com.dinogo.entity.MemberRoleI
-import com.dinogo.member.entity.MemberRoleId;Role;
+import com.dinogo.member.entity.MemberRole;
+import com.dinogo.member.entity.MemberRoleId;
 
 public interface MemberRoleRepository extends JpaRepository<MemberRole, MemberRoleId> {
 
