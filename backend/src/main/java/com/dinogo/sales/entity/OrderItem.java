@@ -1,4 +1,4 @@
-package com.dinogo.entity;
+package com.dinogo.sales.entity;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -19,6 +19,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * 訂單商品明細，保存商品與 SKU 識別值及下單當下的名稱、規格、圖片與價格快照。
+ */
 @Getter
 @Setter
 @NoArgsConstructor

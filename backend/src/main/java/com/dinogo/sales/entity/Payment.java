@@ -1,4 +1,4 @@
-package com.dinogo.entity;
+package com.dinogo.sales.entity;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -23,6 +23,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * 單次付款嘗試紀錄；同一訂單可有多筆付款，但成功唯一性由 Service 業務規則控制。
+ */
 @Getter
 @Setter
 @NoArgsConstructor

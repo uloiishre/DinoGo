@@ -1,4 +1,4 @@
-package com.dinogo.entity;
+package com.dinogo.sales.entity;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -26,22 +26,21 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * 訂單聚合根，保存買家、賣家、收件快照、金額、狀態及其明細關聯。
+ * 訂單建立後應使用快照欄位呈現歷史資料，不回查並覆蓋成最新會員或商品資料。
+ */
 @Getter
 @Setter
 @NoArgsConstructor
 @Entity
-@Table(
-        name = "Orders",
-        schema = "sales",
-        uniqueConstraints = @UniqueConstraint(name = "uq_orders_order_no", columnNames = "order_no"),
-        indexes = {
-                @Index(name = "ix_orders_buyer_id", columnList = "buyer_id"),
-                @Index(name = "ix_orders_seller_id", columnList = "seller_id"),
-                @Index(name = "ix_orders_status", columnList = "status"),
-                @Index(name = "ix_orders_buyer_created_at", columnList = "buyer_id, created_at"),
-                @Index(name = "ix_orders_seller_status_created_at", columnList = "seller_id, status, created_at")
-        }
-)
+@Table(name = "Orders", schema = "sales", uniqueConstraints = @UniqueConstraint(name = "uq_orders_order_no", columnNames = "order_no"), indexes = {
+        @Index(name = "ix_orders_buyer_id", columnList = "buyer_id"),
+        @Index(name = "ix_orders_seller_id", columnList = "seller_id"),
+        @Index(name = "ix_orders_status", columnList = "status"),
+        @Index(name = "ix_orders_buyer_created_at", columnList = "buyer_id, created_at"),
+        @Index(name = "ix_orders_seller_status_created_at", columnList = "seller_id, status, created_at")
+})
 public class Order {
 
     @Id
@@ -92,6 +91,9 @@ public class Order {
     @Column(name = "discount_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal discountAmount = BigDecimal.ZERO;
 
+    @Column(name = "member_coupon_id")
+    private Integer memberCouponId;
+
     @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount;
 
@@ -128,11 +130,13 @@ public class Order {
     private Shipment shipment;
 
     public void addOrderItem(OrderItem orderItem) {
+        // 同步維護雙向關聯，確保 cascade 儲存時明細持有正確的訂單外鍵。
         orderItems.add(orderItem);
         orderItem.setOrder(this);
     }
 
     public void removeOrderItem(OrderItem orderItem) {
+        // 移除集合項目時一併斷開明細反向關聯。
         orderItems.remove(orderItem);
         orderItem.setOrder(null);
     }

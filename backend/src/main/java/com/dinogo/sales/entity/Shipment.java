@@ -1,4 +1,4 @@
-package com.dinogo.entity;
+package com.dinogo.sales.entity;
 
 import java.time.LocalDateTime;
 
@@ -22,6 +22,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * 訂單物流資料；MVP 採一張訂單對一筆物流紀錄，並保存配送狀態與時間點。
+ */
 @Getter
 @Setter
 @NoArgsConstructor

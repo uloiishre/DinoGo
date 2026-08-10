@@ -1,4 +1,4 @@
-package com.dinogo.entity;
+package com.dinogo.sales.entity;
 
 import java.time.LocalDateTime;
 
@@ -16,6 +16,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/** 付款方式主檔，使用穩定的 methodCode 作為跨流程辨識代碼。 */
 @Getter
 @Setter
 @NoArgsConstructor
