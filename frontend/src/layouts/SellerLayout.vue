@@ -1,28 +1,38 @@
 <script setup>
 import { RouterView } from 'vue-router'
-import SellerNav from '@/components/seller/SellerNav.vue'
+import SellerNav from '../components/seller/SellerNav.vue'
 </script>
 
 <template>
-  <div class="seller-layout d-flex min-vh-100">
-    <aside class="seller-layout__sidebar flex-shrink-0"><SellerNav /></aside>
-    <main class="flex-grow-1 p-4"><RouterView /></main>
+  <div class="seller-layout">
+    <SellerNav />
+
+    <main class="seller-main">
+      <RouterView />
+    </main>
   </div>
 </template>
 
 <style scoped>
 .seller-layout {
-  background: var(--color-bg);
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr);
+  background: var(--color-bg-muted);
 }
-.seller-layout__sidebar {
-  width: 240px;
+
+.seller-main {
+  min-width: 0;
+  padding: var(--space-5) var(--space-6);
 }
-@media (max-width: 767.98px) {
+
+@media (max-width: 760px) {
   .seller-layout {
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
-  .seller-layout__sidebar {
-    width: 100%;
+
+  .seller-main {
+    padding: var(--space-4);
   }
 }
 </style>
