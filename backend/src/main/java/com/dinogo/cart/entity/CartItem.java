@@ -1,4 +1,6 @@
-package com.dinogo.entity;
+package com.dinogo.cart.entity;
+
+import com.dinogo.entity.ProductSku;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -10,18 +12,18 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name="cartitem", schema = "cart")
-public class CartItemEntity{
+@Table(name="CartItem", schema = "cart")
+public class CartItem{
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Column(name="cart_item_id")
 	private int cartItemId;	
 	@ManyToOne
 	@JoinColumn(name="cart_id")
-	private CartEntity cart;
-//	@ManyToOne
-//	@JoinColumn(name="sku_id")
-//	private ProductSkuEntity productSku;
+	private Cart cart;
+	@ManyToOne
+	@JoinColumn(name="sku_id")
+	private ProductSku productSku;
 	@Column(name="quantity")
 	private int quantity;
 	public int getQuantity() {
@@ -30,10 +32,10 @@ public class CartItemEntity{
 	public void setCartItemId(int cartItemId) {
 		this.cartItemId = cartItemId;
 	}
-//	public void setProductSku(ProductSkuEntity productSku) {
-//		this.productSku = productSku;
-//	}
-	public void setCart(CartEntity cart) {
+	public void setProductSku(ProductSku productSku) {
+		this.productSku = productSku;
+	}
+	public void setCart(Cart cart) {
 		this.cart = cart;
 	}
 	public void setQuantity(int quantity) {
@@ -42,10 +44,10 @@ public class CartItemEntity{
 	public int getCartItemId() {
 		return cartItemId;
 	}
-	public CartEntity getCart() {
+	public Cart getCart() {
 		return cart;	
 	}
-//	public ProductSkuEntity getProductSku() {
-//		return productSku;
-//	}
+	public ProductSku getProductSku() {
+		return productSku;
+	}
 }

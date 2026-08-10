@@ -1,4 +1,4 @@
-package com.dinogo.dto;
+package com.dinogo.cart.dto;
 
 public record CartItemRequest(
 		Integer skuId,
