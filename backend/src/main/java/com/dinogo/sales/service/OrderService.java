@@ -46,7 +46,8 @@ public class OrderService {
             OrderStatus.PENDING_PAYMENT, Set.of(OrderStatus.PAID),
             OrderStatus.PAID, Set.of(OrderStatus.PROCESSING),
             OrderStatus.PROCESSING, Set.of(OrderStatus.SHIPPED),
-            OrderStatus.SHIPPED, Set.of(OrderStatus.COMPLETED),
+            OrderStatus.SHIPPED, Set.of(OrderStatus.DELIVERED),
+            OrderStatus.DELIVERED, Set.of(OrderStatus.COMPLETED),
             OrderStatus.COMPLETED, Set.of(),
             OrderStatus.CANCELLED, Set.of());
 

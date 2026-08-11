@@ -11,7 +11,7 @@ const orderId = computed(() => Number(route.params.orderId))
 
 const statusLabels = {
   PENDING_PAYMENT: '待付款', PAID: '已付款', PROCESSING: '處理中',
-  SHIPPED: '已出貨', COMPLETED: '已完成', CANCELLED: '已取消',
+  SHIPPED: '已出貨', DELIVERED: '待取貨', COMPLETED: '已完成', CANCELLED: '已取消',
 }
 
 const fullAddress = computed(() => {
@@ -59,7 +59,7 @@ onMounted(loadOrder)
   <div class="detail-page">
     <header class="simple-header">
       <RouterLink class="brand" to="/"><span>D</span><strong>DINO-GO 都能購</strong></RouterLink>
-      <RouterLink class="back-link" to="/orders">← 返回我的訂單</RouterLink>
+      <RouterLink class="back-link" to="/member/orders">← 返回我的訂單</RouterLink>
     </header>
 
     <main class="detail-wrap">
@@ -114,7 +114,7 @@ onMounted(loadOrder)
         </section>
 
         <div class="page-actions">
-          <RouterLink to="/orders">返回訂單列表</RouterLink>
+          <RouterLink to="/member/orders">返回訂單列表</RouterLink>
           <button v-if="order.status === 'PENDING_PAYMENT'" type="button">立即付款</button>
           <button v-else-if="order.status === 'SHIPPED'" type="button">查看物流</button>
         </div>

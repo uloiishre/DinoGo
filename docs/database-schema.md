@@ -272,7 +272,7 @@ Table sales.Orders {
   status varchar(30) [
     not null,
     default: 'PENDING_PAYMENT',
-    note: '合法值：PENDING_PAYMENT、PAID、PROCESSING、SHIPPED、COMPLETED、CANCELLED'
+    note: '合法值：PENDING_PAYMENT、PAID、PROCESSING、SHIPPED、DELIVERED、COMPLETED、CANCELLED；DELIVERED 表示已到取貨點、買家尚未取貨'
   ]
 
   subtotal_amount decimal(12,2) [
@@ -343,14 +343,18 @@ Table sales.Orders {
 
   Note: '''
   訂單狀態合法值：
-  PENDING_PAYMENT、PAID、PROCESSING、SHIPPED、COMPLETED、CANCELLED。
+  PENDING_PAYMENT、PAID、PROCESSING、SHIPPED、DELIVERED、COMPLETED、CANCELLED。
+
+  DELIVERED 表示物流已送達取貨點、等待買家取貨；
+  F 模組可在此狀態發送取貨通知，評價仍須等到 COMPLETED 才開放。
 
   狀態轉換由後端 Service 控制：
   PENDING_PAYMENT → PAID
   PENDING_PAYMENT → CANCELLED
   PAID → PROCESSING
   PROCESSING → SHIPPED
-  SHIPPED → COMPLETED
+  SHIPPED → DELIVERED
+  DELIVERED → COMPLETED
 
   正式 MSSQL DDL 需建立狀態及金額 CHECK CONSTRAINT。
   '''
@@ -1299,7 +1303,10 @@ CREATE TABLE sales.Orders (
     cancelled_at datetime2 NULL,
     completed_at datetime2 NULL,
     created_at datetime2 NOT NULL CONSTRAINT df_orders_created_at DEFAULT SYSDATETIME(),
-    updated_at datetime2 NOT NULL CONSTRAINT df_orders_updated_at DEFAULT SYSDATETIME()
+    updated_at datetime2 NOT NULL CONSTRAINT df_orders_updated_at DEFAULT SYSDATETIME(),
+    CONSTRAINT ck_orders_status CHECK (
+        status IN ('PENDING_PAYMENT', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'CANCELLED')
+    )
 );
 
 CREATE TABLE sales.OrderItem (
