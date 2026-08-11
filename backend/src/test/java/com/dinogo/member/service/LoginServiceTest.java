@@ -18,6 +18,7 @@ import com.dinogo.member.dto.LoginRequest;
 import com.dinogo.member.dto.LoginResponse;
 import com.dinogo.member.entity.Member;
 import com.dinogo.member.repository.MemberRepository;
+import com.dinogo.security.JwtTokenUtil;
 
 @ExtendWith(MockitoExtension.class)
 class LoginServiceTest {
@@ -28,6 +29,9 @@ class LoginServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private JwtTokenUtil jwtTokenUtil;
+
     @InjectMocks
     private LoginService loginService;
 
@@ -37,10 +41,11 @@ class LoginServiceTest {
         Member member = member("$2a$hashed-password", "ACTIVE");
         when(memberRepository.findByEmail(request.email())).thenReturn(java.util.Optional.of(member));
         when(passwordEncoder.matches(request.password(), member.getPasswordHash())).thenReturn(true);
+        when(jwtTokenUtil.generateToken(member.getEmail(), member.getMemberId())).thenReturn("jwt-token");
 
         LoginResponse response = loginService.login(request);
 
-        assertThat(response.token()).isNull();
+        assertThat(response.token()).isEqualTo("jwt-token");
         assertThat(response.member().email()).isEqualTo(request.email());
     }
 
