@@ -10,8 +10,7 @@ public record SellerProductResponse(
         String productName,
         BigDecimal basePrice,
         Integer stock,
-        String status
-) {
+        String status) {
 
     public static SellerProductResponse from(Product product) {
         Integer stock = product.getSkus()
@@ -22,12 +21,11 @@ public record SellerProductResponse(
 
         return new SellerProductResponse(
                 product.getProductId(),
-                product.getSellerId(),
+                product.getSeller().getSellerId(),
                 product.getProductName(),
                 product.getBasePrice(),
                 stock,
-                statusLabel(product.getStatus())
-        );
+                statusLabel(product.getStatus()));
     }
 
     private static String statusLabel(Byte status) {
