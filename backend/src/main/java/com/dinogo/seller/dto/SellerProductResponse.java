@@ -22,7 +22,7 @@ public record SellerProductResponse(
 
         return new SellerProductResponse(
                 product.getProductId(),
-                product.getSellerId(),
+                product.getSeller().getSellerId(),
                 product.getProductName(),
                 product.getBasePrice(),
                 stock,
