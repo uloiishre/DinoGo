@@ -3,6 +3,8 @@ package com.dinogo.catalog.entity;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -35,7 +37,7 @@ public class Category {
 
     @Column(name = "category_name", nullable = false, length = 100)
     private String categoryName;
-
+    @JsonIgnore
     @OneToMany(mappedBy = "category")
     @Builder.Default
     private List<Subcategory> subcategories = new ArrayList<>();

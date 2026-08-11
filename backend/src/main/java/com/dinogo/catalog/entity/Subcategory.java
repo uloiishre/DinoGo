@@ -6,6 +6,8 @@ import lombok.*;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 @Entity
 @Table(name = "Subcategory", schema = "catalog", uniqueConstraints = {
                 @UniqueConstraint(name = "uk_subcategory_category_name", columnNames = {
@@ -31,7 +33,7 @@ public class Subcategory {
 
         @Column(name = "subcategory_name", nullable = false, length = 100)
         private String subcategoryName;
-
+        @JsonIgnore
         @OneToMany(mappedBy = "subcategory")
         @Builder.Default
         private List<Product> products = new ArrayList<>();

@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.dinogo.seller.entity.Seller;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -82,7 +83,7 @@ public class Product {
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
-
+    @JsonIgnore
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<ProductSku> skus = new ArrayList<>();

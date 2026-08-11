@@ -30,7 +30,14 @@ public class CartController {
 
 		return cartService.getOrCreateCart(memberId);
 	}
-
+	//帳號
+//	@GetMapping
+//	public Cart getCart(Authentication authentication) {
+//
+//	    Integer memberId = // 從目前登入者取得
+//
+//	    return cartService.getOrCreateCart(memberId);
+//	}
 	// 新增
 	@PostMapping("/{memberId}/items")
 	public CartItemResponse addItem(
@@ -46,7 +53,24 @@ public class CartController {
 				item.getProductSku().getSkuId(),
 				item.getQuantity());
 	}
-
+	//帳號
+//	@PostMapping("/items")
+//	public CartItemResponse addItem(
+//	        Authentication authentication,
+//	        @RequestBody CartItemRequest dto) {
+//
+//	    Integer memberId = // 從 JWT 取得;
+//
+//	    CartItem item = cartService.addItem(
+//	            memberId,
+//	            dto.skuId(),
+//	            dto.quantity());
+//
+//	    return new CartItemResponse(
+//	            item.getCartItemId(),
+//	            item.getProductSku().getSkuId(),
+//	            item.getQuantity());
+//	}
 	// 修改
 	@PutMapping("/items/{cartItemId}")
 	public CartItemResponse updateQuantity(
@@ -62,7 +86,25 @@ public class CartController {
 				item.getProductSku().getSkuId(),
 				item.getQuantity());
 	}
-
+	//帳號
+//	 @PutMapping("/items/{cartItemId}")
+//	    public CartItemResponse updateQuantity(
+//	            Authentication authentication,
+//	            @PathVariable Integer cartItemId,
+//	            @RequestBody CartItemRequest dto) {
+//
+//	        Integer memberId = getMemberId(authentication);
+//
+//	        CartItem item = cartService.updateQuantity(
+//	                memberId,
+//	                cartItemId,
+//	                dto.quantity());
+//
+//	        return new CartItemResponse(
+//	                item.getCartItemId(),
+//	                item.getProductSku().getSkuId(),
+//	                item.getQuantity());
+//	    }
 	// 刪除單筆
 	@DeleteMapping("/items/{cartItemId}")
 	public void deleteItem(
@@ -70,7 +112,16 @@ public class CartController {
 
 		cartService.deleteItem(cartItemId);
 	}
-
+	//帳號
+//	@DeleteMapping("/items/{cartItemId}")
+//    public void deleteItem(
+//            Authentication authentication,
+//            @PathVariable Integer cartItemId) {
+//
+//        Integer memberId = getMemberId(authentication);
+//
+//        cartService.deleteItem(memberId, cartItemId);
+//    }
 	// 清空購物車
 	@DeleteMapping("/{cartId}/items")
 	public void clearCart(
@@ -78,4 +129,17 @@ public class CartController {
 
 		cartService.clearCart(cartId);
 	}
+	//帳號
+//	@DeleteMapping("/items")
+//    public void clearCart(Authentication authentication) {
+//
+//        Integer memberId = getMemberId(authentication);
+//
+//        cartService.clearCart(memberId);
+//    }
+//
+//    private Integer getMemberId(Authentication authentication) {
+//        // JWT 完成後從 Authentication 取得
+//        return 1; // 暫時測試
+//    }
 }

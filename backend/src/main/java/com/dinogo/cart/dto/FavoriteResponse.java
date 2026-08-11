@@ -1,10 +1,12 @@
 package com.dinogo.cart.dto;
 
+import java.math.BigDecimal;
+
 public record FavoriteResponse(
-		Integer favoriteId,
+        Integer favoriteId,
         Integer productId,
         String productName,
-        Integer price,
+        BigDecimal basePrice,
         String imageUrl) {
 
 }
