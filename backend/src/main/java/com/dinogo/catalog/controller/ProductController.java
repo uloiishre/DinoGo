@@ -27,12 +27,19 @@ public class ProductController {
         return productService.createProduct(request);
     }
 
-    // update商品status
-    @PatchMapping("/{productId}/status")
-    public ProductResponse updateProductStatus(
-            @PathVariable Integer productId,
-            @RequestBody ProductStatusUpdateRequest request) {
+    // 上架商品
+    @PatchMapping("/{productId}/publish")
+    public ProductResponse publishProduct(
+            @PathVariable Integer productId) {
 
-        return productService.updateProductStatus(productId, request);
+        return productService.publishProduct(productId);
+    }
+
+    // 下架商品
+    @PatchMapping("/{productId}/unpublish")
+    public ProductResponse unpublishProduct(
+            @PathVariable Integer productId) {
+
+        return productService.unpublishProduct(productId);
     }
 }
