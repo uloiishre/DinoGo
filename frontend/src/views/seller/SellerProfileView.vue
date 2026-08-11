@@ -1,4 +1,5 @@
 <script setup>
+// TODO: 等待 E 模組 Seller profile API 完成後，改為從後端載入店鋪資料。
 const store = {
   name: '咬日雜物',
   status: '營運中',

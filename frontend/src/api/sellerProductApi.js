@@ -1,13 +1,23 @@
 import api from './axios'
 
+//查詢目前賣家商品列表
+//sellerId 目前由前端傳入，之後可改成登入狀態取得
 export const getSellerProducts = (sellerId) => {
   return api.get('/seller/products', {
     params: { sellerId },
   })
 }
 
+//指定商品下架
+//後端依照sellerId與productId判斷是否為該賣家商品，若是則下架，若否則回傳錯誤
 export const disableSellerProduct = (sellerId, productId) => {
   return api.patch(`/seller/products/${productId}/disable`, null, {
     params: { sellerId },
   })
 }
+
+//建立新商品
+///TODO: 等待B模組Product create API完成後再整合
+// export const createSellerProduct = (payload) => {
+//   return api.post('/products', payload)
+// }

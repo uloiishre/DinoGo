@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import SellerLayout from '../layouts/SellerLayout.vue'
 import SellerDashboardView from '../views/seller/SellerDashboardView.vue'
 import SellerOrderListView from '../views/seller/SellerOrderListView.vue'
 import SellerProductFormView from '../views/seller/SellerProductFormView.vue'
@@ -121,13 +120,28 @@ const router = createRouter({
         },
         {
           path: 'products',
-          name: 'SellerProducts',
-          component: () => import('@/views/seller/SellerProductsView.vue'),
+          name: 'SellerProductList',
+          component: () => import('@/views/seller/SellerProductListView.vue'),
+        },
+        {
+          path: 'products/new',
+          name: 'SellerProductCreate',
+          component: () => import('@/views/seller/SellerProductFormView.vue'),
+        },
+        {
+          path: 'products/:id/edit',
+          name: 'SellerProductEdit',
+          component: () => import('@/views/seller/SellerProductFormView.vue'),
         },
         {
           path: 'orders',
           name: 'SellerOrders',
           component: () => import('@/views/seller/SellerOrdersView.vue'),
+        },
+        {
+          path: 'profile',
+          name: 'SellerProfile',
+          component: () => import('@/views/seller/SellerProfileView.vue'),
         },
       ],
     },
