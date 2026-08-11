@@ -1,3 +1,7 @@
+<script setup>
+import { RouterLink } from 'vue-router'
+</script>
+
 <template>
   <div class="utility-bar">
     <div
@@ -8,7 +12,9 @@
         <a href="#latest" class="utility-link">最新消息</a>
         <a href="#support" class="utility-link">客服中心</a>
         <a href="#help" class="utility-link">幫助中心</a>
-        <button type="button" class="language-button">繁體中文</button>
+        <RouterLink to="/register" class="utility-link">註冊</RouterLink>
+        <span class="utility-separator" aria-hidden="true">|</span>
+        <RouterLink to="/login" class="utility-link">登入</RouterLink>
       </nav>
     </div>
   </div>
@@ -29,7 +35,8 @@
   white-space: nowrap;
 }
 .utility-link,
-.language-button {
+.language-button,
+.utility-separator {
   color: inherit;
   font-size: var(--font-size-sm);
   text-decoration: none;
@@ -46,6 +53,9 @@
   padding: 0;
   border: 0;
   background: transparent;
+}
+.utility-separator {
+  opacity: 0.65;
 }
 
 @media (max-width: 575.98px) {
