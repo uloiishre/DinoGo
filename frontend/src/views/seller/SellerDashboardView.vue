@@ -13,10 +13,10 @@ const recentOrders = [
 ]
 
 const quickActions = [
-  '新增商品',
-  '查看待出貨',
-  '查看庫存警報',
-  '編輯店鋪資料',
+  { label: '新增商品', to: '/seller/products/new' },
+  { label: '查看待出貨', to: '/seller/orders' },
+  { label: '查看庫存警報', to: '/seller/products' },
+  { label: '編輯店鋪資料', to: '/seller/profile' },
 ]
 </script>
 
@@ -68,11 +68,15 @@ const quickActions = [
 
       <section class="actions-panel">
         <h2>快捷操作</h2>
-        <button v-for="action in quickActions" :key="action" type="button">
+        <RouterLink
+          v-for="action in quickActions"
+          :key="action.label"
+          class="panel-action"
+          :to="action.to"
+        >
           <span>+</span>
-          {{ action }}
-          <small>›</small>
-        </button>
+          {{ action.label }}
+        </RouterLink>
       </section>
     </div>
   </section>
@@ -227,7 +231,9 @@ h2 {
   margin-bottom: var(--space-4);
 }
 
-.actions-panel button {
+.panel-action {
+  text-decoration: none;
+  box-sizing: border-box;
   width: 100%;
   min-height: 48px;
   display: grid;
@@ -242,7 +248,7 @@ h2 {
   font-weight: 600;
 }
 
-.actions-panel button:first-of-type {
+.panel-action:first-of-type {
   border-top: 0;
 }
 

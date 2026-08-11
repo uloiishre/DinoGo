@@ -1,6 +1,9 @@
 <script setup>
+// TODO: 等待 B 模組提供分類、品牌與 SKU API 後，改為由 API 載入選項並送出正式 SKU 結構。
 const form = {
   productName: '',
+  subcategoryId: '',
+  brandId: '',
   basePrice: '',
   stock: '',
   status: 'ACTIVE',
@@ -19,17 +22,41 @@ const form = {
     <form class="product-form">
       <label>
         商品名稱
-        <input v-model="form.productName" type="text" placeholder="請輸入商品名稱">
+        <input v-model="form.productName" type="text" placeholder="請輸入商品名稱" />
+      </label>
+      <label>
+        商品分類
+        <select v-model="form.subcategoryId">
+          <option value="">請選擇分類</option>
+          <option value="1">手機</option>
+          <option value="2">筆電</option>
+          <option value="3">周邊配件</option>
+        </select>
+      </label>
+
+      <label>
+        品牌
+        <select v-model="form.brandId">
+          <option value="">請選擇品牌</option>
+          <option value="1">Apple</option>
+          <option value="2">Samsung</option>
+          <option value="3">ASUS</option>
+        </select>
       </label>
 
       <label>
         基本售價
-        <input v-model="form.basePrice" type="number" min="0" placeholder="0">
+        <input v-model="form.basePrice" type="number" min="0" placeholder="0" />
+      </label>
+
+      <label>
+        SKU 名稱
+        <input v-model="form.skuName" type="text" placeholder="例如：黑色 / 128GB" />
       </label>
 
       <label>
         庫存
-        <input v-model="form.stock" type="number" min="0" placeholder="0">
+        <input v-model="form.stock" type="number" min="0" placeholder="0" />
       </label>
 
       <label>
