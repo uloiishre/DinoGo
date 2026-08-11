@@ -21,6 +21,21 @@
 
 注意：DBML 是 ERD 繪圖用語法；MSSQL 建表請使用後面的「MSSQL 建表腳本（完整版）」區塊。
 
+## 0811 實際資料庫匯出比對結果
+
+本文件的 35 張表是原先的設計規格；依 2026/08/11 的 SSMS 物件總管確認，
+目前 `DinoGo` 實際有 29 張資料表與 10 個 Schema。`DinoGo_0811_schema.sql`
+也與此實際狀態一致。
+
+| 項目 | 文件設計 | 0811 實際匯出 |
+| ---- | -------- | ------------ |
+| 資料表數量 | 35 張 | 29 張 |
+| Schema 數量 | 9 個 | 10 個 |
+| 實際多出的 Schema | 無 | `sysmsg`（目前沒有資料表） |
+| 文件中尚未建立的表 | 無 | `review.ProductRecord`、`review.MemberRecord`、`msg.MsgTemplate`、`msg.MsgSample`、`msg.Msg`、`msg.MsgRecipient` |
+
+因此目前資料庫實際狀態與文件設計規格不一致。MSSQL DDL 區塊仍保留 35 張表的設計版本；若 6 張表已確定不再使用，才應進一步同步刪除 DBML、DDL、責任分工與驗收標準中的相關內容。
+
 ## ER Diagram（DBML）
 
 以下是給 dbdiagram.io 使用的 ER Diagram 程式碼，不是 MSSQL 建表語法。
