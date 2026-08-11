@@ -34,7 +34,7 @@ public class SellerProductService {
     public List<SellerProductResponse> getProducts(Integer sellerId) {
         validateActiveSeller(sellerId);
 
-        return productRepository.findBySellerIdOrderByProductIdDesc(sellerId)
+        return productRepository.findBySeller_SellerIdOrderByProductIdDesc(sellerId)
                 .stream()
                 .map(SellerProductResponse::from)
                 .toList();
@@ -48,7 +48,7 @@ public class SellerProductService {
         validateActiveSeller(sellerId);
 
         Product product = productRepository
-                .findBySellerIdAndProductId(sellerId, productId)
+                .findBySeller_SellerIdAndProductId(sellerId, productId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Product not found for seller."));
 
