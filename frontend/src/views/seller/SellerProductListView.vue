@@ -5,6 +5,7 @@ import { disableSellerProduct, getSellerProducts } from '../../api/sellerProduct
 
 const sellerId = 1
 const products = ref([])
+
 const isLoading = ref(false)
 const errorMessage = ref('')
 
@@ -72,9 +73,7 @@ onMounted(loadProducts)
         <h1>賣家商品列表</h1>
       </div>
 
-      <RouterLink class="primary-action" to="/seller/products/new">
-        新增商品
-      </RouterLink>
+      <RouterLink class="primary-action" to="/seller/products/new"> 新增商品 </RouterLink>
     </header>
 
     <p v-if="errorMessage" class="error-message">
@@ -90,13 +89,9 @@ onMounted(loadProducts)
         <span>操作</span>
       </div>
 
-      <p v-if="isLoading" class="state-message">
-        商品資料載入中...
-      </p>
+      <p v-if="isLoading" class="state-message">商品資料載入中...</p>
 
-      <p v-else-if="products.length === 0" class="state-message">
-        目前沒有商品資料。
-      </p>
+      <p v-else-if="products.length === 0" class="state-message">目前沒有商品資料。</p>
 
       <div v-for="product in products" v-else :key="product.productId" class="product-row">
         <div class="product-name">
