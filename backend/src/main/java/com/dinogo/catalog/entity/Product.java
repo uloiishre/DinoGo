@@ -64,6 +64,7 @@ public class Product {
     // 0 = 草稿
     // 1 = 上架
     // 2 = 下架
+    // 3 = 軟刪除
     @Column(name = "status", nullable = false)
     @Builder.Default
     private Byte status = (byte) 0;

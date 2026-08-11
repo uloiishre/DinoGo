@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import SellerLayout from '../layouts/SellerLayout.vue'
 import SellerDashboardView from '../views/seller/SellerDashboardView.vue'
 import SellerOrderListView from '../views/seller/SellerOrderListView.vue'
 import SellerProductFormView from '../views/seller/SellerProductFormView.vue'
