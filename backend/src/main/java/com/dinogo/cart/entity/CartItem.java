@@ -1,6 +1,7 @@
 package com.dinogo.cart.entity;
 
 import com.dinogo.catalog.entity.ProductSku;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -50,7 +51,7 @@ public class CartItem {
 	public int getCartItemId() {
 		return cartItemId;
 	}
-
+	@JsonIgnore
 	public Cart getCart() {
 		return cart;
 	}
