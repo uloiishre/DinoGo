@@ -31,10 +31,16 @@ function validate() {
   return Object.keys(errors).length === 0
 }
 
-function getErrorMessage(error, fallback) {
-  const data = error.response?.data
+function getErrorMessage(error) {
+  if (!error.response) {
+    return '無法連線到伺服器，請確認後端是否已啟動。'
+  }
+
+  const { data, status } = error.response
+  if (status === 409) return '此 Email 已經註冊。'
   if (typeof data === 'string' && data.trim()) return data
-  return data?.message || fallback
+  if (status === 400) return data?.message || '請確認註冊資料是否正確。'
+  return data?.message || '註冊失敗，請稍後再試。'
 }
 
 async function submit() {
@@ -46,7 +52,7 @@ async function submit() {
     await register(form.value)
     await router.push({ name: 'Login', query: { registered: '1' } })
   } catch (error) {
-    apiError.value = getErrorMessage(error, '註冊失敗，請稍後再試。')
+    apiError.value = getErrorMessage(error)
   } finally {
     isSubmitting.value = false
   }
