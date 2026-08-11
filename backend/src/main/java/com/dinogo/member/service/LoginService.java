@@ -9,16 +9,22 @@ import com.dinogo.member.dto.LoginResponse;
 import com.dinogo.member.dto.MemberResponse;
 import com.dinogo.member.entity.Member;
 import com.dinogo.member.repository.MemberRepository;
+import com.dinogo.security.JwtTokenUtil;
 
 @Service
 public class LoginService {
 
     private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtTokenUtil jwtTokenUtil;
 
-    public LoginService(MemberRepository memberRepository, PasswordEncoder passwordEncoder) {
+    public LoginService(
+            MemberRepository memberRepository,
+            PasswordEncoder passwordEncoder,
+            JwtTokenUtil jwtTokenUtil) {
         this.memberRepository = memberRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jwtTokenUtil = jwtTokenUtil;
     }
 
     @Transactional(readOnly = true)
@@ -31,7 +37,7 @@ public class LoginService {
             throw new IllegalArgumentException("Email 或密碼錯誤");
         }
 
-        // JWT 尚未加入前，先回傳已驗證的會員資料；token 暫時為 null。
-        return new LoginResponse(null, MemberResponse.from(member));
+        String token = jwtTokenUtil.generateToken(member.getEmail(), member.getMemberId());
+        return new LoginResponse(token, MemberResponse.from(member));
     }
 }
