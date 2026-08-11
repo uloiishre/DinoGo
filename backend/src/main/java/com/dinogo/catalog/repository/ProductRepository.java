@@ -8,7 +8,9 @@ import com.dinogo.catalog.entity.Product;
 
 public interface ProductRepository extends JpaRepository<Product, Integer> {
 
-    List<Product> findBySellerIdOrderByProductIdDesc(Integer sellerId);
+    List<Product> findBySeller_SellerIdOrderByProductIdDesc(Integer sellerId);
 
-    Optional<Product> findBySellerIdAndProductId(Integer sellerId, Integer productId);
+    Optional<Product> findBySeller_SellerIdAndProductId(
+            Integer sellerId,
+            Integer productId);
 }
