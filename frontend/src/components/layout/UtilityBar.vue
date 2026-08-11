@@ -1,5 +1,14 @@
 <script setup>
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
+
+const isAuthenticated = Boolean(localStorage.getItem('member') || localStorage.getItem('token'))
+const router = useRouter()
+
+function logout() {
+  localStorage.removeItem('member')
+  localStorage.removeItem('token')
+  router.push('/login')
+}
 </script>
 
 <template>
@@ -12,9 +21,14 @@ import { RouterLink } from 'vue-router'
         <a href="#latest" class="utility-link">最新消息</a>
         <a href="#support" class="utility-link">客服中心</a>
         <a href="#help" class="utility-link">幫助中心</a>
-        <RouterLink to="/register" class="utility-link">註冊</RouterLink>
-        <span class="utility-separator" aria-hidden="true">|</span>
-        <RouterLink to="/login" class="utility-link">登入</RouterLink>
+        <template v-if="isAuthenticated">
+          <button type="button" class="language-button" @click="logout">登出</button>
+        </template>
+        <template v-else>
+          <RouterLink to="/register" class="utility-link">註冊</RouterLink>
+          <span class="utility-separator" aria-hidden="true">|</span>
+          <RouterLink to="/login" class="utility-link">登入</RouterLink>
+        </template>
       </nav>
     </div>
   </div>
