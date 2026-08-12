@@ -18,4 +18,8 @@ public class ProductResponse {
     private String productName;
     private String description;
     private BigDecimal basePrice;
+
+    private Integer stock;
+    private String imageUrl;
+    private Byte status;
 }

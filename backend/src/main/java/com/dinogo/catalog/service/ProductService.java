@@ -4,16 +4,20 @@ import org.springframework.stereotype.Service;
 
 import com.dinogo.catalog.dto.ProductCreateRequest;
 import com.dinogo.catalog.dto.ProductResponse;
-import com.dinogo.catalog.dto.ProductStatusUpdateRequest;
 import com.dinogo.catalog.entity.Brand;
 import com.dinogo.catalog.entity.Product;
+import com.dinogo.catalog.entity.ProductImage;
+import com.dinogo.catalog.entity.ProductSku;
 import com.dinogo.catalog.entity.Subcategory;
 import com.dinogo.catalog.repository.BrandRepository;
+import com.dinogo.catalog.repository.ProductImageRepository;
 import com.dinogo.catalog.repository.ProductRepository;
+import com.dinogo.catalog.repository.ProductSkuRepository;
 import com.dinogo.catalog.repository.SubcategoryRepository;
 import com.dinogo.seller.entity.Seller;
 import com.dinogo.seller.repository.SellerRepository;
 
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -24,6 +28,26 @@ public class ProductService {
         private final SellerRepository sellerRepository;
         private final SubcategoryRepository subCategoryRepository;
         private final BrandRepository brandRepository;
+        private final ProductSkuRepository productSkuRepository;
+        private final ProductImageRepository productImageRepository;
+
+        private ProductResponse toProductResponse(
+                        Product product,
+                        ProductSku sku,
+                        ProductImage image) {
+
+                return new ProductResponse(
+                                product.getProductId(),
+                                product.getSeller().getSellerId(),
+                                product.getSubcategory().getSubcategoryId(),
+                                product.getBrand().getBrandId(),
+                                product.getProductName(),
+                                product.getDescription(),
+                                product.getBasePrice(),
+                                sku.getStock(),
+                                image.getImageUrl(),
+                                product.getStatus());
+        }
 
         private ProductResponse toProductResponse(Product product) {
                 return new ProductResponse(
@@ -33,13 +57,19 @@ public class ProductService {
                                 product.getBrand().getBrandId(),
                                 product.getProductName(),
                                 product.getDescription(),
-                                product.getBasePrice());
+                                product.getBasePrice(),
+                                null,
+                                null,
+                                product.getStatus());
         }
 
+        @Transactional
         public ProductResponse createProduct(ProductCreateRequest request) {
 
-                // 等SellerRepository功能完善
-                Seller seller = sellerRepository.findById(1)
+                // 目前先由前端傳 sellerId
+                // 未來登入功能完成後，改成從登入身分取得
+                Seller seller = sellerRepository
+                                .findById(request.getSellerId())
                                 .orElseThrow(() -> new RuntimeException("找不到賣家"));
 
                 Subcategory subcategory = subCategoryRepository
@@ -50,6 +80,10 @@ public class ProductService {
                                 .findById(request.getBrandId())
                                 .orElseThrow(() -> new RuntimeException("找不到品牌"));
 
+                // =====================
+                // 1. 建立 Product
+                // =====================
+
                 Product product = new Product();
 
                 product.setSeller(seller);
@@ -59,9 +93,43 @@ public class ProductService {
                 product.setDescription(request.getDescription());
                 product.setBasePrice(request.getBasePrice());
 
-                Product savedProduct = productRepository.save(product);
-                return toProductResponse(savedProduct);
+                // 沒傳 status 就預設草稿
+                product.setStatus(
+                                request.getStatus() != null
+                                                ? request.getStatus()
+                                                : (byte) 0);
 
+                Product savedProduct = productRepository.save(product);
+
+                // =====================
+                // 2. 建立 ProductSku
+                // =====================
+
+                ProductSku sku = new ProductSku();
+
+                sku.setProduct(savedProduct);
+
+                // 基本版先建立「無規格 SKU」
+                sku.setPrice(request.getBasePrice());
+                sku.setStock(request.getStock());
+                sku.setStatus((byte) 1);
+
+                ProductSku savedSku = productSkuRepository.save(sku);
+
+                // =====================
+                // 3. 建立 ProductImage
+                // =====================
+
+                ProductImage image = new ProductImage();
+
+                image.setProduct(savedProduct);
+                image.setImageUrl(request.getImageUrl());
+                image.setSortOrder(0);
+                image.setIsMain(true);
+
+                ProductImage savedImage = productImageRepository.save(image);
+
+                return toProductResponse(savedProduct, savedSku, savedImage);
         }
 
         public ProductResponse publishProduct(Integer productId) {
