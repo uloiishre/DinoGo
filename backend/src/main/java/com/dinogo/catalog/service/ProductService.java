@@ -1,5 +1,7 @@
 package com.dinogo.catalog.service;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 
 import com.dinogo.catalog.dto.ProductCreateRequest;
@@ -170,5 +172,12 @@ public class ProductService {
                 Product savedProduct = productRepository.save(product);
 
                 return toProductResponse(savedProduct);
+        }
+
+        public List<ProductResponse> getProducts() {
+                return productRepository.findAll()
+                                .stream()
+                                .map(this::toProductResponse)
+                                .toList();
         }
 }
