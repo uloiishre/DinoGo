@@ -1,9 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import SellerDashboardView from '../views/seller/SellerDashboardView.vue'
+
 import SellerOrderListView from '../views/seller/SellerOrderListView.vue'
-import SellerProductFormView from '../views/seller/SellerProductFormView.vue'
-import SellerProductListView from '../views/seller/SellerProductListView.vue'
-import SellerProfileView from '../views/seller/SellerProfileView.vue'
 
 import HomeView from '@/views/HomeView.vue'
 import OrderDetail from '@/views/OrderDetail.vue'

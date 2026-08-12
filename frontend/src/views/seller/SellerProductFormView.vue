@@ -1,12 +1,46 @@
 <script setup>
-// TODO: 等待 B 模組提供分類、品牌與 SKU API 後，改為由 API 載入選項並送出正式 SKU 結構。
-const form = {
+import { reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { createSellerProduct } from '@/api/sellerProductApi'
+
+const router = useRouter()
+
+const isSubmitting = ref(false)
+const errorMessage = ref('')
+
+const form = reactive({
   productName: '',
   subcategoryId: '',
   brandId: '',
   basePrice: '',
+  description: '',
+  skuName: '',
   stock: '',
   status: 'ACTIVE',
+  imageUrl: '',
+})
+
+const handleSubmit = async () => {
+  errorMessage.value = ''
+
+  const payload = {
+    subcategoryId: Number(form.subcategoryId),
+    brandId: Number(form.brandId),
+    productName: form.productName.trim(),
+    description: form.description.trim(),
+    basePrice: Number(form.basePrice),
+  }
+
+  try {
+    isSubmitting.value = true
+    await createSellerProduct(payload)
+    router.push('/seller/products')
+  } catch (error) {
+    console.error('Create seller product failed:', error)
+    errorMessage.value = '新增商品失敗，請確認欄位或後端服務是否正常。'
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
@@ -19,12 +53,15 @@ const form = {
       </div>
     </header>
 
-    <form class="product-form">
-      <label>
+    <form class="product-form" @submit.prevent="handleSubmit">
+      <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+
+      <label class="form-field">
         商品名稱
         <input v-model="form.productName" type="text" placeholder="請輸入商品名稱" />
       </label>
-      <label>
+
+      <label class="form-field">
         商品分類
         <select v-model="form.subcategoryId">
           <option value="">請選擇分類</option>
@@ -34,7 +71,7 @@ const form = {
         </select>
       </label>
 
-      <label>
+      <label class="form-field">
         品牌
         <select v-model="form.brandId">
           <option value="">請選擇品牌</option>
@@ -44,22 +81,32 @@ const form = {
         </select>
       </label>
 
-      <label>
+      <label class="form-field">
         基本售價
         <input v-model="form.basePrice" type="number" min="0" placeholder="0" />
       </label>
 
-      <label>
+      <label class="form-field full-width">
+        商品描述
+        <textarea v-model="form.description" placeholder="請輸入商品描述"></textarea>
+      </label>
+
+      <label class="form-field">
         SKU 名稱
         <input v-model="form.skuName" type="text" placeholder="例如：黑色 / 128GB" />
       </label>
 
-      <label>
+      <label class="form-field">
         庫存
         <input v-model="form.stock" type="number" min="0" placeholder="0" />
       </label>
 
-      <label>
+      <label class="form-field">
+        商品圖片
+        <input v-model="form.imageUrl" type="text" placeholder="請輸入圖片 URL" />
+      </label>
+
+      <label class="form-field">
         狀態
         <select v-model="form.status">
           <option value="ACTIVE">上架</option>
@@ -69,7 +116,9 @@ const form = {
 
       <div class="form-actions">
         <button type="button">儲存草稿</button>
-        <button class="primary-button" type="button">送出商品</button>
+        <button class="primary-button" type="submit" :disabled="isSubmitting">
+          {{ isSubmitting ? '送出中...' : '送出商品' }}
+        </button>
       </div>
     </form>
   </section>
@@ -110,15 +159,20 @@ h1 {
   padding: var(--space-5);
 }
 
-label {
+.form-field {
   display: grid;
   gap: var(--space-2);
   color: var(--color-text-700);
   font-weight: 600;
 }
 
+.full-width {
+  grid-column: 1 / -1;
+}
+
 input,
-select {
+select,
+textarea {
   width: 100%;
   min-height: 40px;
   border: 1px solid var(--color-border-strong);
@@ -126,6 +180,12 @@ select {
   padding: 0 var(--space-3);
   color: var(--color-text);
   background: var(--color-surface);
+}
+
+textarea {
+  min-height: 96px;
+  padding: var(--space-3);
+  resize: vertical;
 }
 
 .form-actions {
@@ -149,6 +209,18 @@ button {
   border-color: var(--color-primary);
   background: var(--color-primary);
   color: var(--color-surface);
+}
+
+.primary-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.error-message {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #b42318;
+  font-weight: 600;
 }
 
 @media (max-width: 680px) {

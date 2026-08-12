@@ -18,6 +18,6 @@ export const disableSellerProduct = (sellerId, productId) => {
 
 //建立新商品
 ///TODO: 等待B模組Product create API完成後再整合
-// export const createSellerProduct = (payload) => {
-//   return api.post('/products', payload)
-// }
+export const createSellerProduct = (payload) => {
+  return api.post('/products', payload)
+}
