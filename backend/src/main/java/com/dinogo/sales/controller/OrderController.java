@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.dinogo.sales.dto.CancelOrderRequest;
 import com.dinogo.sales.dto.OrderDetailResponse;
 import com.dinogo.sales.dto.OrderListResponse;
+import com.dinogo.sales.dto.UpdateOrderStatusRequest;
 import com.dinogo.sales.dto.order.CreateOrderRequest;
 import com.dinogo.sales.dto.order.CreateOrderResponse;
 import com.dinogo.sales.service.OrderService;
@@ -47,6 +48,7 @@ public class OrderController {
         List<OrderListResponse> response = orderService.getMemberOrders(buyerId);
         return ResponseEntity.ok(response);
     }
+
     @GetMapping("/{orderId}")
     public ResponseEntity<OrderDetailResponse> getMemberOrder(
             @PathVariable Integer orderId,
@@ -55,10 +57,30 @@ public class OrderController {
         return ResponseEntity.ok(response);
     }
 
-    // @PatchMapping("/{orderId}/cancel")
-    // public OrderDetailResponse cancelOrder(
-    // @PathVariable Integer orderId,
-    // @Valid @RequestBody CancelOrderRequest request) {
-    // // 實際仍需要取得登入會員 ID
-    // }
+    @PatchMapping("/{orderId}/status")
+    public ResponseEntity<OrderDetailResponse> updateOrderStatus(
+            @PathVariable Integer orderId,
+            @Valid @RequestBody UpdateOrderStatusRequest request) {
+
+        OrderDetailResponse response = orderService.updateStatus(
+                orderId,
+                request.status(),
+                request.reason());
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PatchMapping("/{orderId}/cancel")
+    public ResponseEntity<OrderDetailResponse> cancelOrder(
+            @PathVariable Integer orderId,
+            @RequestParam Integer buyerId,
+            @Valid @RequestBody CancelOrderRequest request) {
+
+        OrderDetailResponse response = orderService.cancelOrder(
+                orderId,
+                buyerId,
+                request.reason());
+
+        return ResponseEntity.ok(response);
+    }
 }

@@ -162,6 +162,28 @@ public class OrderService {
         return toDetailResponse(order);
     }
 
+    @Transactional
+    public OrderDetailResponse cancelOrder(
+            Integer orderId,
+            Integer buyerId,
+            String reason) {
+
+        Order order = orderRepository
+                .findByOrderIdAndBuyerId(orderId, buyerId)
+                .orElseThrow(() -> new OrderNotFoundException("Order does not exist"));
+
+        validateStatusTransition(
+                order.getStatus(),
+                OrderStatus.CANCELLED);
+
+        order.setStatus(OrderStatus.CANCELLED);
+        order.setCancelReason(reason);
+        order.setCancelledBy("BUYER");
+        order.setCancelledAt(LocalDateTime.now());
+
+        return toDetailResponse(order);
+    }
+
     private void validateStatusTransition(
             OrderStatus current,
             OrderStatus target) {
