@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class CouponService {
 
     private static final Set<String> DISCOUNT_TYPES = Set.of("PERCENT", "AMOUNT");
-    private static final Set<String> SCOPE_TYPES = Set.of("ALL", "CATEGORY", "PRODUCT");
+    private static final Set<String> SCOPE_TYPES = Set.of("STORE", "ALL", "CATEGORY", "PRODUCT");
 
     private final CouponRepository couponRepository;
 
@@ -119,7 +119,7 @@ public class CouponService {
 
     private void validateScopeType(String scopeType, Integer categoryId, Integer productId) {
         if (!SCOPE_TYPES.contains(scopeType)) {
-            throw new IllegalArgumentException("無效的範圍類型，請選擇 ALL、CATEGORY 或 PRODUCT");
+            throw new IllegalArgumentException("無效的範圍類型，請選擇 STORE、ALL、CATEGORY 或 PRODUCT");
         }
         if ("CATEGORY".equals(scopeType) && categoryId == null) {
             throw new IllegalArgumentException("適用分類優惠券必須提供 categoryId");

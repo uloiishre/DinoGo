@@ -455,6 +455,21 @@ Entity mapping 必須以 `docs/database-schema.md` 為準。
 
 共用 UI 才抽成 components；頁面級元件放 views。
 
+### 11.1 Router 規範（依 Vue teacher reference 整理）
+
+Router 統一放在 `frontend/src/router/index.js`，建議維持以下結構：
+
+1. 先集中 import `vue-router`、Layout 與必要的 route 元件。
+2. 先宣告獨立的 `routes` 陣列，再呼叫 `createRouter` 建立 router，最後 `export default router`。
+3. 每一筆 route 優先設定清楚的 `path`、具名 `name` 與 `component`。
+4. 有父子頁面關係時使用 `children` 巢狀路由；父 Layout 負責放置 `RouterView`。
+5. 頁面或程式導頁優先使用具名 route，例如 `router.push({ name: 'MemberProfile' })` 與 `<RouterLink :to="{ name: 'MemberProfile' }">`，避免散落硬編碼 URL。
+6. 404 catch-all route 使用 `/:pathMatch(.*)*`，並放在 routes 陣列最後。
+7. Layout、共用 shell 與 route guard 保留在 Router／Layout 層；頁面內容留在 `views`，不要在 view 重複建立 Header、Footer 或導覽 shell。
+8. Teacher reference 的範例使用靜態 import；DinoGo 的頁面 route 預設採 dynamic import，以保留 Vite code splitting。只有 Layout 或確實需要立即載入的共用元件才使用靜態 import。
+
+新增或調整 route 前，先確認路徑是否符合既有 `/member/*`、`/seller/*` 等 Layout 邊界，並檢查是否需要登入權限、404 fallback 與對應的 route name。`docs/design/router-branch-plan.md` 與 `docs/design/page-implementation-rules.md` 若有更具體規範，優先遵守 DinoGo 文件。
+
 ---
 
 ## 12. 最小修改原則

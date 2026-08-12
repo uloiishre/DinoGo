@@ -41,7 +41,11 @@ async function submit() {
     const { data } = await login(form.value)
     if (data.token) localStorage.setItem('token', data.token)
     if (data.member) localStorage.setItem('member', JSON.stringify(data.member))
-    await router.push('/member/overview')
+    const redirect = typeof route.query.redirect === 'string'
+      && route.query.redirect.startsWith('/')
+      ? route.query.redirect
+      : '/member/overview'
+    await router.push(redirect)
   } catch (error) {
     apiError.value = getErrorMessage(error)
   } finally {
