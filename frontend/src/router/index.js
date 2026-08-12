@@ -1,21 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import SellerDashboardView from '../views/seller/SellerDashboardView.vue'
-import SellerOrderListView from '../views/seller/SellerOrderListView.vue'
-import SellerProductFormView from '../views/seller/SellerProductFormView.vue'
-import SellerProductListView from '../views/seller/SellerProductListView.vue'
-import SellerProfileView from '../views/seller/SellerProfileView.vue'
-
-import HomeView from '@/views/HomeView.vue'
-import OrderDetail from '@/views/OrderDetail.vue'
-import OrderList from '@/views/OrderList.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import DefaultStorefrontLayout from '@/layouts/DefaultStorefrontLayout.vue'
 import MemberLayout from '@/layouts/MemberLayout.vue'
 import SellerLayout from '@/layouts/SellerLayout.vue'
 
-const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
-  routes: [
+const routes = [
     {
       path: '/',
       component: DefaultStorefrontLayout,
@@ -145,7 +134,16 @@ const router = createRouter({
         },
       ],
     },
-  ],
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'NotFound',
+      component: () => import('@/views/NotFoundView.vue'),
+    },
+  ]
+
+const router = createRouter({
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes,
 })
 
 export default router
