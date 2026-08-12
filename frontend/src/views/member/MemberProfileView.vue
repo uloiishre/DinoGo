@@ -34,6 +34,7 @@ function getErrorMessage(error, fallback) {
 }
 
 async function loadProfile() {
+  isLoading.value = true
   errorMessage.value = ''
   try {
     const { data } = await getMemberProfile()
