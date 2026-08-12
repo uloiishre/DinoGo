@@ -113,6 +113,7 @@ const routes = [
         path: 'dashboard',
         name: 'SellerDashboard',
         component: () => import('@/views/seller/SellerDashboardView.vue'),
+        meta: { requiresAuth: true }, //標記這個 route 需要登入才能進入。
       },
       {
         path: 'products',

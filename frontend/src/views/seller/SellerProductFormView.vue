@@ -23,12 +23,17 @@ const form = reactive({
 const handleSubmit = async () => {
   errorMessage.value = ''
 
+  //確保畫面上使用者填的 SKU、庫存、狀態、圖片也真的一起送到後端，而不是只送商品主檔資料。
   const payload = {
     subcategoryId: Number(form.subcategoryId),
     brandId: Number(form.brandId),
     productName: form.productName.trim(),
     description: form.description.trim(),
     basePrice: Number(form.basePrice),
+    skuName: form.skuName.trim(),
+    stock: Number(form.stock),
+    status: form.status,
+    imageUrl: form.imageUrl.trim(),
   }
 
   try {
