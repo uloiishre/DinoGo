@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -30,6 +32,7 @@ import com.dinogo.sales.dto.order.CreateOrderItemRequest;
 import com.dinogo.sales.dto.order.CreateOrderRequest;
 import com.dinogo.sales.dto.order.CreateOrderResponse;
 import com.dinogo.sales.entity.Order;
+import com.dinogo.sales.entity.OrderItem;
 import com.dinogo.sales.entity.OrderStatus;
 import com.dinogo.sales.repository.OrderRepository;
 import com.dinogo.seller.entity.Seller;
@@ -64,14 +67,14 @@ class OrderServiceTest {
             return order;
         });
 
+        when(productSkuRepository.deductStockIfAvailable(100, 2)).thenReturn(1);
         CreateOrderResponse response = orderService.createOrder(request(
-                new BigDecimal("60.00"), List.of(new CreateOrderItemRequest(100, 2))));
+                new BigDecimal("60.00"), List.of(new CreateOrderItemRequest(100, 2))), 1);
 
         assertThat(response.orderId()).isEqualTo(99);
         assertThat(response.status()).isEqualTo(OrderStatus.PENDING_PAYMENT);
         assertThat(response.subtotalAmount()).isEqualByComparingTo("1000.00");
         assertThat(response.totalAmount()).isEqualByComparingTo("1060.00");
-        assertThat(sku.getStock()).isEqualTo(3);
 
         org.mockito.Mockito.verify(orderRepository).save(orderCaptor.capture());
         Order savedOrder = orderCaptor.getValue();
@@ -87,7 +90,7 @@ class OrderServiceTest {
         mockOwnedAddress(2, 10);
 
         assertThatThrownBy(() -> orderService.createOrder(request(
-                BigDecimal.ZERO, List.of(new CreateOrderItemRequest(100, 1)))))
+                BigDecimal.ZERO, List.of(new CreateOrderItemRequest(100, 1))), 1))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Address does not belong to buyer");
     }
@@ -97,9 +100,10 @@ class OrderServiceTest {
         mockOwnedAddress(1, 10);
         ProductSku sku = mockSku(100, 200, 300, "Keyboard", new BigDecimal("500.00"), 1);
         when(productSkuRepository.findById(100)).thenReturn(Optional.of(sku));
+        when(productSkuRepository.deductStockIfAvailable(100, 2)).thenReturn(0);
 
         assertThatThrownBy(() -> orderService.createOrder(request(
-                BigDecimal.ZERO, List.of(new CreateOrderItemRequest(100, 2)))))
+                BigDecimal.ZERO, List.of(new CreateOrderItemRequest(100, 2))), 1))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Insufficient stock for SKU: 100");
     }
@@ -113,12 +117,44 @@ class OrderServiceTest {
                 .thenReturn(Optional.of(firstSku));
         when(productSkuRepository.findById(101))
                 .thenReturn(Optional.of(secondSku));
+        when(productSkuRepository.deductStockIfAvailable(100, 1)).thenReturn(1);
 
         assertThatThrownBy(() -> orderService.createOrder(request(
                 BigDecimal.ZERO,
-                List.of(new CreateOrderItemRequest(100, 1), new CreateOrderItemRequest(101, 1)))))
+                List.of(new CreateOrderItemRequest(100, 1), new CreateOrderItemRequest(101, 1))), 1))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("One order can only contain products from one seller");
+    }
+
+    @Test
+    void cancelOrderUsesLockedQueryAndRestoresStockOnce() {
+        Order order = new Order();
+        order.setOrderId(99);
+        order.setBuyerId(6);
+        order.setStatus(OrderStatus.PENDING_PAYMENT);
+        OrderItem item = new OrderItem();
+        item.setSkuId(100);
+        item.setQuantity(2);
+        order.addOrderItem(item);
+
+        when(orderRepository.findForCancellation(99, 6)).thenReturn(Optional.of(order));
+        when(productSkuRepository.restoreStock(100, 2)).thenReturn(1);
+
+        orderService.cancelOrder(99, 6, "buyer cancelled");
+
+        verify(orderRepository).findForCancellation(99, 6);
+        verify(orderRepository, never()).findByOrderIdAndBuyerId(99, 6);
+        verify(productSkuRepository).restoreStock(100, 2);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+    }
+
+    @Test
+    void updateStatusRejectsPaidOutsidePaymentFlow() {
+        assertThatThrownBy(() -> orderService.updateStatus(99, OrderStatus.PAID, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Order status PAID can only be set by the payment flow");
+
+        verify(orderRepository, never()).findById(99);
     }
 
     private CreateOrderRequest request(BigDecimal shippingFee, List<CreateOrderItemRequest> items) {

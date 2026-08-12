@@ -31,7 +31,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**", "/api/products/**").permitAll()
-                        .requestMatchers("/api/cart/**", "/api/favorites/**").authenticated()
+                        .requestMatchers("/api/cart/**", "/api/favorites/**", "/api/orders/**").authenticated()
                         .anyRequest().permitAll())
                 .exceptionHandling(exceptionHandling -> exceptionHandling
                         .authenticationEntryPoint((request, response, exception) ->

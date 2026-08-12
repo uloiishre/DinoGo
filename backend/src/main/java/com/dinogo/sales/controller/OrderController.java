@@ -4,13 +4,13 @@ import java.net.URI;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dinogo.sales.dto.CancelOrderRequest;
@@ -19,6 +19,7 @@ import com.dinogo.sales.dto.OrderListResponse;
 import com.dinogo.sales.dto.UpdateOrderStatusRequest;
 import com.dinogo.sales.dto.order.CreateOrderRequest;
 import com.dinogo.sales.dto.order.CreateOrderResponse;
+import com.dinogo.security.AuthenticatedMember;
 import com.dinogo.sales.service.OrderService;
 
 import jakarta.validation.Valid;
@@ -36,24 +37,25 @@ public class OrderController {
 
     @PostMapping
     public ResponseEntity<CreateOrderResponse> createOrder(
+            @AuthenticationPrincipal AuthenticatedMember member,
             @Valid @RequestBody CreateOrderRequest request) {
-        CreateOrderResponse response = orderService.createOrder(request);
+        CreateOrderResponse response = orderService.createOrder(request, member.memberId());
         return ResponseEntity.created(URI.create("/api/orders/" + response.orderId())).body(response);
     }
 
-    @GetMapping("/member/{buyerId}")
+    @GetMapping("/member")
     public ResponseEntity<List<OrderListResponse>> getMemberOrders(
-            @PathVariable Integer buyerId) {
+            @AuthenticationPrincipal AuthenticatedMember member) {
 
-        List<OrderListResponse> response = orderService.getMemberOrders(buyerId);
+        List<OrderListResponse> response = orderService.getMemberOrders(member.memberId());
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{orderId}")
     public ResponseEntity<OrderDetailResponse> getMemberOrder(
             @PathVariable Integer orderId,
-            @RequestParam Integer buyerId) {
-        OrderDetailResponse response = orderService.getMemberOrder(orderId, buyerId);
+            @AuthenticationPrincipal AuthenticatedMember member) {
+        OrderDetailResponse response = orderService.getMemberOrder(orderId, member.memberId());
         return ResponseEntity.ok(response);
     }
 
@@ -73,12 +75,12 @@ public class OrderController {
     @PatchMapping("/{orderId}/cancel")
     public ResponseEntity<OrderDetailResponse> cancelOrder(
             @PathVariable Integer orderId,
-            @RequestParam Integer buyerId,
+            @AuthenticationPrincipal AuthenticatedMember member,
             @Valid @RequestBody CancelOrderRequest request) {
 
         OrderDetailResponse response = orderService.cancelOrder(
                 orderId,
-                buyerId,
+                member.memberId(),
                 request.reason());
 
         return ResponseEntity.ok(response);

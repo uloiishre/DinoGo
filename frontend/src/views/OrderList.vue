@@ -1,18 +1,28 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+
 
 import { getMemberOrders } from '@/api/order'
 
-const route = useRoute()
+
 const orders = ref([])
 const loading = ref(true)
 const errorMessage = ref('')
 const activeStatus = ref('ALL')
 
 const memberId = computed(() => {
-  const value = route.query.memberId ?? sessionStorage.getItem('memberId') ?? 1
-  return Number(value)
+  try {
+    const memberJson = localStorage.getItem('member')
+
+    if (!memberJson) {
+      return Number.NaN
+    }
+
+    const member = JSON.parse(memberJson)
+    return Number(member.memberId)
+  } catch {
+    return Number.NaN
+  }
 })
 
 const filters = [
@@ -43,7 +53,7 @@ async function loadOrders() {
   }
 
   try {
-    const response = await getMemberOrders(memberId.value)
+    const response = await getMemberOrders()
     orders.value = Array.isArray(response.data) ? response.data : []
   } catch (error) {
     errorMessage.value = error.response?.data?.message ?? '目前無法取得訂單資料，請稍後再試。'

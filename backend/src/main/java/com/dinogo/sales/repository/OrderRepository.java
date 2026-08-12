@@ -5,6 +5,11 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import jakarta.persistence.LockModeType;
 
 import com.dinogo.sales.entity.Order;
 
@@ -17,4 +22,16 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
     Optional<Order> findByOrderIdAndBuyerId(
             Integer orderId,
             Integer buyerId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = "orderItems")
+    @Query("""
+            SELECT orders
+            FROM Order orders
+            WHERE orders.orderId = :orderId
+              AND orders.buyerId = :buyerId
+            """)
+    Optional<Order> findForCancellation(
+            @Param("orderId") Integer orderId,
+            @Param("buyerId") Integer buyerId);
 }

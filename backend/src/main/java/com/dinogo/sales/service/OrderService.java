@@ -64,15 +64,15 @@ public class OrderService {
     }
 
     @Transactional
-    public CreateOrderResponse createOrder(CreateOrderRequest request) {
+    public CreateOrderResponse createOrder(CreateOrderRequest request, Integer buyerId) {
         Address address = addressRepository.findById(request.addressId())
                 .orElseThrow(() -> new InvalidOrderException(
                         "Address does not exist: " + request.addressId()));
-        if (!request.buyerId().equals(address.getMember().getMemberId())) {
+        if (!buyerId.equals(address.getMember().getMemberId())) {
             throw new InvalidOrderException("Address does not belong to buyer");
         }
 
-        Order order = createOrderHeader(request, address);
+        Order order = createOrderHeader(request, address, buyerId);
         Set<Integer> skuIds = new HashSet<>();
         Integer sellerId = null;
         BigDecimal subtotalAmount = BigDecimal.ZERO;
@@ -88,10 +88,6 @@ public class OrderService {
             if (sku.getStatus() == null || sku.getStatus() != (byte) 1) {
                 throw new InvalidOrderException("SKU is not available: " + itemRequest.skuId());
             }
-            if (sku.getStock() < itemRequest.quantity()) {
-                throw new InvalidOrderException("Insufficient stock for SKU: " + itemRequest.skuId());
-            }
-
             Product product = sku.getProduct();
             Integer itemSellerId = product.getSeller().getSellerId();
             if (sellerId == null) {
@@ -103,7 +99,11 @@ public class OrderService {
             BigDecimal itemSubtotal = sku.getPrice().multiply(BigDecimal.valueOf(itemRequest.quantity()));
             order.addOrderItem(createOrderItem(sku, itemRequest.quantity(), itemSubtotal));
             subtotalAmount = subtotalAmount.add(itemSubtotal);
-            sku.setStock(sku.getStock() - itemRequest.quantity());
+            int updated = productSkuRepository.deductStockIfAvailable(
+                    itemRequest.skuId(), itemRequest.quantity());
+            if (updated == 0) {
+                throw new InvalidOrderException("Insufficient stock for SKU: " + itemRequest.skuId());
+            }
         }
 
         BigDecimal shippingFee = request.shippingFee() == null ? BigDecimal.ZERO : request.shippingFee();
@@ -142,7 +142,14 @@ public class OrderService {
             Integer orderId,
             OrderStatus targetStatus,
             String reason) {
-
+        if (targetStatus == OrderStatus.CANCELLED) {
+            throw new InvalidOrderException(
+                    "Use the cancellation endpoint to cancel an order");
+        }
+        if (targetStatus == OrderStatus.PAID) {
+            throw new InvalidOrderException(
+                    "Order status PAID can only be set by the payment flow");
+        }
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException("Order does not exist"));
 
@@ -169,12 +176,14 @@ public class OrderService {
             String reason) {
 
         Order order = orderRepository
-                .findByOrderIdAndBuyerId(orderId, buyerId)
+                .findForCancellation(orderId, buyerId)
                 .orElseThrow(() -> new OrderNotFoundException("Order does not exist"));
 
         validateStatusTransition(
                 order.getStatus(),
                 OrderStatus.CANCELLED);
+
+        restoreStock(order);
 
         order.setStatus(OrderStatus.CANCELLED);
         order.setCancelReason(reason);
@@ -182,6 +191,15 @@ public class OrderService {
         order.setCancelledAt(LocalDateTime.now());
 
         return toDetailResponse(order);
+    }
+
+    private void restoreStock(Order order) {
+        for (OrderItem item : order.getOrderItems()) {
+            int updated = productSkuRepository.restoreStock(item.getSkuId(), item.getQuantity());
+            if (updated == 0) {
+                throw new InvalidOrderException("SKU does not exist: " + item.getSkuId());
+            }
+        }
     }
 
     private void validateStatusTransition(
@@ -197,10 +215,10 @@ public class OrderService {
         }
     }
 
-    private Order createOrderHeader(CreateOrderRequest request, Address address) {
+    private Order createOrderHeader(CreateOrderRequest request, Address address, Integer buyerId) {
         Order order = new Order();
         order.setOrderNo(generateOrderNo());
-        order.setBuyerId(request.buyerId());
+        order.setBuyerId(buyerId);
         order.setAddressId(address.getAddressId());
         order.setReceiverName(address.getReceiverName());
         order.setReceiverPhone(address.getReceiverPhone());
