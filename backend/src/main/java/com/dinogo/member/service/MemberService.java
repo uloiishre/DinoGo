@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.dinogo.member.dto.MemberResponse;
+import com.dinogo.member.dto.MemberUpdateRequest;
 import com.dinogo.member.dto.RegisterRequest;
 import com.dinogo.member.dto.RegisterResponse;
 import com.dinogo.member.entity.Member;
@@ -41,5 +42,25 @@ public class MemberService {
 
         Member savedMember = memberRepository.save(member);
         return new RegisterResponse(MemberResponse.from(savedMember));
+    }
+
+    @Transactional(readOnly = true)
+    public MemberResponse getProfile(String email) {
+        return MemberResponse.from(findMemberByEmail(email));
+    }
+
+    @Transactional
+    public MemberResponse updateProfile(String email, MemberUpdateRequest request) {
+        Member member = findMemberByEmail(email);
+        member.setLastName(request.lastName());
+        member.setFirstName(request.firstName());
+        member.setBirthDate(request.birthDate());
+        member.setPhone(request.phone());
+        return MemberResponse.from(memberRepository.save(member));
+    }
+
+    private Member findMemberByEmail(String email) {
+        return memberRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("Member not found"));
     }
 }

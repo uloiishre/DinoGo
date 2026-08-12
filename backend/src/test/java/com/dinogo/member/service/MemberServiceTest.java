@@ -20,6 +20,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.dinogo.member.dto.RegisterRequest;
 import com.dinogo.member.dto.RegisterResponse;
+import com.dinogo.member.dto.MemberResponse;
+import com.dinogo.member.dto.MemberUpdateRequest;
 import com.dinogo.member.entity.Member;
 import com.dinogo.member.repository.MemberRepository;
 
@@ -95,5 +97,46 @@ class MemberServiceTest {
         verify(memberRepository, never()).existsByEmail(any());
         verify(passwordEncoder, never()).encode(any());
         verify(memberRepository, never()).save(any(Member.class));
+    }
+
+    @Test
+    void getProfileFindsMemberByAuthenticatedEmail() {
+        Member member = new Member();
+        member.setMemberId(1);
+        member.setEmail("user@example.com");
+        member.setLastName("王");
+        member.setFirstName("小明");
+        when(memberRepository.findByEmail(member.getEmail())).thenReturn(java.util.Optional.of(member));
+
+        MemberResponse response = memberService.getProfile(member.getEmail());
+
+        assertThat(response.memberId()).isEqualTo(1);
+        assertThat(response.email()).isEqualTo("user@example.com");
+        verify(memberRepository).findByEmail(member.getEmail());
+    }
+
+    @Test
+    void updateProfileChangesOnlyEditableFields() {
+        Member member = new Member();
+        member.setMemberId(1);
+        member.setEmail("user@example.com");
+        member.setPasswordHash("hashed-password");
+        member.setLastName("王");
+        member.setFirstName("小明");
+        when(memberRepository.findByEmail(member.getEmail())).thenReturn(java.util.Optional.of(member));
+        when(memberRepository.save(any(Member.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MemberUpdateRequest request = new MemberUpdateRequest(
+                "林", "小美", LocalDate.of(1998, 2, 3), "0987654321");
+
+        MemberResponse response = memberService.updateProfile(member.getEmail(), request);
+
+        assertThat(response.lastName()).isEqualTo("林");
+        assertThat(response.firstName()).isEqualTo("小美");
+        assertThat(response.birthDate()).isEqualTo(LocalDate.of(1998, 2, 3));
+        assertThat(response.phone()).isEqualTo("0987654321");
+        assertThat(member.getEmail()).isEqualTo("user@example.com");
+        assertThat(member.getPasswordHash()).isEqualTo("hashed-password");
+        verify(memberRepository).save(member);
     }
 }
