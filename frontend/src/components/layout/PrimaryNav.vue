@@ -1,15 +1,71 @@
 <script setup>
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
+
+const route = useRoute()
 
 const navItems = [
-  { label: '全部分類', to: '/products', icon: 'bi-grid' },
-  { label: '新品上市', to: '/products?sort=newest' },
-  { label: '熱門推薦', to: '/products?sort=popular' },
-  { label: '品牌與商家', to: '/products?filter=brand' },
-  { label: '優惠活動', to: '/products?filter=offers' },
-  { label: '主題企劃', to: '/products?filter=themes' },
-  { label: '商家中心', to: '/seller/dashboard', icon: 'bi-shop' },
+  {
+    label: '全部分類',
+    to: { name: 'ProductList' },
+    icon: 'bi-grid',
+    activeKey: 'all',
+  },
+  {
+    label: '新品上市',
+    to: { name: 'ProductList', query: { sort: 'newest' } },
+    activeKey: 'newest',
+  },
+  {
+    label: '熱門推薦',
+    to: { name: 'ProductList', query: { sort: 'popular' } },
+    activeKey: 'popular',
+  },
+  {
+    label: '品牌與商家',
+    to: { name: 'ProductList', query: { filter: 'brand' } },
+    activeKey: 'brand',
+  },
+  {
+    label: '優惠活動',
+    to: { name: 'ProductList', query: { filter: 'offers' } },
+    activeKey: 'offers',
+  },
+  {
+    label: '主題企劃',
+    to: { name: 'ProductList', query: { filter: 'themes' } },
+    activeKey: 'themes',
+  },
+  {
+    label: '商家中心',
+    to: { name: 'SellerDashboard' },
+    icon: 'bi-shop',
+    activeKey: 'seller',
+  },
 ]
+
+const isActive = (item) => {
+  if (item.activeKey === 'seller') {
+    return route.name === 'SellerDashboard'
+  }
+
+  if (route.name !== 'ProductList') {
+    return false
+  }
+
+  if (item.activeKey === 'all') {
+    return !route.query.sort && !route.query.filter
+  }
+
+  if (item.activeKey === 'newest') {
+    return route.query.sort === 'newest'
+  }
+
+  if (item.activeKey === 'popular') {
+    return route.query.sort === 'popular'
+  }
+
+  return route.query.filter === item.activeKey
+}
 </script>
 
 <template>
@@ -37,11 +93,13 @@ const navItems = [
           :class="{
             'primary-nav__link--all': item.label === '全部分類',
             'primary-nav__link--seller': item.label === '商家中心',
+            'primary-nav__link--active': isActive(item),
           }"
           :to="item.to"
         >
-          <i v-if="item.icon" class="bi" :class="item.icon" aria-hidden="true"></i
-          ><span>{{ item.label }}</span>
+          <i v-if="item.icon" class="bi" :class="item.icon" aria-hidden="true"></i>
+
+          <span>{{ item.label }}</span>
         </RouterLink>
       </div>
     </div>
@@ -103,8 +161,13 @@ const navItems = [
   margin-left: auto;
 }
 .primary-nav__link:hover,
-.primary-nav__link:focus-visible,
-.primary-nav__link.router-link-active {
+.primary-nav__link:focus-visible {
+  color: var(--color-primary-800);
+  background: var(--color-primary-soft);
+  border-bottom-color: var(--color-primary);
+}
+
+.primary-nav__link--active {
   color: var(--color-primary-800);
   background: var(--color-primary-soft);
   border-bottom-color: var(--color-primary);
