@@ -1,5 +1,8 @@
 package com.dinogo.catalog.controller;
 
+import java.util.List;
+
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -9,8 +12,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.dinogo.catalog.dto.ProductCreateRequest;
 import com.dinogo.catalog.dto.ProductResponse;
-import com.dinogo.catalog.dto.ProductStatusUpdateRequest;
-import com.dinogo.catalog.entity.Product;
 import com.dinogo.catalog.service.ProductService;
 
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,12 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ProductController {
     private final ProductService productService;
+
+    // 初始路徑返回所有產品列表
+    @GetMapping
+    public List<ProductResponse> getProducts() {
+        return productService.getProducts();
+    }
 
     // 建立商品
     @PostMapping
