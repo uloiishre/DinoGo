@@ -1,10 +1,8 @@
 package com.dinogo.sales.dto.order;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -12,16 +10,9 @@ import jakarta.validation.constraints.Size;
 
 /** 建立訂單請求；價格、賣家及收件資料快照均由後端重新取得。 */
 public record CreateOrderRequest(
-        @NotNull(message = "Buyer ID is required")
-        @Positive(message = "Buyer ID must be positive")
-        Integer buyerId,
-
         @NotNull(message = "Address ID is required")
         @Positive(message = "Address ID must be positive")
         Integer addressId,
-
-        @DecimalMin(value = "0.00", message = "Shipping fee must not be negative")
-        BigDecimal shippingFee,
 
         @Size(max = 500, message = "Buyer remark must not exceed 500 characters")
         String buyerRemark,
