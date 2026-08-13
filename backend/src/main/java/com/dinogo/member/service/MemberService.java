@@ -45,13 +45,14 @@ public class MemberService {
     }
 
     @Transactional(readOnly = true)
-    public MemberResponse getProfile(String email) {
-        return MemberResponse.from(findMemberByEmail(email));
+    public MemberResponse getProfile(Integer memberId) {
+        // 根據 JWT 的 memberId 查詢會員
+        return MemberResponse.from(findMemberById(memberId));
     }
 
     @Transactional
-    public MemberResponse updateProfile(String email, MemberUpdateRequest request) {
-        Member member = findMemberByEmail(email);
+    public MemberResponse updateProfile(Integer memberId, MemberUpdateRequest request) {
+        Member member = findMemberById(memberId);
         member.setLastName(request.lastName());
         member.setFirstName(request.firstName());
         member.setBirthDate(request.birthDate());
@@ -59,8 +60,14 @@ public class MemberService {
         return MemberResponse.from(memberRepository.save(member));
     }
 
-    private Member findMemberByEmail(String email) {
-        return memberRepository.findByEmail(email)
+    // 先保留，其他功能若仍需要 email 可以使用
+    // private Member findMemberByEmail(String email) {
+    // return memberRepository.findByEmail(email)
+    // .orElseThrow(() -> new IllegalArgumentException("Member not found"));
+    // }
+
+    private Member findMemberById(Integer memberId) {
+        return memberRepository.findById(memberId)
                 .orElseThrow(() -> new IllegalArgumentException("Member not found"));
     }
 }
