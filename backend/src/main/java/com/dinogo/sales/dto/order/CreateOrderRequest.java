@@ -12,10 +12,6 @@ import jakarta.validation.constraints.Size;
 
 /** 建立訂單請求；價格、賣家及收件資料快照均由後端重新取得。 */
 public record CreateOrderRequest(
-        @NotNull(message = "Buyer ID is required")
-        @Positive(message = "Buyer ID must be positive")
-        Integer buyerId,
-
         @NotNull(message = "Address ID is required")
         @Positive(message = "Address ID must be positive")
         Integer addressId,

@@ -158,7 +158,7 @@ class OrderServiceTest {
     }
 
     private CreateOrderRequest request(BigDecimal shippingFee, List<CreateOrderItemRequest> items) {
-        return new CreateOrderRequest(1, 10, shippingFee, "請小心包裝", items);
+        return new CreateOrderRequest(10, shippingFee, "請小心包裝", items);
     }
 
     private void mockOwnedAddress(Integer memberId, Integer addressId) {

@@ -1,4 +1,3 @@
-ㄎ
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
