@@ -2,14 +2,8 @@
 const pageTitle = '結帳'
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import axios from 'axios'
+import api from '@/api/axios'
 const router = useRouter()
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-})
 // 狀態
 const loading = ref(false)
 const submitting = ref(false)
@@ -122,50 +116,53 @@ const changeAddress = async () => {
 }
 // 建立正式訂單資料
 const buildOrderRequest = () => {
+  const member = JSON.parse(localStorage.getItem('member') || 'null')
+
   return {
+    buyerId: member?.memberId,
+    addressId: selectedAddressId.value,
+    shippingFee: shippingFee.value,
+    buyerRemark: '',
     items: checkoutItems.value.map((item) => ({
       skuId: item.skuId,
       quantity: Number(item.quantity),
     })),
-    addressId: selectedAddressId.value,
-    shippingMethod: shippingMethod.value,
-    paymentMethod: paymentMethod.value,
   }
 }
 // 送出訂單
 const submitOrder = async () => {
-  // 沒選地址
   if (!selectedAddressId.value) {
     alert('請選擇收件地址')
     return
   }
-  // 沒有商品
+
   if (checkoutItems.value.length === 0) {
     alert('沒有可結帳的商品')
     return
   }
+
   try {
     submitting.value = true
     errorMessage.value = ''
+
     const request = buildOrderRequest()
-    console.log('送給後端的訂單資料：', request)
+
+    console.log('送給 D 組 Order API：', request)
+
     const response = await api.post('/orders', request)
+
     console.log('建立訂單成功：', response.data)
-    // 訂單建立成功
+
     alert('訂單建立成功！')
-    // 之後可以讓後端回傳 orderId
-    //
-    // router.push({
-    //   name: 'OrderDetail',
-    //   params: {
-    //     id: response.data.orderId
-    //   }
-    // })
+
+    localStorage.removeItem('checkoutData')
+
     router.push({
       name: 'Home',
     })
   } catch (error) {
     console.error('建立訂單失敗：', error)
+
     errorMessage.value = error.response?.data?.message || '訂單建立失敗，請稍後再試'
   } finally {
     submitting.value = false
@@ -245,15 +242,15 @@ onMounted(() => {
 
               <div class="option-content">
                 <strong>
-                  {{ address.recipientName }}
+                  {{ address.receiverName }}
                 </strong>
 
                 <span>
-                  {{ address.address }}
+                  {{ address.detailAddress }}
                 </span>
 
                 <span v-if="address.phone" class="option-phone">
-                  {{ address.phone }}
+                  {{ address.receiverPhone }}
                 </span>
               </div>
             </label>

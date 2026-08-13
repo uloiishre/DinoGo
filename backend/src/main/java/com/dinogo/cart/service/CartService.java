@@ -5,10 +5,13 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.dinogo.cart.dto.CartItemResponse;
+import com.dinogo.cart.dto.CartResponse;
 import com.dinogo.cart.entity.Cart;
 import com.dinogo.cart.entity.CartItem;
 import com.dinogo.cart.repository.CartItemRepository;
 import com.dinogo.cart.repository.CartRepository;
+import com.dinogo.catalog.entity.Product;
 import com.dinogo.catalog.entity.ProductSku;
 import com.dinogo.catalog.repository.ProductSkuRepository;
 import com.dinogo.member.entity.Member;
@@ -31,18 +34,18 @@ public class CartService {
 	}
 
 	// 取得和建立新購物車
-//    public Cart getOrCreateCart(Integer memberId) {
-//
-//        Member member = memberRepository.findById(memberId)
-//                .orElseThrow(() -> new RuntimeException("會員不存在"));
-//
-//        return cartRepository.findByMember(member)
-//                .orElseGet(() -> {
-//                    Cart cart = new Cart();
-//                    cart.setMember(member);
-//                    return cartRepository.save(cart);
-//                });
-//    }
+	// public Cart getOrCreateCart(Integer memberId) {
+	//
+	// Member member = memberRepository.findById(memberId)
+	// .orElseThrow(() -> new RuntimeException("會員不存在"));
+	//
+	// return cartRepository.findByMember(member)
+	// .orElseGet(() -> {
+	// Cart cart = new Cart();
+	// cart.setMember(member);
+	// return cartRepository.save(cart);
+	// });
+	// }
 	// 取得和建立新購物車
 	public Cart getOrCreateCart(String email) {
 
@@ -57,42 +60,101 @@ public class CartService {
 		});
 	}
 
+	public CartResponse getCart(String email) {
+		Cart cart = getOrCreateCart(email);
+		List<CartItemResponse> items = cart.getCartItems()
+				.stream()
+				.map(item -> {
+					ProductSku sku = item.getProductSku();
+					String productImage = null;
+					if (sku.getProduct().getImages() != null
+							&& !sku.getProduct().getImages().isEmpty()) {
+						productImage = sku.getProduct()
+								.getImages()
+								.get(0)
+								.getImageUrl();
+					}
+					return new CartItemResponse(
+							item.getCartItemId(),
+							sku.getSkuId(),
+							sku.getProduct().getProductName(),
+							sku.getPrice(),
+							item.getQuantity(),
+							productImage);
+				})
+				.toList();
+		return new CartResponse(
+				cart.getCartId(),
+				items);
+	}
+
 	// 新增商品
 	public CartItem addItem(String email, Integer skuId, Integer quantity) {
+		// 數量檢查
+		if (quantity == null || quantity <= 0) {
+			throw new RuntimeException("商品數量必須大於 0");
+		}
 		// 先找到會員的購物車
 		Cart cart = getOrCreateCart(email);
 		// 找 SKU 是否存在
 		ProductSku sku = productSkuRepository.findById(skuId).orElseThrow(() -> new RuntimeException("商品不存在"));
+		// ② 檢查商品是否上架
+		Product product = sku.getProduct();
+
+		// Product：只有 1 = 上架
+		if (!Byte.valueOf((byte) 1).equals(product.getStatus())) {
+			throw new RuntimeException("商品目前未上架");
+		}
+
+		// ProductSku：只有 1 = 啟用
+		if (!Byte.valueOf((byte) 1).equals(sku.getStatus())) {
+			throw new RuntimeException("此商品規格目前未啟用");
+		}
 		// 用 cartId + skuId 找購物車內是否已有商品
 		CartItem item = cartItemRepository.findByCartCartIdAndProductSkuSkuId(cart.getCartId(), skuId);
+		// 目前購物車數量
+		int currentQuantity = 0;
+
 		if (item != null) {
-			// 已存在 → 增加數量
-			item.setQuantity(item.getQuantity() + quantity);
+			currentQuantity = item.getQuantity();
+		}
+		// ④ 檢查加總後是否超過庫存
+		int newQuantity = currentQuantity + quantity;
+
+		if (newQuantity > sku.getStock()) {
+			throw new RuntimeException("商品庫存不足");
+		}
+		// 更新 / 新增
+		if (item != null) {
+
+			item.setQuantity(newQuantity);
+
 		} else {
-			// 不存在 → 新增
+
 			item = new CartItem();
 			item.setCart(cart);
 			item.setProductSku(sku);
 			item.setQuantity(quantity);
 		}
+
 		return cartItemRepository.save(item);
 	}
 
 	// 修改數量
-//    public CartItem updateQuantity(
-//             Integer memberId,
-//            Integer cartItemId,
-//            Integer quantity) {
-//        if (quantity <= 0) {
-//            throw new RuntimeException("商品數量必須大於 0");
-//        }
-//        CartItem item = cartItemRepository
-//                .findById(cartItemId)
-//                .orElseThrow(
-//                        () -> new RuntimeException("購物車商品不存在"));
-//        item.setQuantity(quantity);
-//        return cartItemRepository.save(item);
-//    }
+	// public CartItem updateQuantity(
+	// Integer memberId,
+	// Integer cartItemId,
+	// Integer quantity) {
+	// if (quantity <= 0) {
+	// throw new RuntimeException("商品數量必須大於 0");
+	// }
+	// CartItem item = cartItemRepository
+	// .findById(cartItemId)
+	// .orElseThrow(
+	// () -> new RuntimeException("購物車商品不存在"));
+	// item.setQuantity(quantity);
+	// return cartItemRepository.save(item);
+	// }
 	// 修改數量
 	public CartItem updateQuantity(String email, Integer cartItemId, Integer quantity) {
 
@@ -110,17 +172,35 @@ public class CartService {
 		if (!item.getCart().getMember().getMemberId().equals(member.getMemberId())) {
 			throw new RuntimeException("無權限修改此購物車商品");
 		}
+		ProductSku sku = item.getProductSku();
+		Product product = sku.getProduct();
 
+		// 商品是否上架
+		if (!Byte.valueOf((byte) 1).equals(product.getStatus())) {
+			throw new RuntimeException("商品目前未上架");
+		}
+
+		// SKU 是否啟用
+		if (!Byte.valueOf((byte) 1).equals(sku.getStatus())) {
+			throw new RuntimeException("此商品規格目前未啟用");
+		}
+
+		// 是否超過庫存
+		if (quantity > sku.getStock()) {
+			throw new RuntimeException("商品庫存不足");
+		}
+		// 修改數量
 		item.setQuantity(quantity);
 
 		return cartItemRepository.save(item);
 	}
 
 	// 刪除商品
-//	public void deleteItem(Integer memberId, Integer cartItemId) {
-//		CartItem item = cartItemRepository.findById(cartItemId).orElseThrow(() -> new RuntimeException("購物車商品不存在"));
-//		cartItemRepository.delete(item);
-//	}
+	// public void deleteItem(Integer memberId, Integer cartItemId) {
+	// CartItem item = cartItemRepository.findById(cartItemId).orElseThrow(() -> new
+	// RuntimeException("購物車商品不存在"));
+	// cartItemRepository.delete(item);
+	// }
 	// 刪除商品
 	public void deleteItem(String email, Integer cartItemId) {
 
@@ -139,11 +219,11 @@ public class CartService {
 	}
 
 	// 清空整個購物車
-//	public void clearCart(Integer cartId) {
-//		List<CartItem> items = cartItemRepository.findByCartCartId(cartId);
-//		cartItemRepository.deleteAll(items);
-//
-//	}
+	// public void clearCart(Integer cartId) {
+	// List<CartItem> items = cartItemRepository.findByCartCartId(cartId);
+	// cartItemRepository.deleteAll(items);
+	//
+	// }
 	public void clearCart(String email) {
 
 		// 找登入會員

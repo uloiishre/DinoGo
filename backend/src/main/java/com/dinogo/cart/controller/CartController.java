@@ -13,9 +13,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.dinogo.cart.dto.CartItemRequest;
 import com.dinogo.cart.dto.CartItemResponse;
+import com.dinogo.cart.dto.CartResponse;
 import com.dinogo.cart.entity.Cart;
 import com.dinogo.cart.entity.CartItem;
 import com.dinogo.cart.service.CartService;
+import com.dinogo.catalog.entity.Product;
+import com.dinogo.catalog.entity.ProductSku;
+import com.dinogo.security.AuthenticatedMember;
 
 @RestController
 @RequestMapping("/api/cart")
@@ -27,124 +31,128 @@ public class CartController {
 	}
 
 	// 取得購物車
-//	@GetMapping("/{memberId}")
-//	public Cart getCart(@PathVariable Integer memberId) {
-//
-//		return cartService.getOrCreateCart(memberId);
-//	}
+	// @GetMapping("/{memberId}")
+	// public Cart getCart(@PathVariable Integer memberId) {
+	//
+	// return cartService.getOrCreateCart(memberId);
+	// }
 
-//	 帳號
-//	 @GetMapping
-//	 public Cart getCart(Authentication authentication) {
-//	
-//	 Integer memberId = Integer.valueOf((String) authentication.getPrincipal());// 從目前登入者取得
-//	
-//	 return cartService.getOrCreateCart(memberId);
-//	 }
+	// 帳號
 	@GetMapping
-	public ResponseEntity<Cart> getCart(Authentication authentication) {
+	public CartResponse getCart(Authentication authentication) {
 
-		String email = authentication.getPrincipal().toString();
+		AuthenticatedMember principal = (AuthenticatedMember) authentication.getPrincipal();
 
-		Cart cart = cartService.getOrCreateCart(email);
+		String email = principal.email();
 
-		return ResponseEntity.ok(cart);
+		return cartService.getCart(email);
 	}
 	// 新增
-//	@PostMapping("/{memberId}/items")
-//	public CartItemResponse addItem(
-//			@PathVariable Integer memberId,
-//			@RequestBody CartItemRequest dto) {
-//
-//		CartItem item = cartService.addItem(
-//				memberId,
-//				dto.skuId(),
-//				dto.quantity());
-//		return new CartItemResponse(
-//				item.getCartItemId(),
-//				item.getProductSku().getSkuId(),
-//				item.getQuantity());
-//	}
+	// @PostMapping("/{memberId}/items")
+	// public CartItemResponse addItem(
+	// @PathVariable Integer memberId,
+	// @RequestBody CartItemRequest dto) {
+	//
+	// CartItem item = cartService.addItem(
+	// memberId,
+	// dto.skuId(),
+	// dto.quantity());
+	// return new CartItemResponse(
+	// item.getCartItemId(),
+	// item.getProductSku().getSkuId(),
+	// item.getQuantity());
+	// }
 
 	// 帳號
 	@PostMapping("/items")
 	public CartItemResponse addItem(Authentication authentication, @RequestBody CartItemRequest dto) {
-
-//		Integer memberId = getMemberId(authentication);// 從 JWT 取得;
-//		CartItem item = cartService.addItem(memberId, dto.skuId(), dto.quantity());
 		String email = getEmail(authentication);// 從 JWT 取得;
 		CartItem item = cartService.addItem(email, dto.skuId(), dto.quantity());
-
-		return new CartItemResponse(item.getCartItemId(), item.getProductSku().getSkuId(), item.getQuantity());
+		ProductSku sku = item.getProductSku();
+		Product product = sku.getProduct();
+		return new CartItemResponse(
+				item.getCartItemId(),
+				sku.getSkuId(),
+				product.getProductName(),
+				sku.getPrice(),
+				item.getQuantity(),
+				product.getImages().isEmpty()
+						? null
+						: product.getImages().get(0).getImageUrl());
 	}
 	// 修改
-//	@PutMapping("/items/{cartItemId}")
-//	public CartItemResponse updateQuantity(
-//			@PathVariable Integer cartItemId,
-//			@RequestBody CartItemRequest dto) {
-//
-//		CartItem item = cartService.updateQuantity(
-//				cartItemId,
-//				dto.quantity());
-//
-//		return new CartItemResponse(
-//				item.getCartItemId(),
-//				item.getProductSku().getSkuId(),
-//				item.getQuantity());
-//	}
+	// @PutMapping("/items/{cartItemId}")
+	// public CartItemResponse updateQuantity(
+	// @PathVariable Integer cartItemId,
+	// @RequestBody CartItemRequest dto) {
+	//
+	// CartItem item = cartService.updateQuantity(
+	// cartItemId,
+	// dto.quantity());
+	//
+	// return new CartItemResponse(
+	// item.getCartItemId(),
+	// item.getProductSku().getSkuId(),
+	// item.getQuantity());
+	// }
 
 	// 帳號
 	@PutMapping("/items/{cartItemId}")
 	public CartItemResponse updateQuantity(Authentication authentication, @PathVariable Integer cartItemId,
 			@RequestBody CartItemRequest dto) {
-
-//		Integer memberId = getMemberId(authentication);
-//		CartItem item = cartService.updateQuantity(memberId, cartItemId, dto.quantity());
 		String email = getEmail(authentication);
 		CartItem item = cartService.updateQuantity(email, cartItemId, dto.quantity());
-
-		return new CartItemResponse(item.getCartItemId(), item.getProductSku().getSkuId(), item.getQuantity());
+		ProductSku sku = item.getProductSku();
+		Product product = sku.getProduct();
+		return new CartItemResponse(
+				item.getCartItemId(),
+				sku.getSkuId(),
+				product.getProductName(),
+				sku.getPrice(),
+				item.getQuantity(),
+				product.getImages().isEmpty()
+						? null
+						: product.getImages().get(0).getImageUrl());
 	}
 	// 刪除單筆
-//	@DeleteMapping("/items/{cartItemId}")
-//	public void deleteItem(
-//			@PathVariable Integer cartItemId) {
-//
-//		cartService.deleteItem(cartItemId);
-//	}
+	// @DeleteMapping("/items/{cartItemId}")
+	// public void deleteItem(
+	// @PathVariable Integer cartItemId) {
+	//
+	// cartService.deleteItem(cartItemId);
+	// }
 
 	// 帳號
 	@DeleteMapping("/items/{cartItemId}")
 	public void deleteItem(Authentication authentication, @PathVariable Integer cartItemId) {
 
-//		Integer memberId = getMemberId(authentication);
-//		cartService.deleteItem(memberId, cartItemId);
+		// Integer memberId = getMemberId(authentication);
+		// cartService.deleteItem(memberId, cartItemId);
 		String email = getEmail(authentication);
 		cartService.deleteItem(email, cartItemId);
 	}
 
 	// 清空購物車
-//	@DeleteMapping("/{cartId}/items")
-//	public void clearCart(
-//			@PathVariable Integer cartId) {
-//
-//		cartService.clearCart(cartId);
-//	}
+	// @DeleteMapping("/{cartId}/items")
+	// public void clearCart(
+	// @PathVariable Integer cartId) {
+	//
+	// cartService.clearCart(cartId);
+	// }
 	// 帳號
 	@DeleteMapping("/items")
 	public void clearCart(Authentication authentication) {
 
-//	 Integer memberId = getMemberId(authentication);
-//	 cartService.clearCart(memberId);
+		// Integer memberId = getMemberId(authentication);
+		// cartService.clearCart(memberId);
 		String email = getEmail(authentication);
 		cartService.clearCart(email);
 	}
 
-//	 private Integer getMemberId(Authentication authentication) {
-//	 // JWT 完成後從 Authentication 取得
-//	 return 1; // 暫時測試
-//	 }
 	private String getEmail(Authentication authentication) {
-		return authentication.getPrincipal().toString();
+
+		AuthenticatedMember principal = (AuthenticatedMember) authentication.getPrincipal();
+
+		return principal.email();
 	}
 }

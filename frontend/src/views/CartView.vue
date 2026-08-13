@@ -1,14 +1,8 @@
 <script setup>
 const pageTitle = '購物車'
-import axios from 'axios'
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-})
+import api from '@/api/axios'
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
 
@@ -28,11 +22,20 @@ const selectedCartItemIds = ref([])
 const fetchCart = async () => {
   loading.value = true
   errorMessage.value = ''
+
   try {
     const response = await api.get('/cart')
-    cart.value = response.data
+    console.log('購物車 API：', response.data)
+    cart.value = {
+      ...response.data,
+      items: response.data.items.map((item) => ({
+        ...item,
+        selected: false,
+      })),
+    }
   } catch (error) {
     console.error('取得購物車失敗:', error)
+
     errorMessage.value = error.response?.data?.message || '無法取得購物車資料，請稍後再試。'
   } finally {
     loading.value = false
@@ -79,7 +82,7 @@ const updateQuantity = async (item, quantity) => {
     return
   }
   try {
-    await api.put(`/api/cart/items/${item.cartItemId}`, {
+    await api.put(`/cart/items/${item.cartItemId}`, {
       quantity: quantity,
     })
     item.quantity = quantity
@@ -116,27 +119,44 @@ const removeItem = async (item) => {
   }
 }
 // 格式化金額
+// const formatPrice = (price) => {
+//   return Number(price).toLocaleString('zh-TW')
+// }
 const formatPrice = (price) => {
-  return Number(price).toLocaleString('zh-TW')
+  const number = Number(price)
+  if (isNaN(number)) {
+    return '0'
+  }
+  return number.toLocaleString('zh-TW')
+}
+const getItemSubtotal = (item) => {
+  return Number(item.price || 0) * Number(item.quantity || 0)
 }
 // 前往結帳
 const goToCheckout = () => {
-  // 沒有勾選商品
-  if (selectedItems.value.length === 0) {
-    alert('請先勾選要結帳的商品')
+  const items = cart.value?.items || []
+
+  const selectedItems = items.filter((item) => selectedCartItemIds.value.includes(item.cartItemId))
+
+  if (selectedItems.length === 0) {
+    alert('請先選擇要結帳的商品')
     return
   }
 
-  // 建立結帳資料
-  const checkoutData = {
-    cartId: cart.value.cartId,
-    cartItemIds: selectedItems.value.map((item) => item.cartItemId),
-  }
+  localStorage.setItem(
+    'checkoutData',
+    JSON.stringify({
+      items: selectedItems.map((item) => ({
+        cartItemId: item.cartItemId,
+        skuId: item.skuId,
+        quantity: item.quantity,
+        productName: item.productName,
+        price: item.price,
+        productImage: item.productImage,
+      })),
+    }),
+  )
 
-  // 儲存到 localStorage
-  localStorage.setItem('checkoutData', JSON.stringify(checkoutData))
-
-  // Vue Router 前往結帳頁
   router.push('/checkout')
 }
 // 初始化
@@ -217,7 +237,7 @@ onMounted(() => {
               <div class="col-8 col-md-4">
                 <h2 class="h6 mb-2">{{ item.productName }}</h2>
                 <p class="text-muted small mb-1">SKU：{{ item.skuId }}</p>
-                <p class="mb-0 fw-semibold">NT$ {{ formatPrice(item.unitPrice) }}</p>
+                <p class="mb-0 fw-semibold">NT$ {{ formatPrice(item.price) }}</p>
               </div>
               <!-- 數量 -->
               <div class="col-6 col-md-3">
