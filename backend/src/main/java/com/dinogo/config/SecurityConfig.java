@@ -33,10 +33,16 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**", "/api/products/**").permitAll()
                         .requestMatchers("/api/cart/**", "/api/favorites/**", "/api/orders/**").authenticated()
                         .requestMatchers("/api/member/**", "/api/cart/**", "/api/favorites/**").authenticated()
+                        .requestMatchers(
+                                "/api/cart/**",
+                                "/api/favorites/**",
+                                "/api/orders/**",
+                                "/api/member/**")
+                        .authenticated()
                         .anyRequest().permitAll())
                 .exceptionHandling(exceptionHandling -> exceptionHandling
-                        .authenticationEntryPoint((request, response, exception) ->
-                                response.sendError(401, "Authentication is required")))
+                        .authenticationEntryPoint((request, response, exception) -> response.sendError(401,
+                                "Authentication is required")))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
