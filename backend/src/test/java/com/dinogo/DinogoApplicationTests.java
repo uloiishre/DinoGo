@@ -26,4 +26,10 @@ class DinogoApplicationTests {
 				.andExpect(status().isUnauthorized());
 	}
 
+	@Test
+	void protectedOrderApiRequiresAuthentication() throws Exception {
+		mockMvc.perform(get("/api/orders/member"))
+				.andExpect(status().isUnauthorized());
+	}
+
 }
