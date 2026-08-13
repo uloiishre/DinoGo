@@ -6,15 +6,16 @@ export const useCartStore = defineStore('cart', () => {
   // Cart state is shared by CartView and the global Header badge.
   const cart = ref(null)
 
-  const totalQuantity = computed(() =>
-    cart.value?.items?.reduce((total, item) => total + Number(item.quantity), 0) || 0,
+  const totalQuantity = computed(
+    () => cart.value?.items?.reduce((total, item) => total + Number(item.quantity), 0) || 0,
   )
 
-  const totalAmount = computed(() =>
-    cart.value?.items?.reduce(
-      (total, item) => total + Number(item.unitPrice) * Number(item.quantity),
-      0,
-    ) || 0,
+  const totalAmount = computed(
+    () =>
+      cart.value?.items?.reduce(
+        (total, item) => total + Number(item.Price) * Number(item.quantity),
+        0,
+      ) || 0,
   )
 
   async function fetchCart() {
