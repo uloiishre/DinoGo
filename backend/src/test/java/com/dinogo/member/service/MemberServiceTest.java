@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
+import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,10 +19,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import com.dinogo.member.dto.RegisterRequest;
-import com.dinogo.member.dto.RegisterResponse;
 import com.dinogo.member.dto.MemberResponse;
 import com.dinogo.member.dto.MemberUpdateRequest;
+import com.dinogo.member.dto.RegisterRequest;
+import com.dinogo.member.dto.RegisterResponse;
 import com.dinogo.member.entity.Member;
 import com.dinogo.member.repository.MemberRepository;
 
@@ -48,8 +49,7 @@ class MemberServiceTest {
                 "王",
                 "小明",
                 LocalDate.of(2000, 1, 1),
-                "0912345678"
-        );
+                "0912345678");
     }
 
     @Test
@@ -87,8 +87,7 @@ class MemberServiceTest {
     void registerRejectsMismatchedPasswords() {
         RegisterRequest mismatchedRequest = new RegisterRequest(
                 request.email(), request.password(), "different-password",
-                request.lastName(), request.firstName(), request.birthDate(), request.phone()
-        );
+                request.lastName(), request.firstName(), request.birthDate(), request.phone());
 
         assertThatThrownBy(() -> memberService.register(mismatchedRequest))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -100,19 +99,21 @@ class MemberServiceTest {
     }
 
     @Test
-    void getProfileFindsMemberByAuthenticatedEmail() {
+    void getProfileFindsMemberByAuthenticatedMemberId() {
         Member member = new Member();
         member.setMemberId(1);
         member.setEmail("user@example.com");
         member.setLastName("王");
         member.setFirstName("小明");
-        when(memberRepository.findByEmail(member.getEmail())).thenReturn(java.util.Optional.of(member));
+        when(memberRepository.findById(member.getMemberId()))
+                .thenReturn(Optional.of(member));
 
-        MemberResponse response = memberService.getProfile(member.getEmail());
+        MemberResponse response = memberService.getProfile(member.getMemberId());
 
         assertThat(response.memberId()).isEqualTo(1);
         assertThat(response.email()).isEqualTo("user@example.com");
-        verify(memberRepository).findByEmail(member.getEmail());
+        // 會員身份由 JWT 的 memberId 決定，Service 應使用 findById 查詢。
+        verify(memberRepository).findById(member.getMemberId());
     }
 
     @Test
@@ -123,13 +124,15 @@ class MemberServiceTest {
         member.setPasswordHash("hashed-password");
         member.setLastName("王");
         member.setFirstName("小明");
-        when(memberRepository.findByEmail(member.getEmail())).thenReturn(java.util.Optional.of(member));
+        // 更新資料時同樣使用 JWT 的 memberId，不使用 email 查詢。
+        when(memberRepository.findById(member.getMemberId()))
+                .thenReturn(Optional.of(member));
         when(memberRepository.save(any(Member.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         MemberUpdateRequest request = new MemberUpdateRequest(
                 "林", "小美", LocalDate.of(1998, 2, 3), "0987654321");
 
-        MemberResponse response = memberService.updateProfile(member.getEmail(), request);
+        MemberResponse response = memberService.updateProfile(member.getMemberId(), request);
 
         assertThat(response.lastName()).isEqualTo("林");
         assertThat(response.firstName()).isEqualTo("小美");

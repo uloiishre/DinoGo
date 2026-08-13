@@ -2,10 +2,9 @@ package com.dinogo.catalog.dto;
 
 import java.math.BigDecimal;
 
-import com.dinogo.seller.entity.Seller;
-import com.dinogo.seller.repository.SellerRepository;
-
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -15,6 +14,10 @@ import lombok.Setter;
 @Getter
 @Setter
 public class ProductCreateRequest {
+
+    // 暫時由前端傳，之後登入功能完成後改成從登入身分取得
+    @NotNull(message = "賣家不可為空")
+    private Integer sellerId;
 
     @NotNull(message = "商品分類不可為空")
     private Integer subcategoryId;
@@ -33,4 +36,17 @@ public class ProductCreateRequest {
     @DecimalMin(value = "0.0", inclusive = false, message = "商品價格必須大於0")
     private BigDecimal basePrice;
 
+    // SKU 基本版
+    @NotNull(message = "商品庫存不可為空")
+    @Min(value = 0, message = "商品庫存不可小於0")
+    private Integer stock;
+
+    // 商品主圖
+    @NotBlank(message = "商品圖片不可為空")
+    private String imageUrl;
+
+    // 0 = 草稿、1 = 上架、2 = 下架
+    @Min(value = 0, message = "商品狀態錯誤")
+    @Max(value = 2, message = "商品狀態錯誤")
+    private Byte status;
 }

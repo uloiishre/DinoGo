@@ -2,7 +2,8 @@ package com.dinogo.member.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
+
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -10,9 +11,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.dinogo.member.dto.MemberResponse;
 import com.dinogo.member.dto.MemberUpdateRequest;
 import com.dinogo.member.service.MemberService;
+import com.dinogo.security.AuthenticatedMember;
 
 import jakarta.validation.Valid;
 
@@ -28,22 +29,31 @@ public class MemberController {
     }
 
     @GetMapping("/profile")
-    public ResponseEntity<?> getProfile(Authentication authentication) {
+    public ResponseEntity<?> getProfile(
+            @AuthenticationPrincipal AuthenticatedMember member) {
         try {
-            return ResponseEntity.ok(memberService.getProfile(authentication.getName()));
+            // member.memberId() 是登入者的會員 ID
+            return ResponseEntity.ok(
+                    memberService.getProfile(member.memberId()));
         } catch (IllegalArgumentException exception) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(exception.getMessage());
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .body(exception.getMessage());
         }
     }
 
     @PutMapping("/profile")
     public ResponseEntity<?> updateProfile(
-            Authentication authentication,
+            @AuthenticationPrincipal AuthenticatedMember member,
             @Valid @RequestBody MemberUpdateRequest request) {
         try {
-            return ResponseEntity.ok(memberService.updateProfile(authentication.getName(), request));
+            // 只能修改 JWT 對應的會員
+            return ResponseEntity.ok(
+                    memberService.updateProfile(member.memberId(), request));
         } catch (IllegalArgumentException exception) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(exception.getMessage());
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .body(exception.getMessage());
         }
     }
 }
