@@ -73,10 +73,9 @@ const routes = [
         component: () => import('@/views/OrderList.vue'),
       },
       {
-        path: 'orders/:orderId',
+        path: 'orders/:id',
         name: 'MemberOrderDetail',
         component: () => import('@/views/OrderDetail.vue'),
-        props: true,
       },
       {
         path: 'favorites',

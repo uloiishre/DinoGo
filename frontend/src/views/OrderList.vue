@@ -1,30 +1,56 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-
-
 import { getMemberOrders } from '@/api/order'
-
 
 const orders = ref([])
 const loading = ref(true)
 const errorMessage = ref('')
 const activeStatus = ref('ALL')
+const keyword = ref('')
+const sortOrder = ref('NEWEST')
 
 const filters = [
-  { value: 'ALL', label: '全部' },
-  { value: 'PENDING_PAYMENT', label: '待付款' },
-  { value: 'PAID', label: '已付款' },
-  { value: 'PROCESSING', label: '處理中' },
-  { value: 'SHIPPED', label: '已出貨' },
-  { value: 'COMPLETED', label: '已完成' },
-  { value: 'CANCELLED', label: '已取消' },
+  { value: 'ALL', label: '全部', statuses: [] },
+  { value: 'PENDING_PAYMENT', label: '待付款', statuses: ['PENDING_PAYMENT'] },
+  { value: 'IN_PROGRESS', label: '進行中', statuses: ['PAID', 'PROCESSING', 'SHIPPED'] },
+  { value: 'COMPLETED', label: '已完成', statuses: ['COMPLETED'] },
+  { value: 'CANCELLED', label: '已取消', statuses: ['CANCELLED'] },
 ]
 
-const statusLabels = Object.fromEntries(filters.map((filter) => [filter.value, filter.label]))
+const statusLabels = {
+  PENDING_PAYMENT: '待付款',
+  PAID: '已付款',
+  PROCESSING: '處理中',
+  SHIPPED: '已出貨',
+  COMPLETED: '已完成',
+  CANCELLED: '已取消',
+}
 
 const visibleOrders = computed(() => {
-  if (activeStatus.value === 'ALL') return orders.value
-  return orders.value.filter((order) => order.status === activeStatus.value)
+  const selectedFilter = filters.find((filter) => filter.value === activeStatus.value)
+  const normalizedKeyword = keyword.value.trim().toLowerCase()
+
+  return orders.value
+    .filter((order) => {
+      if (!selectedFilter || selectedFilter.value === 'ALL') return true
+      return selectedFilter.statuses.includes(order.status)
+    })
+    .filter((order) => {
+      if (!normalizedKeyword) return true
+      const searchableText = [
+        order.orderNo,
+        order.sellerName,
+        ...((order.items ?? []).flatMap((item) => [item.productName, item.skuSpec])),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return searchableText.includes(normalizedKeyword)
+    })
+    .toSorted((left, right) => {
+      const difference = new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+      return sortOrder.value === 'NEWEST' ? difference : -difference
+    })
 })
 
 async function loadOrders() {
@@ -35,27 +61,23 @@ async function loadOrders() {
     const response = await getMemberOrders()
     orders.value = Array.isArray(response.data) ? response.data : []
   } catch (error) {
-    errorMessage.value = error.response?.data?.message ?? '目前無法取得訂單資料，請稍後再試。'
+    errorMessage.value = error.response?.data?.message ?? '訂單載入失敗，請稍後再試。'
   } finally {
     loading.value = false
   }
-}
-
-function statusLabel(status) {
-  return statusLabels[status] ?? status
-}
-
-function sellerName(order) {
-  return order.sellerName ?? `賣家 #${order.sellerId}`
 }
 
 function firstItem(order) {
   return order.items?.[0] ?? null
 }
 
-function productDescription(item) {
-  if (!item) return '商品資料準備中'
-  return [item.productName, item.skuSpec].filter(Boolean).join('｜')
+function itemSummary(order) {
+  const item = firstItem(order)
+  if (!item) return '商品資料尚未提供'
+
+  const product = [item.productName, item.skuSpec].filter(Boolean).join('・')
+  const extraCount = Math.max((order.items?.length ?? 1) - 1, 0)
+  return extraCount > 0 ? `${product}・另有 ${extraCount} 件商品` : product
 }
 
 function formatCurrency(value) {
@@ -72,9 +94,6 @@ function formatDate(value) {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
   }).format(new Date(value))
 }
 
@@ -82,253 +101,437 @@ onMounted(loadOrders)
 </script>
 
 <template>
-  <div class="site-shell">
-    <header class="global-header">
-      <div class="top-bar">
-        <div class="header-width">
-          <span>DINO-GO 都能購｜簡約採購・質感生活・一次到位</span>
-          <nav>企業採購　 客服服務　 最新消息　 幫助中心　 繁體中文⌄</nav>
-        </div>
-      </div>
+  <section class="order-page">
+    <div class="container order-container">
+      <header class="page-header">
+        <h1>我的訂單</h1>
+        <p>追蹤您的所有交易與配送狀態</p>
+      </header>
 
-      <div class="main-header header-width">
-        <RouterLink class="brand" to="/">
-          <span class="brand-mark">D</span>
-          <strong>DINO-GO 都能購</strong>
-        </RouterLink>
-        <div class="search-shell">
-          <button type="button">全部分類⌄</button>
-          <span>搜尋商品、品牌、型號...</span>
-          <b>⌕</b>
-        </div>
-        <nav class="quick-links" aria-label="會員功能">
-          <span>♡<small>收藏</small></span>
-          <span>🛒<small>購物車</small></span>
-          <span>♙<small>會員中心</small></span>
-          <span>▤<small>賣家中心</small></span>
-        </nav>
-      </div>
-
-      <nav class="category-nav">
-        <div class="header-width">
-          <button type="button">☰　全部分類</button>
-          <div class="category-links">
-            <span>品牌館</span><span>包包專區</span><span>配件專區</span><span>生活選物</span>
-            <span>企業採購</span><span>新品上市</span><span>熱銷排行</span>
-          </div>
-          <b>◇ 優惠與活動</b>
-        </div>
+      <nav class="order-tabs" aria-label="訂單狀態篩選">
+        <button
+          v-for="filter in filters"
+          :key="filter.value"
+          type="button"
+          :class="{ active: activeStatus === filter.value }"
+          @click="activeStatus = filter.value"
+        >
+          {{ filter.label }}
+        </button>
       </nav>
-    </header>
 
-    <main class="page-wrap">
-      <h1>16 我的訂單</h1>
+      <div class="filter-row">
+        <label class="search-control">
+          <i class="bi bi-search" aria-hidden="true"></i>
+          <span class="visually-hidden">搜尋訂單</span>
+          <input v-model="keyword" type="search" placeholder="搜尋訂單編號或商品" />
+        </label>
 
-      <div class="member-layout">
-        <aside class="member-sidebar">
-          <div class="avatar">D</div>
-          <strong>您好，王小明</strong>
-          <nav>
-            <a href="#">會員總覽</a>
-            <a href="#">個人資料</a>
-            <a href="#">地址管理</a>
-            <RouterLink class="active" :to="{ name: 'MemberOrders' }">我的訂單</RouterLink>
-            <a href="#">我的收藏</a>
-            <a href="#">修改密碼</a>
-          </nav>
-        </aside>
+        <label class="sort-control">
+          <span class="visually-hidden">訂單排序</span>
+          <select v-model="sortOrder">
+            <option value="NEWEST">較新優先</option>
+            <option value="OLDEST">較舊優先</option>
+          </select>
+          <i class="bi bi-chevron-down" aria-hidden="true"></i>
+        </label>
+      </div>
 
-        <section class="orders-content">
-          <div class="filter-area">
-            <strong>訂單狀態</strong>
-            <div class="filter-list" role="tablist" aria-label="訂單狀態篩選">
-              <button
-                v-for="filter in filters"
-                :key="filter.value"
-                type="button"
-                :class="{ active: activeStatus === filter.value }"
-                @click="activeStatus = filter.value"
-              >
-                {{ filter.label }}
-              </button>
-            </div>
+      <div v-if="loading" class="state-card" aria-live="polite">
+        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+        <span>正在載入訂單...</span>
+      </div>
+
+      <div v-else-if="errorMessage" class="state-card state-error" role="alert">
+        <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+        <strong>無法載入訂單</strong>
+        <span>{{ errorMessage }}</span>
+        <button type="button" @click="loadOrders">重新載入</button>
+      </div>
+
+      <div v-else-if="visibleOrders.length === 0" class="state-card">
+        <i class="bi bi-receipt" aria-hidden="true"></i>
+        <strong>找不到符合條件的訂單</strong>
+        <span>請調整狀態、關鍵字或排序方式。</span>
+      </div>
+
+      <div v-else class="order-list">
+        <RouterLink
+          v-for="order in visibleOrders"
+          :key="order.orderId"
+          class="order-card"
+          :to="{ name: 'MemberOrderDetail', params: { id: order.orderId } }"
+          :aria-label="`查看訂單 ${order.orderNo}`"
+        >
+          <div class="product-image">
+            <img
+              v-if="firstItem(order)?.productImageUrl"
+              :src="firstItem(order).productImageUrl"
+              :alt="firstItem(order).productName"
+            />
+            <i v-else class="bi bi-image" aria-hidden="true"></i>
           </div>
 
-          <section v-if="loading" class="state-box" aria-live="polite">
-            <span class="spinner"></span>
-            <p>正在整理你的訂單…</p>
-          </section>
+          <div class="order-copy">
+            <strong>訂單 #{{ order.orderNo }}</strong>
+            <span>{{ itemSummary(order) }}</span>
+            <small>{{ formatDate(order.createdAt) }}</small>
+          </div>
 
-          <section v-else-if="errorMessage" class="state-box error-box" role="alert">
-            <strong>訂單載入失敗</strong>
-            <p>{{ errorMessage }}</p>
-            <button type="button" @click="loadOrders">再試一次</button>
-          </section>
+          <span class="status-badge" :class="`status-${order.status?.toLowerCase()}`">
+            {{ statusLabels[order.status] ?? order.status }}
+          </span>
 
-          <section v-else-if="visibleOrders.length === 0" class="state-box">
-            <strong>目前沒有{{ activeStatus === 'ALL' ? '' : statusLabel(activeStatus) }}訂單</strong>
-            <p>符合條件的訂單會顯示在這裡。</p>
-          </section>
-
-          <section v-else class="order-list">
-            <article v-for="order in visibleOrders" :key="order.orderId" class="order-card">
-              <div class="card-topline">
-                <div>
-                  <strong>{{ sellerName(order) }}</strong>
-                  <p>訂單編號 {{ order.orderNo }}　 {{ formatDate(order.createdAt) }}</p>
-                </div>
-                <span class="status-pill" :class="`status-${order.status?.toLowerCase()}`">
-                  {{ statusLabel(order.status) }}
-                </span>
-              </div>
-
-              <div class="card-product">
-                <div class="product-image">
-                  <img
-                    v-if="firstItem(order)?.productImageUrl"
-                    :src="firstItem(order).productImageUrl"
-                    :alt="firstItem(order).productName"
-                  />
-                </div>
-                <div class="product-copy">
-                  <strong>{{ productDescription(firstItem(order)) }}</strong>
-                  <span>×{{ firstItem(order)?.quantity ?? 0 }}</span>
-                  <small v-if="order.items?.length > 1">另有 {{ order.items.length - 1 }} 件商品</small>
-                </div>
-                <strong class="order-amount">合計 {{ formatCurrency(order.totalAmount) }}</strong>
-              </div>
-
-              <div class="card-actions">
-                <RouterLink
-                  class="outline action-link"
-                  :to="{ name: 'MemberOrderDetail', params: { orderId: order.orderId } }"
-                  :aria-label="`查看訂單 ${order.orderNo} 詳情`"
-                >
-                  訂單詳情
-                </RouterLink>
-                <button v-if="order.status === 'PENDING_PAYMENT'" class="primary" type="button">立即付款</button>
-                <button v-else-if="order.status === 'SHIPPED'" class="primary" type="button">查看物流</button>
-              </div>
-            </article>
-          </section>
-
-          <aside class="developer-note">
-            <strong>開發提示</strong>
-            <p>查詢 API 必須以 JWT memberId 篩選 buyer_id，不接受前端傳入其他會員 ID。</p>
-          </aside>
-        </section>
+          <strong class="order-total">{{ formatCurrency(order.totalAmount) }}</strong>
+        </RouterLink>
       </div>
-    </main>
-
-    <footer class="site-footer">
-      <div class="header-width">
-        <div class="footer-brand"><span>D</span><strong>DINO-GO 都能購</strong></div>
-        <nav>購物指南　 客戶服務　 關於我們　 追蹤我們</nav>
-        <small>SSL 安全加密　　多元付款　　發票開立</small>
-        <p>© 2026 DINO-GO 都能購 版權所有</p>
-      </div>
-    </footer>
-  </div>
+    </div>
+  </section>
 </template>
 
 <style scoped>
-:global(*) { box-sizing: border-box; }
-:global(body) { margin: 0; min-width: 320px; color: #141a17; background: #fbf8f0; font-family: Inter, "Noto Sans TC", system-ui, sans-serif; }
-:global(button), :global(a) { font: inherit; }
-.site-shell { min-height: 100vh; background: #fbf8f0; }
-.header-width { width: min(1268px, calc(100% - 48px)); margin: 0 auto; }
-.top-bar { height: 34px; color: white; background: #14572e; font-size: 12px; }
-.top-bar .header-width { display: flex; height: 100%; align-items: center; justify-content: space-between; }
-.top-bar nav { white-space: nowrap; }
-.main-header { display: grid; height: 86px; grid-template-columns: 285px minmax(320px, 510px) 1fr; align-items: center; gap: 38px; }
-.brand { display: flex; align-items: center; gap: 12px; color: #14572e; text-decoration: none; }
-.brand-mark { display: grid; width: 48px; height: 48px; place-items: center; border: 1px solid #14572e; border-radius: 50%; background: #def0db; font-size: 24px; font-weight: 800; }
-.brand strong { font-size: 28px; white-space: nowrap; }
-.search-shell { display: grid; height: 44px; grid-template-columns: 95px 1fr 42px; align-items: center; overflow: hidden; border: 1px solid #c7ccc2; border-radius: 9px; background: white; }
-.search-shell button { height: 100%; border: 0; border-right: 1px solid #c7ccc2; color: #14572e; background: #def0db; font-size: 13px; }
-.search-shell span { padding-left: 20px; color: #6b756e; font-size: 13px; }
-.search-shell b { color: #14572e; font-size: 26px; font-weight: 400; }
-.quick-links { display: flex; justify-content: flex-end; gap: 28px; }
-.quick-links > span { display: grid; min-width: 48px; justify-items: center; font-size: 17px; }
-.quick-links small { margin-top: 3px; font-size: 11px; }
-.category-nav { height: 47px; border-block: 1px solid #c7ccc2; background: white; }
-.category-nav .header-width { display: flex; height: 100%; align-items: center; }
-.category-nav button { align-self: stretch; width: 134px; border: 0; border-radius: 5px; color: white; background: #14572e; font-size: 14px; font-weight: 700; }
-.category-links { display: flex; flex: 1; justify-content: space-evenly; font-size: 13px; font-weight: 700; }
-.category-nav b { color: #f2521f; font-size: 13px; }
-.page-wrap { width: min(1268px, calc(100% - 48px)); min-height: 848px; margin: 0 auto; padding: 15px 0 70px; }
-h1 { margin: 0 0 10px; color: #14572e; font-size: 28px; }
-.member-layout { display: grid; grid-template-columns: 225px minmax(0, 1fr); gap: 34px; }
-.member-sidebar { min-height: 700px; padding: 27px 16px; border: 1px solid #c7ccc2; border-radius: 10px; background: white; text-align: center; }
-.avatar { display: grid; width: 68px; height: 68px; margin: 0 auto 16px; place-items: center; border: 1px solid #14572e; border-radius: 50%; color: #14572e; background: #def0db; font-size: 28px; font-weight: 800; }
-.member-sidebar > strong { display: block; margin-bottom: 28px; font-size: 17px; }
-.member-sidebar nav { display: grid; gap: 9px; }
-.member-sidebar a { padding: 12px 24px; border-radius: 7px; color: #141a17; font-size: 14px; font-weight: 600; text-align: left; text-decoration: none; }
-.member-sidebar a.active { color: #14572e; background: #def0db; font-weight: 800; }
-.orders-content { min-width: 0; }
-.filter-area > strong { display: block; margin: 7px 0 10px; font-size: 16px; }
-.filter-list { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
-.filter-list button { min-width: 72px; height: 32px; padding: 0 14px; border: 0; border-radius: 16px; color: #14572e; background: white; font-size: 12px; font-weight: 800; cursor: pointer; }
-.filter-list button.active { color: white; background: #14572e; }
-.order-list { display: grid; gap: 18px; }
-.order-card { min-height: 220px; padding: 19px 23px 10px; border: 1px solid #c7ccc2; border-radius: 10px; background: white; }
-.card-topline { display: flex; align-items: start; justify-content: space-between; }
-.card-topline strong { font-size: 15px; }
-.card-topline p { margin: 14px 0 0; color: #6b756e; font-size: 12px; }
-.status-pill { min-width: 90px; padding: 8px 14px; border-radius: 16px; color: #14572e; background: #def0db; font-size: 12px; font-weight: 800; text-align: center; }
-.status-pending_payment { color: #f2521f; background: #fff0d1; }
-.status-cancelled { color: #8a3434; background: #f6dddd; }
-.card-product { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; align-items: center; gap: 22px; margin-top: 22px; }
-.product-image { width: 72px; height: 72px; overflow: hidden; border: 1px solid #c7ccc2; border-radius: 6px; background: #e8ebe3; }
-.product-image img { width: 100%; height: 100%; object-fit: cover; }
-.product-copy { display: grid; gap: 8px; }
-.product-copy strong { font-size: 14px; }
-.product-copy span, .product-copy small { color: #6b756e; font-size: 12px; }
-.order-amount { padding-right: 120px; font-size: 15px; }
-.card-actions { display: flex; justify-content: flex-end; gap: 14px; margin-top: 3px; }
-.card-actions button { width: 140px; height: 42px; border-radius: 7px; font-size: 14px; font-weight: 800; cursor: pointer; }
-.card-actions .action-link { display: grid; width: 140px; height: 42px; place-items: center; border-radius: 7px; font-size: 14px; font-weight: 800; text-decoration: none; }
-.card-actions .primary { border: 1px solid #14572e; color: white; background: #14572e; }
-.card-actions .outline { border: 1px solid #14572e; color: #14572e; background: white; }
-.state-box { display: grid; min-height: 220px; place-content: center; justify-items: center; border: 1px solid #c7ccc2; border-radius: 10px; background: white; text-align: center; }
-.state-box p { color: #6b756e; }
-.state-box button { border: 1px solid #14572e; border-radius: 7px; padding: 9px 18px; color: white; background: #14572e; }
-.spinner { width: 34px; height: 34px; border: 4px solid #def0db; border-top-color: #14572e; border-radius: 50%; animation: spin .8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.developer-note { margin-top: 32px; padding: 11px 14px; border: 1px solid #e0c259; border-radius: 8px; background: #fff7d1; font-size: 12px; }
-.developer-note strong { color: #14572e; }
-.developer-note p { margin: 5px 0 0; }
-.site-footer { min-height: 85px; border: 1px solid #c7ccc2; background: white; }
-.site-footer .header-width { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; padding-top: 17px; }
-.footer-brand { display: flex; align-items: center; gap: 12px; color: #14572e; }
-.footer-brand span { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid #14572e; border-radius: 50%; background: #def0db; }
-.site-footer nav { font-size: 13px; }
-.site-footer small { color: #6b756e; text-align: right; }
-.site-footer p { margin: -3px 0 0; color: #6b756e; font-size: 11px; }
-@media (max-width: 980px) {
-  .top-bar nav, .search-shell, .category-links, .category-nav b { display: none; }
-  .main-header { grid-template-columns: 1fr auto; gap: 16px; }
-  .quick-links > span:nth-child(-n + 2) { display: none; }
-  .member-layout { grid-template-columns: 1fr; }
-  .member-sidebar { display: none; }
-  .order-amount { padding-right: 0; }
+.order-page {
+  min-height: 620px;
+  padding: var(--space-5) 0 var(--space-8);
+  background: var(--color-bg);
 }
-@media (max-width: 620px) {
-  .header-width, .page-wrap { width: min(100% - 24px, 1268px); }
-  .top-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .brand strong { font-size: 20px; }
-  .brand-mark { width: 42px; height: 42px; }
-  .quick-links { gap: 10px; }
-  .category-nav button { width: 126px; }
-  h1 { font-size: 24px; }
-  .filter-list { gap: 7px; }
-  .filter-list button { min-width: auto; }
-  .order-card { padding: 16px; }
-  .card-product { grid-template-columns: 60px 1fr; }
-  .product-image { width: 60px; height: 60px; }
-  .order-amount { grid-column: 2; }
-  .card-actions button { flex: 1; width: auto; }
-  .site-footer .header-width { grid-template-columns: 1fr; gap: 10px; padding-bottom: 17px; }
-  .site-footer small { text-align: left; }
+
+.order-container {
+  max-width: 1440px;
+  padding-inline: var(--space-8);
+}
+
+.page-header {
+  display: flex;
+  min-height: 68px;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-1);
+}
+
+.page-header h1 {
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: var(--line-height-heading);
+}
+
+.page-header p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.order-tabs {
+  display: flex;
+  min-height: 42px;
+  align-items: stretch;
+  gap: var(--space-5);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.order-tabs button {
+  position: relative;
+  flex: 0 0 auto;
+  padding: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.order-tabs button::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  content: '';
+  background: transparent;
+}
+
+.order-tabs button:hover,
+.order-tabs button:focus-visible,
+.order-tabs button.active {
+  color: var(--color-primary-active);
+}
+
+.order-tabs button.active {
+  font-weight: 700;
+}
+
+.order-tabs button.active::after {
+  background: var(--color-primary-active);
+}
+
+.order-tabs button:focus-visible,
+.search-control:focus-within,
+.sort-control:focus-within,
+.order-card:focus-visible,
+.state-card button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.filter-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.search-control,
+.sort-control {
+  display: flex;
+  height: 42px;
+  align-items: center;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.search-control {
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+}
+
+.search-control input,
+.sort-control select {
+  width: 100%;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 11px;
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+
+.search-control input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.sort-control {
+  position: relative;
+  padding: 0 var(--space-3);
+}
+
+.sort-control select {
+  height: 100%;
+  padding-right: var(--space-5);
+  appearance: none;
+  cursor: pointer;
+}
+
+.sort-control i {
+  position: absolute;
+  right: var(--space-3);
+  pointer-events: none;
+}
+
+.order-list {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.order-card {
+  display: grid;
+  min-height: 126px;
+  grid-template-columns: 82px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 18px;
+  color: var(--color-text);
+  text-decoration: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.order-card:hover {
+  color: var(--color-text);
+  border-color: var(--color-primary-300);
+  box-shadow: var(--shadow-card);
+  transform: translateY(-1px);
+}
+
+.product-image {
+  display: grid;
+  width: 82px;
+  height: 82px;
+  overflow: hidden;
+  place-items: center;
+  color: var(--color-text-subtle);
+  background: var(--color-bg-muted);
+  border-radius: var(--radius-sm);
+}
+
+.product-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.order-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.order-copy strong {
+  overflow: hidden;
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-copy span,
+.order-copy small {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-copy span {
+  font-size: var(--font-size-xs);
+}
+
+.order-copy small {
+  font-size: 10px;
+}
+
+.status-badge {
+  min-width: 58px;
+  padding: 6px 10px;
+  color: var(--color-info);
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+  background: var(--color-info-soft);
+  border-radius: var(--radius-sm);
+}
+
+.status-pending_payment {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.status-completed {
+  color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.status-cancelled {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.order-total {
+  min-width: 100px;
+  font-size: 13px;
+  text-align: right;
+}
+
+.state-card {
+  display: flex;
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding: var(--space-6);
+  color: var(--color-text-muted);
+  text-align: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.state-card > i {
+  color: var(--color-primary);
+  font-size: var(--font-size-xl);
+}
+
+.state-card strong {
+  color: var(--color-text);
+}
+
+.state-card button {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  color: var(--color-surface);
+  font: inherit;
+  font-weight: 600;
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+}
+
+.state-error > i {
+  color: var(--color-danger);
+}
+
+@media (max-width: 767.98px) {
+  .order-page {
+    padding-top: var(--space-4);
+  }
+
+  .order-container {
+    padding-inline: var(--space-4);
+  }
+
+  .filter-row {
+    grid-template-columns: 1fr;
+  }
+
+  .order-card {
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+    padding: var(--space-4);
+  }
+
+  .product-image {
+    width: 64px;
+    height: 64px;
+  }
+
+  .status-badge {
+    align-self: start;
+  }
+
+  .order-total {
+    grid-column: 2 / -1;
+    min-width: 0;
+    text-align: left;
+  }
+}
+
+@media (max-width: 479.98px) {
+  .order-tabs {
+    gap: var(--space-4);
+  }
+
+  .order-card {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .product-image {
+    width: 56px;
+    height: 56px;
+  }
+
+  .status-badge,
+  .order-total {
+    grid-column: 2;
+    justify-self: start;
+  }
 }
 </style>

@@ -7,7 +7,8 @@ const route = useRoute()
 const order = ref(null)
 const loading = ref(true)
 const errorMessage = ref('')
-const orderId = computed(() => Number(route.params.orderId))
+
+const orderId = computed(() => Number(route.params.id ?? route.params.orderId))
 
 const statusLabels = {
   PENDING_PAYMENT: '待付款',
@@ -17,6 +18,13 @@ const statusLabels = {
   COMPLETED: '已完成',
   CANCELLED: '已取消',
 }
+
+const progressSteps = [
+  { label: '訂單成立', statuses: ['PENDING_PAYMENT', 'PAID', 'PROCESSING', 'SHIPPED', 'COMPLETED'] },
+  { label: '賣家處理', statuses: ['PAID', 'PROCESSING', 'SHIPPED', 'COMPLETED'] },
+  { label: '商品出貨', statuses: ['SHIPPED', 'COMPLETED'] },
+  { label: '完成訂單', statuses: ['COMPLETED'] },
+]
 
 const fullAddress = computed(() => {
   if (!order.value) return '—'
@@ -33,18 +41,24 @@ const fullAddress = computed(() => {
 async function loadOrder() {
   loading.value = true
   errorMessage.value = ''
+
   if (!Number.isInteger(orderId.value) || orderId.value <= 0) {
-    errorMessage.value = '訂單編號無效。'
+    errorMessage.value = '訂單編號格式不正確。'
     loading.value = false
     return
   }
+
   try {
     order.value = (await getOrder(orderId.value)).data
   } catch (error) {
-    errorMessage.value = error.response?.data?.message ?? '目前無法取得訂單詳情，請稍後再試。'
+    errorMessage.value = error.response?.data?.message ?? '訂單詳情載入失敗，請稍後再試。'
   } finally {
     loading.value = false
   }
+}
+
+function isStepComplete(step) {
+  return order.value && step.statuses.includes(order.value.status)
 }
 
 function formatCurrency(value) {
@@ -71,46 +85,71 @@ onMounted(loadOrder)
 </script>
 
 <template>
-  <div class="detail-page">
-    <header class="simple-header">
-      <RouterLink class="brand" to="/"><span>D</span><strong>DINO-GO 都能購</strong></RouterLink>
-      <RouterLink class="back-link" :to="{ name: 'MemberOrders' }"> ← 返回我的訂單 </RouterLink>
-    </header>
-
-    <main class="detail-wrap">
-      <div class="title-row">
+  <section class="order-detail-page">
+    <div class="container detail-container">
+      <header class="page-header">
         <div>
-          <p>會員中心／我的訂單</p>
           <h1>訂單詳情</h1>
+          <p v-if="order">
+            訂單 #{{ order.orderNo }}・建立於 {{ formatDate(order.createdAt) }}
+          </p>
+          <p v-else>查看訂單商品、配送與付款資訊</p>
         </div>
-        <span v-if="order" class="status-pill">{{
-          statusLabels[order.status] ?? order.status
-        }}</span>
+
+        <RouterLink class="back-button" :to="{ name: 'MemberOrders' }">
+          返回訂單列表
+        </RouterLink>
+      </header>
+
+      <div v-if="loading" class="state-card" aria-live="polite">
+        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+        <span>正在載入訂單詳情...</span>
       </div>
 
-      <section v-if="loading" class="state-card">正在載入訂單詳情…</section>
-      <section v-else-if="errorMessage" class="state-card" role="alert">
-        <strong>訂單載入失敗</strong>
-        <p>{{ errorMessage }}</p>
-        <button type="button" @click="loadOrder">再試一次</button>
-      </section>
+      <div v-else-if="errorMessage" class="state-card state-error" role="alert">
+        <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+        <strong>無法載入訂單</strong>
+        <span>{{ errorMessage }}</span>
+        <button type="button" @click="loadOrder">重新載入</button>
+      </div>
 
       <template v-else-if="order">
-        <section class="summary-card">
-          <div>
-            <small>訂單編號</small><strong>{{ order.orderNo }}</strong>
-          </div>
-          <div>
-            <small>成立時間</small><strong>{{ formatDate(order.createdAt) }}</strong>
-          </div>
-          <div>
-            <small>賣家</small><strong>{{ order.sellerName ?? `賣家 #${order.sellerId}` }}</strong>
+        <section class="progress-card" aria-label="訂單進度">
+          <div
+            v-for="(step, index) in progressSteps"
+            :key="step.label"
+            class="progress-step"
+            :class="{ complete: isStepComplete(step), cancelled: order.status === 'CANCELLED' }"
+          >
+            <span class="step-marker">
+              <i
+                class="bi"
+                :class="isStepComplete(step) ? 'bi-check-lg' : 'bi-circle'"
+                aria-hidden="true"
+              ></i>
+            </span>
+            <strong>{{ step.label }}</strong>
+            <span v-if="index < progressSteps.length - 1" class="step-line" aria-hidden="true"></span>
           </div>
         </section>
 
-        <div class="content-grid">
-          <section class="panel">
-            <h2>商品明細</h2>
+        <div v-if="order.status === 'CANCELLED'" class="cancelled-notice" role="status">
+          <i class="bi bi-x-circle" aria-hidden="true"></i>
+          <div>
+            <strong>此訂單已取消</strong>
+            <span>{{ order.cancelReason || '未提供取消原因' }}</span>
+          </div>
+        </div>
+
+        <div class="detail-columns">
+          <section class="detail-card product-card">
+            <div class="card-heading">
+              <h2>商品明細</h2>
+              <span class="status-badge" :class="`status-${order.status?.toLowerCase()}`">
+                {{ statusLabels[order.status] ?? order.status }}
+              </span>
+            </div>
+
             <article v-for="item in order.items" :key="item.orderItemId" class="product-row">
               <div class="product-image">
                 <img
@@ -118,280 +157,489 @@ onMounted(loadOrder)
                   :src="item.productImageUrl"
                   :alt="item.productName"
                 />
+                <i v-else class="bi bi-image" aria-hidden="true"></i>
               </div>
+
               <div class="product-copy">
-                <strong>{{ item.productName }}</strong
-                ><small>{{ item.skuSpec || '一般規格' }}</small>
-                <span>{{ formatCurrency(item.unitPrice) }} × {{ item.quantity }}</span>
+                <strong>{{ item.productName }}</strong>
+                <span>{{ item.skuSpec || '單一規格' }}・數量 {{ item.quantity }}</span>
+                <small>{{ formatCurrency(item.unitPrice) }} × {{ item.quantity }}</small>
               </div>
-              <strong>{{ formatCurrency(item.subtotal) }}</strong>
+
+              <strong class="product-subtotal">{{ formatCurrency(item.subtotal) }}</strong>
             </article>
+
+            <div class="remark-row">
+              <span>訂單備註</span>
+              <strong>{{ order.buyerRemark || '無' }}</strong>
+            </div>
           </section>
 
-          <aside class="panel amount-panel">
-            <h2>金額明細</h2>
-            <div>
-              <span>商品小計</span><strong>{{ formatCurrency(order.subtotalAmount) }}</strong>
-            </div>
-            <div>
-              <span>運費</span><strong>{{ formatCurrency(order.shippingFee) }}</strong>
-            </div>
-            <div>
-              <span>優惠折抵</span><strong>− {{ formatCurrency(order.discountAmount) }}</strong>
-            </div>
-            <div class="total">
-              <span>訂單總額</span><strong>{{ formatCurrency(order.totalAmount) }}</strong>
-            </div>
+          <aside class="detail-card delivery-card">
+            <h2>配送與付款</h2>
+
+            <section class="info-section">
+              <h3>收件資訊</h3>
+              <p>{{ order.receiverName }}・{{ order.receiverPhone }}</p>
+              <p>{{ fullAddress }}</p>
+            </section>
+
+            <section class="info-section">
+              <h3>付款資訊</h3>
+              <p>{{ order.status === 'PENDING_PAYMENT' ? '尚未付款' : statusLabels[order.status] }}</p>
+              <p class="muted">付款方式將於付款功能串接後顯示</p>
+            </section>
+
+            <dl class="amount-summary">
+              <div>
+                <dt>商品小計</dt>
+                <dd>{{ formatCurrency(order.subtotalAmount) }}</dd>
+              </div>
+              <div>
+                <dt>運費</dt>
+                <dd>{{ formatCurrency(order.shippingFee) }}</dd>
+              </div>
+              <div>
+                <dt>折扣</dt>
+                <dd>− {{ formatCurrency(order.discountAmount) }}</dd>
+              </div>
+              <div class="total-row">
+                <dt>訂單總額</dt>
+                <dd>{{ formatCurrency(order.totalAmount) }}</dd>
+              </div>
+            </dl>
           </aside>
         </div>
-
-        <section class="panel receiver-panel">
-          <h2>收件資訊</h2>
-          <dl>
-            <div>
-              <dt>收件人</dt>
-              <dd>{{ order.receiverName }}</dd>
-            </div>
-            <div>
-              <dt>聯絡電話</dt>
-              <dd>{{ order.receiverPhone }}</dd>
-            </div>
-            <div>
-              <dt>配送地址</dt>
-              <dd>{{ fullAddress }}</dd>
-            </div>
-            <div>
-              <dt>訂單備註</dt>
-              <dd>{{ order.buyerRemark || '無' }}</dd>
-            </div>
-          </dl>
-        </section>
-
-        <div class="page-actions">
-          <RouterLink :to="{ name: 'MemberOrders' }"> 返回訂單列表 </RouterLink>
-          <button v-if="order.status === 'PENDING_PAYMENT'" type="button">立即付款</button>
-          <button v-else-if="order.status === 'SHIPPED'" type="button">查看物流</button>
-        </div>
       </template>
-    </main>
-  </div>
+    </div>
+  </section>
 </template>
 
 <style scoped>
-:global(*) {
-  box-sizing: border-box;
+.order-detail-page {
+  min-height: 620px;
+  padding: var(--space-5) 0 var(--space-8);
+  background: var(--color-bg);
 }
-:global(body) {
+
+.detail-container {
+  max-width: 1440px;
+  padding-inline: var(--space-8);
+}
+
+.page-header {
+  display: flex;
+  min-height: 68px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+}
+
+.page-header h1 {
   margin: 0;
-  color: #141a17;
-  background: #fbf8f0;
-  font-family: Inter, 'Noto Sans TC', system-ui, sans-serif;
-}
-.detail-page {
-  min-height: 100vh;
-  background: #fbf8f0;
-}
-.simple-header {
-  display: flex;
-  min-height: 88px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 max(24px, calc((100% - 1268px) / 2));
-  border-top: 34px solid #14572e;
-  border-bottom: 1px solid #c7ccc2;
-  background: white;
-}
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: #14572e;
-  text-decoration: none;
-}
-.brand span {
-  display: grid;
-  width: 46px;
-  height: 46px;
-  place-items: center;
-  border: 1px solid #14572e;
-  border-radius: 50%;
-  background: #def0db;
-  font-weight: 800;
-}
-.brand strong {
-  font-size: 24px;
-}
-.back-link {
-  color: #14572e;
+  color: var(--color-text);
+  font-size: 26px;
   font-weight: 700;
-  text-decoration: none;
+  line-height: var(--line-height-heading);
 }
-.detail-wrap {
-  width: min(1010px, calc(100% - 48px));
-  margin: auto;
-  padding: 38px 0 80px;
-}
-.title-row {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  margin-bottom: 22px;
-}
-.title-row p {
-  margin: 0 0 8px;
-  color: #6b756e;
+
+.page-header p {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
   font-size: 13px;
 }
-h1 {
-  margin: 0;
-  color: #14572e;
-  font-size: 30px;
+
+.back-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-4);
+  color: var(--color-surface);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-decoration: none;
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
 }
-h2 {
-  margin: 0 0 20px;
-  color: #14572e;
-  font-size: 18px;
+
+.back-button:hover {
+  color: var(--color-surface);
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
 }
-.status-pill {
-  padding: 9px 18px;
-  border-radius: 18px;
-  color: #14572e;
-  background: #def0db;
-  font-weight: 800;
+
+.back-button:focus-visible,
+.state-card button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
 }
-.summary-card,
-.panel,
-.state-card {
-  border: 1px solid #c7ccc2;
-  border-radius: 10px;
-  background: white;
-}
-.summary-card {
+
+.progress-card {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-  padding: 22px 26px;
-}
-.summary-card div,
-.product-copy {
-  display: grid;
-  gap: 7px;
-}
-.summary-card small,
-.product-copy small,
-.product-copy span {
-  color: #6b756e;
-}
-.content-grid {
-  display: grid;
-  grid-template-columns: 2fr minmax(270px, 1fr);
-  gap: 20px;
-  margin-top: 20px;
-}
-.panel {
-  padding: 24px 26px;
-}
-.product-row {
-  display: grid;
-  grid-template-columns: 72px 1fr auto;
+  min-height: 130px;
+  grid-template-columns: repeat(4, 1fr);
   align-items: center;
   gap: 18px;
-  padding: 16px 0;
-  border-top: 1px solid #e3e6df;
+  margin-top: var(--space-4);
+  padding: 22px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
 }
+
+.progress-step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.progress-step strong {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.step-marker {
+  z-index: 1;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  color: var(--color-text-muted);
+  background: var(--color-bg-muted);
+  border-radius: var(--radius-pill);
+}
+
+.progress-step.complete {
+  color: var(--color-text);
+}
+
+.progress-step.complete .step-marker {
+  color: var(--color-surface);
+  background: var(--color-primary);
+}
+
+.step-line {
+  position: absolute;
+  top: 16px;
+  left: calc(50% + 26px);
+  width: calc(100% - 34px);
+  height: 2px;
+  background: var(--color-border);
+}
+
+.progress-step.complete .step-line {
+  background: var(--color-primary-300);
+}
+
+.cancelled-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+  border-radius: var(--radius-lg);
+}
+
+.cancelled-notice > i {
+  font-size: var(--font-size-lg);
+}
+
+.cancelled-notice div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.cancelled-notice span {
+  font-size: var(--font-size-xs);
+}
+
+.detail-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 20px;
+  margin-top: var(--space-4);
+}
+
+.detail-card {
+  padding: 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.detail-card h2,
+.detail-card h3 {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.detail-card h2 {
+  font-size: var(--font-size-base);
+  font-weight: 700;
+}
+
+.detail-card h3 {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+
+.product-row {
+  display: grid;
+  min-height: 96px;
+  grid-template-columns: 82px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+}
+
 .product-image {
-  width: 72px;
-  height: 72px;
+  display: grid;
+  width: 82px;
+  height: 82px;
   overflow: hidden;
-  border: 1px solid #c7ccc2;
-  border-radius: 7px;
-  background: #e8ebe3;
+  place-items: center;
+  color: var(--color-text-subtle);
+  background: var(--color-bg-muted);
+  border-radius: var(--radius-sm);
 }
+
 .product-image img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-.amount-panel > div {
+
+.product-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.product-copy strong {
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-copy span,
+.product-copy small {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.product-subtotal {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.remark-row {
   display: flex;
   justify-content: space-between;
-  padding: 10px 0;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  border-top: 1px solid var(--color-border);
 }
-.amount-panel .total {
-  margin-top: 8px;
-  padding-top: 18px;
-  border-top: 1px solid #c7ccc2;
-  color: #14572e;
+
+.remark-row strong {
+  color: var(--color-text);
+  text-align: right;
 }
-.receiver-panel {
-  margin-top: 20px;
+
+.status-badge {
+  padding: 6px 10px;
+  color: var(--color-info);
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--color-info-soft);
+  border-radius: var(--radius-sm);
 }
-.receiver-panel dl {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 18px 36px;
+
+.status-pending_payment {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
 }
-.receiver-panel dl div {
-  display: grid;
-  grid-template-columns: 80px 1fr;
+
+.status-completed {
+  color: var(--color-success);
+  background: var(--color-success-soft);
 }
-.receiver-panel dt {
-  color: #6b756e;
+
+.status-cancelled {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
 }
-.receiver-panel dd {
-  margin: 0;
-}
-.state-card {
-  display: grid;
-  min-height: 220px;
-  place-content: center;
-  justify-items: center;
-  padding: 30px;
-}
-.state-card button,
-.page-actions button {
-  border: 1px solid #14572e;
-  border-radius: 7px;
-  padding: 11px 24px;
-  color: white;
-  background: #14572e;
-  font-weight: 800;
-}
-.page-actions {
+
+.delivery-card {
   display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 24px;
+  flex-direction: column;
+  gap: var(--space-4);
 }
-.page-actions a {
-  border: 1px solid #14572e;
-  border-radius: 7px;
-  padding: 11px 24px;
-  color: #14572e;
-  background: white;
-  font-weight: 800;
-  text-decoration: none;
+
+.info-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
 }
-@media (max-width: 760px) {
-  .brand strong {
-    font-size: 18px;
-  }
-  .detail-wrap {
-    width: calc(100% - 24px);
-  }
-  .summary-card,
-  .content-grid,
-  .receiver-panel dl {
+
+.info-section p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.info-section .muted {
+  color: var(--color-text-subtle);
+}
+
+.amount-summary {
+  display: grid;
+  gap: var(--space-2);
+  margin: auto 0 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.amount-summary div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.amount-summary dt,
+.amount-summary dd {
+  margin: 0;
+  font-size: var(--font-size-xs);
+}
+
+.amount-summary dt {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.amount-summary dd {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.amount-summary .total-row {
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.amount-summary .total-row dt,
+.amount-summary .total-row dd {
+  color: var(--color-primary-active);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.state-card {
+  display: flex;
+  min-height: 220px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding: var(--space-6);
+  color: var(--color-text-muted);
+  text-align: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.state-card strong {
+  color: var(--color-text);
+}
+
+.state-card > i {
+  color: var(--color-danger);
+  font-size: var(--font-size-xl);
+}
+
+.state-card button {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  color: var(--color-surface);
+  font: inherit;
+  font-weight: 600;
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+}
+
+@media (max-width: 991.98px) {
+  .detail-columns {
     grid-template-columns: 1fr;
   }
+
+  .delivery-card {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .detail-container {
+    padding-inline: var(--space-4);
+  }
+
+  .page-header {
+    align-items: flex-start;
+    flex-direction: column;
+    padding-bottom: var(--space-3);
+  }
+
+  .progress-card {
+    grid-template-columns: repeat(2, 1fr);
+    row-gap: var(--space-5);
+  }
+
+  .step-line {
+    display: none;
+  }
+}
+
+@media (max-width: 479.98px) {
+  .back-button {
+    width: 100%;
+  }
+
   .product-row {
-    grid-template-columns: 60px 1fr;
+    grid-template-columns: 64px minmax(0, 1fr);
   }
+
   .product-image {
-    width: 60px;
-    height: 60px;
+    width: 64px;
+    height: 64px;
   }
-  .product-row > strong {
+
+  .product-subtotal {
     grid-column: 2;
   }
 }
