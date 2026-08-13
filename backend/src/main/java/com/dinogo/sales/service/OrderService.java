@@ -106,7 +106,8 @@ public class OrderService {
             }
         }
 
-        BigDecimal shippingFee = request.shippingFee() == null ? BigDecimal.ZERO : request.shippingFee();
+        // The backend owns all order amount calculations.
+        BigDecimal shippingFee = BigDecimal.ZERO;
         order.setSellerId(sellerId);
         order.setSubtotalAmount(subtotalAmount);
         order.setShippingFee(shippingFee);

@@ -116,12 +116,8 @@ const changeAddress = async () => {
 }
 // 建立正式訂單資料
 const buildOrderRequest = () => {
-  const member = JSON.parse(localStorage.getItem('member') || 'null')
-
   return {
-    buyerId: member?.memberId,
     addressId: selectedAddressId.value,
-    shippingFee: shippingFee.value,
     buyerRemark: '',
     items: checkoutItems.value.map((item) => ({
       skuId: item.skuId,

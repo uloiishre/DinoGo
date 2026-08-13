@@ -70,12 +70,12 @@ const routes = [
       {
         path: 'orders',
         name: 'MemberOrders',
-        component: () => import('@/views/OrderList.vue'),
+        component: () => import('@/views/sales/OrderList.vue'),
       },
       {
         path: 'orders/:id',
         name: 'MemberOrderDetail',
-        component: () => import('@/views/OrderDetail.vue'),
+        component: () => import('@/views/sales/OrderDetail.vue'),
       },
       {
         path: 'favorites',

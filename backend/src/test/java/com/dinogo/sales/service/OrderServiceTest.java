@@ -69,12 +69,13 @@ class OrderServiceTest {
 
         when(productSkuRepository.deductStockIfAvailable(100, 2)).thenReturn(1);
         CreateOrderResponse response = orderService.createOrder(request(
-                new BigDecimal("60.00"), List.of(new CreateOrderItemRequest(100, 2))), 1);
+                List.of(new CreateOrderItemRequest(100, 2))), 1);
 
         assertThat(response.orderId()).isEqualTo(99);
         assertThat(response.status()).isEqualTo(OrderStatus.PENDING_PAYMENT);
         assertThat(response.subtotalAmount()).isEqualByComparingTo("1000.00");
-        assertThat(response.totalAmount()).isEqualByComparingTo("1060.00");
+        assertThat(response.shippingFee()).isEqualByComparingTo("0.00");
+        assertThat(response.totalAmount()).isEqualByComparingTo("1000.00");
 
         org.mockito.Mockito.verify(orderRepository).save(orderCaptor.capture());
         Order savedOrder = orderCaptor.getValue();
@@ -90,7 +91,7 @@ class OrderServiceTest {
         mockOwnedAddress(2, 10);
 
         assertThatThrownBy(() -> orderService.createOrder(request(
-                BigDecimal.ZERO, List.of(new CreateOrderItemRequest(100, 1))), 1))
+                List.of(new CreateOrderItemRequest(100, 1))), 1))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Address does not belong to buyer");
     }
@@ -103,7 +104,7 @@ class OrderServiceTest {
         when(productSkuRepository.deductStockIfAvailable(100, 2)).thenReturn(0);
 
         assertThatThrownBy(() -> orderService.createOrder(request(
-                BigDecimal.ZERO, List.of(new CreateOrderItemRequest(100, 2))), 1))
+                List.of(new CreateOrderItemRequest(100, 2))), 1))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Insufficient stock for SKU: 100");
     }
@@ -120,7 +121,6 @@ class OrderServiceTest {
         when(productSkuRepository.deductStockIfAvailable(100, 1)).thenReturn(1);
 
         assertThatThrownBy(() -> orderService.createOrder(request(
-                BigDecimal.ZERO,
                 List.of(new CreateOrderItemRequest(100, 1), new CreateOrderItemRequest(101, 1))), 1))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("One order can only contain products from one seller");
@@ -157,8 +157,8 @@ class OrderServiceTest {
         verify(orderRepository, never()).findById(99);
     }
 
-    private CreateOrderRequest request(BigDecimal shippingFee, List<CreateOrderItemRequest> items) {
-        return new CreateOrderRequest(10, shippingFee, "請小心包裝", items);
+    private CreateOrderRequest request(List<CreateOrderItemRequest> items) {
+        return new CreateOrderRequest(10, "請小心包裝", items);
     }
 
     private void mockOwnedAddress(Integer memberId, Integer addressId) {
