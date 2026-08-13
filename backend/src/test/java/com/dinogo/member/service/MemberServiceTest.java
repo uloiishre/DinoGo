@@ -112,7 +112,8 @@ class MemberServiceTest {
 
         assertThat(response.memberId()).isEqualTo(1);
         assertThat(response.email()).isEqualTo("user@example.com");
-        verify(memberRepository).findByEmail(member.getEmail());
+        // 會員身份由 JWT 的 memberId 決定，Service 應使用 findById 查詢。
+        verify(memberRepository).findById(member.getMemberId());
     }
 
     @Test
@@ -123,7 +124,9 @@ class MemberServiceTest {
         member.setPasswordHash("hashed-password");
         member.setLastName("王");
         member.setFirstName("小明");
-        when(memberRepository.findByEmail(member.getEmail())).thenReturn(java.util.Optional.of(member));
+        // 更新資料時同樣使用 JWT 的 memberId，不使用 email 查詢。
+        when(memberRepository.findById(member.getMemberId()))
+                .thenReturn(Optional.of(member));
         when(memberRepository.save(any(Member.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         MemberUpdateRequest request = new MemberUpdateRequest(

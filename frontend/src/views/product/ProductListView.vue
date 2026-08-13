@@ -1,6 +1,6 @@
 <script setup>
 import { onMounted, ref } from 'vue'
-import api from '@/api'
+import api from '@/api/axios'
 
 const products = ref([])
 const loading = ref(true)
@@ -26,50 +26,31 @@ onMounted(() => {
 <template>
   <main class="product-list-page">
     <div class="container py-5">
-
       <!-- 頁面標題 -->
       <div class="mb-4">
         <h1 class="page-title">商品列表</h1>
       </div>
 
       <!-- Loading -->
-      <div
-        v-if="loading"
-        class="text-center py-5"
-      >
-        商品載入中...
-      </div>
+      <div v-if="loading" class="text-center py-5">商品載入中...</div>
 
       <!-- Error -->
-      <div
-        v-else-if="errorMessage"
-        class="error-message text-center py-5"
-      >
+      <div v-else-if="errorMessage" class="error-message text-center py-5">
         {{ errorMessage }}
       </div>
 
       <!-- 沒有商品 -->
-      <div
-        v-else-if="products.length === 0"
-        class="empty-message text-center py-5"
-      >
+      <div v-else-if="products.length === 0" class="empty-message text-center py-5">
         目前沒有商品
       </div>
 
       <!-- 商品列表 -->
-      <div
-        v-else
-        class="row g-4"
-      >
-        <div
-          v-for="product in products"
-          :key="product.productId"
-          class="col-6 col-md-4 col-lg-3"
-        >
+      <div v-else class="row g-4">
+        <div v-for="product in products" :key="product.productId" class="col-6 col-md-4 col-lg-3">
           <RouterLink
             :to="{
               name: 'ProductDetail',
-              params: { id: product.productId }
+              params: { id: product.productId },
             }"
             class="product-card d-block h-100 text-decoration-none"
           >
@@ -81,12 +62,7 @@ onMounted(() => {
                 class="product-image"
               />
 
-              <div
-                v-else
-                class="product-image-placeholder"
-              >
-                暫無圖片
-              </div>
+              <div v-else class="product-image-placeholder">暫無圖片</div>
             </div>
 
             <div class="product-info">
@@ -94,14 +70,11 @@ onMounted(() => {
                 {{ product.productName }}
               </h2>
 
-              <p class="product-price mb-0">
-                NT$ {{ product.basePrice }}
-              </p>
+              <p class="product-price mb-0">NT$ {{ product.basePrice }}</p>
             </div>
           </RouterLink>
         </div>
       </div>
-
     </div>
   </main>
 </template>
