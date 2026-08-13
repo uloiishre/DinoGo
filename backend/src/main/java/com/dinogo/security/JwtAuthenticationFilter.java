@@ -57,9 +57,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             String subject = jwtTokenUtil.extractSubject(token);
+            Integer memberId = jwtTokenUtil.extractMemberId(token);
+            if (memberId == null) {
+                sendUnauthorized(response, "JWT memberId claim is required");
+                return;
+            }
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(subject,
-                        null, Collections.emptyList());
+                AuthenticatedMember principal = new AuthenticatedMember(memberId, subject);
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(principal, null, Collections.emptyList());
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }

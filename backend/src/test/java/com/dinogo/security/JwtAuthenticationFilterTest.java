@@ -28,6 +28,7 @@ class JwtAuthenticationFilterTest {
     void validBearerTokenCreatesAuthentication() throws Exception {
         JwtTokenUtil jwtTokenUtil = mock(JwtTokenUtil.class);
         when(jwtTokenUtil.extractSubject("valid-token")).thenReturn("user@example.com");
+        when(jwtTokenUtil.extractMemberId("valid-token")).thenReturn(6);
         JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtTokenUtil);
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("Authorization", "Bearer valid-token");
@@ -36,8 +37,8 @@ class JwtAuthenticationFilterTest {
 
         filter.doFilter(request, response, chain);
 
-        assertThat(SecurityContextHolder.getContext().getAuthentication().getName())
-                .isEqualTo("user@example.com");
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getPrincipal())
+                .isEqualTo(new AuthenticatedMember(6, "user@example.com"));
         assertThat(response.getStatus()).isEqualTo(200);
     }
 

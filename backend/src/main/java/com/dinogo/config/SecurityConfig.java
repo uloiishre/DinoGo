@@ -35,6 +35,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/products/**").authenticated()
                         .requestMatchers(HttpMethod.PATCH, "/api/products/**").authenticated()
                         .requestMatchers("/api/member/**", "/api/cart/**", "/api/favorites/**").authenticated()
+                        .requestMatchers(
+                                "/api/cart/**",
+                                "/api/favorites/**",
+                                "/api/orders/**",
+                                "/api/member/**")
+                        .authenticated()
                         .anyRequest().permitAll())
                 .exceptionHandling(exceptionHandling -> exceptionHandling
                         .authenticationEntryPoint((request, response, exception) -> response.sendError(401,

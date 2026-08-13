@@ -64,6 +64,10 @@ public class JwtTokenUtil {
         return parseClaims(token).getSubject();
     }
 
+    public Integer extractMemberId(String token) {
+        return parseClaims(token).get("memberId", Integer.class);
+    }
+
     public boolean isValid(String token) {
         try {
             return StringUtils.hasText(extractSubject(token));

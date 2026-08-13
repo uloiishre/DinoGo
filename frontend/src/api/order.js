@@ -1,7 +1,7 @@
 import api from './axios'
 
-export function getMemberOrders(memberId) {
-  return api.get(`/orders/member/${memberId}`)
+export function getMemberOrders() {
+  return api.get('/orders/member')
 }
 
 export function getOrder(orderId) {
