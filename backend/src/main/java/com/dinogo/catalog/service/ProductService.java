@@ -5,7 +5,10 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.dinogo.catalog.dto.ProductCreateRequest;
+import com.dinogo.catalog.dto.ProductDetailResponse;
+import com.dinogo.catalog.dto.ProductImageResponse;
 import com.dinogo.catalog.dto.ProductResponse;
+import com.dinogo.catalog.dto.ProductSkuResponse;
 import com.dinogo.catalog.entity.Brand;
 import com.dinogo.catalog.entity.Product;
 import com.dinogo.catalog.entity.ProductImage;
@@ -79,6 +82,7 @@ public class ProductService {
                                 product.getStatus());
         }
 
+        // 建立商品
         @Transactional
         public ProductResponse createProduct(ProductCreateRequest request) {
 
@@ -148,6 +152,7 @@ public class ProductService {
                 return toProductResponse(savedProduct, savedSku, savedImage);
         }
 
+        // 上架商品
         public ProductResponse publishProduct(Integer productId) {
 
                 Integer sellerId = 1; // 暫時寫死，之後改成登入賣家
@@ -168,6 +173,7 @@ public class ProductService {
                 return toProductResponse(savedProduct);
         }
 
+        // 下架商品
         public ProductResponse unpublishProduct(Integer productId) {
 
                 Integer sellerId = 1; // 暫時寫死，之後改成登入賣家
@@ -188,10 +194,64 @@ public class ProductService {
                 return toProductResponse(savedProduct);
         }
 
+        // 讀取商品列表
         public List<ProductResponse> getProducts() {
                 return productRepository.findAll()
                                 .stream()
                                 .map(this::toProductResponse)
                                 .toList();
+        }
+
+        // 讀取商品詳情
+        public ProductDetailResponse getProductDetail(Integer productId) {
+
+                Product product = productRepository.findById(productId)
+                                .orElseThrow(() -> new RuntimeException("找不到商品"));
+
+                List<ProductImageResponse> images = product.getImages()
+                                .stream()
+                                .map(image -> ProductImageResponse.builder()
+                                                .imageId(image.getImageId())
+                                                .imageUrl(image.getImageUrl())
+                                                .sortOrder(image.getSortOrder())
+                                                .build())
+                                .toList();
+
+                List<ProductSkuResponse> skus = product.getSkus()
+                                .stream()
+                                .map(sku -> ProductSkuResponse.builder()
+                                                .skuId(sku.getSkuId())
+                                                .spec1Name(sku.getSpec1Name())
+                                                .spec1Value(sku.getSpec1Value())
+                                                .spec2Name(sku.getSpec2Name())
+                                                .spec2Value(sku.getSpec2Value())
+                                                .price(sku.getPrice())
+                                                .stock(sku.getStock())
+                                                .status(sku.getStatus())
+                                                .build())
+                                .toList();
+
+                return ProductDetailResponse.builder()
+                                .productId(product.getProductId())
+                                .productName(product.getProductName())
+                                .description(product.getDescription())
+                                .basePrice(product.getBasePrice())
+                                .status(product.getStatus())
+                                .viewCount(product.getViewCount())
+                                .soldCount(product.getSoldCount())
+
+                                .brandId(product.getBrand().getBrandId())
+                                .brandName(product.getBrand().getBrandName())
+
+                                .subcategoryId(product.getSubcategory().getSubcategoryId())
+                                .subcategoryName(product.getSubcategory().getSubcategoryName())
+
+                                .categoryId(product.getSubcategory().getCategory().getCategoryId())
+                                .categoryName(product.getSubcategory().getCategory().getCategoryName())
+
+                                .images(images)
+                                .skus(skus)
+
+                                .build();
         }
 }
