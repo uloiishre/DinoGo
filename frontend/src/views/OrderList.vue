@@ -10,21 +10,6 @@ const loading = ref(true)
 const errorMessage = ref('')
 const activeStatus = ref('ALL')
 
-const memberId = computed(() => {
-  try {
-    const memberJson = localStorage.getItem('member')
-
-    if (!memberJson) {
-      return Number.NaN
-    }
-
-    const member = JSON.parse(memberJson)
-    return Number(member.memberId)
-  } catch {
-    return Number.NaN
-  }
-})
-
 const filters = [
   { value: 'ALL', label: '全部' },
   { value: 'PENDING_PAYMENT', label: '待付款' },
@@ -45,12 +30,6 @@ const visibleOrders = computed(() => {
 async function loadOrders() {
   loading.value = true
   errorMessage.value = ''
-
-  if (!Number.isInteger(memberId.value) || memberId.value <= 0) {
-    errorMessage.value = '會員資料無效，請重新登入後再試。'
-    loading.value = false
-    return
-  }
 
   try {
     const response = await getMemberOrders()
@@ -153,7 +132,7 @@ onMounted(loadOrders)
             <a href="#">會員總覽</a>
             <a href="#">個人資料</a>
             <a href="#">地址管理</a>
-            <RouterLink class="active" to="/orders">我的訂單</RouterLink>
+            <RouterLink class="active" :to="{ name: 'MemberOrders' }">我的訂單</RouterLink>
             <a href="#">我的收藏</a>
             <a href="#">修改密碼</a>
           </nav>
@@ -222,7 +201,7 @@ onMounted(loadOrders)
               <div class="card-actions">
                 <RouterLink
                   class="outline action-link"
-                  :to="{ name: 'order-detail', params: { orderId: order.orderId } }"
+                  :to="{ name: 'MemberOrderDetail', params: { orderId: order.orderId } }"
                   :aria-label="`查看訂單 ${order.orderNo} 詳情`"
                 >
                   訂單詳情
