@@ -1,10 +1,11 @@
 <script setup>
 import { ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { login } from '@/api/auth'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 const form = ref({ email: '', password: '' })
 const fieldErrors = ref({})
 const apiError = ref('')
@@ -38,9 +39,8 @@ async function submit() {
 
   isSubmitting.value = true
   try {
-    const { data } = await login(form.value)
-    if (data.token) localStorage.setItem('token', data.token)
-    if (data.member) localStorage.setItem('member', JSON.stringify(data.member))
+    // 登入資料交給 authStore 統一保存，其他元件會同步取得最新狀態。
+    await authStore.signIn(form.value)
     const redirect = typeof route.query.redirect === 'string'
       && route.query.redirect.startsWith('/')
       ? route.query.redirect

@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { getMemberProfile, updateMemberProfile } from '@/api/member'
+import { useAuthStore } from '@/stores/auth'
 
 const form = ref({
   email: '',
@@ -14,6 +15,7 @@ const hasLoadedProfile = ref(false)
 const isSaving = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
+const authStore = useAuthStore()
 
 function applyProfile(profile) {
   form.value = {
@@ -59,7 +61,8 @@ async function saveProfile() {
       phone: form.value.phone || null,
     })
     applyProfile(data)
-    localStorage.setItem('member', JSON.stringify(data))
+    // 更新成功後同步 authStore，Header 等共用元件會立即拿到新資料。
+    authStore.updateMember(data)
     successMessage.value = '會員資料已更新。'
   } catch (error) {
     errorMessage.value = getErrorMessage(error, '會員資料更新失敗。')

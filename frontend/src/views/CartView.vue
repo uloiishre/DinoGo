@@ -1,8 +1,12 @@
 <script setup>
 const pageTitle = '購物車'
-import axios from 'axios'
-import { ref, computed, onMounted } from 'vue'
-const cart = ref(null)
+import { ref, onMounted } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useCartStore } from '@/stores/cart'
+
+const cartStore = useCartStore()
+// storeToRefs 讓 template 使用的 cart、數量、金額保持反應式。
+const { cart, totalQuantity, totalAmount } = storeToRefs(cartStore)
 const loading = ref(false)
 const errorMessage = ref('')
 // 取得購物車
@@ -10,8 +14,7 @@ const fetchCart = async () => {
   loading.value = true
   errorMessage.value = ''
   try {
-    const response = await axios.get('/api/cart')
-    cart.value = response.data
+    await cartStore.fetchCart()
   } catch (error) {
     console.error('取得購物車失敗:', error)
     errorMessage.value = error.response?.data?.message || '無法取得購物車資料，請稍後再試。'
@@ -24,27 +27,14 @@ const getItemSubtotal = (item) => {
   return Number(item.unitPrice) * Number(item.quantity)
 }
 // 購物車商品總數
-const totalQuantity = computed(() => {
-  if (!cart.value?.items) {
-    return 0
-  }
-  return cart.value.items.reduce((total, item) => total + Number(item.quantity), 0)
-})
 // 商品總金額
-const totalAmount = computed(() => {
-  if (!cart.value?.items) {
-    return 0
-  }
-  return cart.value.items.reduce((total, item) => total + getItemSubtotal(item), 0)
-})
 // 修改數量
 const updateQuantity = async (item, quantity) => {
   if (quantity < 1) {
     return
   }
   try {
-    await axios.put(`/api/cart/items/${item.cartItemId}`, { quantity: quantity })
-    item.quantity = quantity
+    await cartStore.updateQuantity(item, quantity)
   } catch (error) {
     console.error('修改數量失敗:', error)
     alert(error.response?.data?.message || '修改商品數量失敗')
@@ -68,10 +58,7 @@ const removeItem = async (item) => {
     return
   }
   try {
-    await axios.delete(`/api/cart/items/${item.cartItemId}`)
-    cart.value.items = cart.value.items.filter(
-      (cartItem) => cartItem.cartItemId !== item.cartItemId,
-    )
+    await cartStore.removeItem(item)
   } catch (error) {
     console.error('刪除商品失敗:', error)
     alert(error.response?.data?.message || '刪除商品失敗')

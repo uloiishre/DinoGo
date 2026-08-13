@@ -1,12 +1,12 @@
 <script setup>
 import { RouterLink, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
-const isAuthenticated = Boolean(localStorage.getItem('member') || localStorage.getItem('token'))
 const router = useRouter()
+const authStore = useAuthStore()
 
 function logout() {
-  localStorage.removeItem('member')
-  localStorage.removeItem('token')
+  authStore.signOut()
   router.push('/login')
 }
 </script>
@@ -21,7 +21,7 @@ function logout() {
         <a href="#latest" class="utility-link">最新消息</a>
         <a href="#support" class="utility-link">客服中心</a>
         <a href="#help" class="utility-link">幫助中心</a>
-        <template v-if="isAuthenticated">
+        <template v-if="authStore.isAuthenticated">
           <button type="button" class="language-button" @click="logout">登出</button>
         </template>
         <template v-else>
