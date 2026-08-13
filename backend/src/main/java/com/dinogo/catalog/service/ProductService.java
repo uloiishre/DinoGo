@@ -52,6 +52,20 @@ public class ProductService {
         }
 
         private ProductResponse toProductResponse(Product product) {
+
+                String imageUrl = product.getImages()
+                                .stream()
+                                .filter(ProductImage::getIsMain)
+                                .findFirst()
+                                .map(ProductImage::getImageUrl)
+                                .orElse(null);
+
+                Integer stock = product.getSkus()
+                                .stream()
+                                .filter(sku -> sku.getStatus() == 1)
+                                .mapToInt(ProductSku::getStock)
+                                .sum();
+
                 return new ProductResponse(
                                 product.getProductId(),
                                 product.getSeller().getSellerId(),
@@ -60,8 +74,8 @@ public class ProductService {
                                 product.getProductName(),
                                 product.getDescription(),
                                 product.getBasePrice(),
-                                null,
-                                null,
+                                stock,
+                                imageUrl,
                                 product.getStatus());
         }
 
