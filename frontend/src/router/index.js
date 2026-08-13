@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-import OrderList from '@/views/OrderList.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import DefaultStorefrontLayout from '@/layouts/DefaultStorefrontLayout.vue'
 import MemberLayout from '@/layouts/MemberLayout.vue'
@@ -71,12 +70,12 @@ const routes = [
       {
         path: 'orders',
         name: 'MemberOrders',
-        component: OrderList,
+        component: () => import('@/views/sales/OrderList.vue'),
       },
       {
         path: 'orders/:id',
         name: 'MemberOrderDetail',
-        component: () => import('@/views/member/MemberOrderDetailView.vue'),
+        component: () => import('@/views/sales/OrderDetail.vue'),
       },
       {
         path: 'favorites',
