@@ -23,11 +23,17 @@ const routes = [
         name: 'ProductDetail',
         component: () => import('@/views/product/ProductDetailView.vue'),
       },
-      { path: 'cart', name: 'Cart', component: () => import('@/views/CartView.vue') },
+      {
+        path: 'cart',
+        name: 'Cart',
+        component: () => import('@/views/CartView.vue'),
+        meta: { requiresAuth: true },
+      },
       {
         path: 'checkout',
         name: 'Checkout',
         component: () => import('@/views/CheckoutView.vue'),
+        meta: { requiresAuth: true },
       },
     ],
   },
