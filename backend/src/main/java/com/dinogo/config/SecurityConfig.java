@@ -30,8 +30,10 @@ public class SecurityConfig {
                 .formLogin(formLogin -> formLogin.disable())
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/api/auth/**", "/api/products/**").permitAll()
-                        .requestMatchers("/api/cart/**", "/api/favorites/**", "/api/orders/**").authenticated()
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/products/**").authenticated()
+                        .requestMatchers(HttpMethod.PATCH, "/api/products/**").authenticated()
                         .requestMatchers("/api/member/**", "/api/cart/**", "/api/favorites/**").authenticated()
                         .requestMatchers(
                                 "/api/cart/**",
