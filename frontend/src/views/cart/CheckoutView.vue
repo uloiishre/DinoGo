@@ -1,0 +1,1993 @@
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import api from '@/api/axios'
+
+const pageTitle = '結帳'
+const router = useRouter()
+
+// ========================================
+// 狀態
+// ========================================
+
+const loading = ref(false)
+const submitting = ref(false)
+const couponLoading = ref(false)
+const errorMessage = ref('')
+const couponErrorMessage = ref('')
+
+// ========================================
+// 結帳商品
+// ========================================
+
+const checkoutItems = ref([])
+
+// ========================================
+// 收件地址
+// ========================================
+
+const addresses = ref([])
+const selectedAddressId = ref(null)
+
+// ========================================
+// 配送方式
+// ========================================
+
+const shippingMethod = ref('HOME_DELIVERY')
+
+// ========================================
+// 付款方式
+// ========================================
+
+const paymentMethod = ref('COD')
+
+// ========================================
+// 優惠券
+// ========================================
+
+const coupons = ref([])
+const selectedCouponId = ref(null)
+
+// ========================================
+// 金額
+// ========================================
+
+const subtotal = ref(0)
+const shippingFee = ref(0)
+const discount = ref(0)
+const totalAmount = ref(0)
+
+// ========================================
+// 目前選擇的地址
+// ========================================
+
+const selectedAddress = computed(() => {
+  return addresses.value.find((address) => address.addressId === selectedAddressId.value)
+})
+
+// ========================================
+// 目前選擇的優惠券
+// ========================================
+
+const selectedCoupon = computed(() => {
+  return coupons.value.find((coupon) => coupon.couponId === selectedCouponId.value)
+})
+
+// ========================================
+// 金額格式
+// ========================================
+
+const formatPrice = (price) => {
+  const number = Number(price)
+
+  if (Number.isNaN(number)) {
+    return '0'
+  }
+
+  return number.toLocaleString('zh-TW')
+}
+
+// ========================================
+// 優惠券折扣文字
+// ========================================
+
+const getCouponDiscountText = (coupon) => {
+  if (!coupon) {
+    return ''
+  }
+
+  // 如果後端是固定金額折扣
+  if (coupon.discountType === 'FIXED' || coupon.discountType === 'AMOUNT') {
+    return `折 NT$ ${formatPrice(coupon.discountValue)}`
+  }
+
+  // 如果後端是百分比折扣
+  if (coupon.discountType === 'PERCENT' || coupon.discountType === 'PERCENTAGE') {
+    return `${coupon.discountValue}% 折扣`
+  }
+
+  // 如果後端直接提供 discountAmount
+  if (coupon.discountAmount != null) {
+    return `折 NT$ ${formatPrice(coupon.discountAmount)}`
+  }
+
+  return '優惠券'
+}
+
+// ========================================
+// 取得購物車勾選商品
+// ========================================
+
+const loadCheckoutItems = () => {
+  try {
+    const data = localStorage.getItem('checkoutData')
+
+    if (!data) {
+      router.push({
+        name: 'Cart',
+      })
+
+      return false
+    }
+
+    const checkoutData = JSON.parse(data)
+
+    checkoutItems.value = checkoutData.items || []
+
+    if (checkoutItems.value.length === 0) {
+      router.push({
+        name: 'Cart',
+      })
+
+      return false
+    }
+
+    return true
+  } catch (error) {
+    console.error('讀取結帳資料失敗：', error)
+
+    errorMessage.value = '結帳資料讀取失敗，請重新選擇商品。'
+
+    return false
+  }
+}
+
+// ========================================
+// 取得會員地址
+// ========================================
+
+const loadAddresses = async () => {
+  try {
+    const response = await api.get('/addresses')
+
+    addresses.value = response.data || []
+
+    // 優先選擇預設地址
+    const defaultAddress = addresses.value.find((address) => address.isDefault)
+
+    selectedAddressId.value = defaultAddress?.addressId ?? addresses.value[0]?.addressId ?? null
+  } catch (error) {
+    console.error('取得地址失敗：', error)
+
+    errorMessage.value = error.response?.data?.message || '無法取得收件地址'
+  }
+}
+
+// ========================================
+// 取得可用優惠券
+// ========================================
+
+const loadCoupons = async () => {
+  try {
+    couponLoading.value = true
+    couponErrorMessage.value = ''
+
+    const response = await api.get('/coupons/available')
+
+    coupons.value = response.data || []
+
+    console.log('可用優惠券：', coupons.value)
+  } catch (error) {
+    console.error('取得優惠券失敗：', error)
+
+    couponErrorMessage.value = error.response?.data?.message || '無法取得可用優惠券'
+
+    coupons.value = []
+  } finally {
+    couponLoading.value = false
+  }
+}
+
+// ========================================
+// 建立 Checkout Preview Request
+// ========================================
+
+const buildPreviewRequest = () => {
+  return {
+    items: checkoutItems.value.map((item) => ({
+      skuId: item.skuId,
+      quantity: Number(item.quantity),
+    })),
+
+    addressId: selectedAddressId.value,
+
+    shippingMethod: shippingMethod.value,
+
+    paymentMethod: paymentMethod.value,
+
+    // 有選優惠券才傳 couponId
+    couponId: selectedCouponId.value,
+  }
+}
+
+// ========================================
+// 取得結帳金額
+// ========================================
+
+const loadCheckoutPreview = async () => {
+  if (!selectedAddressId.value) {
+    return
+  }
+
+  try {
+    loading.value = true
+    errorMessage.value = ''
+
+    const request = buildPreviewRequest()
+
+    console.log('Checkout Preview Request：', request)
+
+    const response = await api.post('/checkout/preview', request)
+
+    const data = response.data
+
+    subtotal.value = Number(data.subtotal || 0)
+
+    shippingFee.value = Number(data.shippingFee || 0)
+
+    discount.value = Number(data.discount || 0)
+
+    totalAmount.value = Number(data.totalAmount || 0)
+
+    console.log('Checkout Preview Response：', data)
+  } catch (error) {
+    console.error('取得結帳金額失敗：', error)
+
+    errorMessage.value = error.response?.data?.message || '無法取得訂單金額'
+
+    // 如果優惠券無效
+    if (selectedCouponId.value) {
+      selectedCouponId.value = null
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+// ========================================
+// 地址改變
+// ========================================
+
+const changeAddress = async () => {
+  await loadCheckoutPreview()
+}
+
+// ========================================
+// 配送方式改變
+// ========================================
+
+const changeShippingMethod = async () => {
+  await loadCheckoutPreview()
+}
+
+// ========================================
+// 付款方式改變
+// ========================================
+
+const changePaymentMethod = async () => {
+  await loadCheckoutPreview()
+}
+
+// ========================================
+// 優惠券改變
+// ========================================
+
+const changeCoupon = async () => {
+  couponErrorMessage.value = ''
+
+  await loadCheckoutPreview()
+}
+
+// ========================================
+// 取消優惠券
+// ========================================
+
+const removeCoupon = async () => {
+  selectedCouponId.value = null
+
+  couponErrorMessage.value = ''
+
+  await loadCheckoutPreview()
+}
+
+// ========================================
+// 建立正式訂單 Request
+// ========================================
+
+const buildOrderRequest = () => {
+  return {
+    addressId: selectedAddressId.value,
+
+    buyerRemark: '',
+
+    // 優惠券
+    couponId: selectedCouponId.value,
+
+    items: checkoutItems.value.map((item) => ({
+      skuId: item.skuId,
+      quantity: Number(item.quantity),
+    })),
+  }
+}
+
+// ========================================
+// 送出訂單
+// ========================================
+
+const submitOrder = async () => {
+  // 沒有地址
+  if (!selectedAddressId.value) {
+    alert('請選擇收件地址')
+    return
+  }
+
+  // 沒有商品
+  if (checkoutItems.value.length === 0) {
+    alert('沒有可結帳的商品')
+    return
+  }
+
+  try {
+    submitting.value = true
+    errorMessage.value = ''
+
+    const request = buildOrderRequest()
+
+    console.log('送給 Order API：', request)
+
+    const response = await api.post('/orders', request)
+
+    console.log('建立訂單成功：', response.data)
+
+    alert('訂單建立成功！')
+
+    // 清除本次結帳資料
+    localStorage.removeItem('checkoutData')
+
+    // 回首頁
+    router.push({
+      name: 'Home',
+    })
+  } catch (error) {
+    console.error('建立訂單失敗：', error)
+
+    errorMessage.value = error.response?.data?.message || '訂單建立失敗，請稍後再試'
+  } finally {
+    submitting.value = false
+  }
+}
+
+// ========================================
+// 初始化
+// ========================================
+
+const init = async () => {
+  const hasItems = loadCheckoutItems()
+
+  if (!hasItems) {
+    return
+  }
+
+  // 同時取得地址與優惠券
+  await Promise.all([loadAddresses(), loadCoupons()])
+
+  // 有地址才取得結帳金額
+  if (selectedAddressId.value) {
+    await loadCheckoutPreview()
+  }
+}
+
+onMounted(() => {
+  init()
+})
+</script>
+
+<template>
+  <main class="checkout-page">
+    <div class="checkout-container">
+      <!-- ========================================
+           Header
+      ======================================== -->
+
+      <header class="checkout-header">
+        <h1>{{ pageTitle }}</h1>
+
+        <p>請確認收件、配送、付款方式與訂單摘要</p>
+      </header>
+
+      <!-- ========================================
+           Error
+      ======================================== -->
+
+      <div v-if="errorMessage" class="error-message" role="alert">
+        <i class="bi bi-exclamation-circle"></i>
+
+        <span>{{ errorMessage }}</span>
+      </div>
+
+      <!-- ========================================
+           Loading
+      ======================================== -->
+
+      <div v-if="loading && checkoutItems.length === 0" class="loading-state">
+        <div class="spinner-border" role="status">
+          <span class="visually-hidden"> Loading... </span>
+        </div>
+
+        <p>正在載入結帳資料...</p>
+      </div>
+
+      <!-- ========================================
+           Checkout Layout
+      ======================================== -->
+
+      <div v-else class="checkout-layout">
+        <!-- ========================================
+             左側
+        ======================================== -->
+
+        <div class="checkout-left">
+          <!-- ======================================
+               商品
+          ====================================== -->
+
+          <section class="checkout-card">
+            <div class="section-header">
+              <h2>
+                <i class="bi bi-bag"></i>
+                訂購商品
+              </h2>
+
+              <span class="item-count"> {{ checkoutItems.length }} 項 </span>
+            </div>
+
+            <div class="checkout-items">
+              <div
+                v-for="item in checkoutItems"
+                :key="item.cartItemId || item.skuId"
+                class="checkout-item"
+              >
+                <!-- 商品圖片 -->
+
+                <div class="item-image-wrapper">
+                  <img
+                    v-if="item.productImage"
+                    :src="item.productImage"
+                    :alt="item.productName"
+                    class="item-image"
+                  />
+
+                  <div v-else class="image-placeholder">
+                    <i class="bi bi-image"></i>
+                  </div>
+                </div>
+
+                <!-- 商品資訊 -->
+
+                <div class="item-info">
+                  <h3>
+                    {{ item.productName }}
+                  </h3>
+
+                  <span class="item-sku"> SKU：{{ item.skuId }} </span>
+
+                  <span class="item-quantity"> 數量：{{ item.quantity }} </span>
+                </div>
+
+                <!-- 商品價格 -->
+
+                <div class="item-price">
+                  <span class="unit-price">
+                    NT$
+                    {{ formatPrice(item.price) }}
+                  </span>
+
+                  <strong>
+                    NT$
+                    {{ formatPrice(Number(item.price || 0) * Number(item.quantity || 0)) }}
+                  </strong>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ======================================
+               收件資料
+          ====================================== -->
+
+          <section class="checkout-card">
+            <div class="section-header">
+              <h2>
+                <i class="bi bi-geo-alt"></i>
+                收件資料
+              </h2>
+            </div>
+
+            <!-- 沒有地址 -->
+
+            <div v-if="addresses.length === 0" class="empty-address">
+              <i class="bi bi-geo-alt"></i>
+
+              <strong> 目前沒有收件地址 </strong>
+
+              <span> 請先新增收件地址 </span>
+            </div>
+
+            <!-- 地址 -->
+
+            <div v-else class="option-list">
+              <label
+                v-for="address in addresses"
+                :key="address.addressId"
+                class="option-card"
+                :class="{
+                  selected: selectedAddressId === address.addressId,
+                }"
+              >
+                <input
+                  v-model="selectedAddressId"
+                  type="radio"
+                  name="address"
+                  :value="address.addressId"
+                  @change="changeAddress"
+                />
+
+                <span class="radio-dot"></span>
+
+                <span class="option-content">
+                  <strong>
+                    {{ address.receiverName }}
+                  </strong>
+
+                  <span>
+                    {{ address.detailAddress }}
+                  </span>
+
+                  <span v-if="address.receiverPhone" class="option-phone">
+                    {{ address.receiverPhone }}
+                  </span>
+                </span>
+
+                <span v-if="address.isDefault" class="default-badge"> 預設 </span>
+              </label>
+            </div>
+          </section>
+
+          <!-- ======================================
+               配送方式
+          ====================================== -->
+
+          <section class="checkout-card">
+            <div class="section-header">
+              <h2>
+                <i class="bi bi-truck"></i>
+                配送方式
+              </h2>
+            </div>
+
+            <div class="option-list">
+              <!-- 宅配 -->
+
+              <label
+                class="option-card"
+                :class="{
+                  selected: shippingMethod === 'HOME_DELIVERY',
+                }"
+              >
+                <input
+                  v-model="shippingMethod"
+                  type="radio"
+                  value="HOME_DELIVERY"
+                  name="shipping"
+                  @change="changeShippingMethod"
+                />
+
+                <span class="radio-dot"></span>
+
+                <span class="option-content">
+                  <strong> 宅配 </strong>
+
+                  <span> 預計 2-3 個工作天 </span>
+                </span>
+              </label>
+
+              <!-- 超商 -->
+
+              <label
+                class="option-card"
+                :class="{
+                  selected: shippingMethod === 'CONVENIENCE_STORE',
+                }"
+              >
+                <input
+                  v-model="shippingMethod"
+                  type="radio"
+                  value="CONVENIENCE_STORE"
+                  name="shipping"
+                  @change="changeShippingMethod"
+                />
+
+                <span class="radio-dot"></span>
+
+                <span class="option-content">
+                  <strong> 超商取貨 </strong>
+
+                  <span> 取貨時付款 </span>
+                </span>
+              </label>
+            </div>
+          </section>
+
+          <!-- ======================================
+               付款方式
+          ====================================== -->
+
+          <section class="checkout-card">
+            <div class="section-header">
+              <h2>
+                <i class="bi bi-credit-card"></i>
+                付款方式
+              </h2>
+            </div>
+
+            <div class="option-list">
+              <!-- 貨到付款 -->
+
+              <label
+                class="option-card"
+                :class="{
+                  selected: paymentMethod === 'COD',
+                }"
+              >
+                <input
+                  v-model="paymentMethod"
+                  type="radio"
+                  value="COD"
+                  name="payment"
+                  @change="changePaymentMethod"
+                />
+
+                <span class="radio-dot"></span>
+
+                <span class="option-content">
+                  <strong> 貨到付款 </strong>
+
+                  <span> 商品送達時付款 </span>
+                </span>
+              </label>
+              <!-- 信用卡 -->
+
+              <label
+                class="option-card"
+                :class="{
+                  selected: paymentMethod === 'CREDIT_CARD',
+                }"
+              >
+                <input
+                  v-model="paymentMethod"
+                  type="radio"
+                  value="CREDIT_CARD"
+                  name="payment"
+                  @change="changePaymentMethod"
+                />
+
+                <span class="radio-dot"></span>
+
+                <span class="option-content">
+                  <strong> 信用卡 </strong>
+
+                  <span> 信用卡付款 </span>
+                </span>
+              </label>
+
+              <!-- ATM -->
+
+              <label
+                class="option-card"
+                :class="{
+                  selected: paymentMethod === 'ATM',
+                }"
+              >
+                <input
+                  v-model="paymentMethod"
+                  type="radio"
+                  value="ATM"
+                  name="payment"
+                  @change="changePaymentMethod"
+                />
+
+                <span class="radio-dot"></span>
+
+                <span class="option-content">
+                  <strong> ATM 轉帳 </strong>
+
+                  <span> 訂單成立後提供轉帳資訊 </span>
+                </span>
+              </label>
+              <!-- LINE Pay -->
+
+              <label
+                class="option-card"
+                :class="{
+                  selected: paymentMethod === 'LINE_PAY',
+                }"
+              >
+                <input
+                  v-model="paymentMethod"
+                  type="radio"
+                  value="LINE_PAY"
+                  name="payment"
+                  @change="changePaymentMethod"
+                />
+
+                <span class="radio-dot"></span>
+
+                <span class="option-content">
+                  <strong>LINE Pay</strong>
+
+                  <span>使用 LINE Pay 線上付款</span>
+                </span>
+              </label>
+            </div>
+          </section>
+
+          <!-- ======================================
+               優惠券
+          ====================================== -->
+
+          <section class="checkout-card">
+            <div class="section-header">
+              <h2>
+                <i class="bi bi-ticket-perforated"></i>
+                優惠券
+              </h2>
+
+              <span v-if="coupons.length > 0" class="item-count">
+                {{ coupons.length }} 張可用
+              </span>
+            </div>
+
+            <!-- 優惠券載入中 -->
+
+            <div v-if="couponLoading" class="coupon-loading">
+              <span class="spinner-border spinner-border-sm" role="status"></span>
+
+              正在取得可用優惠券...
+            </div>
+
+            <!-- 優惠券錯誤 -->
+
+            <div v-else-if="couponErrorMessage" class="coupon-error">
+              <i class="bi bi-exclamation-circle"></i>
+
+              <span>
+                {{ couponErrorMessage }}
+              </span>
+
+              <button type="button" class="coupon-retry-button" @click="loadCoupons">
+                重新載入
+              </button>
+            </div>
+
+            <!-- 沒有優惠券 -->
+
+            <div v-else-if="coupons.length === 0" class="empty-coupon">
+              <i class="bi bi-ticket-perforated"></i>
+
+              <strong> 目前沒有可使用的優惠券 </strong>
+
+              <span> 本次訂單將不使用優惠券 </span>
+            </div>
+
+            <!-- 優惠券 -->
+
+            <div v-else class="coupon-list">
+              <!-- 不使用優惠券 -->
+
+              <label
+                class="coupon-card"
+                :class="{
+                  selected: selectedCouponId === null,
+                }"
+              >
+                <input
+                  v-model="selectedCouponId"
+                  type="radio"
+                  name="coupon"
+                  :value="null"
+                  @change="changeCoupon"
+                />
+
+                <span class="coupon-radio"></span>
+
+                <span class="coupon-content">
+                  <strong> 不使用優惠券 </strong>
+
+                  <span> 本次訂單不套用優惠 </span>
+                </span>
+              </label>
+
+              <!-- 可使用優惠券 -->
+
+              <label
+                v-for="coupon in coupons"
+                :key="coupon.couponId"
+                class="coupon-card"
+                :class="{
+                  selected: selectedCouponId === coupon.couponId,
+                }"
+              >
+                <input
+                  v-model="selectedCouponId"
+                  type="radio"
+                  name="coupon"
+                  :value="coupon.couponId"
+                  @change="changeCoupon"
+                />
+
+                <span class="coupon-radio"></span>
+
+                <span class="coupon-content">
+                  <strong>
+                    {{ coupon.couponName || coupon.name || '優惠券' }}
+                  </strong>
+
+                  <span v-if="coupon.couponCode" class="coupon-code">
+                    {{ coupon.couponCode }}
+                  </span>
+
+                  <span>
+                    {{ getCouponDiscountText(coupon) }}
+                  </span>
+
+                  <span v-if="coupon.minOrderAmount != null">
+                    滿 NT$
+                    {{ formatPrice(coupon.minOrderAmount) }} 使用
+                  </span>
+
+                  <span v-if="coupon.expireDate">
+                    有效期限：
+                    {{ coupon.expireDate }}
+                  </span>
+                </span>
+
+                <span v-if="selectedCouponId === coupon.couponId" class="coupon-selected-badge">
+                  已選
+                </span>
+              </label>
+            </div>
+          </section>
+        </div>
+
+        <!-- ========================================
+             右側：訂單摘要
+        ======================================== -->
+
+        <aside class="summary-card">
+          <div class="section-header">
+            <h2>
+              <i class="bi bi-receipt"></i>
+              金額摘要
+            </h2>
+          </div>
+
+          <!-- 商品小計 -->
+
+          <div class="summary-row">
+            <span> 商品小計 </span>
+
+            <span>
+              NT$
+              {{ formatPrice(subtotal) }}
+            </span>
+          </div>
+
+          <!-- 運費 -->
+
+          <div class="summary-row">
+            <span> 運費 </span>
+
+            <span>
+              NT$
+              {{ formatPrice(shippingFee) }}
+            </span>
+          </div>
+
+          <!-- 優惠券 -->
+
+          <div v-if="selectedCoupon" class="summary-row coupon-summary">
+            <span> 優惠券 </span>
+
+            <span>
+              {{ selectedCoupon.couponName || selectedCoupon.name || '優惠券' }}
+            </span>
+          </div>
+
+          <!-- 折扣 -->
+
+          <div v-if="discount > 0" class="summary-row discount">
+            <span> 折扣 </span>
+
+            <span>
+              - NT$
+              {{ formatPrice(discount) }}
+            </span>
+          </div>
+
+          <div class="summary-divider"></div>
+
+          <!-- 總額 -->
+
+          <div class="summary-total">
+            <span> 訂單總額 </span>
+
+            <strong>
+              NT$
+              {{ formatPrice(totalAmount) }}
+            </strong>
+          </div>
+
+          <!-- 更新金額 -->
+
+          <div v-if="loading" class="summary-loading">
+            <span class="spinner-border spinner-border-sm" role="status"></span>
+
+            正在更新金額...
+          </div>
+
+          <!-- 錯誤 -->
+
+          <div v-if="errorMessage" class="summary-error">
+            <i class="bi bi-exclamation-circle"></i>
+
+            {{ errorMessage }}
+          </div>
+
+          <!-- 送出訂單 -->
+
+          <button
+            type="button"
+            class="submit-button"
+            :disabled="submitting || loading || !selectedAddressId || checkoutItems.length === 0"
+            @click="submitOrder"
+          >
+            <span v-if="submitting">
+              <span class="spinner-border spinner-border-sm" role="status"></span>
+
+              建立訂單中...
+            </span>
+
+            <span v-else> 送出訂單 </span>
+          </button>
+        </aside>
+      </div>
+    </div>
+  </main>
+</template>
+
+<style scoped>
+/* ========================================
+   Page
+======================================== */
+
+.checkout-page {
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.checkout-container {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: var(--space-7) var(--space-6);
+  box-sizing: border-box;
+}
+
+/* ========================================
+   Header
+======================================== */
+
+.checkout-header {
+  margin-bottom: var(--space-6);
+}
+
+.checkout-header h1 {
+  margin: 0 0 var(--space-2);
+
+  font-family: var(--font-heading);
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.checkout-header p {
+  margin: 0;
+
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+}
+
+/* ========================================
+   Layout
+======================================== */
+
+.checkout-layout {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    360px;
+
+  gap: var(--space-5);
+
+  align-items: start;
+}
+
+/* ========================================
+   Left
+======================================== */
+
+.checkout-left {
+  display: flex;
+  flex-direction: column;
+
+  gap: var(--space-4);
+
+  min-width: 0;
+}
+
+/* ========================================
+   Card
+======================================== */
+
+.checkout-card,
+.summary-card {
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+
+  box-sizing: border-box;
+}
+
+.checkout-card {
+  padding: var(--space-5);
+}
+
+.summary-card {
+  position: sticky;
+  top: var(--space-5);
+
+  padding: var(--space-5);
+}
+
+/* ========================================
+   Section Header
+======================================== */
+
+.section-header {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: var(--space-4);
+}
+
+.section-header h2 {
+  display: flex;
+
+  align-items: center;
+
+  gap: var(--space-2);
+
+  margin: 0;
+
+  color: var(--color-text);
+
+  font-family: var(--font-body);
+  font-size: var(--font-size-md);
+  font-weight: 700;
+}
+
+.section-header h2 i {
+  color: var(--color-primary);
+  font-size: 20px;
+}
+
+.item-count {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* ========================================
+   Checkout Items
+======================================== */
+
+.checkout-items {
+  display: flex;
+  flex-direction: column;
+
+  gap: var(--space-3);
+}
+
+.checkout-item {
+  display: grid;
+
+  grid-template-columns:
+    88px
+    minmax(0, 1fr)
+    auto;
+
+  gap: var(--space-4);
+
+  align-items: center;
+
+  padding: var(--space-3);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+
+  background: var(--color-surface-soft);
+}
+
+.item-image-wrapper {
+  width: 88px;
+  height: 88px;
+
+  overflow: hidden;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: var(--radius-md);
+
+  background: var(--color-surface);
+}
+
+.item-image {
+  width: 100%;
+  height: 100%;
+
+  display: block;
+
+  object-fit: contain;
+}
+
+.image-placeholder {
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  width: 100%;
+  height: 100%;
+
+  color: var(--color-text-subtle);
+
+  font-size: 28px;
+}
+
+.item-info {
+  min-width: 0;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: var(--space-1);
+}
+
+.item-info h3 {
+  overflow: hidden;
+
+  margin: 0;
+
+  color: var(--color-text);
+
+  font-family: var(--font-body);
+  font-size: var(--font-size-base);
+  font-weight: 600;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+}
+
+.item-sku,
+.item-quantity {
+  color: var(--color-text-muted);
+
+  font-size: var(--font-size-xs);
+}
+
+.item-price {
+  display: flex;
+  flex-direction: column;
+
+  align-items: flex-end;
+
+  gap: var(--space-1);
+
+  white-space: nowrap;
+}
+
+.unit-price {
+  color: var(--color-text-muted);
+
+  font-size: var(--font-size-xs);
+}
+
+.item-price strong {
+  color: var(--color-text);
+
+  font-size: var(--font-size-base);
+}
+
+/* ========================================
+   Option List
+======================================== */
+
+.option-list {
+  display: flex;
+  flex-direction: column;
+
+  gap: var(--space-2);
+}
+
+.option-card {
+  position: relative;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: var(--space-3);
+
+  min-height: 64px;
+
+  padding: var(--space-3);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+
+  background: var(--color-surface);
+
+  cursor: pointer;
+
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.option-card:hover {
+  background: var(--color-primary-soft);
+
+  border-color: var(--color-primary);
+}
+
+.option-card:focus-within {
+  box-shadow: var(--shadow-focus);
+}
+
+.option-card.selected {
+  background: var(--color-primary-soft);
+
+  border-color: var(--color-primary);
+}
+
+.option-card input {
+  position: absolute;
+
+  width: 1px;
+  height: 1px;
+
+  opacity: 0;
+}
+
+.radio-dot {
+  position: relative;
+
+  width: 18px;
+  height: 18px;
+
+  flex: 0 0 18px;
+
+  border: 2px solid var(--color-border);
+
+  border-radius: 50%;
+
+  box-sizing: border-box;
+}
+
+.option-card.selected .radio-dot {
+  border-color: var(--color-primary);
+}
+
+.option-card.selected .radio-dot::after {
+  content: '';
+
+  position: absolute;
+
+  top: 3px;
+  left: 3px;
+
+  width: 8px;
+  height: 8px;
+
+  border-radius: 50%;
+
+  background: var(--color-primary);
+}
+
+.option-content {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: var(--space-1);
+
+  min-width: 0;
+}
+
+.option-content strong {
+  color: var(--color-text);
+
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.option-content span {
+  color: var(--color-text-muted);
+
+  font-size: var(--font-size-xs);
+
+  line-height: 1.5;
+}
+
+.option-phone {
+  color: var(--color-text-subtle) !important;
+}
+
+.default-badge {
+  margin-left: auto;
+
+  padding: var(--space-1) var(--space-2);
+
+  color: var(--color-primary);
+
+  background: var(--color-primary-soft);
+
+  border-radius: var(--radius-pill);
+
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
+/* ========================================
+   優惠券
+======================================== */
+
+.coupon-list {
+  display: flex;
+  flex-direction: column;
+
+  gap: var(--space-2);
+}
+
+.coupon-card {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+
+  gap: var(--space-3);
+
+  min-height: 70px;
+
+  padding: var(--space-3);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+
+  background: var(--color-surface);
+
+  cursor: pointer;
+
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.coupon-card:hover {
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary);
+}
+
+.coupon-card.selected {
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary);
+}
+
+.coupon-card input {
+  position: absolute;
+
+  width: 1px;
+  height: 1px;
+
+  opacity: 0;
+}
+
+.coupon-radio {
+  position: relative;
+
+  width: 18px;
+  height: 18px;
+
+  flex: 0 0 18px;
+
+  border: 2px solid var(--color-border);
+
+  border-radius: 50%;
+}
+
+.coupon-card.selected .coupon-radio {
+  border-color: var(--color-primary);
+}
+
+.coupon-card.selected .coupon-radio::after {
+  content: '';
+
+  position: absolute;
+
+  top: 3px;
+  left: 3px;
+
+  width: 8px;
+  height: 8px;
+
+  border-radius: 50%;
+
+  background: var(--color-primary);
+}
+
+.coupon-content {
+  display: flex;
+  flex-direction: column;
+
+  gap: var(--space-1);
+
+  min-width: 0;
+}
+
+.coupon-content strong {
+  color: var(--color-text);
+
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.coupon-content span {
+  color: var(--color-text-muted);
+
+  font-size: var(--font-size-xs);
+}
+
+.coupon-code {
+  color: var(--color-primary) !important;
+
+  font-weight: 600;
+}
+
+.coupon-selected-badge {
+  margin-left: auto;
+
+  padding: var(--space-1) var(--space-2);
+
+  color: var(--color-success);
+
+  background: var(--color-primary-soft);
+
+  border-radius: var(--radius-pill);
+
+  font-size: var(--font-size-xs);
+
+  white-space: nowrap;
+}
+
+.coupon-loading {
+  display: flex;
+
+  align-items: center;
+
+  gap: var(--space-2);
+
+  padding: var(--space-4);
+
+  color: var(--color-text-muted);
+
+  font-size: var(--font-size-sm);
+}
+
+.coupon-loading .spinner-border {
+  color: var(--color-primary);
+}
+
+.coupon-error {
+  display: flex;
+
+  align-items: center;
+
+  gap: var(--space-2);
+
+  padding: var(--space-3);
+
+  color: var(--color-danger);
+
+  background: var(--color-surface-soft);
+
+  border-radius: var(--radius-md);
+
+  font-size: var(--font-size-xs);
+}
+
+.coupon-retry-button {
+  margin-left: auto;
+
+  padding: var(--space-1) var(--space-2);
+
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-sm);
+
+  color: var(--color-danger);
+
+  background: var(--color-surface);
+
+  font-size: var(--font-size-xs);
+
+  cursor: pointer;
+}
+
+.empty-coupon {
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: var(--space-2);
+
+  padding: var(--space-6);
+
+  color: var(--color-text-muted);
+
+  text-align: center;
+}
+
+.empty-coupon i {
+  color: var(--color-text-subtle);
+
+  font-size: 32px;
+}
+
+.empty-coupon strong {
+  color: var(--color-text);
+
+  font-size: var(--font-size-base);
+}
+
+.empty-coupon span {
+  font-size: var(--font-size-sm);
+}
+
+/* ========================================
+   Empty Address
+======================================== */
+
+.empty-address {
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: var(--space-2);
+
+  padding: var(--space-6);
+
+  color: var(--color-text-muted);
+
+  text-align: center;
+}
+
+.empty-address i {
+  color: var(--color-text-subtle);
+
+  font-size: 32px;
+}
+
+.empty-address strong {
+  color: var(--color-text);
+
+  font-size: var(--font-size-base);
+}
+
+.empty-address span {
+  font-size: var(--font-size-sm);
+}
+
+/* ========================================
+   Summary
+======================================== */
+
+.summary-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-row {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: var(--space-4);
+
+  color: var(--color-text-muted);
+
+  font-size: var(--font-size-sm);
+}
+
+.summary-row span:last-child {
+  color: var(--color-text);
+
+  font-weight: 500;
+}
+
+.summary-row.discount span:last-child {
+  color: var(--color-success);
+}
+
+.summary-row.coupon-summary span:last-child {
+  max-width: 180px;
+
+  overflow: hidden;
+
+  color: var(--color-primary);
+
+  text-align: right;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+}
+
+.summary-divider {
+  width: 100%;
+  height: 1px;
+
+  margin: var(--space-2) 0 var(--space-4);
+
+  background: var(--color-border);
+}
+
+.summary-total {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: var(--space-5);
+}
+
+.summary-total span {
+  color: var(--color-text);
+
+  font-size: var(--font-size-base);
+  font-weight: 700;
+}
+
+.summary-total strong {
+  color: var(--color-primary);
+
+  font-size: var(--font-size-lg);
+}
+
+/* ========================================
+   Loading
+======================================== */
+
+.loading-state {
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: var(--space-8);
+
+  color: var(--color-text-muted);
+}
+
+.loading-state .spinner-border {
+  color: var(--color-primary);
+}
+
+.loading-state p {
+  margin: var(--space-3) 0 0;
+
+  font-size: var(--font-size-sm);
+}
+
+.summary-loading {
+  display: flex;
+
+  align-items: center;
+
+  gap: var(--space-2);
+
+  margin-bottom: var(--space-3);
+
+  color: var(--color-text-muted);
+
+  font-size: var(--font-size-xs);
+}
+
+.summary-loading .spinner-border {
+  color: var(--color-primary);
+}
+
+/* ========================================
+   Error
+======================================== */
+
+.error-message {
+  display: flex;
+
+  align-items: center;
+
+  gap: var(--space-2);
+
+  padding: var(--space-3);
+
+  margin-bottom: var(--space-4);
+
+  color: var(--color-danger);
+
+  background: var(--color-surface-soft);
+
+  border: 1px solid var(--color-danger);
+
+  border-radius: var(--radius-md);
+
+  font-size: var(--font-size-sm);
+}
+
+.error-message i {
+  flex: 0 0 auto;
+}
+
+.summary-error {
+  display: flex;
+
+  align-items: center;
+
+  gap: var(--space-2);
+
+  padding: var(--space-2);
+
+  margin-bottom: var(--space-3);
+
+  color: var(--color-danger);
+
+  background: var(--color-surface-soft);
+
+  border-radius: var(--radius-sm);
+
+  font-size: var(--font-size-xs);
+}
+
+/* ========================================
+   Submit Button
+======================================== */
+
+.submit-button {
+  width: 100%;
+
+  min-height: 48px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: var(--space-2);
+
+  padding: var(--space-3) var(--space-4);
+
+  border: 0;
+  border-radius: var(--radius-md);
+
+  color: var(--color-surface);
+
+  background: var(--color-primary);
+
+  font-family: var(--font-body);
+  font-size: var(--font-size-base);
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    background-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.submit-button:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+
+  transform: translateY(-1px);
+}
+
+.submit-button:active:not(:disabled) {
+  background: var(--color-primary-active);
+
+  transform: translateY(0);
+}
+
+.submit-button:focus-visible {
+  outline: none;
+
+  box-shadow: var(--shadow-focus);
+}
+
+.submit-button:disabled {
+  opacity: 0.55;
+
+  cursor: not-allowed;
+}
+
+/* ========================================
+   RWD - 1024px
+======================================== */
+
+@media (max-width: 1024px) {
+  .checkout-container {
+    padding: var(--space-6) var(--space-5);
+  }
+
+  .checkout-layout {
+    grid-template-columns:
+      minmax(0, 1fr)
+      320px;
+
+    gap: var(--space-4);
+  }
+}
+
+/* ========================================
+   RWD - 768px
+======================================== */
+
+@media (max-width: 768px) {
+  .checkout-container {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .checkout-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-card {
+    position: static;
+  }
+
+  .checkout-item {
+    grid-template-columns:
+      72px
+      minmax(0, 1fr);
+  }
+
+  .item-image-wrapper {
+    width: 72px;
+    height: 72px;
+  }
+
+  .item-price {
+    grid-column: 2;
+
+    align-items: flex-start;
+
+    padding-top: var(--space-1);
+  }
+
+  .coupon-selected-badge {
+    display: none;
+  }
+}
+
+/* ========================================
+   RWD - 480px
+======================================== */
+
+@media (max-width: 480px) {
+  .checkout-container {
+    padding: var(--space-5) var(--space-3);
+  }
+
+  .checkout-header h1 {
+    font-size: var(--font-size-lg);
+  }
+
+  .checkout-card,
+  .summary-card {
+    padding: var(--space-4);
+  }
+
+  .checkout-item {
+    grid-template-columns:
+      64px
+      minmax(0, 1fr);
+
+    gap: var(--space-3);
+  }
+
+  .item-image-wrapper {
+    width: 64px;
+    height: 64px;
+  }
+
+  .item-info h3 {
+    font-size: var(--font-size-sm);
+  }
+
+  .option-card {
+    min-height: 60px;
+
+    padding: var(--space-3);
+  }
+
+  .default-badge {
+    display: none;
+  }
+
+  .summary-total strong {
+    font-size: var(--font-size-md);
+  }
+
+  .coupon-card {
+    min-height: 64px;
+  }
+
+  .coupon-content strong {
+    font-size: var(--font-size-xs);
+  }
+}
+</style>
