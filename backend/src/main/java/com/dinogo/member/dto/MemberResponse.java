@@ -1,6 +1,7 @@
 package com.dinogo.member.dto;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import com.dinogo.member.entity.Member;
 
@@ -11,8 +12,22 @@ public record MemberResponse(
         String firstName,
         LocalDate birthDate,
         String phone,
-        String status
+        String status,
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
 ) {
+
+    // 保留既有測試與呼叫端的建構方式，時間欄位由 Member 實體映射時提供。
+    public MemberResponse(
+            Integer memberId,
+            String email,
+            String lastName,
+            String firstName,
+            LocalDate birthDate,
+            String phone,
+            String status) {
+        this(memberId, email, lastName, firstName, birthDate, phone, status, null, null);
+    }
 
     public static MemberResponse from(Member member) {
         return new MemberResponse(
@@ -22,7 +37,9 @@ public record MemberResponse(
                 member.getFirstName(),
                 member.getBirthDate(),
                 member.getPhone(),
-                member.getStatus()
+                member.getStatus(),
+                member.getCreatedAt(),
+                member.getUpdatedAt()
         );
     }
 }

@@ -78,7 +78,7 @@ const isAccountActive = computed(() => accountItems.some((item) => item.routeNam
 
 <style scoped>
 .dg-member-nav {
-  --member-nav-height: 120px;
+  --member-nav-height: 84px;
   min-height: var(--member-nav-height);
   color: var(--color-text);
   background: var(--color-surface);
@@ -103,11 +103,11 @@ const isAccountActive = computed(() => accountItems.some((item) => item.routeNam
 
 .dg-member-avatar {
   display: inline-grid;
-  width: 56px;
-  height: 56px;
-  flex: 0 0 56px;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
   color: var(--color-primary-700);
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-base);
   font-weight: 700;
   place-items: center;
   border-radius: var(--radius-pill);
@@ -117,49 +117,57 @@ const isAccountActive = computed(() => accountItems.some((item) => item.routeNam
 .dg-member-profile-copy {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 2px;
 }
 
 .dg-member-name {
   color: var(--color-text);
-  font-size: var(--font-size-md);
+  font-size: 15px;
   line-height: var(--line-height-heading);
 }
 
 .dg-member-level {
   color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+  font-size: 11px;
 }
 
 .dg-member-menu {
   display: flex;
   min-width: 0;
-  align-items: stretch;
+  height: 100%;
+  align-items: center;
   justify-content: flex-end;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .dg-member-nav-link {
   position: relative;
   display: inline-flex;
-  min-width: 92px;
-  min-height: 56px;
+  min-width: 0;
+  min-height: 0;
+  align-self: stretch;
   align-items: center;
   justify-content: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-4);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-base);
+  gap: 7px;
+  padding: 0 14px;
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 400;
   text-decoration: none;
   white-space: nowrap;
-  border-radius: var(--radius-md);
+  border-radius: 0;
+}
+
+.dg-member-nav-link > .bi:not(.dg-member-account-arrow) {
+  color: var(--color-text-muted);
+  font-size: 17px;
 }
 
 .dg-member-nav-link::after {
   position: absolute;
-  right: var(--space-2);
+  right: 0;
   bottom: 0;
-  left: var(--space-2);
+  left: 0;
   height: 0;
   content: '';
   background: var(--color-primary);
@@ -178,24 +186,34 @@ const isAccountActive = computed(() => accountItems.some((item) => item.routeNam
 
 .dg-member-nav-link.router-link-active {
   color: var(--color-primary);
+  font-weight: 600;
 }
 
-.dg-member-nav-link.router-link-active::after,
-.dg-member-nav-link.is-active::after {
-  bottom: calc((56px - var(--member-nav-height)) / 2);
-  height: 4px;
+.dg-member-nav-link.router-link-active > .bi {
+  color: var(--color-primary-active);
+}
+
+.dg-member-nav-link.router-link-active::after {
+  height: 3px;
 }
 
 .dg-member-account-button {
-  min-width: 148px;
+  min-height: 40px;
+  align-self: center;
   justify-content: flex-start;
-  padding-inline: var(--space-5);
-  background: var(--color-secondary-100);
+  padding-inline: var(--space-3);
+  background: var(--color-bg);
   border: 0;
+  border-radius: var(--radius-sm);
 }
 
+/* 帳戶設定以按鈕底色標示目前會員頁面，不重複顯示導覽底線。 */
 .dg-member-account-button.is-active {
   color: var(--color-primary);
+}
+
+.dg-member-account-button::after {
+  content: none;
 }
 
 .dg-member-account-arrow {
@@ -209,73 +227,76 @@ const isAccountActive = computed(() => accountItems.some((item) => item.routeNam
   transform: rotate(180deg);
 }
 
+.dg-member-account-button[aria-expanded='true'] {
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
 /* 帳戶設定下拉選單。 */
 .dg-member-account-menu {
   flex: 0 0 auto;
 }
 
+/* 面板與帳戶設定按鈕共用寬度，延續同一塊背景。 */
 .dg-member-account-dropdown {
-  min-width: 180px;
-  margin-top: var(--space-2) !important;
-  padding: var(--space-2);
-  background: var(--color-surface);
+  width: 100%;
+  min-width: 100%;
+  margin-top: 0 !important;
+  padding: 6px;
+  background: var(--color-secondary-100);
   border: 1px solid var(--color-border);
+  border-top: 0;
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  box-shadow: none;
 }
 
 .dg-member-account-item {
   display: flex;
+  min-height: 44px;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3);
   color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
   border-radius: var(--radius-md);
 }
 
+/* 下拉選項以深色框線呈現目前頁面，避免只有底色時辨識度不足。 */
 .dg-member-account-item:hover,
-.dg-member-account-item:focus,
-.dg-member-account-item.is-active {
+.dg-member-account-item:focus {
   color: var(--color-primary-active);
   background: var(--color-primary-soft);
 }
 
-@media (max-width: 991.98px) {
+.dg-member-account-item.is-active {
+  color: var(--color-primary-active);
+  font-weight: 500;
+  background: var(--color-primary-soft);
+  box-shadow: inset 0 0 0 1px var(--color-primary-400);
+}
+
+/* Tablet 以水平捲動保留單列導覽，避免項目換行而拉高 MemberNav。 */
+@media (max-width: 1199.98px) {
+  .dg-member-nav {
+    overflow-x: auto;
+  }
+
   .dg-member-nav-inner {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: var(--space-3);
-    padding-top: var(--space-4);
-    padding-bottom: var(--space-3);
+    width: max-content;
+    min-width: 100%;
+    gap: var(--space-5);
   }
 
   .dg-member-menu {
-    width: 100%;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    padding-bottom: var(--space-1);
-  }
-
-  .dg-member-nav-link.router-link-active::after,
-  .dg-member-nav-link.is-active::after {
-    bottom: 0;
+    flex-wrap: nowrap;
   }
 }
 
-@media (max-width: 575.98px) {
+@media (max-width: 767.98px) {
   .dg-member-nav-inner {
-    padding-top: var(--space-3);
-  }
-
-  .dg-member-nav-link {
-    min-width: 84px;
-    padding-inline: var(--space-3);
-  }
-
-  .dg-member-account-button {
-    min-width: 132px;
-    padding-inline: var(--space-3);
+    padding-inline: var(--space-4);
   }
 }
 </style>

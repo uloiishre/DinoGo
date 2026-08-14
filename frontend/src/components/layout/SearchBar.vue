@@ -34,15 +34,18 @@ defineProps({
   display: flex;
   width: 100%;
   max-width: 840px;
-  min-height: 56px;
+  min-height: 48px;
   border: 1px solid var(--color-primary-500);
   border-radius: var(--radius-md);
   overflow: hidden;
 }
 .search-category {
-  width: 140px;
-  flex: 0 0 140px;
+  width: 112px;
+  height: 46px;
+  flex: 0 0 112px;
+  padding-inline: var(--space-4);
   color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
   border: 0;
   border-right: 1px solid var(--color-border);
   border-radius: 0;
@@ -50,10 +53,10 @@ defineProps({
 }
 .search-input {
   min-width: 0;
-  height: 54px;
+  height: 46px;
   padding-inline: var(--space-4);
   color: var(--color-text);
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-sm);
   border: 0;
   border-left: 0;
   border-radius: 0;
@@ -68,9 +71,10 @@ defineProps({
   box-shadow: var(--shadow-focus);
 }
 .search-submit {
-  width: 64px;
-  flex: 0 0 64px;
-  min-height: 54px;
+  width: 48px;
+  flex: 0 0 48px;
+  min-height: 46px;
+  font-size: 20px;
   color: var(--color-surface);
   border: 0;
   border-radius: 0;

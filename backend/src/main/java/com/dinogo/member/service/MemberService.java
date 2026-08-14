@@ -57,7 +57,9 @@ public class MemberService {
         member.setFirstName(request.firstName());
         member.setBirthDate(request.birthDate());
         member.setPhone(request.phone());
-        return MemberResponse.from(memberRepository.save(member));
+
+        // 先 flush 觸發 Member 的 @PreUpdate，再將最新修改時間回傳給前端。
+        return MemberResponse.from(memberRepository.saveAndFlush(member));
     }
 
     // 先保留，其他功能若仍需要 email 可以使用

@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -105,6 +106,8 @@ class MemberServiceTest {
         member.setEmail("user@example.com");
         member.setLastName("王");
         member.setFirstName("小明");
+        member.setCreatedAt(LocalDateTime.of(2025, 8, 18, 10, 0));
+        member.setUpdatedAt(LocalDateTime.of(2025, 8, 20, 9, 30));
         when(memberRepository.findById(member.getMemberId()))
                 .thenReturn(Optional.of(member));
 
@@ -112,6 +115,8 @@ class MemberServiceTest {
 
         assertThat(response.memberId()).isEqualTo(1);
         assertThat(response.email()).isEqualTo("user@example.com");
+        assertThat(response.createdAt()).isEqualTo(LocalDateTime.of(2025, 8, 18, 10, 0));
+        assertThat(response.updatedAt()).isEqualTo(LocalDateTime.of(2025, 8, 20, 9, 30));
         // 會員身份由 JWT 的 memberId 決定，Service 應使用 findById 查詢。
         verify(memberRepository).findById(member.getMemberId());
     }
@@ -124,10 +129,16 @@ class MemberServiceTest {
         member.setPasswordHash("hashed-password");
         member.setLastName("王");
         member.setFirstName("小明");
+        member.setCreatedAt(LocalDateTime.of(2025, 8, 18, 10, 0));
+        member.setUpdatedAt(LocalDateTime.of(2025, 8, 20, 9, 30));
         // 更新資料時同樣使用 JWT 的 memberId，不使用 email 查詢。
         when(memberRepository.findById(member.getMemberId()))
                 .thenReturn(Optional.of(member));
-        when(memberRepository.save(any(Member.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(memberRepository.saveAndFlush(any(Member.class))).thenAnswer(invocation -> {
+            Member savedMember = invocation.getArgument(0);
+            savedMember.setUpdatedAt(LocalDateTime.of(2026, 8, 14, 15, 10));
+            return savedMember;
+        });
 
         MemberUpdateRequest request = new MemberUpdateRequest(
                 "林", "小美", LocalDate.of(1998, 2, 3), "0987654321");
@@ -138,8 +149,10 @@ class MemberServiceTest {
         assertThat(response.firstName()).isEqualTo("小美");
         assertThat(response.birthDate()).isEqualTo(LocalDate.of(1998, 2, 3));
         assertThat(response.phone()).isEqualTo("0987654321");
+        assertThat(response.createdAt()).isEqualTo(LocalDateTime.of(2025, 8, 18, 10, 0));
+        assertThat(response.updatedAt()).isEqualTo(LocalDateTime.of(2026, 8, 14, 15, 10));
         assertThat(member.getEmail()).isEqualTo("user@example.com");
         assertThat(member.getPasswordHash()).isEqualTo("hashed-password");
-        verify(memberRepository).save(member);
+        verify(memberRepository).saveAndFlush(member);
     }
 }

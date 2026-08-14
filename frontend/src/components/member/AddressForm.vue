@@ -230,7 +230,7 @@ function closeDialog() {
 .address-form-eyebrow {
   margin: 0 0 var(--space-1);
   color: var(--color-primary-active);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-weight: 700;
   letter-spacing: 0.08em;
 }
@@ -238,7 +238,7 @@ function closeDialog() {
 .address-form-header h2 {
   margin: 0;
   color: var(--color-text);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-xl);
   font-weight: 700;
 }
 
@@ -269,7 +269,7 @@ function closeDialog() {
   margin-bottom: var(--space-4);
   padding: var(--space-3) var(--space-4);
   color: var(--color-danger);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-base);
   background: var(--color-danger-soft);
   border-radius: var(--radius-md);
 }
@@ -286,7 +286,7 @@ function closeDialog() {
   flex-direction: column;
   gap: var(--space-2);
   color: var(--color-text-700);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-base);
   font-weight: 600;
 }
 
@@ -309,9 +309,10 @@ function closeDialog() {
 
 .address-form-field input {
   width: 100%;
-  height: 42px;
+  height: 48px;
   padding: 0 var(--space-3);
   color: var(--color-text);
+  font-size: var(--font-size-md);
   background: var(--color-surface);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
@@ -333,7 +334,7 @@ function closeDialog() {
   gap: var(--space-2);
   margin-top: var(--space-5);
   color: var(--color-text-700);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-base);
   font-weight: 600;
 }
 
@@ -355,9 +356,9 @@ function closeDialog() {
 
 .address-form-actions button {
   min-width: 104px;
-  height: 42px;
+  height: 48px;
   padding: 0 var(--space-4);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-base);
   font-weight: 600;
   border-radius: var(--radius-md);
 }

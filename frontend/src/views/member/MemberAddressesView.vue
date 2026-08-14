@@ -112,14 +112,6 @@ async function removeAddress(address) {
   }
 }
 
-// 畫面僅顯示部分電話，避免會員中心被旁人看到完整號碼。
-function maskPhone(phone) {
-  if (!phone) return '未提供電話'
-  const normalized = String(phone).replace(/\s/g, '')
-  if (normalized.length < 7) return normalized
-  return `${normalized.slice(0, 2)}**-***-${normalized.slice(-3)}`
-}
-
 // 依後端欄位組合畫面上的完整配送地址。
 function formatAddress(address) {
   return [address.postalCode, address.city, address.district, address.detailAddress]
@@ -132,7 +124,7 @@ onMounted(loadAddresses)
 
 <template>
   <main class="address-page" aria-labelledby="address-page-title">
-    <div class="address-page-inner">
+    <div class="container address-page-inner">
       <!-- 頁面標題與新增地址入口。 -->
       <header class="address-page-header">
         <div>
@@ -154,7 +146,7 @@ onMounted(loadAddresses)
         <span>地址載入中…</span>
       </section>
 
-      <!-- 依預設狀態套用不同卡片框線與標籤。 -->
+      <!-- 依預設狀態套用卡片框線與地址標籤。 -->
       <section v-else-if="addresses.length" class="address-grid" aria-label="收件地址清單">
         <article
           v-for="address in addresses"
@@ -164,12 +156,13 @@ onMounted(loadAddresses)
         >
           <div class="address-card-header">
             <h2>{{ address.receiverName }}</h2>
-            <span :class="{ 'address-badge-default': address.isDefault }">
+            <span class="address-badge" :class="{ 'address-badge-default': address.isDefault }">
               {{ address.isDefault ? '預設地址' : '其他地址' }}
             </span>
           </div>
 
-          <p class="address-phone">{{ maskPhone(address.receiverPhone) }}</p>
+          <!-- 地址管理頁完整顯示電話，方便會員核對收件資料。 -->
+          <p class="address-phone">{{ address.receiverPhone || '未提供電話' }}</p>
           <p class="address-detail">{{ formatAddress(address) }}</p>
 
           <div class="address-card-actions">
@@ -218,9 +211,9 @@ onMounted(loadAddresses)
 }
 
 .address-page-inner {
-  width: 100%;
-  margin: 0 auto;
-  padding: 22px 64px var(--space-8);
+  max-width: 1440px;
+  padding-top: 22px;
+  padding-bottom: var(--space-8);
 }
 
 /* 頁面標題與新增按鈕。 */
@@ -325,33 +318,43 @@ onMounted(loadAddresses)
   overflow: hidden;
   margin: 0;
   color: var(--color-text);
-  font-size: 15px;
+  font-size: var(--font-size-md);
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.address-card-header span {
+.address-badge {
+  display: inline-flex;
+  min-height: 30px;
   flex: 0 0 auto;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
   color: var(--color-text-muted);
-  font-size: 10px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
 }
 
-.address-card-header .address-badge-default {
+/* 預設地址以卡片框線與標籤突顯，其他標籤保留相同高度維持內容對齊。 */
+.address-badge-default {
   color: var(--color-primary-active);
+  background: var(--color-primary-soft);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
 }
 
 .address-phone {
   margin: 17px 0 0;
   color: var(--color-text-muted);
-  font-size: 11px;
+  font-size: var(--font-size-base);
 }
 
 .address-detail {
   margin: 10px 0 0;
   color: var(--color-text);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-base);
 }
 
 .address-card-actions {
@@ -363,7 +366,7 @@ onMounted(loadAddresses)
 .address-card-actions button {
   padding: 0;
   color: var(--color-primary-active);
-  font-size: 11px;
+  font-size: var(--font-size-base);
   font-weight: 600;
   background: transparent;
   border: 0;
@@ -443,15 +446,10 @@ onMounted(loadAddresses)
   }
 }
 
-@media (max-width: 991.98px) {
-  .address-page-inner {
-    padding-inline: var(--space-5);
-  }
-}
-
 @media (max-width: 767.98px) {
   .address-page-inner {
-    padding: var(--space-5) var(--space-4) var(--space-7);
+    padding-top: var(--space-5);
+    padding-bottom: var(--space-7);
   }
 
   .address-page-header {

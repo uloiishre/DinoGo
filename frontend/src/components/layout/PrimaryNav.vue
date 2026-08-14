@@ -7,7 +7,7 @@ const navItems = [
   {
     label: '全部分類',
     to: { name: 'ProductList' },
-    icon: 'bi-grid',
+    icon: 'bi-list',
     activeKey: 'all',
   },
   {
@@ -82,10 +82,7 @@ const isActive = (item) => {
         <span><i class="bi bi-list me-2" aria-hidden="true"></i>商城導覽</span>
         <i class="bi bi-chevron-down" aria-hidden="true"></i>
       </button>
-      <div
-        id="primary-nav-menu"
-        class="primary-nav__menu collapse d-lg-flex align-items-lg-center gap-lg-1"
-      >
+      <div id="primary-nav-menu" class="primary-nav__menu collapse d-lg-flex align-items-lg-center">
         <RouterLink
           v-for="item in navItems"
           :key="item.label"
@@ -108,18 +105,23 @@ const isActive = (item) => {
 
 <style scoped>
 .primary-nav {
-  min-height: 72px;
-  color: var(--color-text-muted);
+  box-sizing: border-box;
+  height: 52px;
+  min-height: 52px;
+  color: var(--color-text);
   background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
 }
 .primary-nav__inner {
+  width: 100%;
+  height: 100%;
   max-width: 1440px;
-  min-height: inherit;
 }
 .primary-nav__menu {
-  min-height: inherit;
+  height: 100%;
   width: 100%;
+  gap: 28px;
 }
 .primary-nav__toggle {
   width: 100%;
@@ -133,60 +135,62 @@ const isActive = (item) => {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: var(--space-1);
-  min-height: 52px;
-  padding: 0 var(--space-4);
+  min-height: 40px;
+  padding: 0 var(--space-1);
   color: inherit;
-  font-size: var(--font-size-base);
+  font-size: 14px;
+  font-weight: 400;
   text-decoration: none;
-  border-bottom: 2px solid transparent;
 }
 .primary-nav__link--all {
-  width: 160px;
-  min-height: 52px;
+  min-height: 40px;
   margin: 0;
+  gap: 10px;
+  padding: 0 var(--space-4);
   color: var(--color-surface);
-  border-bottom-color: transparent;
-  border-radius: var(--radius-md);
+  font-weight: 600;
+  border-radius: var(--radius-sm);
   background: var(--color-primary);
 }
 .primary-nav__link--all:hover,
 .primary-nav__link--all:focus-visible,
 .primary-nav__link--all.router-link-active {
   color: var(--color-surface);
-  border-bottom-color: transparent;
   background: var(--color-primary-hover);
 }
 .primary-nav__link--seller {
   margin-left: auto;
+  gap: 8px;
+  padding: 0;
+  color: var(--color-primary-active);
+  font-weight: 600;
 }
 .primary-nav__link:hover,
 .primary-nav__link:focus-visible {
   color: var(--color-primary-800);
-  background: var(--color-primary-soft);
-  border-bottom-color: var(--color-primary);
+  background: transparent;
 }
 
 .primary-nav__link--active {
-  color: var(--color-primary-800);
-  background: var(--color-primary-soft);
-  border-bottom-color: var(--color-primary);
+  color: var(--color-primary-active);
+  font-weight: 600;
 }
 
 @media (max-width: 991.98px) {
   .primary-nav {
+    height: auto;
     min-height: 0;
   }
   .primary-nav__inner {
     min-height: 0;
   }
   .primary-nav__menu {
+    gap: 0;
     padding-bottom: var(--space-2);
   }
   .primary-nav__link {
     width: 100%;
-    min-height: 42px;
-    border-bottom: 0;
+    min-height: 40px;
     border-radius: var(--radius-md);
   }
   .primary-nav__link--all {
