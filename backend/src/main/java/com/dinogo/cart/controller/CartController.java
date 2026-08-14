@@ -63,20 +63,16 @@ public class CartController {
 
 	// 帳號
 	@PostMapping("/items")
-	public CartItemResponse addItem(Authentication authentication, @RequestBody CartItemRequest dto) {
-		String email = getEmail(authentication);// 從 JWT 取得;
-		CartItem item = cartService.addItem(email, dto.skuId(), dto.quantity());
-		ProductSku sku = item.getProductSku();
-		Product product = sku.getProduct();
-		return new CartItemResponse(
-				item.getCartItemId(),
-				sku.getSkuId(),
-				product.getProductName(),
-				sku.getPrice(),
-				item.getQuantity(),
-				product.getImages().isEmpty()
-						? null
-						: product.getImages().get(0).getImageUrl());
+	public CartItemResponse addItem(
+			Authentication authentication,
+			@RequestBody CartItemRequest dto) {
+
+		String email = getEmail(authentication);
+
+		return cartService.addItem(
+				email,
+				dto.skuId(),
+				dto.quantity());
 	}
 	// 修改
 	// @PutMapping("/items/{cartItemId}")
@@ -96,21 +92,17 @@ public class CartController {
 
 	// 帳號
 	@PutMapping("/items/{cartItemId}")
-	public CartItemResponse updateQuantity(Authentication authentication, @PathVariable Integer cartItemId,
+	public CartItemResponse updateQuantity(
+			Authentication authentication,
+			@PathVariable Integer cartItemId,
 			@RequestBody CartItemRequest dto) {
+
 		String email = getEmail(authentication);
-		CartItem item = cartService.updateQuantity(email, cartItemId, dto.quantity());
-		ProductSku sku = item.getProductSku();
-		Product product = sku.getProduct();
-		return new CartItemResponse(
-				item.getCartItemId(),
-				sku.getSkuId(),
-				product.getProductName(),
-				sku.getPrice(),
-				item.getQuantity(),
-				product.getImages().isEmpty()
-						? null
-						: product.getImages().get(0).getImageUrl());
+
+		return cartService.updateQuantity(
+				email,
+				cartItemId,
+				dto.quantity());
 	}
 	// 刪除單筆
 	// @DeleteMapping("/items/{cartItemId}")

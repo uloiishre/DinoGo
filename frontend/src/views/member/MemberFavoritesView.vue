@@ -151,24 +151,35 @@ onMounted(() => {
 
         <article v-for="favorite in favorites" :key="favorite.favoriteId" class="favorite-card">
           <!-- 商品圖片 -->
+          <!-- 點圖片進入商品詳細頁 -->
 
-          <div class="product-image">
-            <img v-if="favorite.imageUrl" :src="favorite.imageUrl" :alt="favorite.productName" />
+          <RouterLink
+            :to="{
+              name: 'ProductDetail',
+              params: {
+                id: favorite.productId,
+              },
+            }"
+            class="product-link"
+          >
+            <div class="product-image">
+              <img v-if="favorite.imageUrl" :src="favorite.imageUrl" :alt="favorite.productName" />
 
-            <div v-else class="image-placeholder" aria-label="沒有商品圖片">
-              <i class="bi bi-image"></i>
+              <div v-else class="image-placeholder" aria-label="沒有商品圖片">
+                <i class="bi bi-image"></i>
+              </div>
             </div>
-          </div>
 
-          <!-- 商品資訊 -->
+            <!-- 商品資訊 -->
 
-          <div class="product-info">
-            <h2 class="product-name">
-              {{ favorite.productName }}
-            </h2>
+            <div class="product-info">
+              <h2 class="product-name">
+                {{ favorite.productName }}
+              </h2>
 
-            <p class="product-price">NT$ {{ formatPrice(favorite.basePrice) }}</p>
-          </div>
+              <p class="product-price">NT$ {{ formatPrice(favorite.basePrice) }}</p>
+            </div>
+          </RouterLink>
 
           <!-- 商品操作 -->
 
@@ -713,5 +724,24 @@ onMounted(() => {
   .favorite-card {
     padding: var(--space-3);
   }
+}
+.product-link {
+  display: block;
+
+  color: inherit;
+  text-decoration: none;
+}
+
+.product-link:hover {
+  color: inherit;
+  text-decoration: none;
+}
+
+.product-link .product-name {
+  color: var(--color-text);
+}
+
+.product-link .product-price {
+  color: var(--color-primary);
 }
 </style>

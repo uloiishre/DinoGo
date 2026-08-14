@@ -9,7 +9,8 @@ const router = useRouter()
 const cart = ref(null)
 const loading = ref(false)
 const errorMessage = ref('')
-
+// 正在修改規格的 cartItemId
+const changingSkuId = ref(null)
 // 勾選的商品 cartItemId
 const selectedCartItemIds = ref([])
 
@@ -114,6 +115,7 @@ const updateQuantity = async (item, quantity) => {
 
   try {
     await api.put(`/cart/items/${item.cartItemId}`, {
+      skuId: item.skuId,
       quantity,
     })
 
@@ -124,7 +126,54 @@ const updateQuantity = async (item, quantity) => {
     alert(error.response?.data?.message || '修改商品數量失敗')
   }
 }
+// ================================
+// 修改商品規格 SKU
+// ================================
 
+const changeSku = async (item, newSkuId) => {
+  if (!newSkuId || Number(newSkuId) === Number(item.skuId)) {
+    return
+  }
+
+  const oldSkuId = item.skuId
+
+  changingSkuId.value = item.cartItemId
+
+  try {
+    const response = await api.put(`/cart/items/${item.cartItemId}`, {
+      skuId: Number(newSkuId),
+      quantity: Number(item.quantity),
+    })
+
+    console.log('修改 SKU API：', response.data)
+
+    // 如果後端直接回傳更新後的 CartItem
+    const updatedItem = response.data
+
+    item.skuId = updatedItem.skuId
+
+    if (updatedItem.price !== undefined) {
+      item.price = updatedItem.price
+    }
+
+    if (updatedItem.productImage !== undefined) {
+      item.productImage = updatedItem.productImage
+    }
+
+    if (updatedItem.skus !== undefined) {
+      item.skus = updatedItem.skus
+    }
+  } catch (error) {
+    console.error('修改商品規格失敗:', error)
+
+    alert(error.response?.data?.message || '修改商品規格失敗')
+
+    // 失敗時恢復原本 SKU
+    item.skuId = oldSkuId
+  } finally {
+    changingSkuId.value = null
+  }
+}
 // ================================
 // 增加數量
 // ================================
@@ -361,7 +410,23 @@ onMounted(() => {
                 {{ item.productName }}
               </h2>
 
-              <p class="item-sku">SKU：{{ item.skuId }}</p>
+              <div class="item-sku-select">
+                <label class="sku-label">規格</label>
+
+                <select
+                  :value="item.skuId"
+                  :disabled="changingSkuId === item.cartItemId"
+                  @change="changeSku(item, Number($event.target.value))"
+                >
+                  <option v-for="sku in item.skus" :key="sku.skuId" :value="sku.skuId">
+                    {{ sku.skuName }}
+                  </option>
+                </select>
+
+                <span v-if="changingSkuId === item.cartItemId" class="sku-loading">
+                  更新中...
+                </span>
+              </div>
 
               <p class="item-price">NT$ {{ formatPrice(item.price) }}</p>
             </div>
@@ -1410,5 +1475,72 @@ onMounted(() => {
 
     padding: var(--space-5);
   }
+}
+/* ========================================
+   SKU Select
+======================================== */
+
+.item-sku-select {
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: flex-start;
+
+  gap: var(--space-1);
+
+  margin-bottom: var(--space-2);
+}
+
+.sku-label {
+  color: var(--color-text-subtle);
+
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+}
+
+.item-sku-select select {
+  min-width: 150px;
+
+  height: 36px;
+
+  padding: 0 var(--space-3);
+
+  color: var(--color-text);
+
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+
+  cursor: pointer;
+}
+
+.item-sku-select select:hover:not(:disabled) {
+  border-color: var(--color-primary);
+}
+
+.item-sku-select select:focus {
+  outline: none;
+
+  border-color: var(--color-primary);
+
+  box-shadow: var(--shadow-focus);
+}
+
+.item-sku-select select:disabled {
+  opacity: 0.6;
+
+  cursor: not-allowed;
+}
+
+.sku-loading {
+  color: var(--color-text-subtle);
+
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
 }
 </style>
