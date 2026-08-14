@@ -225,7 +225,7 @@ class OrderServiceTest {
         // Arrange：JWT 登入會員 6 對應賣家 300
         Seller seller = mock(Seller.class);
         when(seller.getSellerId()).thenReturn(300);
-        when(sellerRepository.findByMemberId(6))
+        when(sellerRepository.findByMember_MemberId(6))
                 .thenReturn(Optional.of(seller));
 
         // 訂單 99 屬於賣家 300，目前狀態為 PAID
@@ -251,7 +251,7 @@ class OrderServiceTest {
         assertThat(response.status())
                 .isEqualTo(OrderStatus.PROCESSING);
 
-        verify(sellerRepository).findByMemberId(6);
+        verify(sellerRepository).findByMember_MemberId(6);
         verify(orderRepository)
                 .findByOrderIdAndSellerId(99, 300);
 
@@ -264,7 +264,7 @@ class OrderServiceTest {
         // Arrange：登入會員 6 對應賣家 300
         Seller seller = mock(Seller.class);
         when(seller.getSellerId()).thenReturn(300);
-        when(sellerRepository.findByMemberId(6))
+        when(sellerRepository.findByMember_MemberId(6))
                 .thenReturn(Optional.of(seller));
 
         // 訂單 99 不屬於賣家 300，所以 ownership 查詢找不到
@@ -280,7 +280,7 @@ class OrderServiceTest {
                 .isInstanceOf(OrderNotFoundException.class)
                 .hasMessage("Order does not exist");
 
-        verify(sellerRepository).findByMemberId(6);
+        verify(sellerRepository).findByMember_MemberId(6);
         verify(orderRepository)
                 .findByOrderIdAndSellerId(99, 300);
 

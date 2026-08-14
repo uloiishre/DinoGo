@@ -165,7 +165,7 @@ public class OrderService {
             throw new InvalidOrderException(
                     "Order status PAID can only be set by the payment flow");
         }
-        Seller seller = sellerRepository.findByMemberId(memberId)
+        Seller seller = sellerRepository.findByMember_MemberId(memberId)
                 .orElseThrow(() -> new OrderNotFoundException("Seller does not exist"));
 
         Order order = orderRepository
