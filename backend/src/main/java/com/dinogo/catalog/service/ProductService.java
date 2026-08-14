@@ -5,7 +5,12 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 import com.dinogo.catalog.dto.ProductCreateRequest;
+import com.dinogo.catalog.dto.ProductDetailResponse;
+import com.dinogo.catalog.dto.ProductImageCreateRequest;
+import com.dinogo.catalog.dto.ProductImageResponse;
 import com.dinogo.catalog.dto.ProductResponse;
+import com.dinogo.catalog.dto.ProductSkuCreateRequest;
+import com.dinogo.catalog.dto.ProductSkuResponse;
 import com.dinogo.catalog.entity.Brand;
 import com.dinogo.catalog.entity.Product;
 import com.dinogo.catalog.entity.ProductImage;
@@ -32,24 +37,6 @@ public class ProductService {
         private final BrandRepository brandRepository;
         private final ProductSkuRepository productSkuRepository;
         private final ProductImageRepository productImageRepository;
-
-        private ProductResponse toProductResponse(
-                        Product product,
-                        ProductSku sku,
-                        ProductImage image) {
-
-                return new ProductResponse(
-                                product.getProductId(),
-                                product.getSeller().getSellerId(),
-                                product.getSubcategory().getSubcategoryId(),
-                                product.getBrand().getBrandId(),
-                                product.getProductName(),
-                                product.getDescription(),
-                                product.getBasePrice(),
-                                sku.getStock(),
-                                image.getImageUrl(),
-                                product.getStatus());
-        }
 
         private ProductResponse toProductResponse(Product product) {
 
@@ -79,6 +66,7 @@ public class ProductService {
                                 product.getStatus());
         }
 
+        // 建立商品
         @Transactional
         public ProductResponse createProduct(ProductCreateRequest request) {
 
@@ -121,33 +109,69 @@ public class ProductService {
                 // 2. 建立 ProductSku
                 // =====================
 
-                ProductSku sku = new ProductSku();
+                if (request.getSkus() != null) {
+                        for (ProductSkuCreateRequest skuCreateRequest : request.getSkus()) {
 
-                sku.setProduct(savedProduct);
+                                ProductSku sku = ProductSku.builder()
+                                                .product(product)
+                                                .spec1Name(skuCreateRequest.getSpec1Name())
+                                                .spec1Value(skuCreateRequest.getSpec1Value())
+                                                .spec2Name(skuCreateRequest.getSpec2Name())
+                                                .spec2Value(skuCreateRequest.getSpec2Value())
+                                                .price(skuCreateRequest.getPrice())
+                                                .stock(skuCreateRequest.getStock())
+                                                .status((byte) 1)
+                                                .build();
 
-                // 基本版先建立「無規格 SKU」
-                sku.setPrice(request.getBasePrice());
-                sku.setStock(request.getStock());
-                sku.setStatus((byte) 1);
-
-                ProductSku savedSku = productSkuRepository.save(sku);
+                                ProductSku savedSku = productSkuRepository.save(sku);
+                                savedProduct.getSkus().add(savedSku);
+                        }
+                }
 
                 // =====================
                 // 3. 建立 ProductImage
                 // =====================
+                if (request.getImages() != null) {
+                        for (int i = 0; i < request.getImages().size(); i++) {
 
-                ProductImage image = new ProductImage();
+                                ProductImageCreateRequest imageRequest = request.getImages().get(i);
 
-                image.setProduct(savedProduct);
-                image.setImageUrl(request.getImageUrl());
-                image.setSortOrder(0);
-                image.setIsMain(true);
+                                ProductImage image = ProductImage.builder()
+                                                .product(product)
+                                                .imageUrl(imageRequest.getImageUrl())
+                                                .sortOrder(imageRequest.getSortOrder())
+                                                .isMain(i == 0)
+                                                .build();
 
-                ProductImage savedImage = productImageRepository.save(image);
+                                ProductImage savedImg = productImageRepository.save(image);
+                                savedProduct.getImages().add(savedImg);
+                        }
+                }
 
-                return toProductResponse(savedProduct, savedSku, savedImage);
+                System.out.println("===== RESPONSE DEBUG =====");
+
+                System.out.println("SKU 數量 = " + savedProduct.getSkus().size());
+
+                savedProduct.getSkus().forEach(sku -> {
+                        System.out.println(
+                                        "skuId = " + sku.getSkuId()
+                                                        + ", stock = " + sku.getStock()
+                                                        + ", status = " + sku.getStatus());
+                });
+
+                System.out.println("圖片數量 = " + savedProduct.getImages().size());
+
+                savedProduct.getImages().forEach(image -> {
+                        System.out.println(
+                                        "imageId = " + image.getImageId()
+                                                        + ", imageUrl = " + image.getImageUrl()
+                                                        + ", isMain = " + image.getIsMain());
+                });
+
+                return toProductResponse(savedProduct);
         }
 
+        // 上架商品
         public ProductResponse publishProduct(Integer productId) {
 
                 Integer sellerId = 1; // 暫時寫死，之後改成登入賣家
@@ -168,6 +192,7 @@ public class ProductService {
                 return toProductResponse(savedProduct);
         }
 
+        // 下架商品
         public ProductResponse unpublishProduct(Integer productId) {
 
                 Integer sellerId = 1; // 暫時寫死，之後改成登入賣家
@@ -188,10 +213,64 @@ public class ProductService {
                 return toProductResponse(savedProduct);
         }
 
+        // 讀取商品列表
         public List<ProductResponse> getProducts() {
                 return productRepository.findAll()
                                 .stream()
                                 .map(this::toProductResponse)
                                 .toList();
+        }
+
+        // 讀取商品詳情
+        public ProductDetailResponse getProductDetail(Integer productId) {
+
+                Product product = productRepository.findById(productId)
+                                .orElseThrow(() -> new RuntimeException("找不到商品"));
+
+                List<ProductImageResponse> images = product.getImages()
+                                .stream()
+                                .map(image -> ProductImageResponse.builder()
+                                                .imageId(image.getImageId())
+                                                .imageUrl(image.getImageUrl())
+                                                .sortOrder(image.getSortOrder())
+                                                .build())
+                                .toList();
+
+                List<ProductSkuResponse> skus = product.getSkus()
+                                .stream()
+                                .map(sku -> ProductSkuResponse.builder()
+                                                .skuId(sku.getSkuId())
+                                                .spec1Name(sku.getSpec1Name())
+                                                .spec1Value(sku.getSpec1Value())
+                                                .spec2Name(sku.getSpec2Name())
+                                                .spec2Value(sku.getSpec2Value())
+                                                .price(sku.getPrice())
+                                                .stock(sku.getStock())
+                                                .status(sku.getStatus())
+                                                .build())
+                                .toList();
+
+                return ProductDetailResponse.builder()
+                                .productId(product.getProductId())
+                                .productName(product.getProductName())
+                                .description(product.getDescription())
+                                .basePrice(product.getBasePrice())
+                                .status(product.getStatus())
+                                .viewCount(product.getViewCount())
+                                .soldCount(product.getSoldCount())
+
+                                .brandId(product.getBrand().getBrandId())
+                                .brandName(product.getBrand().getBrandName())
+
+                                .subcategoryId(product.getSubcategory().getSubcategoryId())
+                                .subcategoryName(product.getSubcategory().getSubcategoryName())
+
+                                .categoryId(product.getSubcategory().getCategory().getCategoryId())
+                                .categoryName(product.getSubcategory().getCategory().getCategoryName())
+
+                                .images(images)
+                                .skus(skus)
+
+                                .build();
         }
 }
