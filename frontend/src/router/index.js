@@ -26,13 +26,13 @@ const routes = [
       {
         path: 'cart',
         name: 'Cart',
-        component: () => import('@/views/CartView.vue'),
+        component: () => import('@/views/cart/CartView.vue'),
         meta: { requiresAuth: true },
       },
       {
         path: 'checkout',
         name: 'Checkout',
-        component: () => import('@/views/CheckoutView.vue'),
+        component: () => import('@/views/cart/CheckoutView.vue'),
         meta: { requiresAuth: true },
       },
     ],

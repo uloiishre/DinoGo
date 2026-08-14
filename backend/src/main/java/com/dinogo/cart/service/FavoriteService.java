@@ -12,6 +12,7 @@ import com.dinogo.cart.entity.Favorite;
 import com.dinogo.cart.repository.FavoriteRepository;
 import com.dinogo.catalog.entity.Product;
 import com.dinogo.catalog.entity.ProductImage;
+import com.dinogo.catalog.entity.ProductSku;
 import com.dinogo.catalog.repository.ProductRepository;
 import com.dinogo.member.entity.Member;
 import com.dinogo.member.repository.MemberRepository;
@@ -100,10 +101,25 @@ public class FavoriteService {
 	private FavoriteResponse toResponse(Favorite favorite) {
 		Product product = favorite.getProduct();
 
-		String imageUrl = product.getImages().stream().findFirst().map(ProductImage::getImageUrl).orElse(null);
+		String imageUrl = product.getImages()
+				.stream()
+				.findFirst()
+				.map(ProductImage::getImageUrl)
+				.orElse(null);
 
-		return new FavoriteResponse(favorite.getFavoriteId(), product.getProductId(), product.getProductName(),
-				product.getBasePrice(), imageUrl);
+		Integer skuId = product.getSkus()
+				.stream()
+				.findFirst()
+				.map(ProductSku::getSkuId)
+				.orElse(null);
+
+		return new FavoriteResponse(
+				favorite.getFavoriteId(),
+				product.getProductId(),
+				skuId,
+				product.getProductName(),
+				product.getBasePrice(),
+				imageUrl);
 	}
 
 }
