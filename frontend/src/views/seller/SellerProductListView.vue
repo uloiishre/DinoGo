@@ -3,7 +3,7 @@ import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { disableSellerProduct, getSellerProducts } from '../../api/sellerProductApi'
 
-const sellerId = 1
+const sellerId = 1 //// TODO: 等 A/B 模組提供 current seller 商品 API 後，移除 sellerId 假資料。
 const products = ref([])
 
 const isLoading = ref(false)
@@ -14,7 +14,11 @@ const loadProducts = async () => {
   errorMessage.value = ''
 
   try {
+    //等 A/B 模組完成後，這兩處應改成：
+    // const response = await getSellerProducts()
+    // await disableSellerProduct(productId)
     const response = await getSellerProducts(sellerId)
+
     products.value = response.data
   } catch (error) {
     errorMessage.value = '商品資料載入失敗，請確認後端商品 API 是否已啟動。'
