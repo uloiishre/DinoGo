@@ -1,12 +1,18 @@
 package com.dinogo.seller.entity;
 
+import java.time.LocalDateTime;
+
+import com.dinogo.member.entity.Member;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
-import java.time.LocalDateTime;
 
 @Entity
 @Table(schema = "seller", name = "Seller")
@@ -17,8 +23,9 @@ public class Seller {
     @Column(name = "seller_id")
     private Integer sellerId;
 
-    @Column(name = "member_id", nullable = false)
-    private Integer memberId;
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "member_id", nullable = false, unique = true)
+    private Member member;
 
     @Column(name = "store_name", nullable = false, length = 100)
     private String storeName;
@@ -42,8 +49,16 @@ public class Seller {
         return sellerId;
     }
 
+    public Member getMember() {
+        return member;
+    }
+
+    public void setMember(Member member) {
+        this.member = member;
+    }
+
     public Integer getMemberId() {
-        return memberId;
+        return member == null ? null : member.getMemberId();
     }
 
     public String getStoreName() {
