@@ -115,6 +115,50 @@ class OrderServiceTest {
     }
 
     @Test
+    void createOrderRejectsNonPositiveQuantity() {
+        mockOwnedAddress(1, 10);
+
+        assertThatThrownBy(() -> orderService.createOrder(request(
+                List.of(new CreateOrderItemRequest(100, 0))), 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Quantity must be positive");
+
+        verify(productSkuRepository, never()).findById(100);
+        verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    @Test
+    void createOrderRejectsUnavailableProduct() {
+        mockOwnedAddress(1, 10);
+        ProductSku sku = mockSku(100, 200, 300, "Keyboard", new BigDecimal("500.00"), 5);
+        when(sku.getProduct().getStatus()).thenReturn((byte) 2);
+        when(productSkuRepository.findById(100)).thenReturn(Optional.of(sku));
+
+        assertThatThrownBy(() -> orderService.createOrder(request(
+                List.of(new CreateOrderItemRequest(100, 1))), 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Product is not available for SKU: 100");
+
+        verify(productSkuRepository, never()).deductStockIfAvailable(100, 1);
+        verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    @Test
+    void createOrderRejectsInvalidDatabasePrice() {
+        mockOwnedAddress(1, 10);
+        ProductSku sku = mockSku(100, 200, 300, "Keyboard", new BigDecimal("-1.00"), 5);
+        when(productSkuRepository.findById(100)).thenReturn(Optional.of(sku));
+
+        assertThatThrownBy(() -> orderService.createOrder(request(
+                List.of(new CreateOrderItemRequest(100, 1))), 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("SKU price is invalid: 100");
+
+        verify(productSkuRepository, never()).deductStockIfAvailable(100, 1);
+        verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    @Test
     void createOrderRejectsProductsFromDifferentSellers() {
         mockOwnedAddress(1, 10);
         ProductSku firstSku = mockSku(100, 200, 300, "Keyboard", BigDecimal.TEN, 5);
@@ -264,6 +308,7 @@ class OrderServiceTest {
         lenient().when(product.getProductName()).thenReturn(productName);
         lenient().when(product.getSeller()).thenReturn(seller);
         lenient().when(product.getImages()).thenReturn(new ArrayList<>());
+        lenient().when(product.getStatus()).thenReturn((byte) 1);
 
         ProductSku sku = new ProductSku();
         sku.setSkuId(skuId);
