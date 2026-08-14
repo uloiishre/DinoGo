@@ -92,6 +92,16 @@ class OrderServiceTest {
         assertThat(savedItem.getUnitPrice()).isEqualByComparingTo("500.00");
         assertThat(savedItem.getQuantity()).isEqualTo(2);
         assertThat(savedItem.getSubtotal()).isEqualByComparingTo("1000.00");
+
+        // Order history must keep the values captured at checkout even if the
+        // catalog product is renamed or repriced afterwards.
+        when(sku.getProduct().getProductName()).thenReturn("Keyboard New Name");
+        sku.setPrice(new BigDecimal("999.00"));
+        assertThat(sku.getProduct().getProductName()).isEqualTo("Keyboard New Name");
+        assertThat(sku.getPrice()).isEqualByComparingTo("999.00");
+        assertThat(savedItem.getProductName()).isEqualTo("Keyboard");
+        assertThat(savedItem.getUnitPrice()).isEqualByComparingTo("500.00");
+        assertThat(savedItem.getSubtotal()).isEqualByComparingTo("1000.00");
         assertThat(savedOrder.getPayments()).isEmpty();
     }
 
