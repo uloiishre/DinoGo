@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dinogo.catalog.dto.ProductCreateRequest;
+import com.dinogo.catalog.dto.ProductDetailResponse;
 import com.dinogo.catalog.dto.ProductResponse;
 import com.dinogo.catalog.service.ProductService;
 
@@ -48,5 +49,13 @@ public class ProductController {
             @PathVariable Integer productId) {
 
         return productService.unpublishProduct(productId);
+    }
+
+    // 商品詳情
+    @GetMapping("/{productId}")
+    public ProductDetailResponse getProductDetail(
+            @PathVariable Integer productId) {
+
+        return productService.getProductDetail(productId);
     }
 }
