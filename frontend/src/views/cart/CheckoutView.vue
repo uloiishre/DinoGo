@@ -355,16 +355,38 @@ const submitOrder = async () => {
 
     console.log('送給 Order API：', request)
 
+    // ========================================
+    // 1. 建立訂單
+    // ========================================
+
     const response = await api.post('/orders', request)
 
     console.log('建立訂單成功：', response.data)
 
-    alert('訂單建立成功！')
+    // ========================================
+    // 2. 訂單成功後刪除購物車商品
+    // ========================================
 
-    // 清除本次結帳資料
+    try {
+      await clearCheckoutItemsFromCart()
+
+      console.log('購物車商品已移除')
+    } catch (cartError) {
+      console.error('購物車商品移除失敗：', cartError)
+    }
+
+    // ========================================
+    // 3. 清除 checkoutData
+    // ========================================
+
     localStorage.removeItem('checkoutData')
 
-    // 回首頁
+    alert('訂單建立成功！')
+
+    // ========================================
+    // 4. 回首頁
+    // ========================================
+
     router.push({
       name: 'Home',
     })
@@ -376,7 +398,15 @@ const submitOrder = async () => {
     submitting.value = false
   }
 }
+const clearCheckoutItemsFromCart = async () => {
+  const cartItemIds = checkoutItems.value.map((item) => item.cartItemId).filter((id) => id != null)
 
+  if (cartItemIds.length === 0) {
+    return
+  }
+
+  await Promise.all(cartItemIds.map((cartItemId) => api.delete(`/cart/items/${cartItemId}`)))
+}
 // ========================================
 // 初始化
 // ========================================
