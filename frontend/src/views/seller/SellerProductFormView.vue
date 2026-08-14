@@ -57,26 +57,27 @@ const handleSubmit = async () => {
   errorMessage.value = ''
 
   const payload = {
+    sellerId: 1,
     subcategoryId: Number(form.subcategoryId),
     brandId: Number(form.brandId),
     productName: form.productName.trim(),
     description: form.description.trim(),
     basePrice: Number(form.basePrice),
-    status: 1,
-    skus: form.skus.map((sku) => ({
-      spec1Name: sku.spec1Name.trim(),
-      spec1Value: sku.spec1Value.trim(),
-      spec2Name: sku.spec2Name.trim(),
-      spec2Value: sku.spec2Value.trim(),
-      price: Number(sku.price),
-      stock: Number(sku.stock),
-      status: sku.status,
-    })),
+    status: form.status === 'ACTIVE' ? 1 : 0,
+    skus: [
+      {
+        spec1Name: '規格',
+        spec1Value: form.skuName.trim(),
+        spec2Name: null,
+        spec2Value: null,
+        price: Number(form.basePrice),
+        stock: Number(form.stock),
+      },
+    ],
     images: [
       {
         imageUrl: form.imageUrl.trim(),
         sortOrder: 0,
-        isMain: true,
       },
     ],
   }
