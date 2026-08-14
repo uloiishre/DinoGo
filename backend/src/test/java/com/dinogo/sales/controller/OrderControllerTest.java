@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import com.dinogo.sales.dto.order.CreateOrderItemRequest;
 import com.dinogo.sales.dto.order.CreateOrderRequest;
 import com.dinogo.sales.dto.order.CreateOrderResponse;
+import com.dinogo.sales.dto.UpdateOrderStatusRequest;
 import com.dinogo.sales.entity.OrderStatus;
 import com.dinogo.sales.service.OrderService;
 import com.dinogo.security.AuthenticatedMember;
@@ -53,5 +54,18 @@ class OrderControllerTest {
         assertThat(response.getHeaders().getLocation()).hasToString("/api/orders/99");
         assertThat(response.getBody()).isSameAs(serviceResponse);
         verify(orderService).createOrder(request, 1);
+    }
+
+    @Test
+    void updateOrderStatusUsesAuthenticatedMemberId() {
+        OrderService orderService = mock(OrderService.class);
+        AuthenticatedMember member = new AuthenticatedMember(6, "seller@example.com");
+        UpdateOrderStatusRequest request = new UpdateOrderStatusRequest(
+                OrderStatus.PROCESSING, null);
+
+        new OrderController(orderService).updateOrderStatus(99, member, request);
+
+        verify(orderService).updateStatusBySeller(
+                99, 6, OrderStatus.PROCESSING, null);
     }
 }

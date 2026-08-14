@@ -28,14 +28,17 @@ import com.dinogo.catalog.repository.ProductSkuRepository;
 import com.dinogo.member.entity.Address;
 import com.dinogo.member.entity.Member;
 import com.dinogo.member.repository.AddressRepository;
+import com.dinogo.sales.dto.OrderDetailResponse;
 import com.dinogo.sales.dto.order.CreateOrderItemRequest;
 import com.dinogo.sales.dto.order.CreateOrderRequest;
 import com.dinogo.sales.dto.order.CreateOrderResponse;
 import com.dinogo.sales.entity.Order;
 import com.dinogo.sales.entity.OrderItem;
 import com.dinogo.sales.entity.OrderStatus;
+import com.dinogo.sales.exception.OrderNotFoundException;
 import com.dinogo.sales.repository.OrderRepository;
 import com.dinogo.seller.entity.Seller;
+import com.dinogo.seller.repository.SellerRepository;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
@@ -46,6 +49,8 @@ class OrderServiceTest {
     private AddressRepository addressRepository;
     @Mock
     private ProductSkuRepository productSkuRepository;
+    @Mock
+    private SellerRepository sellerRepository;
     @Captor
     private ArgumentCaptor<Order> orderCaptor;
 
@@ -53,7 +58,7 @@ class OrderServiceTest {
 
     @BeforeEach
     void setUp() {
-        orderService = new OrderService(orderRepository, addressRepository, productSkuRepository);
+        orderService = new OrderService(orderRepository, addressRepository, productSkuRepository, sellerRepository);
     }
 
     @Test
@@ -150,10 +155,78 @@ class OrderServiceTest {
 
     @Test
     void updateStatusRejectsPaidOutsidePaymentFlow() {
-        assertThatThrownBy(() -> orderService.updateStatus(99, OrderStatus.PAID, null))
+        assertThatThrownBy(() -> orderService.updateStatusBySeller(99, 1, OrderStatus.PAID, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Order status PAID can only be set by the payment flow");
 
+        verify(orderRepository, never()).findById(99);
+    }
+
+    @Test
+    void updateStatusAllowsOwningSeller() {
+        // Arrange：JWT 登入會員 6 對應賣家 300
+        Seller seller = mock(Seller.class);
+        when(seller.getSellerId()).thenReturn(300);
+        when(sellerRepository.findByMemberId(6))
+                .thenReturn(Optional.of(seller));
+
+        // 訂單 99 屬於賣家 300，目前狀態為 PAID
+        Order order = new Order();
+        order.setOrderId(99);
+        order.setSellerId(300);
+        order.setStatus(OrderStatus.PAID);
+
+        when(orderRepository.findByOrderIdAndSellerId(99, 300))
+                .thenReturn(Optional.of(order));
+
+        // Act：PAID → PROCESSING 是合法狀態轉換
+        OrderDetailResponse response = orderService.updateStatusBySeller(
+                99,
+                6,
+                OrderStatus.PROCESSING,
+                null);
+
+        // Assert
+        assertThat(order.getStatus())
+                .isEqualTo(OrderStatus.PROCESSING);
+
+        assertThat(response.status())
+                .isEqualTo(OrderStatus.PROCESSING);
+
+        verify(sellerRepository).findByMemberId(6);
+        verify(orderRepository)
+                .findByOrderIdAndSellerId(99, 300);
+
+        // 確認沒有繞過 ownership，直接用 orderId 查詢
+        verify(orderRepository, never()).findById(99);
+    }
+
+    @Test
+    void updateStatusRejectsOrderOwnedByAnotherSeller() {
+        // Arrange：登入會員 6 對應賣家 300
+        Seller seller = mock(Seller.class);
+        when(seller.getSellerId()).thenReturn(300);
+        when(sellerRepository.findByMemberId(6))
+                .thenReturn(Optional.of(seller));
+
+        // 訂單 99 不屬於賣家 300，所以 ownership 查詢找不到
+        when(orderRepository.findByOrderIdAndSellerId(99, 300))
+                .thenReturn(Optional.empty());
+
+        // Act + Assert
+        assertThatThrownBy(() -> orderService.updateStatusBySeller(
+                99,
+                6,
+                OrderStatus.PROCESSING,
+                null))
+                .isInstanceOf(OrderNotFoundException.class)
+                .hasMessage("Order does not exist");
+
+        verify(sellerRepository).findByMemberId(6);
+        verify(orderRepository)
+                .findByOrderIdAndSellerId(99, 300);
+
+        // 確認不能改用 findById() 繞過 seller ownership
         verify(orderRepository, never()).findById(99);
     }
 
