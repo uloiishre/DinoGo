@@ -62,10 +62,12 @@ public class OrderController {
     @PatchMapping("/{orderId}/status")
     public ResponseEntity<OrderDetailResponse> updateOrderStatus(
             @PathVariable Integer orderId,
+            @AuthenticationPrincipal AuthenticatedMember member,
             @Valid @RequestBody UpdateOrderStatusRequest request) {
 
-        OrderDetailResponse response = orderService.updateStatus(
+        OrderDetailResponse response = orderService.updateStatusBySeller(
                 orderId,
+                member.memberId(),
                 request.status(),
                 request.reason());
 
