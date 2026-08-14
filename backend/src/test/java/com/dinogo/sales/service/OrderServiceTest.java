@@ -87,7 +87,11 @@ class OrderServiceTest {
         assertThat(savedOrder.getSellerId()).isEqualTo(300);
         assertThat(savedOrder.getReceiverName()).isEqualTo("王小明");
         assertThat(savedOrder.getOrderItems()).hasSize(1);
-        assertThat(savedOrder.getOrderItems().getFirst().getProductName()).isEqualTo("Keyboard");
+        OrderItem savedItem = savedOrder.getOrderItems().getFirst();
+        assertThat(savedItem.getProductName()).isEqualTo("Keyboard");
+        assertThat(savedItem.getUnitPrice()).isEqualByComparingTo("500.00");
+        assertThat(savedItem.getQuantity()).isEqualTo(2);
+        assertThat(savedItem.getSubtotal()).isEqualByComparingTo("1000.00");
         assertThat(savedOrder.getPayments()).isEmpty();
     }
 
