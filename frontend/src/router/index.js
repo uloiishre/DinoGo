@@ -26,13 +26,13 @@ const routes = [
       {
         path: 'cart',
         name: 'Cart',
-        component: () => import('@/views/CartView.vue'),
+        component: () => import('@/views/cart/CartView.vue'),
         meta: { requiresAuth: true },
       },
       {
         path: 'checkout',
         name: 'Checkout',
-        component: () => import('@/views/CheckoutView.vue'),
+        component: () => import('@/views/cart/CheckoutView.vue'),
         meta: { requiresAuth: true },
       },
     ],
@@ -110,13 +110,13 @@ const routes = [
   {
     path: '/seller',
     component: SellerLayout,
+    meta: { requiresAuth: true }, //標記這個 route 需要登入才能進入。
     children: [
       { path: '', redirect: '/seller/dashboard' },
       {
         path: 'dashboard',
         name: 'SellerDashboard',
         component: () => import('@/views/seller/SellerDashboardView.vue'),
-        meta: { requiresAuth: true }, //標記這個 route 需要登入才能進入。
       },
       {
         path: 'products',

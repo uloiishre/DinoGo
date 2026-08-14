@@ -1,12 +1,23 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { createSellerProduct } from '@/api/sellerProductApi'
+// TODO: 等 B 模組 Product create API 完成後恢復 createSellerProduct 呼叫。
+// import { createSellerProduct } from '@/api/sellerProductApi'
 
-const router = useRouter()
+// const router = useRouter()
 
 const isSubmitting = ref(false)
 const errorMessage = ref('')
+
+const createEmptySku = () => ({
+  spec1Name: '',
+  spec1Value: '',
+  spec2Name: '',
+  spec2Value: '',
+  price: '',
+  stock: '',
+  status: 1,
+})
 
 const form = reactive({
   productName: '',
@@ -14,38 +25,76 @@ const form = reactive({
   brandId: '',
   basePrice: '',
   description: '',
-  skuName: '',
-  stock: '',
+  skus: [createEmptySku()],
   status: 'ACTIVE',
   imageUrl: '',
 })
 
+const addSku = () => {
+  form.skus.push(createEmptySku())
+}
+
 const handleSubmit = async () => {
+  if (!form.productName.trim()) {
+    errorMessage.value = '請輸入商品名稱。'
+    return
+  }
+
+  if (!form.subcategoryId || !form.brandId) {
+    errorMessage.value = '請選擇商品分類與品牌。'
+    return
+  }
+
+  if (Number(form.basePrice) < 0) {
+    errorMessage.value = '商品價格不可小於 0。'
+    return
+  }
+
+  if (form.skus.some((sku) => Number(sku.price) < 0 || Number(sku.stock) < 0)) {
+    errorMessage.value = 'SKU 價格與庫存不可小於 0。'
+    return
+  }
   errorMessage.value = ''
 
-  //確保畫面上使用者填的 SKU、庫存、狀態、圖片也真的一起送到後端，而不是只送商品主檔資料。
   const payload = {
     subcategoryId: Number(form.subcategoryId),
     brandId: Number(form.brandId),
     productName: form.productName.trim(),
     description: form.description.trim(),
     basePrice: Number(form.basePrice),
-    skuName: form.skuName.trim(),
-    stock: Number(form.stock),
-    status: form.status,
-    imageUrl: form.imageUrl.trim(),
+    status: 1,
+    skus: form.skus.map((sku) => ({
+      spec1Name: sku.spec1Name.trim(),
+      spec1Value: sku.spec1Value.trim(),
+      spec2Name: sku.spec2Name.trim(),
+      spec2Value: sku.spec2Value.trim(),
+      price: Number(sku.price),
+      stock: Number(sku.stock),
+      status: sku.status,
+    })),
+    images: [
+      {
+        imageUrl: form.imageUrl.trim(),
+        sortOrder: 0,
+        isMain: true,
+      },
+    ],
   }
 
-  try {
-    isSubmitting.value = true
-    await createSellerProduct(payload)
-    router.push('/seller/products')
-  } catch (error) {
-    console.error('Create seller product failed:', error)
-    errorMessage.value = '新增商品失敗，請確認欄位或後端服務是否正常。'
-  } finally {
-    isSubmitting.value = false
-  }
+  console.log('等待 B 模組 API，預計送出的 payload:', payload)
+  errorMessage.value = '等待 B 模組新增商品 API 完成後再開放送出。'
+  return
+  //   try {
+  //     isSubmitting.value = true
+  //     await createSellerProduct(payload)
+  //     router.push('/seller/products')
+  //   } catch (error) {
+  //     console.error('Create seller product failed:', error)
+  //     errorMessage.value = '新增商品失敗，請確認欄位是否正常。'
+
+  //   } finally {
+  //     isSubmitting.value = false
+  //   }
 }
 </script>
 
@@ -96,15 +145,44 @@ const handleSubmit = async () => {
         <textarea v-model="form.description" placeholder="請輸入商品描述"></textarea>
       </label>
 
-      <label class="form-field">
-        SKU 名稱
-        <input v-model="form.skuName" type="text" placeholder="例如：黑色 / 128GB" />
-      </label>
+      <section class="sku-section full-width">
+        <div class="section-header">
+          <h2>商品規格 SKU</h2>
+          <button type="button" @click="addSku">新增 SKU</button>
+        </div>
 
-      <label class="form-field">
-        庫存
-        <input v-model="form.stock" type="number" min="0" placeholder="0" />
-      </label>
+        <div v-for="(sku, index) in form.skus" :key="index" class="sku-row">
+          <label class="form-field">
+            規格 1 名稱
+            <input v-model="sku.spec1Name" placeholder="例如：顏色、尺寸" />
+          </label>
+
+          <label class="form-field">
+            規格 1 值
+            <input v-model="sku.spec1Value" placeholder="例如：白、L" />
+          </label>
+
+          <label class="form-field">
+            規格 2 名稱
+            <input v-model="sku.spec2Name" placeholder="例如：容量、版本" />
+          </label>
+
+          <label class="form-field">
+            規格 2 值
+            <input v-model="sku.spec2Value" placeholder="例如：256GB、Pro" />
+          </label>
+
+          <label class="form-field">
+            SKU 價格
+            <input v-model="sku.price" type="number" min="0" />
+          </label>
+
+          <label class="form-field">
+            SKU 庫存
+            <input v-model="sku.stock" type="number" min="0" />
+          </label>
+        </div>
+      </section>
 
       <label class="form-field">
         商品圖片
@@ -147,10 +225,18 @@ const handleSubmit = async () => {
   font-size: var(--font-size-sm);
 }
 
-h1 {
+h1,
+h2 {
   margin: 0;
   font-family: var(--font-heading);
+}
+
+h1 {
   font-size: var(--font-size-xl);
+}
+
+h2 {
+  font-size: var(--font-size-lg);
 }
 
 .product-form {
@@ -173,6 +259,27 @@ h1 {
 
 .full-width {
   grid-column: 1 / -1;
+}
+
+.sku-section {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.sku-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
 }
 
 input,
@@ -229,7 +336,8 @@ button {
 }
 
 @media (max-width: 680px) {
-  .product-form {
+  .product-form,
+  .sku-row {
     grid-template-columns: 1fr;
   }
 }

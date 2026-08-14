@@ -28,14 +28,17 @@ import com.dinogo.catalog.repository.ProductSkuRepository;
 import com.dinogo.member.entity.Address;
 import com.dinogo.member.entity.Member;
 import com.dinogo.member.repository.AddressRepository;
+import com.dinogo.sales.dto.OrderDetailResponse;
 import com.dinogo.sales.dto.order.CreateOrderItemRequest;
 import com.dinogo.sales.dto.order.CreateOrderRequest;
 import com.dinogo.sales.dto.order.CreateOrderResponse;
 import com.dinogo.sales.entity.Order;
 import com.dinogo.sales.entity.OrderItem;
 import com.dinogo.sales.entity.OrderStatus;
+import com.dinogo.sales.exception.OrderNotFoundException;
 import com.dinogo.sales.repository.OrderRepository;
 import com.dinogo.seller.entity.Seller;
+import com.dinogo.seller.repository.SellerRepository;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
@@ -46,6 +49,8 @@ class OrderServiceTest {
     private AddressRepository addressRepository;
     @Mock
     private ProductSkuRepository productSkuRepository;
+    @Mock
+    private SellerRepository sellerRepository;
     @Captor
     private ArgumentCaptor<Order> orderCaptor;
 
@@ -53,7 +58,7 @@ class OrderServiceTest {
 
     @BeforeEach
     void setUp() {
-        orderService = new OrderService(orderRepository, addressRepository, productSkuRepository);
+        orderService = new OrderService(orderRepository, addressRepository, productSkuRepository, sellerRepository);
     }
 
     @Test
@@ -82,7 +87,21 @@ class OrderServiceTest {
         assertThat(savedOrder.getSellerId()).isEqualTo(300);
         assertThat(savedOrder.getReceiverName()).isEqualTo("王小明");
         assertThat(savedOrder.getOrderItems()).hasSize(1);
-        assertThat(savedOrder.getOrderItems().getFirst().getProductName()).isEqualTo("Keyboard");
+        OrderItem savedItem = savedOrder.getOrderItems().getFirst();
+        assertThat(savedItem.getProductName()).isEqualTo("Keyboard");
+        assertThat(savedItem.getUnitPrice()).isEqualByComparingTo("500.00");
+        assertThat(savedItem.getQuantity()).isEqualTo(2);
+        assertThat(savedItem.getSubtotal()).isEqualByComparingTo("1000.00");
+
+        // Order history must keep the values captured at checkout even if the
+        // catalog product is renamed or repriced afterwards.
+        when(sku.getProduct().getProductName()).thenReturn("Keyboard New Name");
+        sku.setPrice(new BigDecimal("999.00"));
+        assertThat(sku.getProduct().getProductName()).isEqualTo("Keyboard New Name");
+        assertThat(sku.getPrice()).isEqualByComparingTo("999.00");
+        assertThat(savedItem.getProductName()).isEqualTo("Keyboard");
+        assertThat(savedItem.getUnitPrice()).isEqualByComparingTo("500.00");
+        assertThat(savedItem.getSubtotal()).isEqualByComparingTo("1000.00");
         assertThat(savedOrder.getPayments()).isEmpty();
     }
 
@@ -107,6 +126,50 @@ class OrderServiceTest {
                 List.of(new CreateOrderItemRequest(100, 2))), 1))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Insufficient stock for SKU: 100");
+    }
+
+    @Test
+    void createOrderRejectsNonPositiveQuantity() {
+        mockOwnedAddress(1, 10);
+
+        assertThatThrownBy(() -> orderService.createOrder(request(
+                List.of(new CreateOrderItemRequest(100, 0))), 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Quantity must be positive");
+
+        verify(productSkuRepository, never()).findById(100);
+        verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    @Test
+    void createOrderRejectsUnavailableProduct() {
+        mockOwnedAddress(1, 10);
+        ProductSku sku = mockSku(100, 200, 300, "Keyboard", new BigDecimal("500.00"), 5);
+        when(sku.getProduct().getStatus()).thenReturn((byte) 2);
+        when(productSkuRepository.findById(100)).thenReturn(Optional.of(sku));
+
+        assertThatThrownBy(() -> orderService.createOrder(request(
+                List.of(new CreateOrderItemRequest(100, 1))), 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Product is not available for SKU: 100");
+
+        verify(productSkuRepository, never()).deductStockIfAvailable(100, 1);
+        verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    @Test
+    void createOrderRejectsInvalidDatabasePrice() {
+        mockOwnedAddress(1, 10);
+        ProductSku sku = mockSku(100, 200, 300, "Keyboard", new BigDecimal("-1.00"), 5);
+        when(productSkuRepository.findById(100)).thenReturn(Optional.of(sku));
+
+        assertThatThrownBy(() -> orderService.createOrder(request(
+                List.of(new CreateOrderItemRequest(100, 1))), 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("SKU price is invalid: 100");
+
+        verify(productSkuRepository, never()).deductStockIfAvailable(100, 1);
+        verify(orderRepository, never()).save(any(Order.class));
     }
 
     @Test
@@ -150,10 +213,78 @@ class OrderServiceTest {
 
     @Test
     void updateStatusRejectsPaidOutsidePaymentFlow() {
-        assertThatThrownBy(() -> orderService.updateStatus(99, OrderStatus.PAID, null))
+        assertThatThrownBy(() -> orderService.updateStatusBySeller(99, 1, OrderStatus.PAID, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Order status PAID can only be set by the payment flow");
 
+        verify(orderRepository, never()).findById(99);
+    }
+
+    @Test
+    void updateStatusAllowsOwningSeller() {
+        // Arrange：JWT 登入會員 6 對應賣家 300
+        Seller seller = mock(Seller.class);
+        when(seller.getSellerId()).thenReturn(300);
+        when(sellerRepository.findByMemberId(6))
+                .thenReturn(Optional.of(seller));
+
+        // 訂單 99 屬於賣家 300，目前狀態為 PAID
+        Order order = new Order();
+        order.setOrderId(99);
+        order.setSellerId(300);
+        order.setStatus(OrderStatus.PAID);
+
+        when(orderRepository.findByOrderIdAndSellerId(99, 300))
+                .thenReturn(Optional.of(order));
+
+        // Act：PAID → PROCESSING 是合法狀態轉換
+        OrderDetailResponse response = orderService.updateStatusBySeller(
+                99,
+                6,
+                OrderStatus.PROCESSING,
+                null);
+
+        // Assert
+        assertThat(order.getStatus())
+                .isEqualTo(OrderStatus.PROCESSING);
+
+        assertThat(response.status())
+                .isEqualTo(OrderStatus.PROCESSING);
+
+        verify(sellerRepository).findByMemberId(6);
+        verify(orderRepository)
+                .findByOrderIdAndSellerId(99, 300);
+
+        // 確認沒有繞過 ownership，直接用 orderId 查詢
+        verify(orderRepository, never()).findById(99);
+    }
+
+    @Test
+    void updateStatusRejectsOrderOwnedByAnotherSeller() {
+        // Arrange：登入會員 6 對應賣家 300
+        Seller seller = mock(Seller.class);
+        when(seller.getSellerId()).thenReturn(300);
+        when(sellerRepository.findByMemberId(6))
+                .thenReturn(Optional.of(seller));
+
+        // 訂單 99 不屬於賣家 300，所以 ownership 查詢找不到
+        when(orderRepository.findByOrderIdAndSellerId(99, 300))
+                .thenReturn(Optional.empty());
+
+        // Act + Assert
+        assertThatThrownBy(() -> orderService.updateStatusBySeller(
+                99,
+                6,
+                OrderStatus.PROCESSING,
+                null))
+                .isInstanceOf(OrderNotFoundException.class)
+                .hasMessage("Order does not exist");
+
+        verify(sellerRepository).findByMemberId(6);
+        verify(orderRepository)
+                .findByOrderIdAndSellerId(99, 300);
+
+        // 確認不能改用 findById() 繞過 seller ownership
         verify(orderRepository, never()).findById(99);
     }
 
@@ -191,6 +322,7 @@ class OrderServiceTest {
         lenient().when(product.getProductName()).thenReturn(productName);
         lenient().when(product.getSeller()).thenReturn(seller);
         lenient().when(product.getImages()).thenReturn(new ArrayList<>());
+        lenient().when(product.getStatus()).thenReturn((byte) 1);
 
         ProductSku sku = new ProductSku();
         sku.setSkuId(skuId);
