@@ -245,7 +245,7 @@ onMounted(() => {
                   {{ address.detailAddress }}
                 </span>
 
-                <span v-if="address.phone" class="option-phone">
+                <span v-if="address.receiverPhone" class="option-phone">
                   {{ address.receiverPhone }}
                 </span>
               </div>
