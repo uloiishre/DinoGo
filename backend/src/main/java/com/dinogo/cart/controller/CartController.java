@@ -1,6 +1,5 @@
 package com.dinogo.cart.controller;
 
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,7 +13,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.dinogo.cart.dto.CartItemRequest;
 import com.dinogo.cart.dto.CartItemResponse;
 import com.dinogo.cart.dto.CartResponse;
-import com.dinogo.cart.entity.Cart;
 import com.dinogo.cart.entity.CartItem;
 import com.dinogo.cart.service.CartService;
 import com.dinogo.catalog.entity.Product;

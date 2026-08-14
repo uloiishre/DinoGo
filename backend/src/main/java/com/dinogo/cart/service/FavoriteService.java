@@ -14,22 +14,34 @@ import com.dinogo.catalog.entity.Product;
 import com.dinogo.catalog.entity.ProductImage;
 import com.dinogo.catalog.repository.ProductRepository;
 import com.dinogo.member.entity.Member;
+import com.dinogo.member.repository.MemberRepository;
 
 @Service
 @Transactional
 public class FavoriteService {
 	private final FavoriteRepository favoriteRepository;
 	private final ProductRepository productRepository;
+	private final MemberRepository memberRepository;
 
-	public FavoriteService(ProductRepository productRepository, FavoriteRepository favoriteRepository) {
+	public FavoriteService(ProductRepository productRepository, FavoriteRepository favoriteRepository,
+			MemberRepository memberRepository) {
 		this.favoriteRepository = favoriteRepository;
 		this.productRepository = productRepository;
+		this.memberRepository = memberRepository;
 	}
 
 	// 查詢會員的所有收藏
 	@Transactional(readOnly = true)
 	public List<FavoriteResponse> getFavorites(Member member) {
 		return favoriteRepository.findByMember(member).stream().map(this::toResponse).toList();
+	}
+
+	public List<FavoriteResponse> getFavoritesByEmail(String email) {
+
+		Member member = memberRepository.findByEmail(email)
+				.orElseThrow(() -> new RuntimeException("會員不存在"));
+
+		return getFavorites(member);
 	}
 
 	// 新增收藏
@@ -56,6 +68,16 @@ public class FavoriteService {
 		return toResponse(saved);
 	}
 
+	public FavoriteResponse addFavoriteByEmail(
+			String email,
+			AddFavoriteRequest request) {
+
+		Member member = memberRepository.findByEmail(email)
+				.orElseThrow(() -> new RuntimeException("會員不存在"));
+
+		return addFavorite(member, request);
+	}
+
 	// 取消收藏
 	public void removeFavorite(Member member, Integer productId) {
 
@@ -63,6 +85,16 @@ public class FavoriteService {
 				.orElseThrow(() -> new RuntimeException("收藏不存在"));
 
 		favoriteRepository.delete(favorite);
+	}
+
+	public void removeFavoriteByEmail(
+			String email,
+			Integer productId) {
+
+		Member member = memberRepository.findByEmail(email)
+				.orElseThrow(() -> new RuntimeException("會員不存在"));
+
+		removeFavorite(member, productId);
 	}
 
 	private FavoriteResponse toResponse(Favorite favorite) {
@@ -73,4 +105,5 @@ public class FavoriteService {
 		return new FavoriteResponse(favorite.getFavoriteId(), product.getProductId(), product.getProductName(),
 				product.getBasePrice(), imageUrl);
 	}
+
 }
