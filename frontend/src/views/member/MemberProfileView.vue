@@ -9,6 +9,8 @@ const form = ref({
   firstName: '',
   birthDate: '',
   phone: '',
+  emailOrderNotifications: false,
+  emailMarketingNotifications: false,
 })
 const isLoading = ref(true)
 const hasLoadedProfile = ref(false)
@@ -30,6 +32,9 @@ function applyProfile(profile) {
     firstName: profile.firstName ?? '',
     birthDate: profile.birthDate ?? '',
     phone: profile.phone ?? '',
+    // Default to opt-out until the notifications API provides saved preferences.
+    emailOrderNotifications: profile.emailOrderNotifications ?? false,
+    emailMarketingNotifications: profile.emailMarketingNotifications ?? false,
   }
   form.value = { ...profileForm }
   initialForm.value = { ...profileForm }
@@ -204,6 +209,37 @@ onMounted(loadProfile)
             </div>
 
             <!-- 未編輯時保留操作列空間，避免切換編輯狀態造成卡片高度跳動。 -->
+            <fieldset class="profile-email-preferences" :disabled="!isEditing">
+              <legend>電子郵件通知</legend>
+              <p class="profile-email-preferences__hint">
+                請選擇您同意接收的電子郵件訊息類型。
+              </p>
+
+              <label class="profile-checkbox-field" for="profile-email-order-notifications">
+                <input
+                  id="profile-email-order-notifications"
+                  v-model="form.emailOrderNotifications"
+                  type="checkbox"
+                />
+                <span>
+                  <strong>訂單訊息</strong>
+                  <small>接收訂單成立、付款、出貨與配送狀態通知。</small>
+                </span>
+              </label>
+
+              <label class="profile-checkbox-field" for="profile-email-marketing-notifications">
+                <input
+                  id="profile-email-marketing-notifications"
+                  v-model="form.emailMarketingNotifications"
+                  type="checkbox"
+                />
+                <span>
+                  <strong>行銷訊息</strong>
+                  <small>接收優惠活動、新品與推薦商品資訊。</small>
+                </span>
+              </label>
+            </fieldset>
+
             <footer
               class="profile-form-actions"
               :class="{ 'profile-form-actions-placeholder': !isEditing }"
@@ -385,6 +421,76 @@ onMounted(loadProfile)
 }
 
 /* 編輯狀態的表單操作。 */
+.profile-email-preferences {
+  display: grid;
+  gap: 10px;
+  margin: 22px 0 0;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.profile-email-preferences:disabled {
+  background: var(--color-bg-muted);
+}
+
+.profile-email-preferences legend {
+  width: auto;
+  float: none;
+  margin: 0;
+  padding: 0 4px;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.profile-email-preferences__hint {
+  margin: 0 0 2px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.profile-checkbox-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  color: var(--color-text);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.profile-checkbox-field:hover {
+  background: var(--color-bg-muted);
+}
+
+.profile-email-preferences:disabled .profile-checkbox-field {
+  cursor: default;
+}
+
+.profile-checkbox-field input {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  margin: 2px 0 0;
+  accent-color: var(--color-primary);
+}
+
+.profile-checkbox-field span {
+  display: grid;
+  gap: 2px;
+}
+
+.profile-checkbox-field strong {
+  font-size: var(--font-size-sm);
+}
+
+.profile-checkbox-field small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+}
+
 .profile-form-actions {
   display: flex;
   justify-content: flex-end;

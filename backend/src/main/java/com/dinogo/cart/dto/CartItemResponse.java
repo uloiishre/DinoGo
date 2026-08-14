@@ -1,6 +1,7 @@
 package com.dinogo.cart.dto;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public record CartItemResponse(
 		Integer cartItemId,
@@ -8,5 +9,6 @@ public record CartItemResponse(
 		String productName,
 		BigDecimal price,
 		Integer quantity,
-		String productImage) {
+		String productImage,
+		List<SkuOptionResponse> skus) {
 }
