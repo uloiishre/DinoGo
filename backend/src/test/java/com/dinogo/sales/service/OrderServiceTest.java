@@ -87,7 +87,21 @@ class OrderServiceTest {
         assertThat(savedOrder.getSellerId()).isEqualTo(300);
         assertThat(savedOrder.getReceiverName()).isEqualTo("王小明");
         assertThat(savedOrder.getOrderItems()).hasSize(1);
-        assertThat(savedOrder.getOrderItems().getFirst().getProductName()).isEqualTo("Keyboard");
+        OrderItem savedItem = savedOrder.getOrderItems().getFirst();
+        assertThat(savedItem.getProductName()).isEqualTo("Keyboard");
+        assertThat(savedItem.getUnitPrice()).isEqualByComparingTo("500.00");
+        assertThat(savedItem.getQuantity()).isEqualTo(2);
+        assertThat(savedItem.getSubtotal()).isEqualByComparingTo("1000.00");
+
+        // Order history must keep the values captured at checkout even if the
+        // catalog product is renamed or repriced afterwards.
+        when(sku.getProduct().getProductName()).thenReturn("Keyboard New Name");
+        sku.setPrice(new BigDecimal("999.00"));
+        assertThat(sku.getProduct().getProductName()).isEqualTo("Keyboard New Name");
+        assertThat(sku.getPrice()).isEqualByComparingTo("999.00");
+        assertThat(savedItem.getProductName()).isEqualTo("Keyboard");
+        assertThat(savedItem.getUnitPrice()).isEqualByComparingTo("500.00");
+        assertThat(savedItem.getSubtotal()).isEqualByComparingTo("1000.00");
         assertThat(savedOrder.getPayments()).isEmpty();
     }
 
@@ -112,6 +126,50 @@ class OrderServiceTest {
                 List.of(new CreateOrderItemRequest(100, 2))), 1))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Insufficient stock for SKU: 100");
+    }
+
+    @Test
+    void createOrderRejectsNonPositiveQuantity() {
+        mockOwnedAddress(1, 10);
+
+        assertThatThrownBy(() -> orderService.createOrder(request(
+                List.of(new CreateOrderItemRequest(100, 0))), 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Quantity must be positive");
+
+        verify(productSkuRepository, never()).findById(100);
+        verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    @Test
+    void createOrderRejectsUnavailableProduct() {
+        mockOwnedAddress(1, 10);
+        ProductSku sku = mockSku(100, 200, 300, "Keyboard", new BigDecimal("500.00"), 5);
+        when(sku.getProduct().getStatus()).thenReturn((byte) 2);
+        when(productSkuRepository.findById(100)).thenReturn(Optional.of(sku));
+
+        assertThatThrownBy(() -> orderService.createOrder(request(
+                List.of(new CreateOrderItemRequest(100, 1))), 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Product is not available for SKU: 100");
+
+        verify(productSkuRepository, never()).deductStockIfAvailable(100, 1);
+        verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    @Test
+    void createOrderRejectsInvalidDatabasePrice() {
+        mockOwnedAddress(1, 10);
+        ProductSku sku = mockSku(100, 200, 300, "Keyboard", new BigDecimal("-1.00"), 5);
+        when(productSkuRepository.findById(100)).thenReturn(Optional.of(sku));
+
+        assertThatThrownBy(() -> orderService.createOrder(request(
+                List.of(new CreateOrderItemRequest(100, 1))), 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("SKU price is invalid: 100");
+
+        verify(productSkuRepository, never()).deductStockIfAvailable(100, 1);
+        verify(orderRepository, never()).save(any(Order.class));
     }
 
     @Test
@@ -264,6 +322,7 @@ class OrderServiceTest {
         lenient().when(product.getProductName()).thenReturn(productName);
         lenient().when(product.getSeller()).thenReturn(seller);
         lenient().when(product.getImages()).thenReturn(new ArrayList<>());
+        lenient().when(product.getStatus()).thenReturn((byte) 1);
 
         ProductSku sku = new ProductSku();
         sku.setSkuId(skuId);

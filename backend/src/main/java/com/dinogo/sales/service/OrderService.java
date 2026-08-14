@@ -82,6 +82,9 @@ public class OrderService {
         BigDecimal subtotalAmount = BigDecimal.ZERO;
 
         for (CreateOrderItemRequest itemRequest : request.items()) {
+            if (itemRequest.quantity() == null || itemRequest.quantity() <= 0) {
+                throw new InvalidOrderException("Quantity must be positive");
+            }
             if (!skuIds.add(itemRequest.skuId())) {
                 throw new InvalidOrderException("Duplicate SKU in order: " + itemRequest.skuId());
             }
@@ -93,6 +96,12 @@ public class OrderService {
                 throw new InvalidOrderException("SKU is not available: " + itemRequest.skuId());
             }
             Product product = sku.getProduct();
+            if (product == null || product.getStatus() == null || product.getStatus() != (byte) 1) {
+                throw new InvalidOrderException("Product is not available for SKU: " + itemRequest.skuId());
+            }
+            if (sku.getPrice() == null || sku.getPrice().signum() < 0) {
+                throw new InvalidOrderException("SKU price is invalid: " + itemRequest.skuId());
+            }
             Integer itemSellerId = product.getSeller().getSellerId();
             if (sellerId == null) {
                 sellerId = itemSellerId;
