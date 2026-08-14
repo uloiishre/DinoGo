@@ -1,6 +1,9 @@
 <script setup>
 import { RouterLink } from 'vue-router'
 import SearchBar from './SearchBar.vue'
+import { useCartStore } from '@/stores/cart'
+
+const cartStore = useCartStore()
 </script>
 
 <template>
@@ -27,7 +30,7 @@ import SearchBar from './SearchBar.vue'
           ><span class="header-action__label">通知</span></RouterLink
         >
         <RouterLink class="header-action header-action--badge" to="/cart" aria-label="購物車"
-          ><i class="bi bi-cart" aria-hidden="true"></i><span class="notification-badge">3</span
+          ><i class="bi bi-cart" aria-hidden="true"></i><span class="notification-badge">{{ cartStore.totalQuantity }}</span
           ><span class="header-action__label">購物車</span></RouterLink
         >
         <RouterLink

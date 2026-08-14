@@ -4,6 +4,8 @@ import AuthLayout from '@/layouts/AuthLayout.vue'
 import DefaultStorefrontLayout from '@/layouts/DefaultStorefrontLayout.vue'
 import MemberLayout from '@/layouts/MemberLayout.vue'
 import SellerLayout from '@/layouts/SellerLayout.vue'
+import { pinia } from '@/stores'
+import { useAuthStore } from '@/stores/auth'
 
 const routes = [
   {
@@ -21,11 +23,17 @@ const routes = [
         name: 'ProductDetail',
         component: () => import('@/views/product/ProductDetailView.vue'),
       },
-      { path: 'cart', name: 'Cart', component: () => import('@/views/CartView.vue') },
+      {
+        path: 'cart',
+        name: 'Cart',
+        component: () => import('@/views/CartView.vue'),
+        meta: { requiresAuth: true },
+      },
       {
         path: 'checkout',
         name: 'Checkout',
         component: () => import('@/views/CheckoutView.vue'),
+        meta: { requiresAuth: true },
       },
     ],
   },
@@ -150,7 +158,9 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
-  if (to.meta.requiresAuth && !localStorage.getItem('token')) {
+  // Router 不在 component setup 內，必須明確傳入共用 Pinia 實例。
+  const authStore = useAuthStore(pinia)
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     return {
       name: 'Login',
       query: { redirect: to.fullPath },
