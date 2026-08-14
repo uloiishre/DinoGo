@@ -17,7 +17,7 @@ import SellerNav from '../components/seller/SellerNav.vue'
 .seller-layout {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 216px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr);
   background: var(--color-bg-muted);
 }
 

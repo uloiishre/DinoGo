@@ -110,7 +110,7 @@ const routes = [
   {
     path: '/seller',
     component: SellerLayout,
-    meta: { requiresAuth: true }, //標記這個 route 需要登入才能進入。
+    meta: { requiresAuth: true }, //標記這個 router 需要登入才能進入。
     children: [
       { path: '', redirect: '/seller/dashboard' },
       {
@@ -136,7 +136,12 @@ const routes = [
       {
         path: 'orders',
         name: 'SellerOrders',
-        component: () => import('@/views/seller/SellerOrdersView.vue'),
+        component: () => import('@/views/seller/SellerOrderListView.vue'),
+      },
+      {
+        path: 'orders/:id',
+        name: 'SellerOrderDetail',
+        component: () => import('@/views/seller/SellerOrderDetailView.vue'),
       },
       {
         path: 'profile',
