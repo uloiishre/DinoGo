@@ -1,8 +1,22 @@
 <script setup>
 import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
+const authStore = useAuthStore()
+
+const memberName = computed(() => {
+  const { lastName = '', firstName = '' } = authStore.member ?? {}
+  return `${lastName}${firstName}`.trim() || '會員'
+})
+
+// 會員可能同時擁有多個角色，顯示時以管理員、商家、一般會員的順序決定標籤。
+const memberLevel = computed(() => {
+  if (authStore.hasRole('admin')) return '管理員'
+  if (authStore.hasRole('seller')) return '商家會員'
+  return '一般會員'
+})
 
 const memberItems = [
   { label: '總覽', to: '/member/overview', icon: 'bi-grid' },
@@ -26,8 +40,8 @@ const isAccountActive = computed(() => accountItems.some((item) => item.routeNam
       <div class="dg-member-profile">
         <span class="dg-member-avatar" aria-hidden="true">D</span>
         <span class="dg-member-profile-copy">
-          <strong class="dg-member-name">Dino 會員</strong>
-          <span class="dg-member-level">一般會員</span>
+          <strong class="dg-member-name">{{ memberName }}</strong>
+          <span class="dg-member-level">{{ memberLevel }}</span>
         </span>
       </div>
 
