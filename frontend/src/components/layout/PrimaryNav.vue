@@ -325,19 +325,18 @@ onMounted(async () => {
 
         <!-- 其他導覽 -->
         <template v-for="item in navItems" :key="item.label">
-  <RouterLink
-    v-if="!item.requiresSeller || authStore.isSeller"
-    class="primary-nav__link"
-    :class="{
-      'primary-nav__link--seller': item.label === '商家中心',
-      'primary-nav__link--active': isActive(item),
-    }"
-    :to="item.to"
-  >
-    <i v-if="item.icon" class="bi" :class="item.icon" aria-hidden="true"></i>
-    <span>{{ item.label }}</span>
-  </RouterLink>
-</template>
+          <RouterLink
+            v-if="!item.requiresSeller || authStore.isSeller"
+            class="primary-nav__link"
+            :class="{
+              'primary-nav__link--seller': item.label === '商家中心',
+              'primary-nav__link--active': isActive(item),
+            }"
+            :to="item.to"
+          >
+            <i v-if="item.icon" class="bi" :class="item.icon" aria-hidden="true"></i>
+            <span>{{ item.label }}</span>
+          </RouterLink>
         </template>
       </div>
     </div>
