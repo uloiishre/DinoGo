@@ -2,9 +2,9 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 // TODO: 等 B 模組 Product create API 完成後恢復 createSellerProduct 呼叫。
-// import { createSellerProduct } from '@/api/sellerProductApi'
+import { createSellerProduct } from '@/api/sellerProductApi'
 
-// const router = useRouter()
+const router = useRouter()
 
 const isSubmitting = ref(false)
 const errorMessage = ref('')
@@ -64,38 +64,34 @@ const handleSubmit = async () => {
     description: form.description.trim(),
     basePrice: Number(form.basePrice),
     status: form.status === 'ACTIVE' ? 1 : 0,
-    skus: [
-      {
-        spec1Name: '規格',
-        spec1Value: form.skuName.trim(),
-        spec2Name: null,
-        spec2Value: null,
-        price: Number(form.basePrice),
-        stock: Number(form.stock),
-      },
-    ],
-    images: [
-      {
-        imageUrl: form.imageUrl.trim(),
-        sortOrder: 0,
-      },
-    ],
+    skus: form.skus.map((sku) => ({
+      spec1Name: sku.spec1Name.trim(),
+      spec1Value: sku.spec1Value.trim(),
+      spec2Name: sku.spec2Name?.trim() || null,
+      spec2Value: sku.spec2Value?.trim() || null,
+      price: Number(sku.price),
+      stock: Number(sku.stock),
+    })),
+    images: form.imageUrl
+      ? [
+          {
+            imageUrl: form.imageUrl.trim(),
+            sortOrder: 1,
+          },
+        ]
+      : [],
   }
 
-  console.log('等待 B 模組 API，預計送出的 payload:', payload)
-  errorMessage.value = '等待 B 模組新增商品 API 完成後再開放送出。'
-  return
-  //   try {
-  //     isSubmitting.value = true
-  //     await createSellerProduct(payload)
-  //     router.push('/seller/products')
-  //   } catch (error) {
-  //     console.error('Create seller product failed:', error)
-  //     errorMessage.value = '新增商品失敗，請確認欄位是否正常。'
-
-  //   } finally {
-  //     isSubmitting.value = false
-  //   }
+  try {
+    isSubmitting.value = true
+    await createSellerProduct(payload)
+    router.push('/seller/products')
+  } catch (error) {
+    console.error('Create seller product failed:', error)
+    errorMessage.value = '新增商品失敗，請確認欄位是否正常。'
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 
