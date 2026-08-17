@@ -11,6 +11,7 @@
 - `memberId` 一律從 JWT 取得，request body 與 URL 不接受前端指定的會員 ID。
 - JWT 另有 `roles` claim，內容為 `buyer`、`seller`、`admin` 等小寫角色名稱陳列。
 - Token 預設有效期為 1 小時，可由後端 `jwt.expiration-ms` 設定覆寫。
+- 未登入、JWT 缺少、格式錯誤或過期時，Security 層回傳 HTTP 401；已登入但角色不足時回傳 HTTP 403。這兩種 Security 回應目前可能為純文字，前端應以 HTTP status 判斷。
 
 ## 共用回應格式
 
@@ -65,7 +66,7 @@
 - `fieldErrors` 只在 request 欄位驗證失敗時帶入欄位訊息；其他情況為空物件 `{}`。
 - JSON 無法解析時，`message` 為 `請求內容格式錯誤`。
 - URL 中的 `addressId` 小於等於 0 時，`message` 為 `請求參數驗證失敗`。
-- 缺少、格式錯誤或過期的 JWT 由 Security 層處理，目前可能回傳純文字 401；前端應以 HTTP status 判斷登入失效，不應假設它是上述 JSON 格式。
+- 缺少、格式錯誤或過期的 JWT，以及角色不足，皆由 Security 層處理；前端應以 HTTP status 判斷登入失效（401）或權限不足（403），不應假設它是上述 JSON 格式。
 
 ## 認證 API
 
