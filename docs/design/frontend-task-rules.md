@@ -1,6 +1,6 @@
 # Frontend Task Rules
 
-> 此文件只在 Vue、UI、Router、Layout、樣式、Axios、Pinia 或前端 API 串接任務時讀取；後端、資料庫、Git、文件與純 API 任務不需載入。
+> 此文件是前端／設計的唯一閱讀路由。只在 Vue、UI、Router、Layout、樣式、Axios、Pinia 或前端 API 串接任務時讀取；後端、資料庫、Git、文件與純 API 任務不需載入。
 
 ## 最小載入路由
 
