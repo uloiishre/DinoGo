@@ -3,7 +3,15 @@ import { RouterLink } from 'vue-router'
 
 const navItems = [
   { label: '營運總覽', to: '/seller/dashboard', icon: 'bi-speedometer2' },
-  { label: '商品管理', to: '/seller/products', icon: 'bi-box-seam' },
+  {
+    label: '商品管理',
+    to: '/seller/products',
+    icon: 'bi-box-seam',
+    children: [
+      { label: '商品列表', to: '/seller/products' },
+      { label: '新增商品', to: '/seller/products/new' },
+    ],
+  },
   { label: '訂單管理', to: '/seller/orders', icon: 'bi-receipt' },
   { label: '店鋪資料', to: '/seller/profile', icon: 'bi-shop' },
 ]
@@ -29,10 +37,30 @@ const plannedItems = [{ label: '銷售分析', icon: 'bi-graph-up-arrow' }]
     </section>
 
     <nav class="seller-nav" aria-label="賣家中心導覽">
-      <RouterLink v-for="item in navItems" :key="item.to" class="seller-nav-link" :to="item.to">
-        <i class="nav-mark bi" :class="item.icon" aria-hidden="true"></i>
-        <span>{{ item.label }}</span>
-      </RouterLink>
+      <div v-for="item in navItems" :key="item.to" class="seller-nav-group">
+        <RouterLink v-slot="{ href, navigate, isActive }" custom :to="item.to">
+          <a
+            class="seller-nav-link"
+            :class="{ 'router-link-active': isActive }"
+            :href="href"
+            @click="navigate"
+          >
+            <i class="nav-mark bi" :class="item.icon" aria-hidden="true"></i>
+            <span>{{ item.label }}</span>
+          </a>
+
+          <div v-if="item.children && isActive" class="seller-subnav">
+            <RouterLink
+              v-for="child in item.children"
+              :key="child.to"
+              class="seller-subnav-link"
+              :to="child.to"
+            >
+              {{ child.label }}
+            </RouterLink>
+          </div>
+        </RouterLink>
+      </div>
 
       <div
         v-for="item in plannedItems"
@@ -128,6 +156,11 @@ const plannedItems = [{ label: '銷售分析', icon: 'bi-graph-up-arrow' }]
   padding: var(--space-4);
 }
 
+.seller-nav-group {
+  display: grid;
+  gap: 2px;
+}
+
 .seller-nav-link {
   display: flex;
   align-items: center;
@@ -151,7 +184,7 @@ const plannedItems = [{ label: '銷售分析', icon: 'bi-graph-up-arrow' }]
   font-weight: 600;
 }
 
-.seller-nav a.router-link-active::before {
+.seller-nav > .seller-nav-group > .seller-nav-link.router-link-active::before {
   width: 3px;
   height: 26px;
   content: '';
@@ -161,6 +194,36 @@ const plannedItems = [{ label: '銷售分析', icon: 'bi-graph-up-arrow' }]
 
 .seller-nav a.router-link-active .nav-mark {
   background: rgba(255, 255, 255, 0.12);
+}
+
+.seller-subnav {
+  display: grid;
+  gap: 2px;
+  margin-left: 36px;
+  padding: 2px 0 6px;
+}
+
+.seller-subnav-link {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-3);
+  color: var(--color-text-200);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.seller-subnav-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-surface);
+}
+
+.seller-subnav-link.router-link-exact-active {
+  background: transparent;
+  color: var(--color-surface);
+  font-weight: 700;
 }
 
 .seller-nav-link small {
@@ -216,6 +279,10 @@ const plannedItems = [{ label: '銷售分析', icon: 'bi-graph-up-arrow' }]
   }
 
   .seller-nav-link small {
+    display: none;
+  }
+
+  .seller-subnav {
     display: none;
   }
 

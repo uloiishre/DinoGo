@@ -1,82 +1,59 @@
 <script setup>
-import { computed } from 'vue'
-import { useRoute, RouterLink } from 'vue-router'
+import { computed, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 
-const route = useRoute()
-
-// 從網址 /seller/orders/:id 取得訂單 id
-const orderId = computed(() => route.params.id)
-
-// TODO：等待 D 模組訂單 API 完成後，改成依 orderId 呼叫 API
-const order = {
-  orderNo: 'DG240826-018',
-  status: 'SHIPPING',
-  statusText: '待出貨',
-
-  createdAt: '2026-08-14 10:30',
-
-  buyer: {
-    name: '陳怡安',
-    phone: '0912-345-678',
-    address: '台北市中山區南京東路三段 100 號',
-  },
-
-  payment: {
-    method: 'LINE Pay',
-    status: '已付款',
-  },
-
-  shipping: {
-    method: '宅配',
-    status: '待出貨',
-    trackingNumber: '',
-  },
-
-  items: [
-    {
-      id: 1,
-      name: 'DinoGo 無線藍牙耳機',
-      specification: '黑色',
-      quantity: 1,
-      price: 1280,
-    },
-    {
-      id: 2,
-      name: 'Type-C 快充線',
-      specification: '1.5 公尺',
-      quantity: 1,
-      price: 350,
-    },
-  ],
-}
-
-const steps = [
+// TODO: 等 D 模組提供賣家訂單列表 API 後，改由 API 載入。
+const orders = [
   {
-    label: '訂單成立',
-    completed: true,
+    id: 18,
+    orderNo: 'DG240826-018',
+    buyer: '陳怡安',
+    amount: 1680,
+    paymentStatus: '已付款',
+    shippingStatus: '待出貨',
+    orderStatus: '處理中',
+    createdAt: '2026-08-14 10:30',
   },
   {
-    label: '付款完成',
-    completed: true,
+    id: 19,
+    orderNo: 'DG240826-019',
+    buyer: '李小華',
+    amount: 2460,
+    paymentStatus: '已付款',
+    shippingStatus: '備貨中',
+    orderStatus: '處理中',
+    createdAt: '2026-08-14 11:15',
   },
   {
-    label: '備貨中',
-    completed: true,
-  },
-  {
-    label: '已出貨',
-    completed: false,
-  },
-  {
-    label: '已完成',
-    completed: false,
+    id: 20,
+    orderNo: 'DG240813-003',
+    buyer: '陳美玲',
+    amount: 980,
+    paymentStatus: '已付款',
+    shippingStatus: '已送達',
+    orderStatus: '已完成',
+    createdAt: '2026-08-13 16:40',
   },
 ]
 
-const totalAmount = computed(() => {
-  return order.items.reduce((total, item) => {
-    return total + item.price * item.quantity
-  }, 0)
+const activeStatus = ref('ALL')
+
+const statusTabs = [
+  { label: '全部', value: 'ALL' },
+  { label: '待出貨', value: '待出貨' },
+  { label: '備貨中', value: '備貨中' },
+  { label: '已完成', value: '已完成' },
+]
+
+const filteredOrders = computed(() => {
+  if (activeStatus.value === 'ALL') {
+    return orders
+  }
+
+  return orders.filter(
+    (order) =>
+      order.shippingStatus === activeStatus.value || order.orderStatus === activeStatus.value,
+  )
 })
 
 const formatCurrency = (amount) => {
@@ -87,176 +64,72 @@ const formatCurrency = (amount) => {
   }).format(amount)
 }
 
-const handleShipment = () => {
-  // TODO：等待 D 模組提供更新物流狀態 API
-  alert('目前為前端展示版本，出貨 API 尚未串接。')
+const statusClass = (status) => {
+  if (status === '已完成' || status === '已送達') {
+    return 'is-done'
+  }
+
+  if (status === '待出貨') {
+    return 'is-warning'
+  }
+
+  return 'is-processing'
 }
 </script>
 
 <template>
   <section class="seller-page">
-    <!-- 頁面標題 -->
     <header class="page-header">
       <div>
         <p class="eyebrow">訂單管理</p>
-        <h1>商家訂單詳情</h1>
+        <h1>賣家訂單列表</h1>
+        <p class="page-description">集中檢視每筆訂單狀態，點選查看進入出貨與明細處理。</p>
       </div>
-
-      <RouterLink class="back-button" to="/seller/orders"> 返回訂單列表 </RouterLink>
     </header>
 
-    <!-- 訂單狀態 -->
-    <section class="status-card">
-      <div class="status-header">
-        <div>
-          <p class="section-label">訂單編號</p>
-          <h2>{{ order.orderNo }}</h2>
-          <p class="order-id">系統 ID：{{ orderId }}</p>
-        </div>
+    <section class="list-panel">
+      <div class="list-toolbar">
+        <input class="search-input" type="search" placeholder="搜尋訂單編號或買家" />
 
-        <span class="status-badge">
-          {{ order.statusText }}
-        </span>
+        <div class="status-tabs" aria-label="訂單狀態篩選">
+          <button
+            v-for="tab in statusTabs"
+            :key="tab.value"
+            type="button"
+            :class="{ active: activeStatus === tab.value }"
+            @click="activeStatus = tab.value"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
       </div>
 
-      <!-- 訂單流程 -->
-      <div class="order-progress">
-        <div
-          v-for="(step, index) in steps"
-          :key="step.label"
-          class="progress-item"
-          :class="{ completed: step.completed }"
-        >
-          <div class="progress-marker">
-            {{ step.completed ? '✓' : index + 1 }}
-          </div>
-
-          <span>{{ step.label }}</span>
+      <div class="order-table">
+        <div class="table-header">
+          <span>訂單編號</span>
+          <span>買家</span>
+          <span>訂單金額</span>
+          <span>付款</span>
+          <span>配送</span>
+          <span>建立時間</span>
+          <span>操作</span>
         </div>
+
+        <article v-for="order in filteredOrders" :key="order.id" class="order-row">
+          <RouterLink class="order-no" :to="`/seller/orders/${order.id}`">
+            {{ order.orderNo }}
+          </RouterLink>
+          <span>{{ order.buyer }}</span>
+          <strong>{{ formatCurrency(order.amount) }}</strong>
+          <span class="status-badge is-paid">{{ order.paymentStatus }}</span>
+          <span class="status-badge" :class="statusClass(order.shippingStatus)">
+            {{ order.shippingStatus }}
+          </span>
+          <span>{{ order.createdAt }}</span>
+          <RouterLink class="view-button" :to="`/seller/orders/${order.id}`">查看</RouterLink>
+        </article>
       </div>
     </section>
-
-    <!-- 左右兩欄 -->
-    <div class="detail-columns">
-      <!-- 左側 -->
-      <div class="detail-main">
-        <!-- 商品明細 -->
-        <section class="detail-card">
-          <div class="card-header">
-            <h2>商品明細</h2>
-          </div>
-
-          <div class="product-table">
-            <div class="product-row product-head">
-              <span>商品</span>
-              <span>單價</span>
-              <span>數量</span>
-              <span>小計</span>
-            </div>
-
-            <div v-for="item in order.items" :key="item.id" class="product-row">
-              <div>
-                <strong>{{ item.name }}</strong>
-                <p class="muted-text">
-                  {{ item.specification }}
-                </p>
-              </div>
-
-              <span>{{ formatCurrency(item.price) }}</span>
-
-              <span>{{ item.quantity }}</span>
-
-              <strong>
-                {{ formatCurrency(item.price * item.quantity) }}
-              </strong>
-            </div>
-          </div>
-
-          <div class="order-total">
-            <span>訂單總額</span>
-            <strong>{{ formatCurrency(totalAmount) }}</strong>
-          </div>
-        </section>
-
-        <!-- 買家與收件資料 -->
-        <section class="detail-card">
-          <div class="card-header">
-            <h2>買家與收件資料</h2>
-          </div>
-
-          <div class="information-grid">
-            <div>
-              <p class="section-label">收件人</p>
-              <strong>{{ order.buyer.name }}</strong>
-            </div>
-
-            <div>
-              <p class="section-label">聯絡電話</p>
-              <strong>{{ order.buyer.phone }}</strong>
-            </div>
-
-            <div class="full-width">
-              <p class="section-label">收件地址</p>
-              <strong>{{ order.buyer.address }}</strong>
-            </div>
-          </div>
-        </section>
-
-        <!-- 付款與配送 -->
-        <section class="detail-card">
-          <div class="card-header">
-            <h2>付款與配送</h2>
-          </div>
-
-          <div class="information-grid">
-            <div>
-              <p class="section-label">付款方式</p>
-              <strong>{{ order.payment.method }}</strong>
-            </div>
-
-            <div>
-              <p class="section-label">付款狀態</p>
-              <strong>{{ order.payment.status }}</strong>
-            </div>
-
-            <div>
-              <p class="section-label">配送方式</p>
-              <strong>{{ order.shipping.method }}</strong>
-            </div>
-
-            <div>
-              <p class="section-label">物流狀態</p>
-              <strong>{{ order.shipping.status }}</strong>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <!-- 右側出貨操作 -->
-      <aside class="shipping-card">
-        <div>
-          <p class="eyebrow">Shipping Action</p>
-          <h2>出貨操作</h2>
-        </div>
-
-        <div class="shipping-status">
-          <span>目前狀態</span>
-          <strong>{{ order.shipping.status }}</strong>
-        </div>
-
-        <label class="form-field">
-          物流單號
-
-          <input type="text" placeholder="請輸入物流單號" />
-        </label>
-
-        <button class="primary-button" type="button" @click="handleShipment">標記為已出貨</button>
-
-        <button class="secondary-button" type="button">聯絡平台客服</button>
-
-        <p class="helper-text">確認商品已交付物流商後，再將訂單標記為已出貨。</p>
-      </aside>
-    </div>
   </section>
 </template>
 
@@ -273,236 +146,69 @@ const handleShipment = () => {
   gap: var(--space-4);
 }
 
-.eyebrow {
-  margin: 0 0 var(--space-1);
+.eyebrow,
+.page-description {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
 
-h1,
-h2,
-p {
-  margin-top: 0;
+.eyebrow {
+  margin: 0 0 var(--space-1);
+}
+
+.page-description {
+  margin: var(--space-1) 0 0;
 }
 
 h1 {
-  margin-bottom: 0;
+  margin: 0;
   font-family: var(--font-heading);
   font-size: var(--font-size-xl);
 }
 
-h2 {
-  margin-bottom: 0;
-  font-family: var(--font-heading);
-}
-
-.back-button {
-  display: inline-flex;
-  min-height: 40px;
-  align-items: center;
-  justify-content: center;
-  padding: 0 var(--space-4);
-  border: 1px solid var(--color-border-strong);
+.list-panel {
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
-  color: var(--color-text-700);
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.status-card,
-.detail-card,
-.shipping-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-}
-
-.status-card {
-  padding: var(--space-5);
-}
-
-.status-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-
-.section-label {
-  margin-bottom: var(--space-1);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.order-id {
-  margin: var(--space-1) 0 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.status-badge {
-  border-radius: 999px;
-  padding: 6px 12px;
-  background: #fff3d6;
-  color: #8a5a00;
-  font-weight: 700;
-}
-
-.order-progress {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  margin-top: var(--space-5);
-}
-
-.progress-item {
-  position: relative;
-  display: grid;
-  justify-items: center;
-  gap: var(--space-2);
-  color: var(--color-text-muted);
-  text-align: center;
-  font-size: var(--font-size-sm);
-}
-
-.progress-item::before {
-  content: '';
-  position: absolute;
-  top: 16px;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background: var(--color-border);
-  z-index: 0;
-}
-
-.progress-item:first-child::before {
-  left: 50%;
-  width: 50%;
-}
-
-.progress-item:last-child::before {
-  width: 50%;
-}
-
-.progress-marker {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  border: 2px solid var(--color-border-strong);
-  border-radius: 50%;
-  background: var(--color-surface);
-  font-weight: 700;
-}
-
-.progress-item.completed {
-  color: var(--color-primary);
-  font-weight: 700;
-}
-
-.progress-item.completed .progress-marker {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: white;
-}
-
-.detail-columns {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: var(--space-5);
-  align-items: start;
-}
-
-.detail-main {
-  display: grid;
-  gap: var(--space-5);
-}
-
-.detail-card {
   overflow: hidden;
 }
 
-.card-header {
-  padding: var(--space-4);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.product-row {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) 0.8fr 0.5fr 0.8fr;
+.list-toolbar {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-4);
   border-bottom: 1px solid var(--color-border);
 }
 
-.product-head {
-  background: var(--color-bg-muted);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  font-weight: 700;
-}
-
-.muted-text {
-  margin: var(--space-1) 0 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.order-total {
+.status-tabs {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-4);
-  padding: var(--space-4);
-}
-
-.order-total strong {
-  font-size: var(--font-size-lg);
-}
-
-.information-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-5);
-  padding: var(--space-4);
-}
-
-.full-width {
-  grid-column: 1 / -1;
-}
-
-.shipping-card {
-  position: sticky;
-  top: var(--space-5);
-  display: grid;
-  gap: var(--space-4);
-  padding: var(--space-5);
-}
-
-.shipping-status {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-3);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-muted);
-}
-
-.form-field {
-  display: grid;
+  flex-wrap: wrap;
   gap: var(--space-2);
-  color: var(--color-text-700);
-  font-weight: 700;
 }
 
-input {
+.status-tabs button {
+  min-height: 36px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  background: var(--color-surface);
+  color: var(--color-text-700);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.status-tabs button.active {
+  border-color: var(--color-primary-800);
+  background: var(--color-primary-800);
+  color: var(--color-surface);
+}
+
+.search-input {
+  flex: 1;
   width: 100%;
   min-height: 40px;
-  box-sizing: border-box;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   padding: 0 var(--space-3);
@@ -510,79 +216,113 @@ input {
   color: var(--color-text);
 }
 
-button {
-  min-height: 42px;
-  border-radius: var(--radius-md);
-  padding: 0 var(--space-4);
+.order-table {
+  display: grid;
+}
+
+.table-header,
+.order-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.2fr) 0.9fr 0.9fr 0.8fr 0.8fr 1fr 68px;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.table-header {
+  min-height: 44px;
+  padding: 0 var(--space-5);
+  background: #050505;
+  color: var(--color-surface);
+  font-size: var(--font-size-xs);
   font-weight: 700;
-  cursor: pointer;
 }
 
-.primary-button {
-  border: 1px solid var(--color-primary);
-  background: var(--color-primary);
-  color: white;
-}
-
-.secondary-button {
-  border: 1px solid var(--color-border-strong);
-  background: var(--color-surface);
+.order-row {
+  min-height: 64px;
+  padding: 0 var(--space-5);
+  border-top: 1px solid var(--color-border);
   color: var(--color-text-700);
-}
-
-.helper-text {
-  margin-bottom: 0;
-  color: var(--color-text-muted);
   font-size: var(--font-size-sm);
-  line-height: 1.6;
 }
 
-@media (max-width: 1000px) {
-  .detail-columns {
-    grid-template-columns: 1fr;
+.order-no {
+  color: var(--color-text);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.order-no:hover {
+  color: var(--color-primary);
+}
+
+.status-badge {
+  width: fit-content;
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+
+.status-badge.is-paid,
+.status-badge.is-done {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.status-badge.is-warning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+.status-badge.is-processing {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-700);
+}
+
+.view-button {
+  width: fit-content;
+  min-height: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  color: var(--color-primary-700);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.view-button:hover {
+  color: var(--color-primary);
+}
+
+@media (max-width: 1100px) {
+  .table-header {
+    display: none;
   }
 
-  .shipping-card {
-    position: static;
+  .order-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+  }
+
+  .order-no,
+  .view-button {
+    grid-column: 1 / -1;
   }
 }
 
 @media (max-width: 720px) {
-  .page-header {
-    align-items: flex-start;
+  .list-toolbar {
+    align-items: stretch;
     flex-direction: column;
   }
 
-  .order-progress {
-    grid-template-columns: 1fr;
-    gap: var(--space-3);
-  }
-
-  .progress-item {
-    grid-template-columns: 32px 1fr;
-    justify-items: start;
-    align-items: center;
-    text-align: left;
-  }
-
-  .progress-item::before {
-    display: none;
-  }
-
-  .information-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .full-width {
-    grid-column: auto;
-  }
-
-  .product-table {
-    overflow-x: auto;
-  }
-
-  .product-row {
-    min-width: 620px;
+  .search-input {
+    width: 100%;
   }
 }
 </style>

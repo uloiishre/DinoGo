@@ -6,11 +6,19 @@ const summaryItems = [
   { label: '店鋪狀態', value: '營運中', note: '貨架完整度 90%', icon: 'shop' },
 ]
 
-const recentOrders = [
-  { orderNo: '#DG-0182', buyer: 'Dino', status: '待出貨', amount: 'NT$1,280' },
-  { orderNo: '#DG-0180', buyer: 'Aki', status: '已出貨', amount: 'NT$2,462' },
-  { orderNo: '#DG-0179', buyer: 'Hina', status: '已完成', amount: 'NT$980' },
+const salesOverview = [
+  { label: '今日營收', value: 'NT$4,722', note: '來自 8 筆訂單' },
+  { label: '平均客單價', value: 'NT$590', note: '較昨日 +8%' },
+  { label: '轉換提醒', value: '3 筆', note: '待出貨優先處理' },
 ]
+
+const focusItems = [
+  { label: '待出貨訂單', value: '3', tone: 'warning' },
+  { label: '低庫存商品', value: '2', tone: 'danger' },
+  { label: '草稿商品', value: '5', tone: 'neutral' },
+]
+
+const trendBars = [42, 58, 38, 74, 62, 88, 70]
 
 const quickActions = [
   { label: '新增商品', to: '/seller/products/new' },
@@ -43,40 +51,43 @@ const quickActions = [
     </div>
 
     <div class="dashboard-grid">
-      <section class="orders-panel">
+      <section class="overview-panel">
         <div class="panel-header">
-          <h2>最近訂單</h2>
-          <button type="button">查看全部</button>
-        </div>
-
-        <div class="order-table">
-          <div class="order-row order-head">
-            <span>訂單</span>
-            <span>買家</span>
-            <span>狀態</span>
-            <span>金額</span>
-          </div>
-
-          <div v-for="order in recentOrders" :key="order.orderNo" class="order-row">
-            <span>{{ order.orderNo }}</span>
-            <span>{{ order.buyer }}</span>
-            <span>{{ order.status }}</span>
-            <span>{{ order.amount }}</span>
+          <div>
+            <h2>銷售儀錶板</h2>
+            <p>快速掌握今日營收、待辦與庫存狀態。</p>
           </div>
         </div>
-      </section>
 
-      <section class="actions-panel">
-        <h2>快捷操作</h2>
-        <RouterLink
-          v-for="action in quickActions"
-          :key="action.label"
-          class="panel-action"
-          :to="action.to"
-        >
-          <span>+</span>
-          {{ action.label }}
-        </RouterLink>
+        <div class="overview-grid">
+          <article v-for="item in salesOverview" :key="item.label" class="overview-card">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+            <em>{{ item.note }}</em>
+          </article>
+        </div>
+
+        <div class="insight-row">
+          <section class="focus-list">
+            <h3>今日待辦</h3>
+            <div v-for="item in focusItems" :key="item.label" class="focus-item" :class="item.tone">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+            </div>
+          </section>
+
+          <section class="trend-panel">
+            <h3>近 7 日銷售趨勢</h3>
+            <div class="trend-chart" aria-label="近 7 日銷售趨勢">
+              <span
+                v-for="(height, index) in trendBars"
+                :key="index"
+                class="trend-bar"
+                :style="{ height: `${height}%` }"
+              ></span>
+            </div>
+          </section>
+        </div>
       </section>
     </div>
   </section>
@@ -174,12 +185,12 @@ h2 {
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
+  grid-template-columns: 1fr;
   gap: var(--space-4);
 }
 
-.orders-panel,
-.actions-panel {
+.overview-panel {
+  width: 100%;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -193,68 +204,103 @@ h2 {
   padding: var(--space-4);
 }
 
-.panel-header button {
-  border: 0;
-  background: transparent;
-  color: var(--color-primary-700);
-  font-size: var(--font-size-xs);
-}
-
-.order-table {
-  display: grid;
-}
-
-.order-row {
-  min-height: 112px;
-  display: grid;
-  grid-template-columns: 1.2fr 1.2fr 1fr 1fr;
-  align-items: center;
-  gap: var(--space-3);
-  padding: 0 var(--space-4);
-  border-top: 1px solid var(--color-border);
+.panel-header p {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
 
-.order-head {
-  min-height: 36px;
-  background: var(--color-bg-muted);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  font-weight: 600;
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: 0 var(--space-4) var(--space-4);
 }
 
-.actions-panel {
+.overview-card {
+  min-height: 110px;
+  display: grid;
+  align-content: center;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-muted);
   padding: var(--space-4);
 }
 
-.actions-panel h2 {
-  margin-bottom: var(--space-4);
+.overview-card span,
+.overview-card em {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-style: normal;
 }
 
-.panel-action {
-  text-decoration: none;
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 48px;
+.overview-card strong {
+  color: var(--color-text-900);
+  font-size: 28px;
+  line-height: 1;
+}
+
+.insight-row {
   display: grid;
-  grid-template-columns: 24px 1fr auto;
+  grid-template-columns: minmax(240px, 0.8fr) minmax(0, 1.2fr);
+  gap: var(--space-4);
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.focus-list,
+.trend-panel {
+  display: grid;
+  gap: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+h3 {
+  margin: 0;
+  color: var(--color-text-800);
+  font-size: var(--font-size-sm);
+}
+
+.focus-item {
+  min-height: 42px;
+  display: flex;
   align-items: center;
-  gap: var(--space-2);
-  border: 0;
-  border-top: 1px solid var(--color-border);
-  background: var(--color-surface);
+  justify-content: space-between;
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  background: var(--color-bg-muted);
   color: var(--color-text-700);
-  text-align: left;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
 }
 
-.panel-action:first-of-type {
-  border-top: 0;
+.focus-item strong {
+  font-size: var(--font-size-lg);
 }
 
-.actions-panel small {
-  color: var(--color-text-subtle);
-  font-size: var(--font-size-base);
+.focus-item.warning strong {
+  color: var(--color-warning);
+}
+
+.focus-item.danger strong {
+  color: var(--color-danger);
+}
+
+.trend-chart {
+  min-height: 160px;
+  display: flex;
+  align-items: end;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+}
+
+.trend-bar {
+  flex: 1;
+  min-height: 24px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: var(--color-primary);
+  opacity: 0.72;
 }
 
 @media (max-width: 960px) {
@@ -262,20 +308,15 @@ h2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .dashboard-grid {
+  .insight-row {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 560px) {
-  .summary-grid {
+  .summary-grid,
+  .overview-grid {
     grid-template-columns: 1fr;
-  }
-
-  .order-row {
-    min-height: auto;
-    grid-template-columns: 1fr 1fr;
-    padding: var(--space-4);
   }
 }
 </style>
