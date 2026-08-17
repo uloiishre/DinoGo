@@ -10,13 +10,14 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.dinogo.sales.controller.OrderController;
+import com.dinogo.sales.controller.PaymentController;
 import com.dinogo.sales.dto.OrderApiErrorResponse;
 import com.dinogo.sales.exception.InvalidOrderException;
 import com.dinogo.sales.exception.OrderNotFoundException;
 
 import jakarta.servlet.http.HttpServletRequest;
 
-@RestControllerAdvice(assignableTypes = OrderController.class)
+@RestControllerAdvice(assignableTypes = { OrderController.class, PaymentController.class })
 public class OrderExceptionHandler {
 
     @ExceptionHandler(OrderNotFoundException.class)

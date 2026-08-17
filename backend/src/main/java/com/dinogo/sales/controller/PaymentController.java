@@ -5,6 +5,7 @@ import java.net.URI;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.dinogo.sales.dto.payment.CreatePaymentRequest;
 import com.dinogo.sales.dto.payment.PaymentResponse;
+import com.dinogo.sales.dto.payment.SimulatePaymentRequest;
 import com.dinogo.sales.service.PaymentService;
 import com.dinogo.security.AuthenticatedMember;
 
@@ -43,5 +45,19 @@ public class PaymentController {
                         "/api/orders/" + orderId
                                 + "/payments/" + response.paymentId()))
                 .body(response);
+    }
+
+    @PatchMapping("/{paymentId}/simulate")
+    public ResponseEntity<PaymentResponse> simulatePaymentResult(
+            @PathVariable Integer orderId,
+            @PathVariable Integer paymentId,
+            @AuthenticationPrincipal AuthenticatedMember member,
+            @Valid @RequestBody SimulatePaymentRequest request) {
+
+        return ResponseEntity.ok(paymentService.simulatePaymentResult(
+                orderId,
+                paymentId,
+                member.memberId(),
+                request));
     }
 }

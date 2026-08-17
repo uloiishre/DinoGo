@@ -1,8 +1,8 @@
 import axios from 'axios'
-import { clearPersistedAuth, getPersistedToken } from '@/utils/auth-session'
+import { clearPersistedAuth, getPersistedToken } from '../utils/auth-session.js'
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api',
+  baseURL: import.meta.env?.VITE_API_URL || 'http://localhost:8080/api',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',

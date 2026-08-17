@@ -13,6 +13,7 @@ public record PaymentResponse(
         BigDecimal amount,
         PaymentStatus status,
         String transactionNo,
+        String failureReason,
         LocalDateTime paidAt,
         LocalDateTime createdAt) {
 }
