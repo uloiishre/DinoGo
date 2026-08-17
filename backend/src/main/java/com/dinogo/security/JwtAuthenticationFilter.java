@@ -1,9 +1,12 @@
 package com.dinogo.security;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
@@ -58,6 +61,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String subject = jwtTokenUtil.extractSubject(token);
             Integer memberId = jwtTokenUtil.extractMemberId(token);
+            List<GrantedAuthority> authorities = jwtTokenUtil.extractRoles(token).stream()
+                    .<GrantedAuthority>map(role ->
+                            new SimpleGrantedAuthority("ROLE_" + role.toUpperCase(Locale.ROOT)))
+                    .toList();
             if (memberId == null) {
                 sendUnauthorized(response, "JWT memberId claim is required");
                 return;
@@ -65,7 +72,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
                 AuthenticatedMember principal = new AuthenticatedMember(memberId, subject);
                 UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(principal, null, Collections.emptyList());
+                        new UsernamePasswordAuthenticationToken(principal, null, authorities);
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
