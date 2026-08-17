@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import com.dinogo.member.dto.MemberResponse;
+import com.dinogo.member.dto.MemberApiErrorResponse;
 import com.dinogo.member.dto.MemberUpdateRequest;
 import com.dinogo.member.service.MemberService;
 import com.dinogo.security.AuthenticatedMember;
@@ -95,7 +96,9 @@ class MemberControllerTest {
                 ResponseEntity<?> result = memberController.getProfile(authenticatedMember);
 
                 assertThat(result.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-                assertThat(result.getBody()).isEqualTo("Member not found");
+                assertThat(result.getBody()).isEqualTo(MemberApiErrorResponse.from(
+                                HttpStatus.NOT_FOUND,
+                                "Member not found"));
         }
 
         @Test
@@ -114,6 +117,8 @@ class MemberControllerTest {
                                 request);
 
                 assertThat(result.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-                assertThat(result.getBody()).isEqualTo("Member not found");
+                assertThat(result.getBody()).isEqualTo(MemberApiErrorResponse.from(
+                                HttpStatus.NOT_FOUND,
+                                "Member not found"));
         }
 }
