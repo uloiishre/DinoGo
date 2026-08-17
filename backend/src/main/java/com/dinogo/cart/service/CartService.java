@@ -355,6 +355,8 @@ public class CartService {
 				sku.getPrice(),
 				cartItem.getQuantity(),
 				productImage,
+				sku.getProduct().getSeller().getSellerId(),
+				sku.getProduct().getSeller().getStoreName(),
 				skus);
 	}
 }
