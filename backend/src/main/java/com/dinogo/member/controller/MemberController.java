@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.dinogo.member.dto.MemberApiErrorResponse;
 import com.dinogo.member.dto.MemberUpdateRequest;
 import com.dinogo.member.service.MemberService;
 import com.dinogo.security.AuthenticatedMember;
@@ -38,7 +39,7 @@ public class MemberController {
         } catch (IllegalArgumentException exception) {
             return ResponseEntity
                     .status(HttpStatus.NOT_FOUND)
-                    .body(exception.getMessage());
+                    .body(MemberApiErrorResponse.from(HttpStatus.NOT_FOUND, exception.getMessage()));
         }
     }
 
@@ -53,7 +54,7 @@ public class MemberController {
         } catch (IllegalArgumentException exception) {
             return ResponseEntity
                     .status(HttpStatus.NOT_FOUND)
-                    .body(exception.getMessage());
+                    .body(MemberApiErrorResponse.from(HttpStatus.NOT_FOUND, exception.getMessage()));
         }
     }
 }

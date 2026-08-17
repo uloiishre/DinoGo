@@ -2,7 +2,7 @@
 
 // public enum MemberInbox {
 
-//     SYSTEM_INBOX, // OA、OC
-//     ORDER_INBOX, // AC
-//     SELLER_INBOX // SC
+// SYSTEM_INBOX, // OA、OC
+// ORDER_INBOX, // AC
+// SELLER_INBOX // SC
 // }

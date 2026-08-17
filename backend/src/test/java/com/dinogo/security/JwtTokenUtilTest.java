@@ -3,6 +3,8 @@ package com.dinogo.security;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
 class JwtTokenUtilTest {
@@ -12,12 +14,24 @@ class JwtTokenUtilTest {
     private final JwtTokenUtil jwtTokenUtil = new JwtTokenUtil(SECRET, 3_600_000);
 
     @Test
-    void generateTokenContainsMemberIdentity() {
-        String token = jwtTokenUtil.generateToken("user@example.com", 1);
+    void generateTokenContainsMemberIdentityAndRoles() {
+        String token = jwtTokenUtil.generateToken("user@example.com", 1, List.of("buyer", "seller"));
 
         assertThat(jwtTokenUtil.isValid(token)).isTrue();
         assertThat(jwtTokenUtil.extractSubject(token)).isEqualTo("user@example.com");
         assertThat(jwtTokenUtil.parseClaims(token).get("memberId", Integer.class)).isEqualTo(1);
+        assertThat(jwtTokenUtil.extractRoles(token)).containsExactly("buyer", "seller");
+    }
+
+    @Test
+    void tokenWithoutRolesClaimUsesEmptyRolesForCompatibility() {
+        String token = io.jsonwebtoken.Jwts.builder()
+                .subject("user@example.com")
+                .claim("memberId", 1)
+                .signWith(io.jsonwebtoken.security.Keys.hmacShaKeyFor(SECRET.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+                .compact();
+
+        assertThat(jwtTokenUtil.extractRoles(token)).isEmpty();
     }
 
     @Test

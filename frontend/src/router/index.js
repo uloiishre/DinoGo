@@ -110,7 +110,7 @@ const routes = [
   {
     path: '/seller',
     component: SellerLayout,
-    meta: { requiresAuth: true }, //標記這個 router 需要登入才能進入。
+    meta: { requiresAuth: true, requiresRole: 'seller' },
     children: [
       { path: '', redirect: '/seller/dashboard' },
       {
@@ -170,6 +170,10 @@ router.beforeEach((to) => {
       name: 'Login',
       query: { redirect: to.fullPath },
     }
+  }
+
+  if (to.meta.requiresRole && !authStore.hasRole(to.meta.requiresRole)) {
+    return { name: 'MemberOverview' }
   }
 })
 

@@ -8,11 +8,15 @@ const route = useRoute()
 const product = ref(null)
 const loading = ref(true)
 const errorMessage = ref('')
+
 const selectedImage = ref('')
 const selectedSpec1 = ref('')
 const selectedSpec2 = ref('')
 const quantity = ref(1)
 
+/**
+ * 取得商品詳情
+ */
 const fetchProductDetail = async () => {
   try {
     const productId = route.params.id
@@ -21,15 +25,17 @@ const fetchProductDetail = async () => {
 
     product.value = response.data
 
-    // 如果商品有圖片，預設選第一張當主圖
+    // 預設第一張圖片
     if (product.value.images?.length) {
       selectedImage.value = product.value.images[0].imageUrl
     }
 
     // 預設第一個 SKU
     if (product.value.skus?.length) {
-      selectedSpec1.value = product.value.skus[0].spec1Value || ''
-      selectedSpec2.value = product.value.skus[0].spec2Value || ''
+      const firstSku = product.value.skus[0]
+
+      selectedSpec1.value = firstSku.spec1Value || ''
+      selectedSpec2.value = firstSku.spec2Value || ''
     }
   } catch (error) {
     console.error('取得商品詳情失敗：', error)
@@ -39,15 +45,75 @@ const fetchProductDetail = async () => {
   }
 }
 
+/**
+ * 判斷這個商品是不是雙規格商品
+ *
+ * 規則：
+ * 同一商品所有 SKU 要嘛都有 spec2
+ * 要嘛全部沒有 spec2
+ */
+const hasSpec2 = computed(() => {
+  if (!product.value?.skus?.length) {
+    return false
+  }
+
+  return product.value.skus.some((sku) => sku.spec2Name && sku.spec2Value)
+})
+
+/**
+ * 規格一名稱
+ * 例如：顏色
+ */
+const spec1Name = computed(() => {
+  return product.value?.skus?.[0]?.spec1Name || ''
+})
+
+/**
+ * 規格一所有選項
+ *
+ * 例如：
+ * 黑色
+ * 白色
+ * 紅色
+ */
 const spec1Values = computed(() => {
-  if (!product.value?.skus) {
+  if (!product.value?.skus?.length) {
     return []
   }
 
   return [...new Set(product.value.skus.map((sku) => sku.spec1Value).filter(Boolean))]
 })
+
+/**
+ * 規格二名稱
+ * 例如：尺寸
+ */
+const spec2Name = computed(() => {
+  if (!hasSpec2.value) {
+    return ''
+  }
+
+  return product.value?.skus?.[0]?.spec2Name || ''
+})
+
+/**
+ * 根據目前選到的 spec1
+ * 找出對應的 spec2 選項
+ *
+ * 例如目前：
+ * selectedSpec1 = 黑色
+ *
+ * SKU：
+ * 黑色 / M
+ * 黑色 / L
+ * 白色 / M
+ *
+ * 結果：
+ * M
+ * L
+ */
 const spec2Values = computed(() => {
-  if (!product.value?.skus) {
+  if (!hasSpec2.value) {
     return []
   }
 
@@ -61,41 +127,62 @@ const spec2Values = computed(() => {
   ]
 })
 
-//使用此方法過濾只有spec1的資料，也就是spec2為null的
-const spec2Name = computed(() => {
-  if (!product.value?.skus) {
-    return ''
-  }
-
-  const sku = product.value.skus.find(
-    (sku) => sku.spec1Value === selectedSpec1.value && sku.spec2Name,
-  )
-
-  return sku?.spec2Name || ''
-})
-
+/**
+ * 目前選中的 SKU
+ */
 const selectedSku = computed(() => {
-  if (!product.value?.skus) {
+  if (!product.value?.skus?.length) {
     return null
   }
 
-  return product.value.skus.find((sku) => {
-    const spec1Match = sku.spec1Value === selectedSpec1.value
+  // =========================
+  // 雙規格商品
+  // =========================
+  if (hasSpec2.value) {
+    return (
+      product.value.skus.find(
+        (sku) => sku.spec1Value === selectedSpec1.value && sku.spec2Value === selectedSpec2.value,
+      ) || null
+    )
+  }
 
-    const spec2Match = !sku.spec2Value || sku.spec2Value === selectedSpec2.value
-
-    return spec1Match && spec2Match
-  })
+  // =========================
+  // 單規格商品
+  // =========================
+  return product.value.skus.find((sku) => sku.spec1Value === selectedSpec1.value) || null
 })
 
+/**
+ * 點擊規格一
+ */
 const selectSpec1 = (value) => {
   selectedSpec1.value = value
 
-  const matchingSku = product.value.skus.find((sku) => sku.spec1Value === value)
+  // 單規格商品不需要 spec2
+  if (!hasSpec2.value) {
+    selectedSpec2.value = ''
+    return
+  }
 
-  selectedSpec2.value = matchingSku?.spec2Value || ''
+  // 雙規格商品：
+  // 切換 spec1 後，自動選該規格下第一個 spec2
+  const firstMatchingSku = product.value.skus.find(
+    (sku) => sku.spec1Value === value && sku.spec2Value,
+  )
+
+  selectedSpec2.value = firstMatchingSku?.spec2Value || ''
 }
 
+/**
+ * 點擊規格二
+ */
+const selectSpec2 = (value) => {
+  selectedSpec2.value = value
+}
+
+/**
+ * SKU 改變時，數量回到 1
+ */
 watch(selectedSku, () => {
   quantity.value = 1
 })
@@ -104,18 +191,24 @@ onMounted(() => {
   fetchProductDetail()
 })
 </script>
+
 <template>
   <main class="product-detail-page">
     <div class="container py-5">
+      <!-- Loading -->
       <div v-if="loading" class="text-center py-5">商品載入中...</div>
 
-      <div v-else-if="errorMessage" class="text-center py-5">
+      <!-- Error -->
+      <div v-else-if="errorMessage" class="error-message text-center py-5">
         {{ errorMessage }}
       </div>
 
+      <!-- 商品內容 -->
       <div v-else-if="product">
         <div class="row g-5">
-          <!-- 商品圖片 -->
+          <!-- =========================
+               商品圖片
+          ========================== -->
           <div class="col-md-6">
             <!-- 主圖 -->
             <div class="main-image-wrapper">
@@ -136,7 +229,9 @@ onMounted(() => {
                 :key="image.imageId"
                 type="button"
                 class="thumbnail-button"
-                :class="{ active: selectedImage === image.imageUrl }"
+                :class="{
+                  active: selectedImage === image.imageUrl,
+                }"
                 @click="selectedImage = image.imageUrl"
               >
                 <img :src="image.imageUrl" :alt="product.productName" class="thumbnail-image" />
@@ -144,34 +239,45 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- 商品資訊 -->
+          <!-- =========================
+               商品資訊
+          ========================== -->
           <div class="col-md-6">
+            <!-- 分類 -->
             <div class="product-category mb-2">
               {{ product.categoryName }}
               /
               {{ product.subcategoryName }}
             </div>
 
+            <!-- 商品名稱 -->
             <h1 class="product-title">
               {{ product.productName }}
             </h1>
 
+            <!-- 品牌 -->
             <div class="product-brand mb-3">品牌：{{ product.brandName }}</div>
 
+            <!-- 價格 -->
             <div class="product-price mb-4">
-              NT$ {{ selectedSku ? selectedSku.price : product.basePrice }}
+              NT$
+              {{ selectedSku ? selectedSku.price : product.basePrice }}
             </div>
 
+            <!-- 商品描述 -->
             <div class="product-description mb-4">
               {{ product.description }}
             </div>
 
-            <!-- 商品規格 -->
+            <!-- =========================
+                 SKU 規格========================== -->
             <div v-if="product.skus?.length" class="product-specs">
-              <!-- 規格一 -->
+              <!-- =========================
+                   規格一
+              ========================== -->
               <div v-if="spec1Values.length" class="spec-group">
                 <div class="spec-title">
-                  {{ product.skus[0].spec1Name }}
+                  {{ spec1Name }}
                 </div>
 
                 <div class="spec-options">
@@ -180,16 +286,21 @@ onMounted(() => {
                     :key="value"
                     type="button"
                     class="spec-button"
-                    :class="{ active: selectedSpec1 === value }"
-                    @click="selectedSpec1 = value"
+                    :class="{
+                      active: selectedSpec1 === value,
+                    }"
+                    @click="selectSpec1(value)"
                   >
                     {{ value }}
                   </button>
                 </div>
               </div>
 
-              <!-- 規格二 -->
-              <div v-if="spec2Values.length" class="spec-group">
+              <!-- =========================
+                   規格二
+                   只有雙規格商品才顯示
+              ========================== -->
+              <div v-if="hasSpec2 && spec2Values.length" class="spec-group">
                 <div class="spec-title">
                   {{ spec2Name }}
                 </div>
@@ -200,62 +311,81 @@ onMounted(() => {
                     :key="value"
                     type="button"
                     class="spec-button"
-                    :class="{ active: selectedSpec1 === value }"
-                    @click="selectedSpec1 = value"
+                    :class="{
+                      active: selectedSpec2 === value,
+                    }"
+                    @click="selectSpec2(value)"
                   >
                     {{ value }}
                   </button>
                 </div>
               </div>
 
-              <!-- 選中的 SKU -->
+              <!-- =========================
+                   選中的 SKU
+              ========================== -->
               <div v-if="selectedSku" class="selected-sku-info">
+                <!-- 庫存 -->
                 <div class="sku-stock">庫存：{{ selectedSku.stock }}</div>
-                <!-- 數量選擇 -->
+
+                <!-- 數量 -->
                 <div class="quantity-area">
                   <span>數量</span>
 
-                  <button type="button" @click="quantity--" :disabled="quantity <= 1">-</button>
+                  <button type="button" :disabled="quantity <= 1" @click="quantity--">-</button>
 
                   <span>{{ quantity }}</span>
 
                   <button
                     type="button"
+                    :disabled="selectedSku.stock <= 0 || quantity >= selectedSku.stock"
                     @click="quantity++"
-                    :disabled="quantity >= selectedSku.stock"
                   >
                     +
                   </button>
 
-                  <span>剩餘 {{ selectedSku.stock }} 件</span>
+                  <span> 剩餘 {{ selectedSku.stock }} 件 </span>
                 </div>
               </div>
+
+              <!-- 找不到 SKU -->
+              <div v-else class="sku-unavailable">此規格目前無法選購</div>
             </div>
 
-            <div v-else class="text-muted">此商品目前沒有規格資料</div>
+            <!-- 完全沒有 SKU -->
+            <div v-else class="empty-sku-message">此商品目前沒有規格資料</div>
           </div>
         </div>
       </div>
     </div>
   </main>
 </template>
+
 <style scoped>
+.product-detail-page {
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
 .product-category {
-  color: #777;
-  font-size: 14px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
 }
 
 .product-title {
-  font-size: 28px;
+  color: var(--color-text);
+  font-family: var(--font-heading);
+  font-size: var(--font-size-xl);
   font-weight: 600;
 }
 
 .product-brand {
-  color: #666;
+  color: var(--color-text-muted);
 }
 
 .product-price {
-  font-size: 28px;
+  color: var(--color-primary);
+  font-size: var(--font-size-xl);
   font-weight: 700;
 }
 
@@ -265,131 +395,194 @@ onMounted(() => {
 }
 
 .product-specs {
-  margin-top: 24px;
+  margin-top: var(--space-5);
 }
 
 .spec-group {
-  margin-bottom: 20px;
+  margin-bottom: var(--space-5);
 }
 
 .spec-title {
-  margin-bottom: 10px;
+  margin-bottom: var(--space-3);
   font-weight: 600;
 }
 
 .spec-options {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--space-3);
 }
 
 .spec-button {
   min-width: 80px;
-  padding: 8px 16px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  background: white;
+
+  padding: var(--space-2) var(--space-4);
+
+  color: var(--color-text);
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+
   cursor: pointer;
+
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .spec-button:hover {
-  border-color: #198754;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary);
 }
 
 .spec-button.active {
-  border-color: #198754;
-  background: #eaf5ee;
-  color: #198754;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary);
+}
+
+.spec-button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
 }
 
 .selected-sku-info {
-  margin-top: 24px;
-}
-
-.sku-price {
-  font-size: 24px;
-  font-weight: 700;
+  margin-top: var(--space-5);
 }
 
 .sku-stock {
-  margin-top: 6px;
-  color: #666;
+  margin-top: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.sku-unavailable {
+  margin-top: var(--space-5);
+  color: var(--color-danger);
+}
+
+.empty-sku-message {
+  color: var(--color-text-muted);
 }
 
 .main-image-wrapper {
   width: 100%;
   aspect-ratio: 1 / 1;
+
+  overflow: hidden;
+
+  background: var(--color-surface-soft);
+  border-radius: var(--radius-lg);
 }
 
 .product-main-image {
   width: 100%;
   height: 100%;
+
   object-fit: contain;
-  border-radius: 12px;
 }
 
 .product-image-placeholder {
+  display: flex;
+
   width: 100%;
   height: 100%;
-  display: flex;
+
   align-items: center;
   justify-content: center;
-  background: #f5f5f5;
-  border-radius: 12px;
-  color: #999;
+
+  color: var(--color-text-subtle);
+  background: var(--color-surface-soft);
 }
 
-/* 縮圖區 */
 .thumbnail-list {
   display: flex;
-  gap: 10px;
-  margin-top: 16px;
+
+  gap: var(--space-3);
+
+  margin-top: var(--space-4);
+
   overflow-x: auto;
 }
 
-/* 每一個縮圖按鈕 */
 .thumbnail-button {
   width: 72px;
   height: 72px;
+
   flex-shrink: 0;
-  padding: 4px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  background: white;
+
+  padding: var(--space-1);
+
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+
   cursor: pointer;
 }
 
-/* 目前選中的縮圖 */
-.thumbnail-button.active {
-  border: 2px solid #198754;
+.thumbnail-button:hover {
+  border-color: var(--color-primary);
 }
 
-/* 縮圖本身 */
+.thumbnail-button.active {
+  border: 2px solid var(--color-primary);
+}
+
+.thumbnail-button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
 .thumbnail-image {
   width: 100%;
   height: 100%;
+
   object-fit: contain;
-  border-radius: 4px;
+
+  border-radius: var(--radius-sm);
 }
 
 .quantity-area {
   display: flex;
+
   align-items: center;
-  gap: 12px;
-  margin-top: 20px;
+
+  gap: var(--space-3);
+  margin-top: var(--space-4);
 }
 
 .quantity-area button {
   width: 36px;
   height: 36px;
-  border: 1px solid #ddd;
-  background: white;
-  border-radius: 6px;
+
+  color: var(--color-text);
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+
   cursor: pointer;
+}
+
+.quantity-area button:hover:not(:disabled) {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.quantity-area button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
 }
 
 .quantity-area button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+.error-message {
+  color: var(--color-danger);
 }
 </style>

@@ -2,8 +2,10 @@
 import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { disableSellerProduct, getSellerProducts } from '../../api/sellerProductApi'
+import { getCurrentSellerId } from '@/utils/seller-session'
 
-const sellerId = 1 //// TODO: 等 A/B 模組提供 current seller 商品 API 後，移除 sellerId 假資料。
+const sellerId = getCurrentSellerId()
+// TODO: 等 A/B 模組提供 current seller 商品 API 後，移除 sellerId 假資料。
 const products = ref([])
 
 const isLoading = ref(false)
@@ -76,8 +78,6 @@ onMounted(loadProducts)
         <p class="eyebrow">商品管理</p>
         <h1>賣家商品列表</h1>
       </div>
-
-      <RouterLink class="primary-action" to="/seller/products/new"> 新增商品 </RouterLink>
     </header>
 
     <p v-if="errorMessage" class="error-message">
@@ -150,7 +150,6 @@ h1 {
   font-size: var(--font-size-xl);
 }
 
-.primary-action,
 .secondary-action,
 .danger-action {
   display: inline-flex;
@@ -161,17 +160,6 @@ h1 {
   padding: 0 var(--space-3);
   font-weight: 600;
   text-decoration: none;
-}
-
-.primary-action {
-  min-height: 40px;
-  padding: 0 var(--space-4);
-  color: var(--color-surface);
-  background: var(--color-primary);
-}
-
-.primary-action:hover {
-  background: var(--color-primary-hover);
 }
 
 .secondary-action {
@@ -192,7 +180,6 @@ h1 {
   cursor: not-allowed;
 }
 
-.primary-action:focus-visible,
 .secondary-action:focus-visible,
 .danger-action:focus-visible {
   outline: none;

@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dinogo.catalog.dto.ProductCreateRequest;
@@ -25,8 +26,15 @@ public class ProductController {
 
     // 初始路徑返回所有產品列表
     @GetMapping
-    public List<ProductResponse> getProducts() {
-        return productService.getProducts();
+    public List<ProductResponse> getProducts(
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) Integer subcategoryId,
+            @RequestParam(required = false) Integer brandId) {
+
+        return productService.getProducts(
+                categoryId,
+                subcategoryId,
+                brandId);
     }
 
     // 建立商品
