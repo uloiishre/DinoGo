@@ -9,8 +9,10 @@ const router = useRouter()
 const cart = ref(null)
 const loading = ref(false)
 const errorMessage = ref('')
+
 // 正在修改規格的 cartItemId
 const changingSkuId = ref(null)
+
 // 勾選的商品 cartItemId
 const selectedCartItemIds = ref([])
 
@@ -49,7 +51,35 @@ const fetchCart = async () => {
 }
 
 // ================================
-// 勾選商品
+// 依照 sellerId 分組
+// ================================
+
+const sellerGroups = computed(() => {
+  if (!cart.value?.items) {
+    return []
+  }
+
+  const groups = {}
+
+  cart.value.items.forEach((item) => {
+    const sellerId = Number(item.sellerId)
+
+    if (!groups[sellerId]) {
+      groups[sellerId] = {
+        sellerId,
+        storeName: item.storeName,
+        items: [],
+      }
+    }
+
+    groups[sellerId].items.push(item)
+  })
+
+  return Object.values(groups)
+})
+
+// ================================
+// 已選商品
 // ================================
 
 const selectedItems = computed(() => {
@@ -61,7 +91,22 @@ const selectedItems = computed(() => {
 })
 
 // ================================
-// 是否全部勾選
+// 已選商品數量
+// ================================
+
+const selectedTotalQuantity = computed(() => {
+  return selectedItems.value.reduce((total, item) => total + Number(item.quantity), 0)
+})
+
+// ================================
+// 已選商品總金額
+// ================================
+
+const selectedTotalAmount = computed(() => {
+  return selectedItems.value.reduce((total, item) => total + getItemSubtotal(item), 0)
+})
+// ================================
+// 是否全部商品都勾選
 // ================================
 
 const isAllSelected = computed(() => {
@@ -69,7 +114,7 @@ const isAllSelected = computed(() => {
     return false
   }
 
-  return selectedCartItemIds.value.length === cart.value.items.length
+  return cart.value.items.every((item) => selectedCartItemIds.value.includes(item.cartItemId))
 })
 
 // ================================
@@ -82,27 +127,44 @@ const toggleSelectAll = () => {
   }
 
   if (isAllSelected.value) {
+    // 取消全部
     selectedCartItemIds.value = []
   } else {
+    // 全部勾選
     selectedCartItemIds.value = cart.value.items.map((item) => item.cartItemId)
   }
 }
-
 // ================================
-// 勾選商品數量
-// ================================
-
-const selectedTotalQuantity = computed(() => {
-  return selectedItems.value.reduce((total, item) => total + Number(item.quantity), 0)
-})
-
-// ================================
-// 勾選商品總金額
+// 某個賣家是否全部勾選
 // ================================
 
-const selectedTotalAmount = computed(() => {
-  return selectedItems.value.reduce((total, item) => total + getItemSubtotal(item), 0)
-})
+const isSellerAllSelected = (group) => {
+  if (!group.items.length) {
+    return false
+  }
+
+  return group.items.every((item) => selectedCartItemIds.value.includes(item.cartItemId))
+}
+
+// ================================
+// 某個賣家全選 / 取消全選
+// ================================
+
+const toggleSellerSelectAll = (group) => {
+  const itemIds = group.items.map((item) => item.cartItemId)
+
+  const allSelected = isSellerAllSelected(group)
+
+  if (allSelected) {
+    // 取消這個賣家的所有商品
+    selectedCartItemIds.value = selectedCartItemIds.value.filter((id) => !itemIds.includes(id))
+  } else {
+    // 加入這個賣家的所有商品
+    const newIds = itemIds.filter((id) => !selectedCartItemIds.value.includes(id))
+
+    selectedCartItemIds.value.push(...newIds)
+  }
+}
 
 // ================================
 // 修改數量
@@ -126,6 +188,7 @@ const updateQuantity = async (item, quantity) => {
     alert(error.response?.data?.message || '修改商品數量失敗')
   }
 }
+
 // ================================
 // 修改商品規格 SKU
 // ================================
@@ -147,7 +210,6 @@ const changeSku = async (item, newSkuId) => {
 
     console.log('修改 SKU API：', response.data)
 
-    // 如果後端直接回傳更新後的 CartItem
     const updatedItem = response.data
 
     item.skuId = updatedItem.skuId
@@ -163,17 +225,21 @@ const changeSku = async (item, newSkuId) => {
     if (updatedItem.skus !== undefined) {
       item.skus = updatedItem.skus
     }
+
+    if (updatedItem.sellerId !== undefined) {
+      item.sellerId = updatedItem.sellerId
+    }
   } catch (error) {
     console.error('修改商品規格失敗:', error)
 
     alert(error.response?.data?.message || '修改商品規格失敗')
 
-    // 失敗時恢復原本 SKU
     item.skuId = oldSkuId
   } finally {
     changingSkuId.value = null
   }
 }
+
 // ================================
 // 增加數量
 // ================================
@@ -212,12 +278,49 @@ const removeItem = async (item) => {
       (cartItem) => cartItem.cartItemId !== item.cartItemId,
     )
 
-    // 同時取消該商品的勾選
     selectedCartItemIds.value = selectedCartItemIds.value.filter((id) => id !== item.cartItemId)
   } catch (error) {
     console.error('刪除商品失敗:', error)
 
     alert(error.response?.data?.message || '刪除商品失敗')
+  }
+}
+
+// ================================
+// 刪除選取商品
+// ================================
+
+const deleteSelectedItems = async () => {
+  if (selectedCartItemIds.value.length === 0) {
+    alert('請先勾選要刪除的商品')
+    return
+  }
+
+  const confirmed = confirm(`確定要刪除選取的 ${selectedCartItemIds.value.length} 件商品嗎？`)
+
+  if (!confirmed) {
+    return
+  }
+
+  try {
+    loading.value = true
+    errorMessage.value = ''
+
+    const ids = [...selectedCartItemIds.value]
+
+    for (const cartItemId of ids) {
+      await api.delete(`/cart/items/${cartItemId}`)
+    }
+
+    cart.value.items = cart.value.items.filter((item) => !ids.includes(item.cartItemId))
+
+    selectedCartItemIds.value = []
+  } catch (error) {
+    console.error('刪除選取商品失敗:', error)
+
+    alert(error.response?.data?.message || '刪除選取商品失敗，請稍後再試')
+  } finally {
+    loading.value = false
   }
 }
 
@@ -257,9 +360,26 @@ const goToCheckout = () => {
     return
   }
 
+  // ================================
+  // 檢查是否包含不同賣家
+  // ================================
+
+  const sellerIds = [...new Set(selectedItems.map((item) => Number(item.sellerId)))]
+
+  if (sellerIds.length > 1) {
+    alert('不同賣家的商品不能一起結帳，請只選擇同一個賣家的商品。')
+    return
+  }
+
+  // ================================
+  // 相同賣家 → 前往 Checkout
+  // ================================
+
   localStorage.setItem(
     'checkoutData',
     JSON.stringify({
+      sellerId: sellerIds[0],
+
       items: selectedItems.map((item) => ({
         cartItemId: item.cartItemId,
         skuId: item.skuId,
@@ -267,6 +387,7 @@ const goToCheckout = () => {
         productName: item.productName,
         price: item.price,
         productImage: item.productImage,
+        skus: item.skus,
       })),
     }),
   )
@@ -352,8 +473,6 @@ onMounted(() => {
         ================================= -->
 
         <section class="cart-products">
-          <!-- 全選 -->
-
           <div class="select-all-card">
             <label for="selectAll" class="select-all-label">
               <input
@@ -364,120 +483,150 @@ onMounted(() => {
                 @change="toggleSelectAll"
               />
 
-              <span> 全選 </span>
+              <span>全選</span>
             </label>
 
-            <span class="selected-count">
-              已選
-              {{ selectedItems.length }}
-              件商品
-            </span>
-          </div>
+            <div class="cart-selection-info">
+              <span> 已選 {{ selectedCartItemIds.length }} 件商品 </span>
 
-          <!-- 商品 -->
-
-          <article v-for="item in cart.items" :key="item.cartItemId" class="cart-item-card">
-            <!-- 勾選 -->
-
-            <div class="item-checkbox">
-              <input
-                v-model="selectedCartItemIds"
-                class="cart-checkbox"
-                type="checkbox"
-                :value="item.cartItemId"
-              />
-            </div>
-
-            <!-- 商品圖片 -->
-
-            <div class="item-image-wrapper">
-              <img
-                v-if="item.productImage"
-                :src="item.productImage"
-                :alt="item.productName"
-                class="cart-image"
-              />
-
-              <div v-else class="cart-image-placeholder">
-                <i class="bi bi-image"></i>
-              </div>
-            </div>
-
-            <!-- 商品資訊 -->
-
-            <div class="item-info">
-              <h2 class="item-name">
-                {{ item.productName }}
-              </h2>
-
-              <div class="item-sku-select">
-                <label class="sku-label">規格</label>
-
-                <select
-                  :value="item.skuId"
-                  :disabled="changingSkuId === item.cartItemId"
-                  @change="changeSku(item, Number($event.target.value))"
-                >
-                  <option v-for="sku in item.skus" :key="sku.skuId" :value="sku.skuId">
-                    {{ sku.skuName }}
-                  </option>
-                </select>
-
-                <span v-if="changingSkuId === item.cartItemId" class="sku-loading">
-                  更新中...
-                </span>
-              </div>
-
-              <p class="item-price">NT$ {{ formatPrice(item.price) }}</p>
-            </div>
-
-            <!-- 數量 -->
-
-            <div class="item-quantity">
-              <span class="quantity-label"> 數量 </span>
-
-              <div class="quantity-control">
-                <button
-                  type="button"
-                  class="quantity-button"
-                  :disabled="item.quantity <= 1"
-                  aria-label="減少數量"
-                  @click="decreaseQuantity(item)"
-                >
-                  <i class="bi bi-dash"></i>
-                </button>
-
-                <span class="quantity-value">
-                  {{ item.quantity }}
-                </span>
-
-                <button
-                  type="button"
-                  class="quantity-button"
-                  aria-label="增加數量"
-                  @click="increaseQuantity(item)"
-                >
-                  <i class="bi bi-plus"></i>
-                </button>
-              </div>
-            </div>
-
-            <!-- 小計 -->
-
-            <div class="item-total">
-              <span class="item-total-label"> 小計 </span>
-
-              <strong>
-                NT$
-                {{ formatPrice(getItemSubtotal(item)) }}
-              </strong>
-
-              <button type="button" class="remove-button" @click="removeItem(item)">
-                <i class="bi bi-trash3"></i>
-                <span>移除</span>
+              <button
+                type="button"
+                class="delete-selected-button"
+                :disabled="selectedCartItemIds.length === 0 || loading"
+                @click="deleteSelectedItems"
+              >
+                刪除選取
               </button>
             </div>
-          </article>
+          </div>
+          <!-- ================================
+       不同賣家分組
+  ================================= -->
+
+          <div v-for="group in sellerGroups" :key="group.sellerId" class="seller-group">
+            <!-- ================================
+         賣家標題
+    ================================= -->
+
+            <div class="seller-header">
+              <label class="seller-select-label">
+                <input
+                  class="cart-checkbox"
+                  type="checkbox"
+                  :checked="isSellerAllSelected(group)"
+                  @change="toggleSellerSelectAll(group)"
+                />
+
+                <!-- 這裡改成店家名稱 -->
+                <span>{{ group.storeName }}</span>
+              </label>
+
+              <span class="seller-item-count"> {{ group.items.length }} 件商品 </span>
+            </div>
+
+            <!-- ================================
+         商品
+    ================================= -->
+
+            <article v-for="item in group.items" :key="item.cartItemId" class="cart-item-card">
+              <!-- 勾選 -->
+
+              <div class="item-checkbox">
+                <input
+                  v-model="selectedCartItemIds"
+                  class="cart-checkbox"
+                  type="checkbox"
+                  :value="item.cartItemId"
+                />
+              </div>
+
+              <!-- 商品圖片 -->
+
+              <div class="item-image-wrapper">
+                <img
+                  v-if="item.productImage"
+                  :src="item.productImage"
+                  :alt="item.productName"
+                  class="cart-image"
+                />
+
+                <div v-else class="cart-image-placeholder">
+                  <i class="bi bi-image"></i>
+                </div>
+              </div>
+
+              <!-- 商品資訊 -->
+
+              <div class="item-info">
+                <h2 class="item-name">
+                  {{ item.productName }}
+                </h2>
+
+                <!-- SKU -->
+
+                <div class="item-sku-select">
+                  <label class="sku-label">規格</label>
+
+                  <select
+                    :value="item.skuId"
+                    :disabled="changingSkuId === item.cartItemId"
+                    @change="changeSku(item, Number($event.target.value))"
+                  >
+                    <option v-for="sku in item.skus" :key="sku.skuId" :value="sku.skuId">
+                      {{ sku.skuName }}
+                    </option>
+                  </select>
+
+                  <span v-if="changingSkuId === item.cartItemId" class="sku-loading">
+                    更新中...
+                  </span>
+                </div>
+
+                <p class="item-price">NT$ {{ formatPrice(item.price) }}</p>
+              </div>
+
+              <!-- 數量 -->
+
+              <div class="item-quantity">
+                <span class="quantity-label"> 數量 </span>
+
+                <div class="quantity-control">
+                  <button
+                    type="button"
+                    class="quantity-button"
+                    :disabled="item.quantity <= 1"
+                    @click="decreaseQuantity(item)"
+                  >
+                    <i class="bi bi-dash"></i>
+                  </button>
+
+                  <span class="quantity-value">
+                    {{ item.quantity }}
+                  </span>
+
+                  <button type="button" class="quantity-button" @click="increaseQuantity(item)">
+                    <i class="bi bi-plus"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 小計 -->
+
+              <div class="item-total">
+                <span class="item-total-label"> 小計 </span>
+
+                <strong>
+                  NT$
+                  {{ formatPrice(getItemSubtotal(item)) }}
+                </strong>
+
+                <button type="button" class="remove-button" @click="removeItem(item)">
+                  <i class="bi bi-trash3"></i>
+                  <span>移除</span>
+                </button>
+              </div>
+            </article>
+          </div>
         </section>
 
         <!-- ================================
@@ -1542,5 +1691,150 @@ onMounted(() => {
 
   font-family: var(--font-body);
   font-size: var(--font-size-xs);
+}
+.cart-selection-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.delete-selected-button {
+  padding: 3px 8px;
+
+  border: 1px solid #c9cfca;
+  border-radius: 4px;
+
+  background: #ffffff;
+  color: #737a75;
+
+  font-size: 10px;
+
+  cursor: pointer;
+}
+
+.delete-selected-button:hover:not(:disabled) {
+  background: #f5f6f4;
+  color: #9b4d4d;
+}
+
+.delete-selected-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+/* ========================================
+   Seller Group
+======================================== */
+
+.seller-group {
+  margin-bottom: var(--space-5);
+
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+
+  overflow: hidden;
+}
+
+/* ========================================
+   Seller Header
+======================================== */
+
+.seller-header {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: var(--space-3);
+
+  padding: var(--space-4);
+
+  background: var(--color-surface-soft);
+
+  border-bottom: 1px solid var(--color-border);
+}
+
+.seller-select-label {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: var(--space-2);
+
+  margin: 0;
+
+  color: var(--color-text);
+
+  font-family: var(--font-body);
+
+  font-size: var(--font-size-base);
+
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.seller-item-count {
+  color: var(--color-text-muted);
+
+  font-family: var(--font-body);
+
+  font-size: var(--font-size-sm);
+}
+
+/* ========================================
+   Seller Group Item
+======================================== */
+
+.seller-group .cart-item-card {
+  margin-bottom: 0;
+
+  border: 0;
+
+  border-radius: 0;
+
+  border-bottom: 1px solid var(--color-border);
+}
+
+.seller-group .cart-item-card:last-child {
+  border-bottom: 0;
+}
+
+.seller-group .cart-item-card:hover {
+  border-color: var(--color-border);
+
+  box-shadow: none;
+
+  background: var(--color-surface-soft);
+}
+
+/* ========================================
+   Selection Bar
+======================================== */
+
+.cart-selection-bar {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: var(--space-3);
+
+  margin-bottom: var(--space-3);
+
+  padding: var(--space-3) var(--space-4);
+
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-border);
+
+  border-radius: var(--radius-lg);
+
+  color: var(--color-text-muted);
+
+  font-family: var(--font-body);
+
+  font-size: var(--font-size-sm);
 }
 </style>

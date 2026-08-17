@@ -519,7 +519,16 @@ onMounted(() => {
                     {{ item.productName }}
                   </h3>
 
-                  <span class="item-sku"> SKU：{{ item.skuId }} </span>
+                  <div v-if="item.skus && item.skus.length > 0" class="item-sku-select">
+                    <label class="sku-label">規格</label>
+
+                    <span class="sku-name">
+                      {{
+                        item.skus.find((sku) => Number(sku.skuId) === Number(item.skuId))
+                          ?.skuName || '未指定規格'
+                      }}
+                    </span>
+                  </div>
 
                   <span class="item-quantity"> 數量：{{ item.quantity }} </span>
                 </div>
@@ -2019,5 +2028,25 @@ onMounted(() => {
   .coupon-content strong {
     font-size: var(--font-size-xs);
   }
+}
+.item-sku-select {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+
+.sku-label {
+  color: var(--color-text-subtle);
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+}
+
+.sku-name {
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
 }
 </style>
