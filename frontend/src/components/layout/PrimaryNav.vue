@@ -1,17 +1,24 @@
 <script setup>
-import { RouterLink, useRoute } from 'vue-router'
+import { onMounted, ref, watch } from 'vue'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import api from '@/api/axios'
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 
+const showCategoryFilter = ref(false)
+
+const categories = ref([])
+const subcategories = ref([])
+const brands = ref([])
+
+const selectedCategoryId = ref('')
+const selectedSubcategoryId = ref('')
+const selectedBrandId = ref('')
+
 const navItems = [
-  {
-    label: '全部分類',
-    to: { name: 'ProductList' },
-    icon: 'bi-list',
-    activeKey: 'all',
-  },
   {
     label: '新品上市',
     to: { name: 'ProductList', query: { sort: 'newest' } },
@@ -46,6 +53,114 @@ const navItems = [
   },
 ]
 
+const toggleCategoryFilter = () => {
+  showCategoryFilter.value = !showCategoryFilter.value
+}
+
+const fetchCategories = async () => {
+  try {
+    const response = await api.get('/categories')
+    categories.value = response.data
+  } catch (error) {
+    console.error('取得分類失敗：', error)
+  }
+}
+
+const fetchBrands = async () => {
+  try {
+    const response = await api.get('/brands')
+    brands.value = response.data
+  } catch (error) {
+    console.error('取得品牌失敗：', error)
+  }
+}
+
+const fetchSubcategories = async () => {
+  try {
+    if (!selectedCategoryId.value) {
+      subcategories.value = []
+      return
+    }
+
+    const response = await api.get('/subcategories', {
+      params: {
+        categoryId: selectedCategoryId.value,
+      },
+    })
+
+    subcategories.value = response.data
+  } catch (error) {
+    console.error('取得子分類失敗：', error)
+  }
+}
+
+const updateProductQuery = () => {
+  const query = {}
+
+  // 大分類
+  if (selectedCategoryId.value) {
+    query.categoryId = selectedCategoryId.value
+  }
+
+  // 子分類
+  if (selectedSubcategoryId.value) {
+    query.subcategoryId = selectedSubcategoryId.value
+  }
+
+  // 品牌
+  if (selectedBrandId.value) {
+    query.brandId = selectedBrandId.value
+  }
+
+  router.push({
+    name: 'ProductList',
+    query,
+  })
+}
+
+const selectCategory = (categoryId) => {
+  selectedCategoryId.value = categoryId
+}
+
+const selectSubcategory = (subcategoryId) => {
+  selectedSubcategoryId.value = subcategoryId
+}
+
+const selectBrand = (brandId) => {
+  selectedBrandId.value = brandId
+}
+
+const clearFilters = () => {
+  selectedCategoryId.value = ''
+  selectedSubcategoryId.value = ''
+  selectedBrandId.value = ''
+  subcategories.value = []
+
+  router.push({
+    name: 'ProductList',
+  })
+}
+
+watch(selectedCategoryId, async () => {
+  selectedSubcategoryId.value = ''
+
+  if (selectedCategoryId.value) {
+    await fetchSubcategories()
+  } else {
+    subcategories.value = []
+  }
+
+  updateProductQuery()
+})
+
+watch(selectedSubcategoryId, () => {
+  updateProductQuery()
+})
+
+watch(selectedBrandId, () => {
+  updateProductQuery()
+})
+
 const isActive = (item) => {
   if (item.activeKey === 'seller') {
     return route.name === 'SellerDashboard'
@@ -53,10 +168,6 @@ const isActive = (item) => {
 
   if (route.name !== 'ProductList') {
     return false
-  }
-
-  if (item.activeKey === 'all') {
-    return !route.query.sort && !route.query.filter
   }
 
   if (item.activeKey === 'newest') {
@@ -69,6 +180,10 @@ const isActive = (item) => {
 
   return route.query.filter === item.activeKey
 }
+
+onMounted(async () => {
+  await Promise.all([fetchCategories(), fetchBrands()])
+})
 </script>
 
 <template>
@@ -82,25 +197,147 @@ const isActive = (item) => {
         aria-controls="primary-nav-menu"
         aria-expanded="false"
       >
-        <span><i class="bi bi-list me-2" aria-hidden="true"></i>商城導覽</span>
+        <span>
+          <i class="bi bi-list me-2" aria-hidden="true"></i>
+          商城導覽
+        </span>
+
         <i class="bi bi-chevron-down" aria-hidden="true"></i>
       </button>
-      <div id="primary-nav-menu" class="primary-nav__menu collapse d-lg-flex align-items-lg-center">
-        <template v-for="item in navItems" :key="item.label">
-          <RouterLink
-            v-if="!item.requiresSeller || authStore.isSeller"
-            class="primary-nav__link"
-            :class="{
-              'primary-nav__link--all': item.label === '全部分類',
-              'primary-nav__link--seller': item.label === '商家中心',
-              'primary-nav__link--active': isActive(item),
-            }"
-            :to="item.to"
-          >
-            <i v-if="item.icon" class="bi" :class="item.icon" aria-hidden="true"></i>
 
-            <span>{{ item.label }}</span>
-          </RouterLink>
+      <div
+        id="primary-nav-menu"
+        class="primary-nav__menu collapse d-lg-flex align-items-lg-center gap-lg-1"
+      >
+        <!-- 全部分類 -->
+        <div class="category-menu">
+          <button
+            type="button"
+            class="primary-nav__link primary-nav__link--all"
+            :class="{
+              'primary-nav__link--active-filter': selectedSubcategoryId || selectedBrandId,
+            }"
+            @click="toggleCategoryFilter"
+          >
+            <i class="bi bi-grid" aria-hidden="true"></i>
+            <span>全部分類</span>
+
+            <i
+              class="bi ms-auto"
+              :class="showCategoryFilter ? 'bi-chevron-up' : 'bi-chevron-down'"
+            ></i>
+          </button>
+
+          <!-- 展開選單 -->
+          <div v-if="showCategoryFilter" class="category-filter-panel">
+            <!-- 分類 -->
+            <div class="filter-column">
+              <h4 class="filter-title">分類</h4>
+
+              <button
+                type="button"
+                class="filter-option"
+                :class="{
+                  active: selectedCategoryId === '',
+                }"
+                @click="clearFilters"
+              >
+                全部分類
+              </button>
+
+              <button
+                v-for="category in categories"
+                :key="category.categoryId"
+                type="button"
+                class="filter-option"
+                :class="{
+                  active: selectedCategoryId === category.categoryId,
+                }"
+                @click="selectCategory(category.categoryId)"
+              >
+                {{ category.categoryName }}
+              </button>
+            </div>
+
+            <!-- 子分類 -->
+            <div class="filter-column">
+              <h4 class="filter-title">子分類</h4>
+
+              <template v-if="selectedCategoryId">
+                <button
+                  type="button"
+                  class="filter-option"
+                  :class="{
+                    active: selectedSubcategoryId === '',
+                  }"
+                  @click="selectSubcategory('')"
+                >
+                  全部子分類
+                </button>
+
+                <button
+                  v-for="subcategory in subcategories"
+                  :key="subcategory.subcategoryId"
+                  type="button"
+                  class="filter-option"
+                  :class="{
+                    active: selectedSubcategoryId === subcategory.subcategoryId,
+                  }"
+                  @click="selectSubcategory(subcategory.subcategoryId)"
+                >
+                  {{ subcategory.subcategoryName }}
+                </button>
+              </template>
+
+              <p v-else class="filter-hint">請先選擇分類</p>
+            </div>
+
+            <!-- 品牌 -->
+            <div class="filter-column">
+              <h4 class="filter-title">品牌</h4>
+
+              <button
+                type="button"
+                class="filter-option"
+                :class="{
+                  active: selectedBrandId === '',
+                }"
+                @click="selectBrand('')"
+              >
+                全部品牌
+              </button>
+
+              <button
+                v-for="brand in brands"
+                :key="brand.brandId"
+                type="button"
+                class="filter-option"
+                :class="{
+                  active: selectedBrandId === brand.brandId,
+                }"
+                @click="selectBrand(brand.brandId)"
+              >
+                {{ brand.brandName }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 其他導覽 -->
+        <template v-for="item in navItems" :key="item.label">
+  <RouterLink
+    v-if="!item.requiresSeller || authStore.isSeller"
+    class="primary-nav__link"
+    :class="{
+      'primary-nav__link--seller': item.label === '商家中心',
+      'primary-nav__link--active': isActive(item),
+    }"
+    :to="item.to"
+  >
+    <i v-if="item.icon" class="bi" :class="item.icon" aria-hidden="true"></i>
+    <span>{{ item.label }}</span>
+  </RouterLink>
+</template>
         </template>
       </div>
     </div>
@@ -109,24 +346,26 @@ const isActive = (item) => {
 
 <style scoped>
 .primary-nav {
-  box-sizing: border-box;
-  height: 52px;
-  min-height: 52px;
-  color: var(--color-text);
+  position: relative;
+  min-height: 72px;
+  color: var(--color-text-muted);
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
 }
+
 .primary-nav__inner {
   width: 100%;
   height: 100%;
   max-width: 1440px;
 }
+
 .primary-nav__menu {
   height: 100%;
   width: 100%;
   gap: 28px;
 }
+
 .primary-nav__toggle {
   width: 100%;
   min-height: 46px;
@@ -135,33 +374,153 @@ const isActive = (item) => {
   border: 0;
   background: transparent;
 }
+
 .primary-nav__link {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  min-height: 40px;
-  padding: 0 var(--space-1);
+  gap: var(--space-1);
+  min-height: 52px;
+  padding: 0 var(--space-4);
+
   color: inherit;
   font-size: 14px;
   font-weight: 400;
   text-decoration: none;
+
+  border: 0;
+  border-bottom: 2px solid transparent;
+
+  background: transparent;
+
+  cursor: pointer;
 }
+
+/* =========================
+   全部分類
+   ========================= */
+
+.category-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
 .primary-nav__link--all {
-  min-height: 40px;
-  margin: 0;
-  gap: 10px;
-  padding: 0 var(--space-4);
+  width: 160px;
+  min-height: 52px;
+
   color: var(--color-surface);
-  font-weight: 600;
-  border-radius: var(--radius-sm);
+
+  border-bottom-color: transparent;
+  border-radius: var(--radius-md);
+
   background: var(--color-primary);
 }
+
 .primary-nav__link--all:hover,
-.primary-nav__link--all:focus-visible,
-.primary-nav__link--all.router-link-active {
+.primary-nav__link--all:focus-visible {
   color: var(--color-surface);
   background: var(--color-primary-hover);
 }
+
+/* =========================
+   分類展開面板
+   ========================= */
+
+.category-filter-panel {
+  position: absolute;
+
+  top: calc(100% + 10px);
+  left: 0;
+
+  z-index: 2000;
+
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+
+  width: 720px;
+  min-height: 240px;
+
+  padding: 24px;
+
+  color: var(--color-text);
+
+  background: #ffffff;
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+}
+
+.filter-column {
+  padding: 0 20px;
+
+  border-right: 1px solid var(--color-border);
+}
+
+.filter-column:first-child {
+  padding-left: 0;
+}
+
+.filter-column:last-child {
+  padding-right: 0;
+  border-right: 0;
+}
+
+.filter-title {
+  margin: 0 0 14px;
+
+  color: var(--color-primary-800);
+
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.filter-option {
+  display: block;
+
+  width: 100%;
+
+  margin-bottom: 4px;
+  padding: 9px 10px;
+
+  color: var(--color-text);
+
+  font-size: 15px;
+  text-align: left;
+
+  border: 0;
+  border-radius: var(--radius-md);
+
+  background: transparent;
+
+  cursor: pointer;
+}
+
+.filter-option:hover {
+  background: var(--color-primary-soft);
+}
+
+.filter-option.active {
+  color: var(--color-primary-800);
+  font-weight: 600;
+
+  background: var(--color-primary-soft);
+}
+
+.filter-hint {
+  margin: 8px 10px;
+
+  color: var(--color-text-muted);
+
+  font-size: 14px;
+}
+
+/* =========================
+   其他選單
+   ========================= */
+
 .primary-nav__link--seller {
   margin-left: auto;
   gap: 8px;
@@ -169,40 +528,89 @@ const isActive = (item) => {
   color: var(--color-primary-active);
   font-weight: 600;
 }
+
 .primary-nav__link:hover,
 .primary-nav__link:focus-visible {
   color: var(--color-primary-800);
-  background: transparent;
+
+  background: var(--color-primary-soft);
+
+  border-bottom-color: var(--color-primary);
 }
 
 .primary-nav__link--active {
-  color: var(--color-primary-active);
-  font-weight: 600;
+  color: var(--color-primary-800);
+
+  background: var(--color-primary-soft);
+
+  border-bottom-color: var(--color-primary);
 }
+
+/* =========================
+   Mobile
+   ========================= */
 
 @media (max-width: 991.98px) {
   .primary-nav {
     height: auto;
     min-height: 0;
   }
+
   .primary-nav__inner {
     min-height: 0;
   }
+
   .primary-nav__menu {
     gap: 0;
     padding-bottom: var(--space-2);
   }
+
   .primary-nav__link {
     width: 100%;
-    min-height: 40px;
+    min-height: 42px;
+
+    border-bottom: 0;
     border-radius: var(--radius-md);
   }
+
+  .category-menu {
+    width: 100%;
+  }
+
   .primary-nav__link--all {
     width: 100%;
     margin: 0;
   }
+
   .primary-nav__link--seller {
     margin-left: 0;
+  }
+
+  .category-filter-panel {
+    position: static;
+
+    width: 100%;
+    margin-top: 8px;
+
+    grid-template-columns: 1fr;
+
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+
+  .filter-column {
+    padding: 16px 0;
+
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .filter-column:first-child {
+    padding-top: 0;
+  }
+
+  .filter-column:last-child {
+    border-bottom: 0;
   }
 }
 </style>
