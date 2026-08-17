@@ -214,9 +214,33 @@ public class ProductService {
         }
 
         // 讀取商品列表
-        public List<ProductResponse> getProducts() {
-                return productRepository.findAll()
-                                .stream()
+        public List<ProductResponse> getProducts(
+                        Integer subcategoryId,
+                        Integer brandId) {
+                List<Product> products;
+                if (subcategoryId != null && brandId != null) {
+
+                        products = productRepository
+                                        .findBySubcategorySubcategoryIdAndBrandBrandId(
+                                                        subcategoryId,
+                                                        brandId);
+
+                } else if (subcategoryId != null) {
+
+                        products = productRepository
+                                        .findBySubcategorySubcategoryId(subcategoryId);
+
+                } else if (brandId != null) {
+
+                        products = productRepository
+                                        .findByBrandBrandId(brandId);
+
+                } else {
+
+                        products = productRepository.findAll();
+                }
+
+                return products.stream()
                                 .map(this::toProductResponse)
                                 .toList();
         }
