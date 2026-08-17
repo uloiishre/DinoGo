@@ -1,9 +1,6 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-// TODO: sellerId 之後改由登入賣家狀態取得。
-
-// 建立新商品，支援 Product、SKU 與商品圖片。
 import { createSellerProduct } from '@/api/sellerProductApi'
 import { getCurrentSellerId } from '@/utils/seller-session'
 
