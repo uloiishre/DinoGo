@@ -1,12 +1,14 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { getOrder } from '@/api/order'
+import { confirmDelivery, getOrder } from '@/api/order'
 
 const route = useRoute()
 const order = ref(null)
 const loading = ref(true)
 const errorMessage = ref('')
+const confirmingDelivery = ref(false)
+const deliveryErrorMessage = ref('')
 
 const orderId = computed(() => Number(route.params.id ?? route.params.orderId))
 
@@ -17,6 +19,20 @@ const statusLabels = {
   SHIPPED: '已出貨',
   COMPLETED: '已完成',
   CANCELLED: '已取消',
+}
+
+const paymentStatusLabels = {
+  PENDING: '待付款',
+  SUCCESS: '已付款',
+  FAILED: '付款失敗',
+  CANCELLED: '付款已取消',
+}
+
+const shipmentStatusLabels = {
+  PREPARING: '備貨中',
+  SHIPPED: '已出貨',
+  AVAILABLE_FOR_PICKUP: '可取貨',
+  DELIVERED: '已送達',
 }
 
 const progressSteps = [
@@ -54,6 +70,20 @@ async function loadOrder() {
     errorMessage.value = error.response?.data?.message ?? '訂單詳情載入失敗，請稍後再試。'
   } finally {
     loading.value = false
+  }
+}
+
+async function handleConfirmDelivery() {
+  if (!order.value?.shipment || confirmingDelivery.value) return
+  confirmingDelivery.value = true
+  deliveryErrorMessage.value = ''
+  try {
+    await confirmDelivery(orderId.value)
+    await loadOrder()
+  } catch (error) {
+    deliveryErrorMessage.value = error.response?.data?.message ?? '確認收貨失敗，請稍後再試'
+  } finally {
+    confirmingDelivery.value = false
   }
 }
 
@@ -186,8 +216,42 @@ onMounted(loadOrder)
 
             <section class="info-section">
               <h3>付款資訊</h3>
-              <p>{{ order.status === 'PENDING_PAYMENT' ? '尚未付款' : statusLabels[order.status] }}</p>
-              <p class="muted">付款方式將於付款功能串接後顯示</p>
+              <template v-if="order.payment">
+                <p>{{ paymentStatusLabels[order.payment.status] ?? order.payment.status }}</p>
+                <p class="muted">
+                  {{ order.payment.paymentMethodName ?? order.payment.paymentMethodCode }}
+                </p>
+                <p v-if="order.payment.failureReason" class="muted payment-failure">
+                  {{ order.payment.failureReason }}
+                </p>
+              </template>
+              <p v-else>尚未建立付款資料</p>
+            </section>
+
+            <section class="info-section">
+              <h3>物流資訊</h3>
+              <template v-if="order.shipment">
+                <p>{{ shipmentStatusLabels[order.shipment.status] ?? order.shipment.status }}</p>
+                <p class="muted">
+                  {{ order.shipment.carrierName || '物流商待確認' }}
+                  <template v-if="order.shipment.trackingNo">
+                    ・{{ order.shipment.trackingNo }}
+                  </template>
+                </p>
+                <button
+                  v-if="['SHIPPED', 'AVAILABLE_FOR_PICKUP'].includes(order.shipment.status)"
+                  class="btn btn-primary mt-2"
+                  type="button"
+                  :disabled="confirmingDelivery"
+                  @click="handleConfirmDelivery"
+                >
+                  {{ confirmingDelivery ? '確認中...' : '確認收貨' }}
+                </button>
+                <p v-if="deliveryErrorMessage" class="text-danger mt-2" role="alert">
+                  {{ deliveryErrorMessage }}
+                </p>
+              </template>
+              <p v-else>尚未建立物流資料</p>
             </section>
 
             <dl class="amount-summary">

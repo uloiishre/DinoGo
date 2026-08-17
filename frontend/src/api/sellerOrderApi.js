@@ -7,3 +7,7 @@ export const getSellerOrders = (sellerId) => {
     params: { sellerId },
   })
 }
+
+export const getSellerOrder = (orderId) => {
+  return api.get(`/seller/orders/${orderId}`)
+}

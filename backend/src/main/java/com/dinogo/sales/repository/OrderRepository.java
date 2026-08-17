@@ -19,14 +19,26 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
     @EntityGraph(attributePaths = "orderItems")
     List<Order> findByBuyerIdOrderByCreatedAtDesc(Integer buyerId);
 
-    @EntityGraph(attributePaths = "orderItems")
+    @EntityGraph(attributePaths = { "orderItems", "shipment" })
     Optional<Order> findByOrderIdAndBuyerId(
             Integer orderId,
             Integer buyerId);
 
+    @EntityGraph(attributePaths = { "orderItems", "shipment" })
     Optional<Order> findByOrderIdAndSellerId(
             Integer orderId,
             Integer sellerId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT orders
+            FROM Order orders
+            WHERE orders.orderId = :orderId
+              AND orders.sellerId = :sellerId
+            """)
+    Optional<Order> findForShipmentCreation(
+            @Param("orderId") Integer orderId,
+            @Param("sellerId") Integer sellerId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @EntityGraph(attributePaths = "orderItems")

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -35,6 +36,11 @@ import com.dinogo.sales.dto.order.CreateOrderResponse;
 import com.dinogo.sales.entity.Order;
 import com.dinogo.sales.entity.OrderItem;
 import com.dinogo.sales.entity.OrderStatus;
+import com.dinogo.sales.entity.Payment;
+import com.dinogo.sales.entity.PaymentMethod;
+import com.dinogo.sales.entity.PaymentStatus;
+import com.dinogo.sales.entity.Shipment;
+import com.dinogo.sales.entity.ShipmentStatus;
 import com.dinogo.sales.exception.OrderNotFoundException;
 import com.dinogo.sales.repository.OrderRepository;
 import com.dinogo.seller.entity.Seller;
@@ -218,6 +224,115 @@ class OrderServiceTest {
                 .hasMessage("Order status PAID can only be set by the payment flow");
 
         verify(orderRepository, never()).findById(99);
+    }
+
+    @Test
+    void getMemberOrderIncludesLatestPaymentAndShipment() {
+        Order order = new Order();
+        order.setOrderId(99);
+        order.setBuyerId(6);
+
+        PaymentMethod method = new PaymentMethod();
+        method.setMethodCode("CREDIT_CARD");
+        method.setMethodName("信用卡");
+        Payment payment = new Payment();
+        payment.setPaymentId(20);
+        payment.setOrder(order);
+        payment.setPaymentMethod(method);
+        payment.setStatus(PaymentStatus.SUCCESS);
+        payment.setCreatedAt(LocalDateTime.of(2026, 8, 17, 12, 0));
+
+        Payment olderPayment = new Payment();
+        olderPayment.setPaymentId(19);
+        olderPayment.setOrder(order);
+        olderPayment.setPaymentMethod(method);
+        olderPayment.setStatus(PaymentStatus.FAILED);
+        olderPayment.setCreatedAt(LocalDateTime.of(2026, 8, 17, 11, 0));
+        order.getPayments().add(olderPayment);
+        order.getPayments().add(payment);
+
+        Shipment shipment = new Shipment();
+        shipment.setShipmentId(30);
+        shipment.setOrder(order);
+        shipment.setCarrierName("黑貓宅急便");
+        shipment.setTrackingNo("TRACK-001");
+        shipment.setStatus(ShipmentStatus.SHIPPED);
+        order.setShipment(shipment);
+
+        when(orderRepository.findByOrderIdAndBuyerId(99, 6))
+                .thenReturn(Optional.of(order));
+
+        OrderDetailResponse response = orderService.getMemberOrder(99, 6);
+
+        assertThat(response.payment().paymentId()).isEqualTo(20);
+        assertThat(response.payment().paymentMethodName()).isEqualTo("信用卡");
+        assertThat(response.payment().status()).isEqualTo(PaymentStatus.SUCCESS);
+        assertThat(response.shipment().shipmentId()).isEqualTo(30);
+        assertThat(response.shipment().carrierName()).isEqualTo("黑貓宅急便");
+        assertThat(response.shipment().status()).isEqualTo(ShipmentStatus.SHIPPED);
+    }
+
+    @Test
+    void getMemberOrderReturnsNullPaymentAndShipmentBeforeTheyExist() {
+        Order order = new Order();
+        order.setOrderId(99);
+        order.setBuyerId(6);
+        when(orderRepository.findByOrderIdAndBuyerId(99, 6))
+                .thenReturn(Optional.of(order));
+
+        OrderDetailResponse response = orderService.getMemberOrder(99, 6);
+
+        assertThat(response.payment()).isNull();
+        assertThat(response.shipment()).isNull();
+    }
+
+    @Test
+    void getSellerOrderUsesAuthenticatedSellerOwnership() {
+        Seller seller = mock(Seller.class);
+        when(seller.getSellerId()).thenReturn(300);
+        when(sellerRepository.findByMember_MemberId(6)).thenReturn(Optional.of(seller));
+        Order order = new Order();
+        order.setOrderId(99);
+        order.setSellerId(300);
+        when(orderRepository.findByOrderIdAndSellerId(99, 300)).thenReturn(Optional.of(order));
+
+        OrderDetailResponse response = orderService.getSellerOrder(99, 6);
+
+        assertThat(response.orderId()).isEqualTo(99);
+        verify(orderRepository).findByOrderIdAndSellerId(99, 300);
+        verify(orderRepository, never()).findById(99);
+    }
+
+    @Test
+    void getSellerOrderHidesOrdersOwnedByAnotherSeller() {
+        Seller seller = mock(Seller.class);
+        when(seller.getSellerId()).thenReturn(300);
+        when(sellerRepository.findByMember_MemberId(6)).thenReturn(Optional.of(seller));
+        when(orderRepository.findByOrderIdAndSellerId(99, 300)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> orderService.getSellerOrder(99, 6))
+                .isInstanceOf(OrderNotFoundException.class)
+                .hasMessage("Order does not exist");
+    }
+
+    @Test
+    void updateStatusRejectsShippedOutsideShipmentFlow() {
+        assertThatThrownBy(() -> orderService.updateStatusBySeller(
+                99, 1, OrderStatus.SHIPPED, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Order status SHIPPED can only be set by the shipment flow");
+
+        verify(sellerRepository, never()).findByMember_MemberId(1);
+    }
+
+    @Test
+    void updateStatusRejectsCompletedOutsideShipmentFlow() {
+        assertThatThrownBy(() -> orderService.updateStatusBySeller(
+                99, 1, OrderStatus.COMPLETED, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Order status COMPLETED can only be set by the shipment flow");
+
+        verify(sellerRepository, never()).findByMember_MemberId(1);
     }
 
     @Test
