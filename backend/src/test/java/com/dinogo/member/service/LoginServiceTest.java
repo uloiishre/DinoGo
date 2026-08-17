@@ -7,6 +7,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
+import java.util.Optional;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -17,6 +20,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import com.dinogo.member.dto.LoginRequest;
 import com.dinogo.member.dto.LoginResponse;
 import com.dinogo.member.entity.Member;
+import com.dinogo.member.entity.MemberRole;
+import com.dinogo.member.entity.Role;
+import com.dinogo.member.repository.MemberRoleRepository;
 import com.dinogo.member.repository.MemberRepository;
 import com.dinogo.security.JwtTokenUtil;
 
@@ -25,6 +31,9 @@ class LoginServiceTest {
 
     @Mock
     private MemberRepository memberRepository;
+
+    @Mock
+    private MemberRoleRepository memberRoleRepository;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -39,32 +48,39 @@ class LoginServiceTest {
     void loginReturnsMemberWhenCredentialsAreValid() {
         LoginRequest request = new LoginRequest("user@example.com", "password123");
         Member member = member("$2a$hashed-password", "ACTIVE");
-        when(memberRepository.findByEmail(request.email())).thenReturn(java.util.Optional.of(member));
+        List<String> roles = List.of("buyer", "seller");
+        when(memberRepository.findByEmail(request.email())).thenReturn(Optional.of(member));
         when(passwordEncoder.matches(request.password(), member.getPasswordHash())).thenReturn(true);
-        when(jwtTokenUtil.generateToken(member.getEmail(), member.getMemberId())).thenReturn("jwt-token");
+        when(memberRoleRepository.findByMemberMemberId(member.getMemberId()))
+                .thenReturn(List.of(memberRole("seller"), memberRole("buyer")));
+        when(jwtTokenUtil.generateToken(member.getEmail(), member.getMemberId(), roles))
+                .thenReturn("jwt-token");
 
         LoginResponse response = loginService.login(request);
 
         assertThat(response.token()).isEqualTo("jwt-token");
         assertThat(response.member().email()).isEqualTo(request.email());
+        assertThat(response.roles()).containsExactlyElementsOf(roles);
+        verify(jwtTokenUtil).generateToken(member.getEmail(), member.getMemberId(), roles);
     }
 
     @Test
     void loginRejectsInvalidPassword() {
         LoginRequest request = new LoginRequest("user@example.com", "wrong-password");
         Member member = member("$2a$hashed-password", "ACTIVE");
-        when(memberRepository.findByEmail(request.email())).thenReturn(java.util.Optional.of(member));
+        when(memberRepository.findByEmail(request.email())).thenReturn(Optional.of(member));
         when(passwordEncoder.matches(request.password(), member.getPasswordHash())).thenReturn(false);
 
         assertThatThrownBy(() -> loginService.login(request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Email 或密碼錯誤");
+        verify(memberRoleRepository, never()).findByMemberMemberId(any());
     }
 
     @Test
     void loginRejectsMissingOrInactiveMember() {
         LoginRequest missingRequest = new LoginRequest("missing@example.com", "password123");
-        when(memberRepository.findByEmail(missingRequest.email())).thenReturn(java.util.Optional.empty());
+        when(memberRepository.findByEmail(missingRequest.email())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> loginService.login(missingRequest))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -72,12 +88,13 @@ class LoginServiceTest {
 
         LoginRequest inactiveRequest = new LoginRequest("inactive@example.com", "password123");
         Member inactiveMember = member("$2a$hashed-password", "INACTIVE");
-        when(memberRepository.findByEmail(inactiveRequest.email())).thenReturn(java.util.Optional.of(inactiveMember));
+        when(memberRepository.findByEmail(inactiveRequest.email())).thenReturn(Optional.of(inactiveMember));
 
         assertThatThrownBy(() -> loginService.login(inactiveRequest))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Email 或密碼錯誤");
         verify(passwordEncoder, never()).matches(any(), any());
+        verify(memberRoleRepository, never()).findByMemberMemberId(any());
     }
 
     private Member member(String passwordHash, String status) {
@@ -89,5 +106,13 @@ class LoginServiceTest {
         member.setFirstName("小明");
         member.setStatus(status);
         return member;
+    }
+
+    private MemberRole memberRole(String roleName) {
+        Role role = new Role();
+        role.setRoleName(roleName);
+        MemberRole memberRole = new MemberRole();
+        memberRole.setRole(role);
+        return memberRole;
     }
 }

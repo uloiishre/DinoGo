@@ -1,5 +1,7 @@
 package com.dinogo.member.service;
 
+import java.util.List;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -8,6 +10,8 @@ import com.dinogo.member.dto.LoginRequest;
 import com.dinogo.member.dto.LoginResponse;
 import com.dinogo.member.dto.MemberResponse;
 import com.dinogo.member.entity.Member;
+import com.dinogo.member.entity.MemberRole;
+import com.dinogo.member.repository.MemberRoleRepository;
 import com.dinogo.member.repository.MemberRepository;
 import com.dinogo.security.JwtTokenUtil;
 
@@ -15,14 +19,17 @@ import com.dinogo.security.JwtTokenUtil;
 public class LoginService {
 
     private final MemberRepository memberRepository;
+    private final MemberRoleRepository memberRoleRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenUtil jwtTokenUtil;
 
     public LoginService(
             MemberRepository memberRepository,
+            MemberRoleRepository memberRoleRepository,
             PasswordEncoder passwordEncoder,
             JwtTokenUtil jwtTokenUtil) {
         this.memberRepository = memberRepository;
+        this.memberRoleRepository = memberRoleRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenUtil = jwtTokenUtil;
     }
@@ -37,7 +44,14 @@ public class LoginService {
             throw new IllegalArgumentException("Email 或密碼錯誤");
         }
 
-        String token = jwtTokenUtil.generateToken(member.getEmail(), member.getMemberId());
-        return new LoginResponse(token, MemberResponse.from(member));
+        List<String> roles = memberRoleRepository.findByMemberMemberId(member.getMemberId())
+                .stream()
+                .map(MemberRole::getRole)
+                .map(role -> role.getRoleName())
+                .sorted()
+                .toList();
+
+        String token = jwtTokenUtil.generateToken(member.getEmail(), member.getMemberId(), roles);
+        return new LoginResponse(token, MemberResponse.from(member), roles);
     }
 }

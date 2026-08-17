@@ -10,5 +10,7 @@ public record CartItemResponse(
 		BigDecimal price,
 		Integer quantity,
 		String productImage,
+		Integer sellerId,
+		String storeName,
 		List<SkuOptionResponse> skus) {
 }

@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -32,7 +34,8 @@ class LoginControllerTest {
         LoginRequest request = new LoginRequest("user@example.com", "password123");
         LoginResponse response = new LoginResponse(
                 "jwt-token",
-                new MemberResponse(1, "user@example.com", "王", "小明", null, null, "ACTIVE"));
+                new MemberResponse(1, "user@example.com", "王", "小明", null, null, "ACTIVE"),
+                List.of("buyer"));
         when(loginService.login(request)).thenReturn(response);
 
         ResponseEntity<?> result = loginController.login(request);

@@ -1,7 +1,9 @@
 <script setup>
 import { RouterLink, useRoute } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
+const authStore = useAuthStore()
 
 const navItems = [
   {
@@ -40,6 +42,7 @@ const navItems = [
     to: { name: 'SellerDashboard' },
     icon: 'bi-shop',
     activeKey: 'seller',
+    requiresSeller: true,
   },
 ]
 
@@ -83,21 +86,22 @@ const isActive = (item) => {
         <i class="bi bi-chevron-down" aria-hidden="true"></i>
       </button>
       <div id="primary-nav-menu" class="primary-nav__menu collapse d-lg-flex align-items-lg-center">
-        <RouterLink
-          v-for="item in navItems"
-          :key="item.label"
-          class="primary-nav__link"
-          :class="{
-            'primary-nav__link--all': item.label === '全部分類',
-            'primary-nav__link--seller': item.label === '商家中心',
-            'primary-nav__link--active': isActive(item),
-          }"
-          :to="item.to"
-        >
-          <i v-if="item.icon" class="bi" :class="item.icon" aria-hidden="true"></i>
+        <template v-for="item in navItems" :key="item.label">
+          <RouterLink
+            v-if="!item.requiresSeller || authStore.isSeller"
+            class="primary-nav__link"
+            :class="{
+              'primary-nav__link--all': item.label === '全部分類',
+              'primary-nav__link--seller': item.label === '商家中心',
+              'primary-nav__link--active': isActive(item),
+            }"
+            :to="item.to"
+          >
+            <i v-if="item.icon" class="bi" :class="item.icon" aria-hidden="true"></i>
 
-          <span>{{ item.label }}</span>
-        </RouterLink>
+            <span>{{ item.label }}</span>
+          </RouterLink>
+        </template>
       </div>
     </div>
   </nav>
