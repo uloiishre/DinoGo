@@ -215,9 +215,12 @@ public class ProductService {
 
         // 讀取商品列表
         public List<ProductResponse> getProducts(
+                        Integer categoryId,
                         Integer subcategoryId,
                         Integer brandId) {
+
                 List<Product> products;
+
                 if (subcategoryId != null && brandId != null) {
 
                         products = productRepository
@@ -230,6 +233,11 @@ public class ProductService {
                         products = productRepository
                                         .findBySubcategorySubcategoryId(subcategoryId);
 
+                } else if (categoryId != null) {
+
+                        products = productRepository
+                                        .findBySubcategoryCategoryCategoryId(categoryId);
+
                 } else if (brandId != null) {
 
                         products = productRepository
@@ -241,6 +249,7 @@ public class ProductService {
                 }
 
                 return products.stream()
+                                .filter(product -> product.getStatus() == 1)
                                 .map(this::toProductResponse)
                                 .toList();
         }
