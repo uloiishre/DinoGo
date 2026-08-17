@@ -13,8 +13,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.dinogo.member.dto.AddressErrorResponse;
 import com.dinogo.member.dto.AddressRequest;
+import com.dinogo.member.dto.MemberApiErrorResponse;
 import com.dinogo.member.exception.AddressInUseException;
 import com.dinogo.member.service.AddressService;
 import com.dinogo.security.AuthenticatedMember;
@@ -99,16 +99,16 @@ public class AddressController {
     }
 
     /** 將不存在或不屬於會員的地址轉成 404。 */
-    private ResponseEntity<AddressErrorResponse> notFound(IllegalArgumentException exception) {
+    private ResponseEntity<MemberApiErrorResponse> notFound(IllegalArgumentException exception) {
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
-                .body(new AddressErrorResponse(exception.getMessage()));
+                .body(MemberApiErrorResponse.from(HttpStatus.NOT_FOUND, exception.getMessage()));
     }
 
     /** 將地址 FK 衝突轉成 409，避免回傳不明確的 500。 */
-    private ResponseEntity<AddressErrorResponse> conflict(AddressInUseException exception) {
+    private ResponseEntity<MemberApiErrorResponse> conflict(AddressInUseException exception) {
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
-                .body(new AddressErrorResponse(exception.getMessage()));
+                .body(MemberApiErrorResponse.from(HttpStatus.CONFLICT, exception.getMessage()));
     }
 }
