@@ -7,19 +7,23 @@ export const useAuthStore = defineStore('auth', () => {
   // The persistence plugin restores these values from sessionStorage.
   const token = ref('')
   const member = ref(null)
+  const roles = ref([])
 
   // Components use this getter instead of reading localStorage directly.
   const isAuthenticated = computed(() => Boolean(token.value))
+  const hasRole = (role) => roles.value.includes(role)
+  const isSeller = computed(() => hasRole('seller'))
 
-  function setSession(sessionToken, sessionMember) {
+  function setSession(sessionToken, sessionMember, sessionRoles = []) {
     token.value = sessionToken || ''
     member.value = sessionMember || null
+    roles.value = Array.isArray(sessionRoles) ? [...sessionRoles] : []
   }
 
   async function signIn(credentials) {
     // Keep API and persistence logic in the store; the view handles UI only.
     const { data } = await login(credentials)
-    setSession(data.token, data.member)
+    setSession(data.token, data.member, data.roles)
     return data
   }
 
@@ -29,13 +33,16 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function signOut() {
-    setSession('', null)
+    setSession('', null, [])
   }
 
   return {
     token,
     member,
+    roles,
     isAuthenticated,
+    isSeller,
+    hasRole,
     signIn,
     signOut,
     updateMember,
@@ -45,6 +52,6 @@ export const useAuthStore = defineStore('auth', () => {
   persist: {
     key: AUTH_STORAGE_KEY,
     storage: sessionStorage,
-    pick: ['token', 'member'],
+    pick: ['token', 'member', 'roles'],
   },
 })
