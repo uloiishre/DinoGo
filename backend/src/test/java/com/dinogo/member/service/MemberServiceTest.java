@@ -25,13 +25,23 @@ import com.dinogo.member.dto.MemberUpdateRequest;
 import com.dinogo.member.dto.RegisterRequest;
 import com.dinogo.member.dto.RegisterResponse;
 import com.dinogo.member.entity.Member;
+import com.dinogo.member.entity.MemberRole;
+import com.dinogo.member.entity.Role;
+import com.dinogo.member.repository.MemberRoleRepository;
 import com.dinogo.member.repository.MemberRepository;
+import com.dinogo.member.repository.RoleRepository;
 
 @ExtendWith(MockitoExtension.class)
 class MemberServiceTest {
 
     @Mock
     private MemberRepository memberRepository;
+
+    @Mock
+    private RoleRepository roleRepository;
+
+    @Mock
+    private MemberRoleRepository memberRoleRepository;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -55,7 +65,9 @@ class MemberServiceTest {
 
     @Test
     void registerHashesPasswordBeforeSaving() {
+        Role buyerRole = buyerRole();
         when(memberRepository.existsByEmail(request.email())).thenReturn(false);
+        when(roleRepository.findByRoleName("buyer")).thenReturn(Optional.of(buyerRole));
         when(passwordEncoder.encode(request.password())).thenReturn("$2a$hashed-password");
         when(memberRepository.save(any(Member.class))).thenAnswer(invocation -> {
             Member member = invocation.getArgument(0);
@@ -70,6 +82,28 @@ class MemberServiceTest {
         assertThat(captor.getValue().getPasswordHash()).isEqualTo("$2a$hashed-password");
         assertThat(captor.getValue().getPasswordHash()).isNotEqualTo(request.password());
         assertThat(response.member().memberId()).isEqualTo(1);
+
+        ArgumentCaptor<MemberRole> memberRoleCaptor = ArgumentCaptor.forClass(MemberRole.class);
+        verify(memberRoleRepository).save(memberRoleCaptor.capture());
+        MemberRole savedMemberRole = memberRoleCaptor.getValue();
+        assertThat(savedMemberRole.getId().getMemberId()).isEqualTo(1);
+        assertThat(savedMemberRole.getId().getRoleId()).isEqualTo(1);
+        assertThat(savedMemberRole.getMember()).isSameAs(captor.getValue());
+        assertThat(savedMemberRole.getRole()).isSameAs(buyerRole);
+    }
+
+    @Test
+    void registerFailsWhenDefaultBuyerRoleIsMissing() {
+        when(memberRepository.existsByEmail(request.email())).thenReturn(false);
+        when(roleRepository.findByRoleName("buyer")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> memberService.register(request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Default role 'buyer' is not configured");
+
+        verify(passwordEncoder, never()).encode(any());
+        verify(memberRepository, never()).save(any(Member.class));
+        verify(memberRoleRepository, never()).save(any(MemberRole.class));
     }
 
     @Test
@@ -82,6 +116,8 @@ class MemberServiceTest {
 
         verify(passwordEncoder, never()).encode(any());
         verify(memberRepository, never()).save(any(Member.class));
+        verify(roleRepository, never()).findByRoleName(any());
+        verify(memberRoleRepository, never()).save(any(MemberRole.class));
     }
 
     @Test
@@ -97,6 +133,8 @@ class MemberServiceTest {
         verify(memberRepository, never()).existsByEmail(any());
         verify(passwordEncoder, never()).encode(any());
         verify(memberRepository, never()).save(any(Member.class));
+        verify(roleRepository, never()).findByRoleName(any());
+        verify(memberRoleRepository, never()).save(any(MemberRole.class));
     }
 
     @Test
@@ -154,5 +192,12 @@ class MemberServiceTest {
         assertThat(member.getEmail()).isEqualTo("user@example.com");
         assertThat(member.getPasswordHash()).isEqualTo("hashed-password");
         verify(memberRepository).saveAndFlush(member);
+    }
+
+    private Role buyerRole() {
+        Role role = new Role();
+        role.setRoleId(1);
+        role.setRoleName("buyer");
+        return role;
     }
 }

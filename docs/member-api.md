@@ -9,7 +9,9 @@
 - `/auth/**` 為公開 API；其餘本文件中的 API 都需要登入。
 - 受保護 API 必須帶入：`Authorization: Bearer <token>`。
 - `memberId` 一律從 JWT 取得，request body 與 URL 不接受前端指定的會員 ID。
+- JWT 另有 `roles` claim，內容為 `buyer`、`seller`、`admin` 等小寫角色名稱陳列。
 - Token 預設有效期為 1 小時，可由後端 `jwt.expiration-ms` 設定覆寫。
+- 未登入、JWT 缺少、格式錯誤或過期時，Security 層回傳 HTTP 401；已登入但角色不足時回傳 HTTP 403。這兩種 Security 回應目前可能為純文字，前端應以 HTTP status 判斷。
 
 ## 共用回應格式
 
@@ -64,7 +66,7 @@
 - `fieldErrors` 只在 request 欄位驗證失敗時帶入欄位訊息；其他情況為空物件 `{}`。
 - JSON 無法解析時，`message` 為 `請求內容格式錯誤`。
 - URL 中的 `addressId` 小於等於 0 時，`message` 為 `請求參數驗證失敗`。
-- 缺少、格式錯誤或過期的 JWT 由 Security 層處理，目前可能回傳純文字 401；前端應以 HTTP status 判斷登入失效，不應假設它是上述 JSON 格式。
+- 缺少、格式錯誤或過期的 JWT，以及角色不足，皆由 Security 層處理；前端應以 HTTP status 判斷登入失效（401）或權限不足（403），不應假設它是上述 JSON 格式。
 
 ## 認證 API
 
@@ -146,6 +148,7 @@ Request：
 ```json
 {
   "token": "<jwt>",
+  "roles": ["buyer"],
   "member": {
     "memberId": 1,
     "email": "member@example.com",
@@ -168,7 +171,7 @@ Request：
 | 400 | `請求內容格式錯誤` | JSON 格式錯誤 |
 | 401 | `Email 或密碼錯誤` | Email 不存在、密碼錯誤或帳號不是 `ACTIVE` |
 
-登入成功後，將 `token` 儲存並加到後續請求的 `Authorization` header；不要把密碼或完整 token 寫入 log。
+登入成功後，將 `token` 儲存並加到後續請求的 `Authorization` header；`roles` 可供前端導覽與路由判斷使用，但後端授權仍只信任 JWT claim。不要把密碼或完整 token 寫入 log。
 
 ## 會員資料 API
 
@@ -292,4 +295,4 @@ body 使用上述地址 Request。
 
 - C（購物車／結帳）可用 `GET /api/addresses` 取得登入會員地址；建立訂單時仍應由 D 的訂單 API 定義其 request 欄位，勿直接使用 A 的 Entity。
 - E（賣家）與 F（聊天室／客服）需要目前登入會員時，應由 JWT 的 `memberId` 取得身分，不接受前端自行指定其他會員 ID。
-- 本文件只描述目前已存在的 member ID 身分識別；JWT 尚未提供角色（role）claim，角色授權需求須另行定義 contract。
+- JWT 同時提供 `memberId` 與 `roles` claim。各模組可依 `roles` 顯示導覽項目，但後端必須依 Spring Security authorities 執行實際授權。

@@ -33,10 +33,10 @@ public class SecurityConfig {
                                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                                 .requestMatchers("/api/auth/**").permitAll()
                                                 .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
-                                                .requestMatchers(HttpMethod.POST, "/api/products/**").authenticated()
-                                                .requestMatchers(HttpMethod.PATCH, "/api/products/**").authenticated()
-                                                .requestMatchers("/api/member/**", "/api/cart/**", "/api/favorites/**")
-                                                .authenticated()
+                                                .requestMatchers("/api/seller/**").hasRole("SELLER")
+                                                .requestMatchers(HttpMethod.POST, "/api/products/**").hasRole("SELLER")
+                                                .requestMatchers(HttpMethod.PATCH, "/api/products/**").hasRole("SELLER")
+                                                .requestMatchers(HttpMethod.PATCH, "/api/orders/*/status").hasRole("SELLER")
                                                 .requestMatchers(
                                                                 "/api/cart/**",
                                                                 "/api/favorites/**",
@@ -50,7 +50,9 @@ public class SecurityConfig {
                                 .exceptionHandling(exceptionHandling -> exceptionHandling
                                                 .authenticationEntryPoint((request, response, exception) -> response
                                                                 .sendError(401,
-                                                                                "Authentication is required")))
+                                                                                "Authentication is required"))
+                                                .accessDeniedHandler((request, response, exception) -> response
+                                                                .sendError(403, "Insufficient role")))
                                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
                 return http.build();
