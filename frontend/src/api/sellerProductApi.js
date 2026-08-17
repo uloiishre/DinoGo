@@ -16,8 +16,18 @@ export const disableSellerProduct = (sellerId, productId) => {
   })
 }
 
+// 取得商品詳情，編輯商品頁用來回填既有資料
+export const getProductDetail = (productId) => {
+  return api.get(`/products/${productId}`)
+}
+
 //建立新商品
 ///TODO: 等待B模組Product create API完成後再整合
 export const createSellerProduct = (payload) => {
   return api.post('/products', payload)
+}
+
+// TODO: 等 B 模組提供正式商品修改 API 後，確認 method 與欄位格式。
+export const updateSellerProduct = (productId, payload) => {
+  return api.put(`/products/${productId}`, payload)
 }
