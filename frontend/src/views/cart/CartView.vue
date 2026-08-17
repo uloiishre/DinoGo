@@ -308,17 +308,25 @@ const deleteSelectedItems = async () => {
 
     const ids = [...selectedCartItemIds.value]
 
+    // 逐筆刪除
     for (const cartItemId of ids) {
       await api.delete(`/cart/items/${cartItemId}`)
     }
 
-    cart.value.items = cart.value.items.filter((item) => !ids.includes(item.cartItemId))
+    // 刪除完成後重新取得購物車
+    await fetchCart()
 
+    // 清除選取
     selectedCartItemIds.value = []
   } catch (error) {
     console.error('刪除選取商品失敗:', error)
 
-    alert(error.response?.data?.message || '刪除選取商品失敗，請稍後再試')
+    // 即使中途失敗，也重新取得最新購物車
+    await fetchCart()
+
+    selectedCartItemIds.value = []
+
+    alert(error.response?.data?.message || '部分商品刪除失敗，已重新整理購物車資料。')
   } finally {
     loading.value = false
   }
@@ -383,10 +391,12 @@ const goToCheckout = () => {
       items: selectedItems.map((item) => ({
         cartItemId: item.cartItemId,
         skuId: item.skuId,
-        quantity: item.quantity,
+        quantity: Number(item.quantity),
         productName: item.productName,
         price: item.price,
         productImage: item.productImage,
+        sellerId: Number(item.sellerId),
+        storeName: item.storeName,
         skus: item.skus,
       })),
     }),

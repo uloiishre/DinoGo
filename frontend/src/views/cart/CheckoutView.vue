@@ -122,31 +122,79 @@ const loadCheckoutItems = () => {
   try {
     const data = localStorage.getItem('checkoutData')
 
+    // 沒有 checkoutData
     if (!data) {
-      router.push({
-        name: 'Cart',
-      })
+      alert('沒有可結帳的商品')
+      router.push('/cart')
+      return false
+    }
+
+    const parsedData = JSON.parse(data)
+
+    console.log('localStorage.checkoutData：', parsedData)
+
+    // ========================================
+    // 基本資料檢查
+    // ========================================
+
+    if (!parsedData.sellerId || !Array.isArray(parsedData.items) || parsedData.items.length === 0) {
+      alert('結帳資料不完整，請重新選擇商品')
+
+      localStorage.removeItem('checkoutData')
+      router.push('/cart')
 
       return false
     }
 
-    const checkoutData = JSON.parse(data)
+    // ========================================
+    // 驗證所有商品是否為同一個賣家
+    // ========================================
 
-    checkoutItems.value = checkoutData.items || []
+    const sellerIds = [...new Set(parsedData.items.map((item) => Number(item.sellerId)))]
 
-    if (checkoutItems.value.length === 0) {
-      router.push({
-        name: 'Cart',
-      })
+    if (sellerIds.length > 1) {
+      alert('不同賣家的商品不能一起結帳，請重新選擇商品')
+
+      localStorage.removeItem('checkoutData')
+      router.push('/cart')
 
       return false
     }
+
+    // ========================================
+    // 驗證 sellerId 是否一致
+    // ========================================
+
+    if (Number(parsedData.sellerId) !== sellerIds[0]) {
+      alert('結帳賣家資料不一致，請重新選擇商品')
+
+      localStorage.removeItem('checkoutData')
+      router.push('/cart')
+
+      return false
+    }
+
+    // ========================================
+    // ⭐ 把商品真正放進 checkoutItems
+    // ========================================
+
+    checkoutItems.value = parsedData.items
+
+    console.log('Checkout 商品：', checkoutItems.value)
+
+    // ========================================
+    // 成功
+    // ========================================
 
     return true
   } catch (error) {
     console.error('讀取結帳資料失敗：', error)
 
-    errorMessage.value = '結帳資料讀取失敗，請重新選擇商品。'
+    alert('結帳資料錯誤，請重新選擇商品')
+
+    localStorage.removeItem('checkoutData')
+
+    router.push('/cart')
 
     return false
   }
