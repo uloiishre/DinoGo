@@ -1,10 +1,12 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import api from '@/api/axios'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
 const showCategoryFilter = ref(false)
 
@@ -47,6 +49,7 @@ const navItems = [
     to: { name: 'SellerDashboard' },
     icon: 'bi-shop',
     activeKey: 'seller',
+    requiresSeller: true,
   },
 ]
 
@@ -321,20 +324,21 @@ onMounted(async () => {
         </div>
 
         <!-- 其他導覽 -->
-        <RouterLink
-          v-for="item in navItems"
-          :key="item.label"
-          class="primary-nav__link"
-          :class="{
-            'primary-nav__link--seller': item.label === '商家中心',
-            'primary-nav__link--active': isActive(item),
-          }"
-          :to="item.to"
-        >
-          <i v-if="item.icon" class="bi" :class="item.icon" aria-hidden="true"></i>
-
-          <span>{{ item.label }}</span>
-        </RouterLink>
+        <template v-for="item in navItems" :key="item.label">
+  <RouterLink
+    v-if="!item.requiresSeller || authStore.isSeller"
+    class="primary-nav__link"
+    :class="{
+      'primary-nav__link--seller': item.label === '商家中心',
+      'primary-nav__link--active': isActive(item),
+    }"
+    :to="item.to"
+  >
+    <i v-if="item.icon" class="bi" :class="item.icon" aria-hidden="true"></i>
+    <span>{{ item.label }}</span>
+  </RouterLink>
+</template>
+        </template>
       </div>
     </div>
   </nav>
@@ -346,17 +350,20 @@ onMounted(async () => {
   min-height: 72px;
   color: var(--color-text-muted);
   background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
 }
 
 .primary-nav__inner {
+  width: 100%;
+  height: 100%;
   max-width: 1440px;
-  min-height: inherit;
 }
 
 .primary-nav__menu {
-  min-height: inherit;
+  height: 100%;
   width: 100%;
+  gap: 28px;
 }
 
 .primary-nav__toggle {
@@ -377,7 +384,8 @@ onMounted(async () => {
   padding: 0 var(--space-4);
 
   color: inherit;
-  font-size: var(--font-size-base);
+  font-size: 14px;
+  font-weight: 400;
   text-decoration: none;
 
   border: 0;
@@ -515,6 +523,10 @@ onMounted(async () => {
 
 .primary-nav__link--seller {
   margin-left: auto;
+  gap: 8px;
+  padding: 0;
+  color: var(--color-primary-active);
+  font-weight: 600;
 }
 
 .primary-nav__link:hover,
@@ -540,6 +552,7 @@ onMounted(async () => {
 
 @media (max-width: 991.98px) {
   .primary-nav {
+    height: auto;
     min-height: 0;
   }
 
@@ -548,6 +561,7 @@ onMounted(async () => {
   }
 
   .primary-nav__menu {
+    gap: 0;
     padding-bottom: var(--space-2);
   }
 

@@ -28,8 +28,10 @@ import com.dinogo.sales.entity.Order;
 import com.dinogo.sales.entity.OrderItem;
 import com.dinogo.sales.entity.OrderStatus;
 import com.dinogo.sales.exception.InvalidOrderException;
-import com.dinogo.sales.repository.OrderRepository;
 import com.dinogo.sales.exception.OrderNotFoundException;
+import com.dinogo.sales.repository.OrderRepository;
+import com.dinogo.seller.entity.Seller;
+import com.dinogo.seller.repository.SellerRepository;
 
 /** 訂單應用服務；建立訂單時保存商品與收件資料快照，暫不建立付款紀錄。 */
 @Service
@@ -40,7 +42,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final AddressRepository addressRepository;
     private final ProductSkuRepository productSkuRepository;
-
+    private final SellerRepository sellerRepository;
     private static final Map<OrderStatus, Set<OrderStatus>> ALLOWED_TRANSITIONS = Map.of(
             OrderStatus.PENDING_PAYMENT,
             Set.of(OrderStatus.PAID, OrderStatus.CANCELLED),
@@ -57,10 +59,12 @@ public class OrderService {
     public OrderService(
             OrderRepository orderRepository,
             AddressRepository addressRepository,
-            ProductSkuRepository productSkuRepository) {
+            ProductSkuRepository productSkuRepository,
+            SellerRepository sellerRepository) {
         this.orderRepository = orderRepository;
         this.addressRepository = addressRepository;
         this.productSkuRepository = productSkuRepository;
+        this.sellerRepository = sellerRepository;
     }
 
     @Transactional
@@ -78,6 +82,9 @@ public class OrderService {
         BigDecimal subtotalAmount = BigDecimal.ZERO;
 
         for (CreateOrderItemRequest itemRequest : request.items()) {
+            if (itemRequest.quantity() == null || itemRequest.quantity() <= 0) {
+                throw new InvalidOrderException("Quantity must be positive");
+            }
             if (!skuIds.add(itemRequest.skuId())) {
                 throw new InvalidOrderException("Duplicate SKU in order: " + itemRequest.skuId());
             }
@@ -89,6 +96,12 @@ public class OrderService {
                 throw new InvalidOrderException("SKU is not available: " + itemRequest.skuId());
             }
             Product product = sku.getProduct();
+            if (product == null || product.getStatus() == null || product.getStatus() != (byte) 1) {
+                throw new InvalidOrderException("Product is not available for SKU: " + itemRequest.skuId());
+            }
+            if (sku.getPrice() == null || sku.getPrice().signum() < 0) {
+                throw new InvalidOrderException("SKU price is invalid: " + itemRequest.skuId());
+            }
             Integer itemSellerId = product.getSeller().getSellerId();
             if (sellerId == null) {
                 sellerId = itemSellerId;
@@ -139,8 +152,9 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderDetailResponse updateStatus(
+    public OrderDetailResponse updateStatusBySeller(
             Integer orderId,
+            Integer memberId,
             OrderStatus targetStatus,
             String reason) {
         if (targetStatus == OrderStatus.CANCELLED) {
@@ -151,17 +165,16 @@ public class OrderService {
             throw new InvalidOrderException(
                     "Order status PAID can only be set by the payment flow");
         }
-        Order order = orderRepository.findById(orderId)
+        Seller seller = sellerRepository.findByMember_MemberId(memberId)
+                .orElseThrow(() -> new OrderNotFoundException("Seller does not exist"));
+
+        Order order = orderRepository
+                .findByOrderIdAndSellerId(orderId, seller.getSellerId())
                 .orElseThrow(() -> new OrderNotFoundException("Order does not exist"));
 
         validateStatusTransition(order.getStatus(), targetStatus);
 
         order.setStatus(targetStatus);
-
-        if (targetStatus == OrderStatus.CANCELLED) {
-            order.setCancelReason(reason);
-            order.setCancelledAt(LocalDateTime.now());
-        }
 
         if (targetStatus == OrderStatus.COMPLETED) {
             order.setCompletedAt(LocalDateTime.now());

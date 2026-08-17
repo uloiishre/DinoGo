@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.dinogo.member.dto.MemberApiErrorResponse;
 import com.dinogo.member.dto.RegisterRequest;
 import com.dinogo.member.dto.RegisterResponse;
 import com.dinogo.member.service.MemberService;
@@ -34,7 +35,8 @@ public class RegisterController {
             HttpStatus status = "Email 已被註冊".equals(exception.getMessage())
                     ? HttpStatus.CONFLICT
                     : HttpStatus.BAD_REQUEST;
-            return ResponseEntity.status(status).body(exception.getMessage());
+            return ResponseEntity.status(status)
+                    .body(MemberApiErrorResponse.from(status, exception.getMessage()));
         }
     }
 }

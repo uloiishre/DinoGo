@@ -1,11 +1,14 @@
 <script setup>
 import { RouterLink } from 'vue-router'
 
-const sellerItems = [
-  { label: '儀表板', to: '/seller/dashboard', icon: 'bi-speedometer2' },
+const navItems = [
+  { label: '營運總覽', to: '/seller/dashboard', icon: 'bi-speedometer2' },
   { label: '商品管理', to: '/seller/products', icon: 'bi-box-seam' },
   { label: '訂單管理', to: '/seller/orders', icon: 'bi-receipt' },
+  { label: '店鋪資料', to: '/seller/profile', icon: 'bi-shop' },
 ]
+
+const plannedItems = [{ label: '銷售分析', icon: 'bi-graph-up-arrow' }]
 </script>
 
 <template>
@@ -26,10 +29,22 @@ const sellerItems = [
     </section>
 
     <nav class="seller-nav" aria-label="賣家中心導覽">
-      <RouterLink v-for="item in navItems" :key="item.to" :to="item.to">
-        <span class="nav-mark">{{ item.mark }}</span>
-        {{ item.label }}
+      <RouterLink v-for="item in navItems" :key="item.to" class="seller-nav-link" :to="item.to">
+        <i class="nav-mark bi" :class="item.icon" aria-hidden="true"></i>
+        <span>{{ item.label }}</span>
       </RouterLink>
+
+      <div
+        v-for="item in plannedItems"
+        :key="item.label"
+        class="seller-nav-link is-planned"
+        :title="`${item.label}功能規劃中`"
+        aria-disabled="true"
+      >
+        <i class="nav-mark bi" :class="item.icon" aria-hidden="true"></i>
+        <span>{{ item.label }}</span>
+        <small>規劃中</small>
+      </div>
     </nav>
 
     <RouterLink class="support-link" to="/seller/dashboard">
@@ -41,6 +56,10 @@ const sellerItems = [
 
 <style scoped>
 .seller-nav-shell {
+  position: sticky;
+  top: 0;
+  width: 240px;
+  height: 100vh;
   min-height: 100vh;
   display: grid;
   grid-template-rows: auto auto auto 1fr auto;
@@ -109,7 +128,7 @@ const sellerItems = [
   padding: var(--space-4);
 }
 
-.seller-nav a {
+.seller-nav-link {
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -144,6 +163,17 @@ const sellerItems = [
   background: rgba(255, 255, 255, 0.12);
 }
 
+.seller-nav-link small {
+  margin-left: auto;
+  color: var(--color-text-200);
+  font-size: var(--font-size-xs);
+}
+
+.seller-nav-link.is-planned {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .support-link {
   display: flex;
   align-items: center;
@@ -164,24 +194,44 @@ const sellerItems = [
 
 @media (max-width: 760px) {
   .seller-nav-shell {
+    position: static;
+    width: 100%;
+    height: auto;
     border-right: 0;
     border-bottom: 1px solid var(--color-border);
   }
 
   .seller-nav {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .seller-nav a.router-link-active::before {
     display: none;
   }
 
-  .seller-nav a {
-    text-align: center;
+  .seller-nav-link {
+    min-width: 0;
+    justify-content: center;
+    padding: 0 var(--space-2);
+  }
+
+  .seller-nav-link small {
+    display: none;
   }
 
   .support-link {
     display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .seller-nav {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .seller-nav-link {
+    min-width: max-content;
   }
 }
 </style>

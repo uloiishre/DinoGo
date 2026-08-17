@@ -13,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import com.dinogo.member.dto.MemberResponse;
+import com.dinogo.member.dto.MemberApiErrorResponse;
 import com.dinogo.member.dto.RegisterRequest;
 import com.dinogo.member.dto.RegisterResponse;
 import com.dinogo.member.service.MemberService;
@@ -55,7 +56,9 @@ class RegisterControllerTest {
         ResponseEntity<?> result = registerController.register(request);
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-        assertThat(result.getBody()).isEqualTo("Email 已被註冊");
+        assertThat(result.getBody()).isEqualTo(MemberApiErrorResponse.from(
+                HttpStatus.CONFLICT,
+                "Email 已被註冊"));
     }
 
     @Test
@@ -69,6 +72,8 @@ class RegisterControllerTest {
         ResponseEntity<?> result = registerController.register(request);
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(result.getBody()).isEqualTo("密碼與確認密碼不一致");
+        assertThat(result.getBody()).isEqualTo(MemberApiErrorResponse.from(
+                HttpStatus.BAD_REQUEST,
+                "密碼與確認密碼不一致"));
     }
 }

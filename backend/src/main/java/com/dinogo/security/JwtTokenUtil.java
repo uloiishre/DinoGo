@@ -3,6 +3,7 @@ package com.dinogo.security;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 
 import javax.crypto.SecretKey;
 
@@ -38,7 +39,7 @@ public class JwtTokenUtil {
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(String email, Integer memberId) {
+    public String generateToken(String email, Integer memberId, List<String> roles) {
         Instant issuedAt = Instant.now();
         var builder = Jwts.builder()
                 .subject(email)
@@ -48,6 +49,7 @@ public class JwtTokenUtil {
         if (memberId != null) {
             builder.claim("memberId", memberId);
         }
+        builder.claim("roles", roles == null ? List.of() : List.copyOf(roles));
 
         return builder.signWith(signingKey).compact();
     }
@@ -68,11 +70,32 @@ public class JwtTokenUtil {
         return parseClaims(token).get("memberId", Integer.class);
     }
 
+    public List<String> extractRoles(String token) {
+        Object rolesClaim = parseClaims(token).get("roles");
+        if (rolesClaim == null) {
+            return List.of();
+        }
+        if (!(rolesClaim instanceof List<?> roles)) {
+            throw new IllegalArgumentException("JWT roles claim must be an array");
+        }
+
+        return roles.stream()
+                .map(this::requireRoleName)
+                .toList();
+    }
+
     public boolean isValid(String token) {
         try {
             return StringUtils.hasText(extractSubject(token));
         } catch (JwtException | IllegalArgumentException exception) {
             return false;
         }
+    }
+
+    private String requireRoleName(Object role) {
+        if (!(role instanceof String roleName) || !StringUtils.hasText(roleName)) {
+            throw new IllegalArgumentException("JWT roles claim must contain role names");
+        }
+        return roleName;
     }
 }

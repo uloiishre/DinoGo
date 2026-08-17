@@ -26,13 +26,13 @@ const routes = [
       {
         path: 'cart',
         name: 'Cart',
-        component: () => import('@/views/CartView.vue'),
+        component: () => import('@/views/cart/CartView.vue'),
         meta: { requiresAuth: true },
       },
       {
         path: 'checkout',
         name: 'Checkout',
-        component: () => import('@/views/CheckoutView.vue'),
+        component: () => import('@/views/cart/CheckoutView.vue'),
         meta: { requiresAuth: true },
       },
     ],
@@ -110,7 +110,7 @@ const routes = [
   {
     path: '/seller',
     component: SellerLayout,
-    meta: { requiresAuth: true }, //標記這個 route 需要登入才能進入。
+    meta: { requiresAuth: true, requiresRole: 'seller' },
     children: [
       { path: '', redirect: '/seller/dashboard' },
       {
@@ -136,7 +136,12 @@ const routes = [
       {
         path: 'orders',
         name: 'SellerOrders',
-        component: () => import('@/views/seller/SellerOrdersView.vue'),
+        component: () => import('@/views/seller/SellerOrderListView.vue'),
+      },
+      {
+        path: 'orders/:id',
+        name: 'SellerOrderDetail',
+        component: () => import('@/views/seller/SellerOrderDetailView.vue'),
       },
       {
         path: 'profile',
@@ -165,6 +170,10 @@ router.beforeEach((to) => {
       name: 'Login',
       query: { redirect: to.fullPath },
     }
+  }
+
+  if (to.meta.requiresRole && !authStore.hasRole(to.meta.requiresRole)) {
+    return { name: 'MemberOverview' }
   }
 })
 

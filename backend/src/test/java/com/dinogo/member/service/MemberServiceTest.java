@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -24,13 +25,23 @@ import com.dinogo.member.dto.MemberUpdateRequest;
 import com.dinogo.member.dto.RegisterRequest;
 import com.dinogo.member.dto.RegisterResponse;
 import com.dinogo.member.entity.Member;
+import com.dinogo.member.entity.MemberRole;
+import com.dinogo.member.entity.Role;
+import com.dinogo.member.repository.MemberRoleRepository;
 import com.dinogo.member.repository.MemberRepository;
+import com.dinogo.member.repository.RoleRepository;
 
 @ExtendWith(MockitoExtension.class)
 class MemberServiceTest {
 
     @Mock
     private MemberRepository memberRepository;
+
+    @Mock
+    private RoleRepository roleRepository;
+
+    @Mock
+    private MemberRoleRepository memberRoleRepository;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -54,7 +65,9 @@ class MemberServiceTest {
 
     @Test
     void registerHashesPasswordBeforeSaving() {
+        Role buyerRole = buyerRole();
         when(memberRepository.existsByEmail(request.email())).thenReturn(false);
+        when(roleRepository.findByRoleName("buyer")).thenReturn(Optional.of(buyerRole));
         when(passwordEncoder.encode(request.password())).thenReturn("$2a$hashed-password");
         when(memberRepository.save(any(Member.class))).thenAnswer(invocation -> {
             Member member = invocation.getArgument(0);
@@ -69,6 +82,28 @@ class MemberServiceTest {
         assertThat(captor.getValue().getPasswordHash()).isEqualTo("$2a$hashed-password");
         assertThat(captor.getValue().getPasswordHash()).isNotEqualTo(request.password());
         assertThat(response.member().memberId()).isEqualTo(1);
+
+        ArgumentCaptor<MemberRole> memberRoleCaptor = ArgumentCaptor.forClass(MemberRole.class);
+        verify(memberRoleRepository).save(memberRoleCaptor.capture());
+        MemberRole savedMemberRole = memberRoleCaptor.getValue();
+        assertThat(savedMemberRole.getId().getMemberId()).isEqualTo(1);
+        assertThat(savedMemberRole.getId().getRoleId()).isEqualTo(1);
+        assertThat(savedMemberRole.getMember()).isSameAs(captor.getValue());
+        assertThat(savedMemberRole.getRole()).isSameAs(buyerRole);
+    }
+
+    @Test
+    void registerFailsWhenDefaultBuyerRoleIsMissing() {
+        when(memberRepository.existsByEmail(request.email())).thenReturn(false);
+        when(roleRepository.findByRoleName("buyer")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> memberService.register(request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Default role 'buyer' is not configured");
+
+        verify(passwordEncoder, never()).encode(any());
+        verify(memberRepository, never()).save(any(Member.class));
+        verify(memberRoleRepository, never()).save(any(MemberRole.class));
     }
 
     @Test
@@ -81,6 +116,8 @@ class MemberServiceTest {
 
         verify(passwordEncoder, never()).encode(any());
         verify(memberRepository, never()).save(any(Member.class));
+        verify(roleRepository, never()).findByRoleName(any());
+        verify(memberRoleRepository, never()).save(any(MemberRole.class));
     }
 
     @Test
@@ -96,6 +133,8 @@ class MemberServiceTest {
         verify(memberRepository, never()).existsByEmail(any());
         verify(passwordEncoder, never()).encode(any());
         verify(memberRepository, never()).save(any(Member.class));
+        verify(roleRepository, never()).findByRoleName(any());
+        verify(memberRoleRepository, never()).save(any(MemberRole.class));
     }
 
     @Test
@@ -105,6 +144,8 @@ class MemberServiceTest {
         member.setEmail("user@example.com");
         member.setLastName("王");
         member.setFirstName("小明");
+        member.setCreatedAt(LocalDateTime.of(2025, 8, 18, 10, 0));
+        member.setUpdatedAt(LocalDateTime.of(2025, 8, 20, 9, 30));
         when(memberRepository.findById(member.getMemberId()))
                 .thenReturn(Optional.of(member));
 
@@ -112,6 +153,8 @@ class MemberServiceTest {
 
         assertThat(response.memberId()).isEqualTo(1);
         assertThat(response.email()).isEqualTo("user@example.com");
+        assertThat(response.createdAt()).isEqualTo(LocalDateTime.of(2025, 8, 18, 10, 0));
+        assertThat(response.updatedAt()).isEqualTo(LocalDateTime.of(2025, 8, 20, 9, 30));
         // 會員身份由 JWT 的 memberId 決定，Service 應使用 findById 查詢。
         verify(memberRepository).findById(member.getMemberId());
     }
@@ -124,10 +167,16 @@ class MemberServiceTest {
         member.setPasswordHash("hashed-password");
         member.setLastName("王");
         member.setFirstName("小明");
+        member.setCreatedAt(LocalDateTime.of(2025, 8, 18, 10, 0));
+        member.setUpdatedAt(LocalDateTime.of(2025, 8, 20, 9, 30));
         // 更新資料時同樣使用 JWT 的 memberId，不使用 email 查詢。
         when(memberRepository.findById(member.getMemberId()))
                 .thenReturn(Optional.of(member));
-        when(memberRepository.save(any(Member.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(memberRepository.saveAndFlush(any(Member.class))).thenAnswer(invocation -> {
+            Member savedMember = invocation.getArgument(0);
+            savedMember.setUpdatedAt(LocalDateTime.of(2026, 8, 14, 15, 10));
+            return savedMember;
+        });
 
         MemberUpdateRequest request = new MemberUpdateRequest(
                 "林", "小美", LocalDate.of(1998, 2, 3), "0987654321");
@@ -138,8 +187,17 @@ class MemberServiceTest {
         assertThat(response.firstName()).isEqualTo("小美");
         assertThat(response.birthDate()).isEqualTo(LocalDate.of(1998, 2, 3));
         assertThat(response.phone()).isEqualTo("0987654321");
+        assertThat(response.createdAt()).isEqualTo(LocalDateTime.of(2025, 8, 18, 10, 0));
+        assertThat(response.updatedAt()).isEqualTo(LocalDateTime.of(2026, 8, 14, 15, 10));
         assertThat(member.getEmail()).isEqualTo("user@example.com");
         assertThat(member.getPasswordHash()).isEqualTo("hashed-password");
-        verify(memberRepository).save(member);
+        verify(memberRepository).saveAndFlush(member);
+    }
+
+    private Role buyerRole() {
+        Role role = new Role();
+        role.setRoleId(1);
+        role.setRoleName("buyer");
+        return role;
     }
 }

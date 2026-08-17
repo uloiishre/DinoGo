@@ -44,7 +44,7 @@ async function submit() {
     const redirect = typeof route.query.redirect === 'string'
       && route.query.redirect.startsWith('/')
       ? route.query.redirect
-      : '/member/overview'
+      : authStore.isSeller ? '/seller/dashboard' : '/member/overview'
     await router.push(redirect)
   } catch (error) {
     apiError.value = getErrorMessage(error)
