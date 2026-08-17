@@ -5,6 +5,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Collections;
@@ -62,7 +63,10 @@ class AddressSecurityTest {
                         .with(authentication(authenticationForMember(1)))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("輸入資料驗證失敗"))
+                .andExpect(jsonPath("$.fieldErrors.receiverName").isNotEmpty());
 
         verifyNoInteractions(addressService);
     }
@@ -85,7 +89,22 @@ class AddressSecurityTest {
                         .with(authentication(authenticationForMember(1)))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("輸入資料驗證失敗"))
+                .andExpect(jsonPath("$.fieldErrors.detailAddress").isNotEmpty());
+
+        verifyNoInteractions(addressService);
+    }
+
+    @Test
+    void getAddressRejectsNonPositiveAddressIdWithStructuredError() throws Exception {
+        mockMvc.perform(get("/api/addresses/0")
+                        .with(authentication(authenticationForMember(1))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("請求參數驗證失敗"))
+                .andExpect(jsonPath("$.fieldErrors").isEmpty());
 
         verifyNoInteractions(addressService);
     }

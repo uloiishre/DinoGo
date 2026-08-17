@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import com.dinogo.member.dto.LoginRequest;
 import com.dinogo.member.dto.LoginResponse;
 import com.dinogo.member.dto.MemberResponse;
+import com.dinogo.member.dto.MemberApiErrorResponse;
 import com.dinogo.member.service.LoginService;
 
 @ExtendWith(MockitoExtension.class)
@@ -49,6 +50,8 @@ class LoginControllerTest {
         ResponseEntity<?> result = loginController.login(request);
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(result.getBody()).isEqualTo("Email 或密碼錯誤");
+        assertThat(result.getBody()).isEqualTo(MemberApiErrorResponse.from(
+                HttpStatus.UNAUTHORIZED,
+                "Email 或密碼錯誤"));
     }
 }

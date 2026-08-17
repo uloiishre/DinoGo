@@ -15,9 +15,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import com.dinogo.member.dto.AddressErrorResponse;
 import com.dinogo.member.dto.AddressRequest;
 import com.dinogo.member.dto.AddressResponse;
+import com.dinogo.member.dto.MemberApiErrorResponse;
 import com.dinogo.member.exception.AddressInUseException;
 import com.dinogo.member.service.AddressService;
 import com.dinogo.security.AuthenticatedMember;
@@ -56,7 +56,9 @@ class AddressControllerTest {
         ResponseEntity<?> result = addressController.getAddress(authenticatedMember, 9);
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(result.getBody()).isEqualTo(new AddressErrorResponse("Address not found"));
+        assertThat(result.getBody()).isEqualTo(MemberApiErrorResponse.from(
+                HttpStatus.NOT_FOUND,
+                "Address not found"));
     }
 
     // 新增與修改 API 測試。
@@ -108,7 +110,9 @@ class AddressControllerTest {
 
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(result.getBody()).isEqualTo(
-                new AddressErrorResponse("此地址已被訂單使用，無法刪除"));
+                MemberApiErrorResponse.from(
+                        HttpStatus.CONFLICT,
+                        "此地址已被訂單使用，無法刪除"));
     }
 
     // 測試 request 與 response 建立方法。

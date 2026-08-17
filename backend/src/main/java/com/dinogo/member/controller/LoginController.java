@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dinogo.member.dto.LoginRequest;
+import com.dinogo.member.dto.MemberApiErrorResponse;
 import com.dinogo.member.dto.LoginResponse;
 import com.dinogo.member.service.LoginService;
 
@@ -31,7 +32,9 @@ public class LoginController {
             return ResponseEntity.ok(loginService.login(request));
         } catch (IllegalArgumentException exception) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body("Email 或密碼錯誤");
+                    .body(MemberApiErrorResponse.from(
+                            HttpStatus.UNAUTHORIZED,
+                            "Email 或密碼錯誤"));
         }
     }
 }

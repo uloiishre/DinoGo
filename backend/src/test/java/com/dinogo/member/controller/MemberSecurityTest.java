@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.Collections;
@@ -70,21 +71,24 @@ class MemberSecurityTest {
 
     @ParameterizedTest(name = "profile update rejects {0}")
     @MethodSource("invalidProfileUpdates")
-    void updateProfileRejectsInvalidRequest(String scenario, String requestBody) throws Exception {
+    void updateProfileRejectsInvalidRequest(String scenario, String requestBody, String fieldName) throws Exception {
         mockMvc.perform(put("/api/member/profile")
                         .with(authentication(authenticationForMember(1)))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("輸入資料驗證失敗"))
+                .andExpect(jsonPath("$.fieldErrors." + fieldName).isNotEmpty());
 
         verifyNoInteractions(memberService);
     }
 
     private static Stream<Arguments> invalidProfileUpdates() {
         return Stream.of(
-                Arguments.of("blank last name", updateJson("", "小明")),
-                Arguments.of("blank first name", updateJson("王", "")),
-                Arguments.of("overlong first name", updateJson("王", "名".repeat(51))));
+                Arguments.of("blank last name", updateJson("", "小明"), "lastName"),
+                Arguments.of("blank first name", updateJson("王", ""), "firstName"),
+                Arguments.of("overlong first name", updateJson("王", "名".repeat(51)), "firstName"));
     }
 
     private static String validUpdateJson() {

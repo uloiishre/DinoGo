@@ -2,10 +2,12 @@ package com.dinogo.member.controller;
 
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.stream.Stream;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -40,22 +42,30 @@ class AuthValidationTest {
 
     @ParameterizedTest(name = "register rejects {0}")
     @MethodSource("invalidRegistrationRequests")
-    void registerRejectsInvalidRequest(String scenario, String requestBody) throws Exception {
+    void registerRejectsInvalidRequest(String scenario, String requestBody, String fieldName) throws Exception {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").value("輸入資料驗證失敗"))
+                .andExpect(jsonPath("$.fieldErrors." + fieldName).isNotEmpty());
 
         verifyNoInteractions(memberService);
     }
 
     @ParameterizedTest(name = "login rejects {0}")
     @MethodSource("invalidLoginRequests")
-    void loginRejectsInvalidRequest(String scenario, String requestBody) throws Exception {
+    void loginRejectsInvalidRequest(String scenario, String requestBody, String fieldName) throws Exception {
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").value("輸入資料驗證失敗"))
+                .andExpect(jsonPath("$.fieldErrors." + fieldName).isNotEmpty());
 
         verifyNoInteractions(loginService);
     }
@@ -63,19 +73,32 @@ class AuthValidationTest {
     private static Stream<Arguments> invalidRegistrationRequests() {
         String validPassword = "password123";
         return Stream.of(
-                Arguments.of("blank email", registerJson("", validPassword, validPassword, "王", "小明")),
-                Arguments.of("malformed email", registerJson("invalid-email", validPassword, validPassword, "王", "小明")),
-                Arguments.of("short password", registerJson("user@example.com", "short", "short", "王", "小明")),
-                Arguments.of("blank last name", registerJson("user@example.com", validPassword, validPassword, "", "小明")),
+                Arguments.of("blank email", registerJson("", validPassword, validPassword, "王", "小明"), "email"),
+                Arguments.of("malformed email", registerJson("invalid-email", validPassword, validPassword, "王", "小明"), "email"),
+                Arguments.of("short password", registerJson("user@example.com", "short", "short", "王", "小明"), "password"),
+                Arguments.of("blank last name", registerJson("user@example.com", validPassword, validPassword, "", "小明"), "lastName"),
                 Arguments.of("overlong first name", registerJson(
-                        "user@example.com", validPassword, validPassword, "王", "名".repeat(51))));
+                        "user@example.com", validPassword, validPassword, "王", "名".repeat(51)), "firstName"));
     }
 
     private static Stream<Arguments> invalidLoginRequests() {
         return Stream.of(
-                Arguments.of("blank email", loginJson("", "password123")),
-                Arguments.of("malformed email", loginJson("invalid-email", "password123")),
-                Arguments.of("blank password", loginJson("user@example.com", "")));
+                Arguments.of("blank email", loginJson("", "password123"), "email"),
+                Arguments.of("malformed email", loginJson("invalid-email", "password123"), "email"),
+                Arguments.of("blank password", loginJson("user@example.com", ""), "password"));
+    }
+
+    @Test
+    void registerReturnsStructuredErrorForMalformedJson() throws Exception {
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("請求內容格式錯誤"))
+                .andExpect(jsonPath("$.fieldErrors").isEmpty());
+
+        verifyNoInteractions(memberService);
     }
 
     private static String registerJson(
