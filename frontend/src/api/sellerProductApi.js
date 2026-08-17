@@ -16,9 +16,8 @@ export const disableSellerProduct = (sellerId, productId) => {
   })
 }
 
-// TODO: 等 B 模組 Product create API，且後端由 JWT 判斷 seller 後恢復呼叫。
 //建立新商品
 ///TODO: 等待B模組Product create API完成後再整合
-// export const createSellerProduct = (payload) => {
-//   return api.post('/products', payload)
-// }
+export const createSellerProduct = (payload) => {
+  return api.post('/products', payload)
+}

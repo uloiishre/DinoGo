@@ -2,8 +2,10 @@
 import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { disableSellerProduct, getSellerProducts } from '../../api/sellerProductApi'
+import { getCurrentSellerId } from '@/utils/seller-session'
 
-const sellerId = 1 //// TODO: 等 A/B 模組提供 current seller 商品 API 後，移除 sellerId 假資料。
+const sellerId = getCurrentSellerId()
+// TODO: 等 A/B 模組提供 current seller 商品 API 後，移除 sellerId 假資料。
 const products = ref([])
 
 const isLoading = ref(false)
