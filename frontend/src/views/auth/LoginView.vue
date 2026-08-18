@@ -125,7 +125,11 @@ onMounted(async () => {
 
   try {
     await loadGoogleIdentityServices()
-    window.google.accounts.id.initialize({ client_id: clientId, callback: handleGoogleCredential })
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: handleGoogleCredential,
+      use_fedcm_for_button: true,
+    })
     await nextTick()
     const buttonWidth = Math.min(360, googleButton.value.clientWidth || 360)
     window.google.accounts.id.renderButton(googleButton.value, {
