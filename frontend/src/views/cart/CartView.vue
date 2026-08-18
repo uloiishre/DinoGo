@@ -17,6 +17,14 @@ const changingSkuId = ref(null)
 const selectedCartItemIds = ref([])
 
 // ================================
+// 商品是否可以購買
+// ================================
+
+const isItemAvailable = (item) => {
+  return item.available !== false
+}
+
+// ================================
 // 取得購物車
 // ================================
 
@@ -31,16 +39,22 @@ const fetchCart = async () => {
 
     cart.value = {
       ...response.data,
-      items: response.data.items.map((item) => ({
+
+      items: (response.data.items || []).map((item) => ({
         ...item,
+
+        // 只有可購買商品才保留勾選
         selected: false,
       })),
     }
 
-    // 避免重新取得購物車後保留不存在的商品
-    selectedCartItemIds.value = selectedCartItemIds.value.filter((id) =>
-      cart.value.items.some((item) => item.cartItemId === id),
-    )
+    // 重新取得購物車後
+    // 只保留「仍存在且可購買」的商品
+    selectedCartItemIds.value = selectedCartItemIds.value.filter((id) => {
+      const item = cart.value.items.find((item) => item.cartItemId === id)
+
+      return item && isItemAvailable(item)
+    })
   } catch (error) {
     console.error('取得購物車失敗:', error)
 
@@ -62,6 +76,11 @@ const sellerGroups = computed(() => {
   const groups = {}
 
   cart.value.items.forEach((item) => {
+    // 不可購買商品不放進正常商品區
+    if (!isItemAvailable(item)) {
+      return
+    }
+
     const sellerId = Number(item.sellerId)
 
     if (!groups[sellerId]) {
@@ -77,7 +96,91 @@ const sellerGroups = computed(() => {
 
   return Object.values(groups)
 })
+// ================================
+// 已失效商品
+// ================================
 
+const unavailableItems = computed(() => {
+  if (!cart.value?.items) {
+    return []
+  }
+
+  return cart.value.items.filter((item) => !isItemAvailable(item))
+})
+// ================================
+// 失效商品是否全部勾選
+// ================================
+
+const isAllUnavailableSelected = computed(() => {
+  if (!unavailableItems.value.length) {
+    return false
+  }
+
+  return unavailableItems.value.every((item) => selectedCartItemIds.value.includes(item.cartItemId))
+})
+
+// ================================
+// 失效商品全選 / 取消全選
+// ================================
+
+const toggleUnavailableSelectAll = () => {
+  const unavailableIds = unavailableItems.value.map((item) => item.cartItemId)
+
+  if (isAllUnavailableSelected.value) {
+    // 取消勾選所有失效商品
+    selectedCartItemIds.value = selectedCartItemIds.value.filter(
+      (id) => !unavailableIds.includes(id),
+    )
+  } else {
+    // 勾選所有失效商品
+    const newIds = unavailableIds.filter((id) => !selectedCartItemIds.value.includes(id))
+
+    selectedCartItemIds.value.push(...newIds)
+  }
+}
+
+// ================================
+// 一次刪除所有失效商品
+// ================================
+
+const deleteUnavailableItems = async () => {
+  if (!unavailableItems.value.length) {
+    return
+  }
+
+  const confirmed = confirm(`確定要刪除全部 ${unavailableItems.value.length} 件失效商品嗎？`)
+
+  if (!confirmed) {
+    return
+  }
+
+  try {
+    loading.value = true
+    errorMessage.value = ''
+
+    const ids = unavailableItems.value.map((item) => item.cartItemId)
+
+    // 逐筆刪除
+    for (const cartItemId of ids) {
+      await api.delete(`/cart/items/${cartItemId}`)
+    }
+
+    // 重新取得購物車
+    await fetchCart()
+
+    // 清除這些商品的勾選
+    selectedCartItemIds.value = selectedCartItemIds.value.filter((id) => !ids.includes(id))
+  } catch (error) {
+    console.error('刪除失效商品失敗:', error)
+
+    // 即使部分刪除成功，也重新取得最新資料
+    await fetchCart()
+
+    alert(error.response?.data?.message || '刪除失效商品失敗，已重新整理購物車資料。')
+  } finally {
+    loading.value = false
+  }
+}
 // ================================
 // 已選商品
 // ================================
@@ -87,7 +190,9 @@ const selectedItems = computed(() => {
     return []
   }
 
-  return cart.value.items.filter((item) => selectedCartItemIds.value.includes(item.cartItemId))
+  return cart.value.items.filter(
+    (item) => selectedCartItemIds.value.includes(item.cartItemId) && isItemAvailable(item),
+  )
 })
 
 // ================================
@@ -105,16 +210,19 @@ const selectedTotalQuantity = computed(() => {
 const selectedTotalAmount = computed(() => {
   return selectedItems.value.reduce((total, item) => total + getItemSubtotal(item), 0)
 })
+
 // ================================
-// 是否全部商品都勾選
+// 是否全部可購買商品都勾選
 // ================================
 
 const isAllSelected = computed(() => {
-  if (!cart.value?.items?.length) {
+  const availableItems = cart.value?.items?.filter(isItemAvailable) || []
+
+  if (!availableItems.length) {
     return false
   }
 
-  return cart.value.items.every((item) => selectedCartItemIds.value.includes(item.cartItemId))
+  return availableItems.every((item) => selectedCartItemIds.value.includes(item.cartItemId))
 })
 
 // ================================
@@ -126,24 +234,33 @@ const toggleSelectAll = () => {
     return
   }
 
+  const availableItems = cart.value.items.filter(isItemAvailable)
+
   if (isAllSelected.value) {
-    // 取消全部
-    selectedCartItemIds.value = []
+    selectedCartItemIds.value = selectedCartItemIds.value.filter((id) => {
+      return !availableItems.some((item) => item.cartItemId === id)
+    })
   } else {
-    // 全部勾選
-    selectedCartItemIds.value = cart.value.items.map((item) => item.cartItemId)
+    const newIds = availableItems
+      .map((item) => item.cartItemId)
+      .filter((id) => !selectedCartItemIds.value.includes(id))
+
+    selectedCartItemIds.value.push(...newIds)
   }
 }
+
 // ================================
-// 某個賣家是否全部勾選
+// 某個賣家是否全部可購買商品都勾選
 // ================================
 
 const isSellerAllSelected = (group) => {
-  if (!group.items.length) {
+  const availableItems = group.items.filter(isItemAvailable)
+
+  if (!availableItems.length) {
     return false
   }
 
-  return group.items.every((item) => selectedCartItemIds.value.includes(item.cartItemId))
+  return availableItems.every((item) => selectedCartItemIds.value.includes(item.cartItemId))
 }
 
 // ================================
@@ -151,15 +268,19 @@ const isSellerAllSelected = (group) => {
 // ================================
 
 const toggleSellerSelectAll = (group) => {
-  const itemIds = group.items.map((item) => item.cartItemId)
+  const availableItems = group.items.filter(isItemAvailable)
+
+  if (!availableItems.length) {
+    return
+  }
+
+  const itemIds = availableItems.map((item) => item.cartItemId)
 
   const allSelected = isSellerAllSelected(group)
 
   if (allSelected) {
-    // 取消這個賣家的所有商品
     selectedCartItemIds.value = selectedCartItemIds.value.filter((id) => !itemIds.includes(id))
   } else {
-    // 加入這個賣家的所有商品
     const newIds = itemIds.filter((id) => !selectedCartItemIds.value.includes(id))
 
     selectedCartItemIds.value.push(...newIds)
@@ -171,6 +292,11 @@ const toggleSellerSelectAll = (group) => {
 // ================================
 
 const updateQuantity = async (item, quantity) => {
+  // 下架 / 停用 / 庫存不足商品不能修改
+  if (!isItemAvailable(item)) {
+    return
+  }
+
   if (quantity < 1) {
     return
   }
@@ -182,10 +308,16 @@ const updateQuantity = async (item, quantity) => {
     })
 
     item.quantity = quantity
+
+    // 修改後重新確認庫存
+    await fetchCart()
   } catch (error) {
     console.error('修改數量失敗:', error)
 
     alert(error.response?.data?.message || '修改商品數量失敗')
+
+    // 重新取得最新庫存
+    await fetchCart()
   }
 }
 
@@ -194,6 +326,10 @@ const updateQuantity = async (item, quantity) => {
 // ================================
 
 const changeSku = async (item, newSkuId) => {
+  if (!isItemAvailable(item)) {
+    return
+  }
+
   if (!newSkuId || Number(newSkuId) === Number(item.skuId)) {
     return
   }
@@ -210,31 +346,17 @@ const changeSku = async (item, newSkuId) => {
 
     console.log('修改 SKU API：', response.data)
 
-    const updatedItem = response.data
-
-    item.skuId = updatedItem.skuId
-
-    if (updatedItem.price !== undefined) {
-      item.price = updatedItem.price
-    }
-
-    if (updatedItem.productImage !== undefined) {
-      item.productImage = updatedItem.productImage
-    }
-
-    if (updatedItem.skus !== undefined) {
-      item.skus = updatedItem.skus
-    }
-
-    if (updatedItem.sellerId !== undefined) {
-      item.sellerId = updatedItem.sellerId
-    }
+    // 直接重新取得
+    // 讓 available / stock / reason 都更新
+    await fetchCart()
   } catch (error) {
     console.error('修改商品規格失敗:', error)
 
     alert(error.response?.data?.message || '修改商品規格失敗')
 
     item.skuId = oldSkuId
+
+    await fetchCart()
   } finally {
     changingSkuId.value = null
   }
@@ -245,6 +367,10 @@ const changeSku = async (item, newSkuId) => {
 // ================================
 
 const increaseQuantity = (item) => {
+  if (!isItemAvailable(item)) {
+    return
+  }
+
   updateQuantity(item, Number(item.quantity) + 1)
 }
 
@@ -253,6 +379,10 @@ const increaseQuantity = (item) => {
 // ================================
 
 const decreaseQuantity = (item) => {
+  if (!isItemAvailable(item)) {
+    return
+  }
+
   const quantity = Number(item.quantity)
 
   if (quantity <= 1) {
@@ -291,8 +421,9 @@ const removeItem = async (item) => {
 // ================================
 
 const deleteSelectedItems = async () => {
-  if (selectedCartItemIds.value.length === 0) {
+  if (!selectedCartItemIds.value.length) {
     alert('請先勾選要刪除的商品')
+
     return
   }
 
@@ -308,20 +439,16 @@ const deleteSelectedItems = async () => {
 
     const ids = [...selectedCartItemIds.value]
 
-    // 逐筆刪除
     for (const cartItemId of ids) {
       await api.delete(`/cart/items/${cartItemId}`)
     }
 
-    // 刪除完成後重新取得購物車
     await fetchCart()
 
-    // 清除選取
     selectedCartItemIds.value = []
   } catch (error) {
     console.error('刪除選取商品失敗:', error)
 
-    // 即使中途失敗，也重新取得最新購物車
     await fetchCart()
 
     selectedCartItemIds.value = []
@@ -361,10 +488,26 @@ const getItemSubtotal = (item) => {
 const goToCheckout = () => {
   const items = cart.value?.items || []
 
-  const selectedItems = items.filter((item) => selectedCartItemIds.value.includes(item.cartItemId))
+  // 只允許可購買商品
+  const selectedItems = items.filter(
+    (item) => selectedCartItemIds.value.includes(item.cartItemId) && isItemAvailable(item),
+  )
 
-  if (selectedItems.length === 0) {
-    alert('請先選擇要結帳的商品')
+  if (!selectedItems.length) {
+    alert('請先選擇可以購買的商品')
+
+    return
+  }
+
+  // ================================
+  // 確認庫存
+  // ================================
+
+  const unavailableItem = selectedItems.find((item) => !isItemAvailable(item))
+
+  if (unavailableItem) {
+    alert(unavailableItem.unavailableReason || '部分商品目前無法購買')
+
     return
   }
 
@@ -376,11 +519,12 @@ const goToCheckout = () => {
 
   if (sellerIds.length > 1) {
     alert('不同賣家的商品不能一起結帳，請只選擇同一個賣家的商品。')
+
     return
   }
 
   // ================================
-  // 相同賣家 → 前往 Checkout
+  // 相同賣家 → Checkout
   // ================================
 
   localStorage.setItem(
@@ -390,13 +534,21 @@ const goToCheckout = () => {
 
       items: selectedItems.map((item) => ({
         cartItemId: item.cartItemId,
+
         skuId: item.skuId,
+
         quantity: Number(item.quantity),
+
         productName: item.productName,
+
         price: item.price,
+
         productImage: item.productImage,
+
         sellerId: Number(item.sellerId),
+
         storeName: item.storeName,
+
         skus: item.skus,
       })),
     }),
@@ -413,7 +565,6 @@ onMounted(() => {
   fetchCart()
 })
 </script>
-
 <template>
   <main class="cart-page">
     <div class="cart-container">
@@ -538,7 +689,14 @@ onMounted(() => {
          商品
     ================================= -->
 
-            <article v-for="item in group.items" :key="item.cartItemId" class="cart-item-card">
+            <article
+              v-for="item in group.items"
+              :key="item.cartItemId"
+              class="cart-item-card"
+              :class="{
+                'cart-item-unavailable': !isItemAvailable(item),
+              }"
+            >
               <!-- 勾選 -->
 
               <div class="item-checkbox">
@@ -547,6 +705,7 @@ onMounted(() => {
                   class="cart-checkbox"
                   type="checkbox"
                   :value="item.cartItemId"
+                  :disabled="!isItemAvailable(item)"
                 />
               </div>
 
@@ -571,7 +730,14 @@ onMounted(() => {
                 <h2 class="item-name">
                   {{ item.productName }}
                 </h2>
+                <!-- 商品不可購買提示 -->
+                <div v-if="!isItemAvailable(item)" class="item-unavailable-message">
+                  <i class="bi bi-exclamation-circle"></i>
 
+                  <span>
+                    {{ item.unavailableReason }}
+                  </span>
+                </div>
                 <!-- SKU -->
 
                 <div class="item-sku-select">
@@ -579,7 +745,7 @@ onMounted(() => {
 
                   <select
                     :value="item.skuId"
-                    :disabled="changingSkuId === item.cartItemId"
+                    :disabled="!isItemAvailable(item) || changingSkuId === item.cartItemId"
                     @change="changeSku(item, Number($event.target.value))"
                   >
                     <option v-for="sku in item.skus" :key="sku.skuId" :value="sku.skuId">
@@ -604,7 +770,7 @@ onMounted(() => {
                   <button
                     type="button"
                     class="quantity-button"
-                    :disabled="item.quantity <= 1"
+                    :disabled="!isItemAvailable(item) || item.quantity <= 1"
                     @click="decreaseQuantity(item)"
                   >
                     <i class="bi bi-dash"></i>
@@ -614,7 +780,12 @@ onMounted(() => {
                     {{ item.quantity }}
                   </span>
 
-                  <button type="button" class="quantity-button" @click="increaseQuantity(item)">
+                  <button
+                    type="button"
+                    class="quantity-button"
+                    :disabled="!isItemAvailable(item)"
+                    @click="increaseQuantity(item)"
+                  >
                     <i class="bi bi-plus"></i>
                   </button>
                 </div>
@@ -630,9 +801,157 @@ onMounted(() => {
                   {{ formatPrice(getItemSubtotal(item)) }}
                 </strong>
 
+                <span
+                  v-if="!isItemAvailable(item) && item.stock !== null"
+                  class="stock-info stock-warning"
+                >
+                  目前庫存：{{ item.stock }} 件
+                </span>
+
                 <button type="button" class="remove-button" @click="removeItem(item)">
                   <i class="bi bi-trash3"></i>
+
                   <span>移除</span>
+                </button>
+              </div>
+            </article>
+          </div>
+          <!-- ================================
+     已失效商品
+================================= -->
+
+          <div v-if="unavailableItems.length > 0" class="unavailable-section">
+            <!-- 區塊標題 -->
+
+            <div class="unavailable-header">
+              <div class="unavailable-header-left">
+                <label class="unavailable-select-label">
+                  <span class="unavailable-title">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    失效商品
+                  </span>
+                </label>
+
+                <p class="unavailable-description">以下商品目前無法購買，請移除後再進行結帳</p>
+              </div>
+
+              <div class="unavailable-header-right">
+                <span class="unavailable-count"> {{ unavailableItems.length }} 件 </span>
+
+                <button
+                  type="button"
+                  class="delete-unavailable-button"
+                  :disabled="loading || unavailableItems.length === 0"
+                  @click="deleteUnavailableItems"
+                >
+                  <i class="bi bi-trash3"></i>
+
+                  <span> 一次刪除失效商品 </span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 失效商品 -->
+
+            <article
+              v-for="item in unavailableItems"
+              :key="item.cartItemId"
+              class="cart-item-card cart-item-unavailable"
+            >
+              <!-- 勾選 -->
+
+              <div class="item-checkbox">
+                <input class="cart-checkbox" type="checkbox" disabled />
+              </div>
+
+              <!-- 商品圖片 -->
+
+              <div class="item-image-wrapper">
+                <img
+                  v-if="item.productImage"
+                  :src="item.productImage"
+                  :alt="item.productName"
+                  class="cart-image"
+                />
+
+                <div v-else class="cart-image-placeholder">
+                  <i class="bi bi-image"></i>
+                </div>
+              </div>
+
+              <!-- 商品資訊 -->
+
+              <div class="item-info">
+                <h2 class="item-name">
+                  {{ item.productName }}
+                </h2>
+
+                <!-- 失效原因 -->
+
+                <div class="item-unavailable-message">
+                  <i class="bi bi-exclamation-circle"></i>
+
+                  <span>
+                    {{ item.unavailableReason }}
+                  </span>
+                </div>
+
+                <!-- SKU -->
+
+                <div class="item-sku-select">
+                  <label class="sku-label"> 規格 </label>
+
+                  <select :value="item.skuId" disabled>
+                    <option v-for="sku in item.skus" :key="sku.skuId" :value="sku.skuId">
+                      {{ sku.skuName }}
+                    </option>
+                  </select>
+                </div>
+
+                <p class="item-price">NT$ {{ formatPrice(item.price) }}</p>
+              </div>
+
+              <!-- 數量 -->
+
+              <div class="item-quantity">
+                <span class="quantity-label"> 數量 </span>
+
+                <div class="quantity-control">
+                  <button type="button" class="quantity-button" disabled>
+                    <i class="bi bi-dash"></i>
+                  </button>
+
+                  <span class="quantity-value">
+                    {{ item.quantity }}
+                  </span>
+
+                  <button type="button" class="quantity-button" disabled>
+                    <i class="bi bi-plus"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 小計 / 庫存 / 移除 -->
+
+              <div class="item-total">
+                <span class="item-total-label"> 小計 </span>
+
+                <strong>
+                  NT$
+                  {{ formatPrice(getItemSubtotal(item)) }}
+                </strong>
+
+                <span
+                  v-if="item.stock !== null && item.stock !== undefined"
+                  class="stock-info stock-warning"
+                >
+                  目前庫存：{{ item.stock }} 件
+                </span>
+
+                <button type="button" class="remove-button" @click="removeItem(item)">
+                  <i class="bi bi-trash3"></i>
+
+                  <span> 移除 </span>
                 </button>
               </div>
             </article>
@@ -1846,5 +2165,357 @@ onMounted(() => {
   font-family: var(--font-body);
 
   font-size: var(--font-size-sm);
+}
+/* ========================================
+   商品不可購買
+======================================== */
+
+.cart-item-unavailable {
+  opacity: 0.55;
+
+  background: #eeeeee;
+
+  border-color: #d5d5d5;
+
+  filter: grayscale(100%);
+}
+
+/* 不可購買商品 hover 不變色 */
+.seller-group .cart-item-card.cart-item-unavailable:hover {
+  background: #eeeeee;
+
+  border-color: #d5d5d5;
+
+  box-shadow: none;
+}
+
+/* 不可購買商品圖片 */
+.cart-item-unavailable .cart-image {
+  opacity: 0.6;
+}
+
+/* 不可購買提示 */
+.item-unavailable-message {
+  display: flex;
+
+  align-items: center;
+
+  gap: 6px;
+
+  margin-bottom: var(--space-2);
+
+  padding: 6px 8px;
+
+  color: #777777;
+
+  background: #e5e5e5;
+
+  border-radius: var(--radius-sm);
+
+  font-family: var(--font-body);
+
+  font-size: var(--font-size-xs);
+
+  font-weight: 600;
+}
+
+.item-unavailable-message i {
+  font-size: 14px;
+}
+
+/* 庫存提示 */
+.stock-info {
+  color: var(--color-text-subtle);
+
+  font-family: var(--font-body);
+
+  font-size: var(--font-size-xs);
+}
+
+.stock-warning {
+  color: #777777;
+
+  font-weight: 600;
+}
+/* ========================================
+   已失效商品區塊
+======================================== */
+
+.unavailable-section {
+  margin-top: var(--space-6);
+
+  background: var(--color-surface);
+
+  border: 1px solid #d8d8d8;
+
+  border-radius: var(--radius-lg);
+
+  overflow: hidden;
+}
+
+/* ========================================
+   已失效商品標題
+======================================== */
+
+.unavailable-header {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: var(--space-3);
+
+  padding: var(--space-4);
+
+  background: #eeeeee;
+
+  border-bottom: 1px solid #d8d8d8;
+}
+
+.unavailable-title-wrapper {
+  display: flex;
+
+  align-items: center;
+
+  gap: var(--space-3);
+}
+
+.unavailable-title-wrapper > i {
+  color: #777777;
+
+  font-size: 20px;
+}
+
+.unavailable-title {
+  margin: 0;
+
+  color: #666666;
+
+  font-family: var(--font-heading);
+
+  font-size: var(--font-size-base);
+
+  font-weight: 700;
+}
+
+.unavailable-description {
+  margin: 2px 0 0;
+
+  color: #999999;
+
+  font-family: var(--font-body);
+
+  font-size: var(--font-size-xs);
+}
+
+.unavailable-count {
+  flex-shrink: 0;
+
+  padding: 4px 10px;
+
+  color: #777777;
+
+  background: #dddddd;
+
+  border-radius: var(--radius-pill);
+
+  font-family: var(--font-body);
+
+  font-size: var(--font-size-xs);
+
+  font-weight: 600;
+}
+/* ========================================
+   Unavailable Header Layout
+======================================== */
+
+.unavailable-header-left {
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: flex-start;
+
+  gap: var(--space-1);
+}
+
+.unavailable-select-label {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: var(--space-2);
+
+  cursor: pointer;
+}
+
+.unavailable-select-label .unavailable-title {
+  margin: 0;
+}
+
+/* ========================================
+   Unavailable Header Right
+======================================== */
+
+.unavailable-header-right {
+  display: flex;
+
+  align-items: center;
+
+  gap: var(--space-3);
+}
+
+/* ========================================
+   Delete Unavailable Button
+======================================== */
+
+.delete-unavailable-button {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: var(--space-1);
+
+  min-height: 34px;
+
+  padding: 0 var(--space-3);
+
+  color: var(--color-danger);
+
+  background: #ffffff;
+
+  border: 1px solid var(--color-danger);
+
+  border-radius: var(--radius-md);
+
+  font-family: var(--font-body);
+
+  font-size: var(--font-size-xs);
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.delete-unavailable-button:hover:not(:disabled) {
+  color: #ffffff;
+
+  background: var(--color-danger);
+}
+
+.delete-unavailable-button:focus-visible {
+  outline: none;
+
+  box-shadow: var(--shadow-focus);
+}
+
+.delete-unavailable-button:disabled {
+  opacity: 0.5;
+
+  cursor: not-allowed;
+}
+@media (max-width: 768px) {
+  .unavailable-header {
+    align-items: flex-start;
+
+    flex-direction: column;
+  }
+
+  .unavailable-header-right {
+    width: 100%;
+
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 480px) {
+  .delete-unavailable-button {
+    padding: 0 var(--space-2);
+
+    font-size: 11px;
+  }
+}
+/* ========================================
+   失效商品卡片
+======================================== */
+
+.unavailable-section .cart-item-card {
+  margin-bottom: 0;
+
+  border: 0;
+
+  border-bottom: 1px solid #dddddd;
+
+  border-radius: 0;
+
+  opacity: 0.55;
+
+  background: #eeeeee;
+
+  filter: grayscale(100%);
+}
+
+.unavailable-section .cart-item-card:last-child {
+  border-bottom: 0;
+}
+
+.unavailable-section .cart-item-card:hover {
+  border-color: #dddddd;
+
+  background: #eeeeee;
+
+  box-shadow: none;
+}
+
+/* ========================================
+   失效商品提示
+======================================== */
+
+.item-unavailable-message {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 6px;
+
+  margin-bottom: var(--space-2);
+
+  padding: 5px 8px;
+
+  color: #777777;
+
+  background: #e1e1e1;
+
+  border-radius: var(--radius-sm);
+
+  font-family: var(--font-body);
+
+  font-size: var(--font-size-xs);
+
+  font-weight: 600;
+}
+
+.item-unavailable-message i {
+  font-size: 13px;
+}
+
+/* ========================================
+   庫存警告
+======================================== */
+
+.stock-warning {
+  color: #777777;
+
+  font-family: var(--font-body);
+
+  font-size: var(--font-size-xs);
+
+  font-weight: 600;
 }
 </style>
