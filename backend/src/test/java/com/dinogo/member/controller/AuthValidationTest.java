@@ -105,6 +105,21 @@ class AuthValidationTest {
         verifyNoInteractions(memberService);
     }
 
+    @Test
+    void googleLoginRejectsOversizedCredential() throws Exception {
+        String requestBody = """
+                {"credential":"%s"}
+                """.formatted("x".repeat(10001));
+
+        mockMvc.perform(post("/api/auth/google")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.credential").isNotEmpty());
+
+        verifyNoInteractions(googleLoginService);
+    }
+
     private static String registerJson(
             String email,
             String password,

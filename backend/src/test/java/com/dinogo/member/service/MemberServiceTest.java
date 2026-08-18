@@ -66,7 +66,7 @@ class MemberServiceTest {
     @Test
     void registerHashesPasswordBeforeSaving() {
         Role buyerRole = buyerRole();
-        when(memberRepository.existsByEmail(request.email())).thenReturn(false);
+        when(memberRepository.existsByEmailIgnoreCase(request.email())).thenReturn(false);
         when(roleRepository.findByRoleName("buyer")).thenReturn(Optional.of(buyerRole));
         when(passwordEncoder.encode(request.password())).thenReturn("$2a$hashed-password");
         when(memberRepository.save(any(Member.class))).thenAnswer(invocation -> {
@@ -94,7 +94,7 @@ class MemberServiceTest {
 
     @Test
     void registerFailsWhenDefaultBuyerRoleIsMissing() {
-        when(memberRepository.existsByEmail(request.email())).thenReturn(false);
+        when(memberRepository.existsByEmailIgnoreCase(request.email())).thenReturn(false);
         when(roleRepository.findByRoleName("buyer")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> memberService.register(request))
@@ -108,7 +108,7 @@ class MemberServiceTest {
 
     @Test
     void registerRejectsDuplicateEmail() {
-        when(memberRepository.existsByEmail(request.email())).thenReturn(true);
+        when(memberRepository.existsByEmailIgnoreCase(request.email())).thenReturn(true);
 
         assertThatThrownBy(() -> memberService.register(request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -121,6 +121,26 @@ class MemberServiceTest {
     }
 
     @Test
+    void registerNormalizesEmailBeforeCheckingAndSaving() {
+        RegisterRequest mixedCaseRequest = new RegisterRequest(
+                "User@Example.COM", "password123", "password123", "王", "小明", null, null);
+        when(memberRepository.existsByEmailIgnoreCase("user@example.com")).thenReturn(false);
+        when(roleRepository.findByRoleName("buyer")).thenReturn(Optional.of(buyerRole()));
+        when(passwordEncoder.encode(mixedCaseRequest.password())).thenReturn("hashed-password");
+        when(memberRepository.save(any(Member.class))).thenAnswer(invocation -> {
+            Member member = invocation.getArgument(0);
+            member.setMemberId(1);
+            return member;
+        });
+
+        memberService.register(mixedCaseRequest);
+
+        ArgumentCaptor<Member> captor = ArgumentCaptor.forClass(Member.class);
+        verify(memberRepository).save(captor.capture());
+        assertThat(captor.getValue().getEmail()).isEqualTo("user@example.com");
+    }
+
+    @Test
     void registerRejectsMismatchedPasswords() {
         RegisterRequest mismatchedRequest = new RegisterRequest(
                 request.email(), request.password(), "different-password",
@@ -130,7 +150,7 @@ class MemberServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("密碼與確認密碼不一致");
 
-        verify(memberRepository, never()).existsByEmail(any());
+        verify(memberRepository, never()).existsByEmailIgnoreCase(any());
         verify(passwordEncoder, never()).encode(any());
         verify(memberRepository, never()).save(any(Member.class));
         verify(roleRepository, never()).findByRoleName(any());

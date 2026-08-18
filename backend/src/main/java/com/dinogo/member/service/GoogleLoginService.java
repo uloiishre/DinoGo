@@ -53,7 +53,7 @@ public class GoogleLoginService {
     @Transactional(readOnly = true)
     public LoginResponse link(GoogleLinkRequest request) {
         GoogleIdentity identity = googleIdentityVerifier.verify(request.credential());
-        Member member = memberRepository.findByEmail(normalizeEmail(identity.email()))
+        Member member = memberRepository.findByEmailIgnoreCase(normalizeEmail(identity.email()))
                 .orElseThrow(() -> new IllegalArgumentException("找不到可綁定的密碼帳號"));
 
         if (!"ACTIVE".equals(member.getStatus())
@@ -84,7 +84,7 @@ public class GoogleLoginService {
 
     private LoginResponse loginOrRegister(GoogleIdentity identity) {
         String email = normalizeEmail(identity.email());
-        if (memberRepository.existsByEmail(email)) {
+        if (memberRepository.existsByEmailIgnoreCase(email)) {
             throw new GoogleAccountLinkRequiredException();
         }
 
@@ -107,7 +107,7 @@ public class GoogleLoginService {
                 .map(MemberOAuthAccount::getMember)
                 .map(this::loginExistingMember)
                 .orElseGet(() -> {
-                    if (memberRepository.existsByEmail(normalizeEmail(identity.email()))) {
+                    if (memberRepository.existsByEmailIgnoreCase(normalizeEmail(identity.email()))) {
                         throw new GoogleAccountLinkRequiredException();
                     }
                     throw exception;

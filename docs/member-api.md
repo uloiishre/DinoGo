@@ -177,6 +177,8 @@ Request：
 
 前端使用 Google Identity Services 取得 ID Token 後，將 token 放入 `credential` 欄位送至後端。後端會驗證簽章、issuer、有效期限與 OAuth Web Client 的 audience；不接受前端提供的 Email 或 Google user ID。
 
+`credential` 必填，最長 10,000 字元。
+
 `POST /api/auth/google`
 
 ```json

@@ -12,7 +12,6 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -25,11 +24,8 @@ import com.dinogo.member.dto.LoginResponse;
 import com.dinogo.member.dto.MemberResponse;
 import com.dinogo.member.entity.Member;
 import com.dinogo.member.entity.MemberOAuthAccount;
-import com.dinogo.member.entity.Role;
 import com.dinogo.member.repository.MemberOAuthAccountRepository;
 import com.dinogo.member.repository.MemberRepository;
-import com.dinogo.member.repository.MemberRoleRepository;
-import com.dinogo.member.repository.RoleRepository;
 
 @ExtendWith(MockitoExtension.class)
 class GoogleLoginServiceTest {
@@ -37,8 +33,6 @@ class GoogleLoginServiceTest {
     @Mock private GoogleIdentityVerifier googleIdentityVerifier;
     @Mock private MemberOAuthAccountRepository oauthAccountRepository;
     @Mock private MemberRepository memberRepository;
-    @Mock private RoleRepository roleRepository;
-    @Mock private MemberRoleRepository memberRoleRepository;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private LoginService loginService;
     @Mock private GoogleAccountProvisioningService provisioningService;
@@ -58,7 +52,7 @@ class GoogleLoginServiceTest {
         when(loginService.createAuthenticatedResponse(member)).thenReturn(response);
 
         assertThat(googleLoginService.login(request)).isEqualTo(response);
-        verify(memberRepository, never()).existsByEmail(any());
+        verify(memberRepository, never()).existsByEmailIgnoreCase(any());
     }
 
     @Test
@@ -70,7 +64,7 @@ class GoogleLoginServiceTest {
         when(googleIdentityVerifier.verify(request.credential())).thenReturn(identity);
         when(oauthAccountRepository.findByProviderAndProviderUserId("google", identity.subject()))
                 .thenReturn(Optional.empty());
-        when(memberRepository.existsByEmail("new@example.com")).thenReturn(false);
+        when(memberRepository.existsByEmailIgnoreCase("new@example.com")).thenReturn(false);
         when(provisioningService.register("new@example.com", identity)).thenReturn(savedMember);
         when(loginService.createAuthenticatedResponse(savedMember)).thenReturn(response);
 
@@ -85,7 +79,7 @@ class GoogleLoginServiceTest {
         when(googleIdentityVerifier.verify(request.credential())).thenReturn(identity);
         when(oauthAccountRepository.findByProviderAndProviderUserId("google", identity.subject()))
                 .thenReturn(Optional.empty());
-        when(memberRepository.existsByEmail("new@example.com")).thenReturn(true);
+        when(memberRepository.existsByEmailIgnoreCase("new@example.com")).thenReturn(true);
 
         assertThatThrownBy(() -> googleLoginService.login(request))
                 .isInstanceOf(GoogleAccountLinkRequiredException.class);
@@ -101,7 +95,7 @@ class GoogleLoginServiceTest {
         when(googleIdentityVerifier.verify(request.credential())).thenReturn(identity);
         when(oauthAccountRepository.findByProviderAndProviderUserId("google", identity.subject()))
                 .thenReturn(Optional.empty(), Optional.of(account(member, identity)));
-        when(memberRepository.existsByEmail("new@example.com")).thenReturn(false);
+        when(memberRepository.existsByEmailIgnoreCase("new@example.com")).thenReturn(false);
         when(provisioningService.register("new@example.com", identity))
                 .thenThrow(new DataIntegrityViolationException("duplicate key"));
         when(loginService.createAuthenticatedResponse(member)).thenReturn(response);
@@ -115,7 +109,7 @@ class GoogleLoginServiceTest {
         GoogleIdentity identity = identity();
         Member member = member(1, "ACTIVE");
         when(googleIdentityVerifier.verify(request.credential())).thenReturn(identity);
-        when(memberRepository.findByEmail("new@example.com")).thenReturn(Optional.of(member));
+        when(memberRepository.findByEmailIgnoreCase("new@example.com")).thenReturn(Optional.of(member));
         when(passwordEncoder.matches(request.password(), member.getPasswordHash())).thenReturn(false);
 
         assertThatThrownBy(() -> googleLoginService.link(request))

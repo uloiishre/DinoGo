@@ -127,11 +127,12 @@ onMounted(async () => {
     await loadGoogleIdentityServices()
     window.google.accounts.id.initialize({ client_id: clientId, callback: handleGoogleCredential })
     await nextTick()
+    const buttonWidth = Math.min(360, googleButton.value.clientWidth || 360)
     window.google.accounts.id.renderButton(googleButton.value, {
       theme: 'outline',
       size: 'large',
       text: 'signin_with',
-      width: 360,
+      width: buttonWidth,
       locale: 'zh_TW',
     })
     isGoogleReady.value = true
