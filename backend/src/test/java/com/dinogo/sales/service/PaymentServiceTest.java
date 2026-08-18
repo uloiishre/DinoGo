@@ -3,6 +3,7 @@ package com.dinogo.sales.service;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -18,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.dinogo.sales.dto.payment.SimulatePaymentRequest;
 import com.dinogo.sales.dto.payment.CreatePaymentRequest;
+import com.dinogo.sales.dto.payment.PaymentResponse;
 import com.dinogo.sales.entity.Order;
 import com.dinogo.sales.entity.OrderStatus;
 import com.dinogo.sales.entity.Payment;
@@ -122,6 +124,51 @@ class PaymentServiceTest {
         assertEquals(new BigDecimal("1000.00"), response.amount());
         assertEquals(PaymentStatus.PENDING, response.status());
         assertEquals("CREDIT_CARD", response.paymentMethodCode());
+    }
+
+    @Test
+    void createCashOnDeliveryPaymentMovesOrderToProcessingAndKeepsPaymentPending() {
+        Order order = pendingOrder();
+        PaymentMethod method = paymentMethod();
+        method.setMethodCode("CASH_ON_DELIVERY");
+        method.setMethodName("貨到付款");
+
+        when(orderRepository.findForPaymentCreation(10, 1)).thenReturn(Optional.of(order));
+        when(paymentRepository.findFirstByOrderOrderIdAndStatus(10, PaymentStatus.PENDING))
+                .thenReturn(Optional.empty());
+        when(paymentMethodRepository.findByMethodCode("CASH_ON_DELIVERY"))
+                .thenReturn(Optional.of(method));
+        when(paymentRepository.save(any(Payment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        PaymentResponse response = paymentService.createPayment(
+                10,
+                1,
+                new CreatePaymentRequest("CASH_ON_DELIVERY"));
+
+        assertEquals(OrderStatus.PROCESSING, order.getStatus());
+        assertEquals(PaymentStatus.PENDING, response.status());
+        assertEquals("CASH_ON_DELIVERY", response.paymentMethodCode());
+    }
+
+    @Test
+    void createCashOnDeliveryRetryReturnsExistingPendingPayment() {
+        Order order = pendingOrder();
+        order.setStatus(OrderStatus.PROCESSING);
+
+        Payment pendingPayment = pendingPayment();
+        pendingPayment.getPaymentMethod().setMethodCode("CASH_ON_DELIVERY");
+        when(orderRepository.findForPaymentCreation(10, 1)).thenReturn(Optional.of(order));
+        when(paymentRepository.findFirstByOrderOrderIdAndStatus(10, PaymentStatus.PENDING))
+                .thenReturn(Optional.of(pendingPayment));
+
+        PaymentResponse response = paymentService.createPayment(
+                10,
+                1,
+                new CreatePaymentRequest("CASH_ON_DELIVERY"));
+
+        assertEquals(pendingPayment.getPaymentId(), response.paymentId());
+        verify(paymentRepository, never()).save(any(Payment.class));
     }
 
     @Test

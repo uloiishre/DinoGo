@@ -19,13 +19,28 @@ const paymentStatusLabels = {
 const shipmentStatusLabels = {
   PREPARING: '備貨中', SHIPPED: '已出貨', AVAILABLE_FOR_PICKUP: '可取貨', DELIVERED: '已送達',
 }
-const progressSteps = [
+const onlinePaymentProgressSteps = [
   { label: '訂單成立', statuses: ['PENDING_PAYMENT', 'PAID', 'PROCESSING', 'SHIPPED', 'COMPLETED'] },
-  { label: '付款完成', statuses: ['PAID', 'PROCESSING', 'SHIPPED', 'COMPLETED'] },
+  {
+    label: '付款完成',
+    statuses: ['PAID', 'PROCESSING', 'SHIPPED', 'COMPLETED'],
+    paymentStatus: 'SUCCESS',
+  },
   { label: '備貨中', statuses: ['PROCESSING', 'SHIPPED', 'COMPLETED'] },
   { label: '已出貨', statuses: ['SHIPPED', 'COMPLETED'] },
   { label: '已完成', statuses: ['COMPLETED'] },
 ]
+const cashOnDeliveryProgressSteps = [
+  { label: '訂單成立', statuses: ['PROCESSING', 'SHIPPED', 'COMPLETED'] },
+  { label: '備貨中', statuses: ['PROCESSING', 'SHIPPED', 'COMPLETED'] },
+  { label: '已出貨', statuses: ['SHIPPED', 'COMPLETED'] },
+  { label: '已送達', statuses: ['COMPLETED'], shipmentStatus: 'DELIVERED' },
+  { label: '已完成', statuses: ['COMPLETED'] },
+]
+const isCashOnDelivery = computed(() =>
+  order.value?.payment?.paymentMethodCode === 'CASH_ON_DELIVERY')
+const progressSteps = computed(() =>
+  isCashOnDelivery.value ? cashOnDeliveryProgressSteps : onlinePaymentProgressSteps)
 
 const fullAddress = computed(() => {
   if (!order.value) return '-'
@@ -51,7 +66,11 @@ async function loadOrder() {
   }
 }
 
-const isStepComplete = (step) => order.value && step.statuses.includes(order.value.status)
+const isStepComplete = (step) =>
+  order.value &&
+  step.statuses.includes(order.value.status) &&
+  (!step.paymentStatus || order.value.payment?.status === step.paymentStatus) &&
+  (!step.shipmentStatus || order.value.shipment?.status === step.shipmentStatus)
 const formatCurrency = (value) => new Intl.NumberFormat('zh-TW', {
   style: 'currency', currency: 'TWD', maximumFractionDigits: 0,
 }).format(Number(value ?? 0))

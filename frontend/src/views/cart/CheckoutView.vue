@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/api/axios'
-import { createPayment, simulatePayment } from '@/api/order'
+import { createPayment } from '@/api/order'
 
 const pageTitle = '結帳'
 const router = useRouter()
@@ -474,8 +474,7 @@ const submitOrder = async () => {
     // ========================================
 
     try {
-      const paymentResponse = await createPayment(createdOrderId, paymentMethod.value)
-      await simulatePayment(createdOrderId, paymentResponse.data.paymentId)
+      await createPayment(createdOrderId, paymentMethod.value)
     } catch (paymentError) {
       console.error('付款失敗：', paymentError)
 
@@ -498,7 +497,11 @@ const submitOrder = async () => {
 
     await finalizeCreatedOrder()
 
-    alert('訂單建立且模擬付款成功！')
+    alert(
+      paymentMethod.value === 'CASH_ON_DELIVERY'
+        ? '訂單建立成功，請等待賣家出貨！'
+        : '訂單建立成功，付款狀態將在金流確認後更新。',
+    )
 
     // ========================================
     // 回首頁
@@ -892,6 +895,31 @@ onMounted(() => {
                   <strong>LINE Pay</strong>
 
                   <span>使用 LINE Pay 線上付款</span>
+                </span>
+              </label>
+
+              <!-- 貨到付款 -->
+
+              <label
+                class="option-card"
+                :class="{
+                  selected: paymentMethod === 'CASH_ON_DELIVERY',
+                }"
+              >
+                <input
+                  v-model="paymentMethod"
+                  type="radio"
+                  value="CASH_ON_DELIVERY"
+                  name="payment"
+                  @change="changePaymentMethod"
+                />
+
+                <span class="radio-dot"></span>
+
+                <span class="option-content">
+                  <strong>貨到付款</strong>
+
+                  <span>收到商品時再付款</span>
                 </span>
               </label>
             </div>

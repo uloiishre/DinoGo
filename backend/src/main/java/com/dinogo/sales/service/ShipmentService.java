@@ -12,11 +12,13 @@ import com.dinogo.sales.dto.shipment.ShipmentResponse;
 import com.dinogo.sales.dto.shipment.UpdateShipmentStatusRequest;
 import com.dinogo.sales.entity.Order;
 import com.dinogo.sales.entity.OrderStatus;
+import com.dinogo.sales.entity.PaymentStatus;
 import com.dinogo.sales.entity.Shipment;
 import com.dinogo.sales.entity.ShipmentStatus;
 import com.dinogo.sales.exception.InvalidOrderException;
 import com.dinogo.sales.exception.OrderNotFoundException;
 import com.dinogo.sales.repository.OrderRepository;
+import com.dinogo.sales.repository.PaymentRepository;
 import com.dinogo.sales.repository.ShipmentRepository;
 import com.dinogo.seller.entity.Seller;
 import com.dinogo.seller.repository.SellerRepository;
@@ -24,6 +26,7 @@ import com.dinogo.seller.repository.SellerRepository;
 @Service
 public class ShipmentService {
 
+    private static final String CASH_ON_DELIVERY = "CASH_ON_DELIVERY";
     private static final Set<OrderStatus> SHIPMENT_CREATION_STATUSES =
             Set.of(OrderStatus.PAID, OrderStatus.PROCESSING);
     private static final Map<ShipmentStatus, Set<ShipmentStatus>> ALLOWED_TRANSITIONS = Map.of(
@@ -32,14 +35,17 @@ public class ShipmentService {
 
     private final ShipmentRepository shipmentRepository;
     private final OrderRepository orderRepository;
+    private final PaymentRepository paymentRepository;
     private final SellerRepository sellerRepository;
 
     public ShipmentService(
             ShipmentRepository shipmentRepository,
             OrderRepository orderRepository,
+            PaymentRepository paymentRepository,
             SellerRepository sellerRepository) {
         this.shipmentRepository = shipmentRepository;
         this.orderRepository = orderRepository;
+        this.paymentRepository = paymentRepository;
         this.sellerRepository = sellerRepository;
     }
 
@@ -130,6 +136,7 @@ public class ShipmentService {
                 .orElseThrow(() -> new OrderNotFoundException("Shipment does not exist"));
 
         if (shipment.getStatus() == ShipmentStatus.DELIVERED) {
+            completeCashOnDeliveryPayment(orderId, LocalDateTime.now());
             return toResponse(shipment);
         }
         if (shipment.getStatus() != ShipmentStatus.SHIPPED
@@ -149,8 +156,19 @@ public class ShipmentService {
         shipment.setDeliveredAt(now);
         order.setStatus(OrderStatus.COMPLETED);
         order.setCompletedAt(now);
+        completeCashOnDeliveryPayment(orderId, now);
 
         return toResponse(shipmentRepository.save(shipment));
+    }
+
+    private void completeCashOnDeliveryPayment(Integer orderId, LocalDateTime paidAt) {
+        paymentRepository
+                .findFirstByOrderOrderIdAndStatusAndPaymentMethodMethodCode(
+                        orderId, PaymentStatus.PENDING, CASH_ON_DELIVERY)
+                .ifPresent(payment -> {
+                    payment.setStatus(PaymentStatus.SUCCESS);
+                    payment.setPaidAt(paidAt);
+                });
     }
 
     private boolean isOrderSeller(Order order, Integer memberId) {
