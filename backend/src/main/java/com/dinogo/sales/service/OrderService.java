@@ -3,6 +3,7 @@ package com.dinogo.sales.service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -24,9 +25,13 @@ import com.dinogo.sales.dto.order.CreateOrderItemRequest;
 import com.dinogo.sales.dto.order.CreateOrderRequest;
 import com.dinogo.sales.dto.order.CreateOrderResponse;
 import com.dinogo.sales.dto.order.OrderItemResponse;
+import com.dinogo.sales.dto.order.OrderPaymentSummary;
+import com.dinogo.sales.dto.order.OrderShipmentSummary;
 import com.dinogo.sales.entity.Order;
 import com.dinogo.sales.entity.OrderItem;
 import com.dinogo.sales.entity.OrderStatus;
+import com.dinogo.sales.entity.Payment;
+import com.dinogo.sales.entity.Shipment;
 import com.dinogo.sales.exception.InvalidOrderException;
 import com.dinogo.sales.exception.OrderNotFoundException;
 import com.dinogo.sales.repository.OrderRepository;
@@ -151,6 +156,16 @@ public class OrderService {
         return toDetailResponse(order);
     }
 
+    @Transactional(readOnly = true)
+    public OrderDetailResponse getSellerOrder(Integer orderId, Integer memberId) {
+        Seller seller = sellerRepository.findByMember_MemberId(memberId)
+                .orElseThrow(() -> new OrderNotFoundException("Seller does not exist"));
+        Order order = orderRepository
+                .findByOrderIdAndSellerId(orderId, seller.getSellerId())
+                .orElseThrow(() -> new OrderNotFoundException("Order does not exist"));
+        return toDetailResponse(order);
+    }
+
     @Transactional
     public OrderDetailResponse updateStatusBySeller(
             Integer orderId,
@@ -164,6 +179,12 @@ public class OrderService {
         if (targetStatus == OrderStatus.PAID) {
             throw new InvalidOrderException(
                     "Order status PAID can only be set by the payment flow");
+        }
+        if (targetStatus == OrderStatus.SHIPPED
+                || targetStatus == OrderStatus.COMPLETED) {
+            throw new InvalidOrderException(
+                    "Order status " + targetStatus
+                            + " can only be set by the shipment flow");
         }
         Seller seller = sellerRepository.findByMember_MemberId(memberId)
                 .orElseThrow(() -> new OrderNotFoundException("Seller does not exist"));
@@ -348,7 +369,44 @@ public class OrderService {
                 order.getCompletedAt(),
                 order.getCreatedAt(),
                 order.getUpdatedAt(),
-                items);
+                items,
+                toPaymentSummary(order),
+                toShipmentSummary(order.getShipment()));
+    }
+
+    private OrderPaymentSummary toPaymentSummary(Order order) {
+        Payment payment = order.getPayments().stream()
+                .max(Comparator.comparing(
+                        Payment::getCreatedAt,
+                        Comparator.nullsFirst(Comparator.naturalOrder()))
+                        .thenComparing(Payment::getPaymentId,
+                                Comparator.nullsFirst(Comparator.naturalOrder())))
+                .orElse(null);
+        if (payment == null) {
+            return null;
+        }
+        return new OrderPaymentSummary(
+                payment.getPaymentId(),
+                payment.getPaymentMethod().getMethodCode(),
+                payment.getPaymentMethod().getMethodName(),
+                payment.getStatus(),
+                payment.getFailureReason(),
+                payment.getPaidAt(),
+                payment.getCreatedAt());
+    }
+
+    private OrderShipmentSummary toShipmentSummary(Shipment shipment) {
+        if (shipment == null) {
+            return null;
+        }
+        return new OrderShipmentSummary(
+                shipment.getShipmentId(),
+                shipment.getCarrierName(),
+                shipment.getTrackingNo(),
+                shipment.getStatus(),
+                shipment.getShippedAt(),
+                shipment.getAvailablePickupAt(),
+                shipment.getDeliveredAt());
     }
 
     private OrderItemResponse toItemResponse(OrderItem item) {

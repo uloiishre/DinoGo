@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/api/axios'
+import { createPayment, simulatePayment } from '@/api/order'
 
 const pageTitle = '結帳'
 const router = useRouter()
@@ -44,7 +45,7 @@ const shippingMethod = ref('HOME_DELIVERY')
 // 付款方式
 // ========================================
 
-const paymentMethod = ref('COD')
+const paymentMethod = ref('CREDIT_CARD')
 
 // ========================================
 // 優惠券
@@ -441,6 +442,8 @@ const submitOrder = async () => {
     return
   }
 
+  let createdOrderId = null
+
   try {
     submitting.value = true
 
@@ -462,6 +465,7 @@ const submitOrder = async () => {
     // ========================================
 
     const response = await api.post('/orders', request)
+    createdOrderId = response.data.orderId
 
     console.log('建立訂單成功：', response.data)
 
@@ -470,38 +474,64 @@ const submitOrder = async () => {
     // ========================================
 
     try {
-      await clearCheckoutItemsFromCart()
+      const paymentResponse = await createPayment(createdOrderId, paymentMethod.value)
+      await simulatePayment(createdOrderId, paymentResponse.data.paymentId)
+    } catch (paymentError) {
+      console.error('付款失敗：', paymentError)
 
-      console.log('購物車商品已移除')
-    } catch (cartError) {
-      console.error('購物車商品移除失敗：', cartError)
+      await finalizeCreatedOrder()
+
+      alert(
+        paymentError.response?.data?.message ||
+          '訂單已建立，但付款尚未完成。請至訂單詳情確認付款狀態。',
+      )
+      await router.push({ name: 'MemberOrderDetail', params: { id: createdOrderId } })
+      return
     }
 
+    console.log('建立訂單成功：', response.data)
+
     // ========================================
+    // 2. 訂單成功後刪除購物車商品
     // 清除 checkoutData
     // ========================================
 
-    localStorage.removeItem('checkoutData')
+    await finalizeCreatedOrder()
 
-    alert('訂單建立成功！')
+    alert('訂單建立且模擬付款成功！')
 
     // ========================================
     // 回首頁
     // ========================================
 
-    router.push({
-      name: 'Home',
-    })
+    router.push({ name: 'MemberOrderDetail', params: { id: createdOrderId } })
   } catch (error) {
     // ========================================
     // 訂單建立失敗
     // ========================================
 
+    errorMessage.value =
+      error.response?.data?.message ||
+      (createdOrderId
+        ? '訂單已建立，但後續處理失敗。請至會員訂單確認。'
+        : '訂單建立失敗，請稍後再試')
     handleOrderError(error)
   } finally {
     submitting.value = false
   }
 }
+
+const finalizeCreatedOrder = async () => {
+  try {
+    await clearCheckoutItemsFromCart()
+    console.log('購物車商品已移除')
+  } catch (cartError) {
+    console.error('購物車商品移除失敗：', cartError)
+  }
+
+  localStorage.removeItem('checkoutData')
+}
+
 const clearCheckoutItemsFromCart = async () => {
   const cartItemIds = checkoutItems.value.map((item) => item.cartItemId).filter((id) => id != null)
 
@@ -815,30 +845,6 @@ onMounted(() => {
             </div>
 
             <div class="option-list">
-              <!-- 貨到付款 -->
-
-              <label
-                class="option-card"
-                :class="{
-                  selected: paymentMethod === 'COD',
-                }"
-              >
-                <input
-                  v-model="paymentMethod"
-                  type="radio"
-                  value="COD"
-                  name="payment"
-                  @change="changePaymentMethod"
-                />
-
-                <span class="radio-dot"></span>
-
-                <span class="option-content">
-                  <strong> 貨到付款 </strong>
-
-                  <span> 商品送達時付款 </span>
-                </span>
-              </label>
               <!-- 信用卡 -->
 
               <label
@@ -864,30 +870,6 @@ onMounted(() => {
                 </span>
               </label>
 
-              <!-- ATM -->
-
-              <label
-                class="option-card"
-                :class="{
-                  selected: paymentMethod === 'ATM',
-                }"
-              >
-                <input
-                  v-model="paymentMethod"
-                  type="radio"
-                  value="ATM"
-                  name="payment"
-                  @change="changePaymentMethod"
-                />
-
-                <span class="radio-dot"></span>
-
-                <span class="option-content">
-                  <strong> ATM 轉帳 </strong>
-
-                  <span> 訂單成立後提供轉帳資訊 </span>
-                </span>
-              </label>
               <!-- LINE Pay -->
 
               <label
