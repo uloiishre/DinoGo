@@ -27,10 +27,14 @@ public class ProductController {
     // 初始路徑返回所有產品列表
     @GetMapping
     public List<ProductResponse> getProducts(
+            @RequestParam(required = false) Integer categoryId,
             @RequestParam(required = false) Integer subcategoryId,
             @RequestParam(required = false) Integer brandId) {
 
-        return productService.getProducts(subcategoryId, brandId);
+        return productService.getProducts(
+                categoryId,
+                subcategoryId,
+                brandId);
     }
 
     // 建立商品

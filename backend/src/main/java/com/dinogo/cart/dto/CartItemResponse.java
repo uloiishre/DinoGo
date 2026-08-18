@@ -12,5 +12,7 @@ public record CartItemResponse(
 		String productImage,
 		Integer sellerId,
 		String storeName,
-		List<SkuOptionResponse> skus) {
+		List<SkuOptionResponse> skus,
+		Boolean available,
+		String unavailableReason) {
 }
