@@ -1,7 +1,6 @@
 package com.dinogo.catalog.controller;
 
-import java.util.List;
-
+import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,15 +25,21 @@ public class ProductController {
 
     // 初始路徑返回所有產品列表
     @GetMapping
-    public List<ProductResponse> getProducts(
+    public Page<ProductResponse> getProducts(
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer categoryId,
             @RequestParam(required = false) Integer subcategoryId,
-            @RequestParam(required = false) Integer brandId) {
+            @RequestParam(required = false) Integer brandId,
+            @RequestParam(defaultValue = "0") Integer page,
+            @RequestParam(defaultValue = "12") Integer size) {
 
         return productService.getProducts(
+                keyword,
                 categoryId,
                 subcategoryId,
-                brandId);
+                brandId,
+                page,
+                size);
     }
 
     // 建立商品
