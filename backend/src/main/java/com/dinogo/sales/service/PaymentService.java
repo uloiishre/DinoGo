@@ -24,6 +24,7 @@ import com.dinogo.sales.repository.PaymentRepository;
 @Service
 public class PaymentService {
 
+    private static final String CASH_ON_DELIVERY = "CASH_ON_DELIVERY";
     private static final DateTimeFormatter PAYMENT_NO_FORMAT =
             DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
@@ -51,14 +52,20 @@ public class PaymentService {
                 .orElseThrow(() ->
                         new OrderNotFoundException("Order does not exist"));
 
-        if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
-            throw new InvalidOrderException(
-                    "Only pending-payment orders can create a payment");
-        }
-
         Payment pendingPayment = paymentRepository
                 .findFirstByOrderOrderIdAndStatus(orderId, PaymentStatus.PENDING)
                 .orElse(null);
+
+        boolean cashOnDeliveryRetry = order.getStatus() == OrderStatus.PROCESSING
+                && CASH_ON_DELIVERY.equals(request.paymentMethodCode())
+                && pendingPayment != null
+                && CASH_ON_DELIVERY.equals(
+                        pendingPayment.getPaymentMethod().getMethodCode());
+
+        if (order.getStatus() != OrderStatus.PENDING_PAYMENT && !cashOnDeliveryRetry) {
+            throw new InvalidOrderException(
+                    "Only pending-payment orders can create a payment");
+        }
 
         if (pendingPayment != null) {
             if (pendingPayment.getPaymentMethod().getMethodCode()
@@ -84,6 +91,10 @@ public class PaymentService {
         // 金額只能使用後端訂單總金額。
         payment.setAmount(order.getTotalAmount());
         payment.setStatus(PaymentStatus.PENDING);
+
+        if (CASH_ON_DELIVERY.equals(method.getMethodCode())) {
+            order.setStatus(OrderStatus.PROCESSING);
+        }
 
         Payment savedPayment = paymentRepository.save(payment);
         return toResponse(savedPayment);

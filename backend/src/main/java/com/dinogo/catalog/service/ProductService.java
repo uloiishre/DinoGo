@@ -1,7 +1,13 @@
 package com.dinogo.catalog.service;
 
+import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import com.dinogo.catalog.dto.ProductCreateRequest;
@@ -24,6 +30,7 @@ import com.dinogo.catalog.repository.SubcategoryRepository;
 import com.dinogo.seller.entity.Seller;
 import com.dinogo.seller.repository.SellerRepository;
 
+import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
@@ -214,44 +221,83 @@ public class ProductService {
         }
 
         // 讀取商品列表
-        public List<ProductResponse> getProducts(
+        public Page<ProductResponse> getProducts(
+                        String keyword,
                         Integer categoryId,
                         Integer subcategoryId,
-                        Integer brandId) {
+                        Integer brandId,
+                        Integer page,
+                        Integer size,
+                        String sort) {
 
-                List<Product> products;
+                Specification<Product> spec = (root, query, cb) -> {
 
-                if (subcategoryId != null && brandId != null) {
+                        List<Predicate> predicates = new ArrayList<>();
 
-                        products = productRepository
-                                        .findBySubcategorySubcategoryIdAndBrandBrandId(
-                                                        subcategoryId,
-                                                        brandId);
+                        // 買家只能看到已上架商品
+                        predicates.add(
+                                        cb.equal(root.get("status"), (byte) 1));
 
-                } else if (subcategoryId != null) {
+                        if (keyword != null && !keyword.isBlank()) {
+                                predicates.add(
+                                                cb.like(
+                                                                cb.lower(root.get("productName")),
+                                                                "%" + keyword.toLowerCase() + "%"));
+                        }
+                        // 大分類
+                        if (categoryId != null) {
+                                predicates.add(
+                                                cb.equal(
+                                                                root.join("subcategory")
+                                                                                .join("category")
+                                                                                .get("categoryId"),
+                                                                categoryId));
+                        }
 
-                        products = productRepository
-                                        .findBySubcategorySubcategoryId(subcategoryId);
+                        // 子分類
+                        if (subcategoryId != null) {
+                                predicates.add(
+                                                cb.equal(
+                                                                root.join("subcategory")
+                                                                                .get("subcategoryId"),
+                                                                subcategoryId));
+                        }
 
-                } else if (categoryId != null) {
+                        // 品牌
+                        if (brandId != null) {
+                                predicates.add(
+                                                cb.equal(
+                                                                root.join("brand")
+                                                                                .get("brandId"),
+                                                                brandId));
+                        }
 
-                        products = productRepository
-                                        .findBySubcategoryCategoryCategoryId(categoryId);
+                        return cb.and(
+                                        predicates.toArray(new Predicate[0]));
+                };
 
-                } else if (brandId != null) {
+                Sort sorting = switch (sort == null ? "" : sort) {
+                        case "priceAsc" ->
+                                Sort.by(Sort.Direction.ASC, "basePrice");
 
-                        products = productRepository
-                                        .findByBrandBrandId(brandId);
+                        case "priceDesc" ->
+                                Sort.by(Sort.Direction.DESC, "basePrice");
 
-                } else {
+                        case "salesDesc" ->
+                                Sort.by(Sort.Direction.DESC, "soldCount");
 
-                        products = productRepository.findAll();
-                }
+                        case "newest" ->
+                                Sort.by(Sort.Direction.DESC, "createdAt");
 
-                return products.stream()
-                                .filter(product -> product.getStatus() == 1)
-                                .map(this::toProductResponse)
-                                .toList();
+                        default ->
+                                Sort.by(Sort.Direction.DESC, "productId");
+                };
+
+                Pageable pageable = PageRequest.of(page, size, sorting);
+
+                Page<Product> products = productRepository.findAll(spec, pageable);
+
+                return products.map(this::toProductResponse);
         }
 
         // 讀取商品詳情

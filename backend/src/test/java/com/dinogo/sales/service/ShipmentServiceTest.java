@@ -21,11 +21,14 @@ import com.dinogo.sales.dto.shipment.CreateShipmentRequest;
 import com.dinogo.sales.dto.shipment.UpdateShipmentStatusRequest;
 import com.dinogo.sales.entity.Order;
 import com.dinogo.sales.entity.OrderStatus;
+import com.dinogo.sales.entity.Payment;
+import com.dinogo.sales.entity.PaymentStatus;
 import com.dinogo.sales.entity.Shipment;
 import com.dinogo.sales.entity.ShipmentStatus;
 import com.dinogo.sales.exception.InvalidOrderException;
 import com.dinogo.sales.exception.OrderNotFoundException;
 import com.dinogo.sales.repository.OrderRepository;
+import com.dinogo.sales.repository.PaymentRepository;
 import com.dinogo.sales.repository.ShipmentRepository;
 import com.dinogo.seller.entity.Seller;
 import com.dinogo.seller.repository.SellerRepository;
@@ -38,6 +41,8 @@ class ShipmentServiceTest {
     @Mock
     private OrderRepository orderRepository;
     @Mock
+    private PaymentRepository paymentRepository;
+    @Mock
     private SellerRepository sellerRepository;
     @Mock
     private Seller seller;
@@ -47,7 +52,7 @@ class ShipmentServiceTest {
     @BeforeEach
     void setUp() {
         shipmentService = new ShipmentService(
-                shipmentRepository, orderRepository, sellerRepository);
+                shipmentRepository, orderRepository, paymentRepository, sellerRepository);
     }
 
     @Test
@@ -166,8 +171,13 @@ class ShipmentServiceTest {
     void buyerConfirmationDeliversShipmentAndCompletesOrder() {
         Shipment shipment = shipment(order(10, 6, 30, OrderStatus.SHIPPED));
         shipment.setStatus(ShipmentStatus.AVAILABLE_FOR_PICKUP);
+        Payment payment = new Payment();
+        payment.setStatus(PaymentStatus.PENDING);
         when(shipmentRepository.findForDeliveryConfirmation(10, 6))
                 .thenReturn(Optional.of(shipment));
+        when(paymentRepository.findFirstByOrderOrderIdAndStatusAndPaymentMethodMethodCode(
+                10, PaymentStatus.PENDING, "CASH_ON_DELIVERY"))
+                .thenReturn(Optional.of(payment));
         when(shipmentRepository.save(shipment)).thenReturn(shipment);
 
         var response = shipmentService.confirmDelivery(10, 6);
@@ -176,6 +186,8 @@ class ShipmentServiceTest {
         assertNotNull(response.deliveredAt());
         assertEquals(OrderStatus.COMPLETED, shipment.getOrder().getStatus());
         assertNotNull(shipment.getOrder().getCompletedAt());
+        assertEquals(PaymentStatus.SUCCESS, payment.getStatus());
+        assertNotNull(payment.getPaidAt());
     }
 
     @Test
@@ -210,12 +222,19 @@ class ShipmentServiceTest {
     void retryingBuyerConfirmationReturnsDeliveredShipmentWithoutSaving() {
         Shipment shipment = shipment(order(10, 6, 30, OrderStatus.COMPLETED));
         shipment.setStatus(ShipmentStatus.DELIVERED);
+        Payment payment = new Payment();
+        payment.setStatus(PaymentStatus.PENDING);
         when(shipmentRepository.findForDeliveryConfirmation(10, 6))
                 .thenReturn(Optional.of(shipment));
+        when(paymentRepository.findFirstByOrderOrderIdAndStatusAndPaymentMethodMethodCode(
+                10, PaymentStatus.PENDING, "CASH_ON_DELIVERY"))
+                .thenReturn(Optional.of(payment));
 
         var response = shipmentService.confirmDelivery(10, 6);
 
         assertEquals(ShipmentStatus.DELIVERED, response.status());
+        assertEquals(PaymentStatus.SUCCESS, payment.getStatus());
+        assertNotNull(payment.getPaidAt());
         verify(shipmentRepository, never()).save(any());
     }
 

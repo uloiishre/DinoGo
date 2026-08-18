@@ -24,6 +24,12 @@ public interface PaymentRepository extends JpaRepository<Payment, Integer> {
             Integer orderId,
             PaymentStatus status);
 
+    @EntityGraph(attributePaths = "paymentMethod")
+    Optional<Payment> findFirstByOrderOrderIdAndStatusAndPaymentMethodMethodCode(
+            Integer orderId,
+            PaymentStatus status,
+            String methodCode);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @EntityGraph(attributePaths = { "order", "paymentMethod" })
     @Query("""

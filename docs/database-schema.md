@@ -1030,7 +1030,8 @@ INSERT INTO sales.PaymentMethod (
 )
 VALUES
     (1, 'CREDIT_CARD', '信用卡', SYSDATETIME(), SYSDATETIME()),
-    (2, 'LINE_PAY', 'LINE Pay', SYSDATETIME(), SYSDATETIME());
+    (2, 'LINE_PAY', 'LINE Pay', SYSDATETIME(), SYSDATETIME()),
+    (3, 'CASH_ON_DELIVERY', '貨到付款', SYSDATETIME(), SYSDATETIME());
 SET IDENTITY_INSERT sales.PaymentMethod OFF;
 
 -- E：賣家中心資料 - 優惠券資料

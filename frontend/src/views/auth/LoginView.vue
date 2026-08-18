@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -10,6 +10,11 @@ const form = ref({ email: '', password: '' })
 const fieldErrors = ref({})
 const apiError = ref('')
 const isSubmitting = ref(false)
+const googleButton = ref(null)
+const googleCredential = ref('')
+const googleLinkPassword = ref('')
+const isGoogleLinking = ref(false)
+const isGoogleReady = ref(false)
 
 const registeredMessage = route.query.registered ? '註冊成功，請使用新帳號登入。' : ''
 
@@ -52,6 +57,93 @@ async function submit() {
     isSubmitting.value = false
   }
 }
+
+function redirectAfterLogin() {
+  const redirect = typeof route.query.redirect === 'string'
+    && route.query.redirect.startsWith('/')
+    ? route.query.redirect
+    : authStore.isSeller ? '/seller/dashboard' : '/member/overview'
+  return router.push(redirect)
+}
+
+async function handleGoogleCredential(response) {
+  apiError.value = ''
+  googleCredential.value = response.credential
+  try {
+    await authStore.signInWithGoogle(response.credential)
+    await redirectAfterLogin()
+  } catch (error) {
+    if (error.response?.status === 409) {
+      isGoogleLinking.value = true
+      apiError.value = '此 Email 已有密碼帳號，請輸入原密碼完成 Google 帳號綁定。'
+      return
+    }
+    apiError.value = getErrorMessage(error)
+  }
+}
+
+async function linkGoogle() {
+  apiError.value = ''
+  if (!googleLinkPassword.value) {
+    apiError.value = '請輸入原密碼以完成帳號綁定。'
+    return
+  }
+
+  isSubmitting.value = true
+  try {
+    await authStore.linkGoogleSignIn(googleCredential.value, googleLinkPassword.value)
+    await redirectAfterLogin()
+  } catch (error) {
+    apiError.value = getErrorMessage(error)
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+function loadGoogleIdentityServices() {
+  return new Promise((resolve, reject) => {
+    if (window.google?.accounts?.id) {
+      resolve()
+      return
+    }
+    const script = document.createElement('script')
+    script.src = 'https://accounts.google.com/gsi/client'
+    script.async = true
+    script.defer = true
+    script.onload = resolve
+    script.onerror = () => reject(new Error('Google Identity Services 載入失敗'))
+    document.head.appendChild(script)
+  })
+}
+
+onMounted(async () => {
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+  if (!clientId) {
+    apiError.value = 'Google 登入尚未設定。'
+    return
+  }
+
+  try {
+    await loadGoogleIdentityServices()
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: handleGoogleCredential,
+      use_fedcm_for_button: true,
+    })
+    await nextTick()
+    const buttonWidth = Math.min(360, googleButton.value.clientWidth || 360)
+    window.google.accounts.id.renderButton(googleButton.value, {
+      theme: 'outline',
+      size: 'large',
+      text: 'signin_with',
+      width: buttonWidth,
+      locale: 'zh_TW',
+    })
+    isGoogleReady.value = true
+  } catch (error) {
+    apiError.value = 'Google 登入元件載入失敗，請稍後再試。'
+  }
+})
 </script>
 
 <template>
@@ -108,10 +200,22 @@ async function submit() {
 
       <div class="login-divider" aria-hidden="true"><span>或</span></div>
 
-      <button class="btn login-google w-100" type="button">
-        <i class="bi bi-google" aria-hidden="true"></i>
-        使用 Google 登入
-      </button>
+      <div ref="googleButton" class="google-button" :aria-busy="!isGoogleReady"></div>
+
+      <form v-if="isGoogleLinking" class="mt-4" novalidate @submit.prevent="linkGoogle">
+        <label class="form-label" for="google-link-password">原帳號密碼</label>
+        <input
+          id="google-link-password"
+          v-model="googleLinkPassword"
+          class="form-control"
+          type="password"
+          autocomplete="current-password"
+          placeholder="請輸入原密碼以綁定 Google"
+        />
+        <button class="btn dg-btn-primary mt-3 w-100" type="submit" :disabled="isSubmitting">
+          {{ isSubmitting ? '綁定中…' : '綁定 Google 並登入' }}
+        </button>
+      </form>
 
       <p class="mt-4 mb-0 text-muted">
         還沒有帳號？
@@ -160,23 +264,9 @@ async function submit() {
   content: '';
   background: var(--color-border);
 }
-.login-google {
-  display: inline-flex;
-  align-items: center;
+.google-button {
+  display: flex;
   justify-content: center;
-  gap: var(--space-2);
-  color: var(--color-text);
-  border: 1px solid var(--color-border-strong);
-  background: var(--color-surface);
-}
-.login-google:hover,
-.login-google:focus-visible {
-  color: var(--color-primary-700);
-  border-color: var(--color-primary);
-  background: var(--color-primary-soft);
-}
-.login-google:focus-visible {
-  outline: none;
-  box-shadow: var(--shadow-focus);
+  min-height: 40px;
 }
 </style>

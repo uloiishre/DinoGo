@@ -36,7 +36,7 @@ public class LoginService {
 
     @Transactional(readOnly = true)
     public LoginResponse login(LoginRequest request) {
-        Member member = memberRepository.findByEmail(request.email())
+        Member member = memberRepository.findByEmailIgnoreCase(request.email().trim())
                 .orElseThrow(() -> new IllegalArgumentException("Email 或密碼錯誤"));
 
         if (!"ACTIVE".equals(member.getStatus())
@@ -44,6 +44,11 @@ public class LoginService {
             throw new IllegalArgumentException("Email 或密碼錯誤");
         }
 
+        return createAuthenticatedResponse(member);
+    }
+
+    @Transactional(readOnly = true)
+    public LoginResponse createAuthenticatedResponse(Member member) {
         List<String> roles = memberRoleRepository.findByMemberMemberId(member.getMemberId())
                 .stream()
                 .map(MemberRole::getRole)

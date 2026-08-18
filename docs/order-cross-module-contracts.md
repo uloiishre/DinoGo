@@ -252,7 +252,8 @@ B 只需要保證回補操作正確且為 atomic update。
 
 ```text
 悲觀鎖定訂單
-→ 驗證訂單仍可取消
+→ 僅 PENDING_PAYMENT 訂單可由買家取消
+→ PAID、PROCESSING（含貨到付款待出貨）及後續狀態禁止取消
 → 逐筆 restoreStock
 → 訂單改為 CANCELLED
 → 同一 transaction commit
