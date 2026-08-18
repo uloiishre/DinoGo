@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { confirmDelivery, getOrder } from '@/api/order'
+import { cancelOrder, confirmDelivery, getOrder } from '@/api/order'
 
 const route = useRoute()
 const order = ref(null)
@@ -9,13 +9,16 @@ const loading = ref(true)
 const errorMessage = ref('')
 const confirmingDelivery = ref(false)
 const deliveryErrorMessage = ref('')
+const cancellingOrder = ref(false)
+const cancellationErrorMessage = ref('')
 
 const orderId = computed(() => Number(route.params.id ?? route.params.orderId))
+const canCancelOrder = computed(() => order.value?.status === 'PENDING_PAYMENT')
 
 const statusLabels = {
   PENDING_PAYMENT: '待付款',
   PAID: '已付款',
-  PROCESSING: '處理中',
+  PROCESSING: '待出貨',
   SHIPPED: '已出貨',
   COMPLETED: '已完成',
   CANCELLED: '已取消',
@@ -87,6 +90,35 @@ async function handleConfirmDelivery() {
   }
 }
 
+async function handleCancelOrder() {
+  if (!canCancelOrder.value || cancellingOrder.value) return
+
+  const input = window.prompt('請輸入取消訂單原因（最多 500 字）')
+  if (input === null) return
+
+  const reason = input.trim()
+  if (!reason) {
+    cancellationErrorMessage.value = '請輸入取消訂單原因'
+    return
+  }
+  if (reason.length > 500) {
+    cancellationErrorMessage.value = '取消原因不可超過 500 字'
+    return
+  }
+  if (!window.confirm('確定要取消這筆訂單嗎？取消後無法復原。')) return
+
+  cancellingOrder.value = true
+  cancellationErrorMessage.value = ''
+  try {
+    order.value = (await cancelOrder(orderId.value, { reason })).data
+  } catch (error) {
+    cancellationErrorMessage.value =
+      error.response?.data?.message ?? '取消訂單失敗，請稍後再試'
+  } finally {
+    cancellingOrder.value = false
+  }
+}
+
 function isStepComplete(step) {
   return order.value && step.statuses.includes(order.value.status)
 }
@@ -126,10 +158,25 @@ onMounted(loadOrder)
           <p v-else>查看訂單商品、配送與付款資訊</p>
         </div>
 
-        <RouterLink class="back-button" :to="{ name: 'MemberOrders' }">
-          返回訂單列表
-        </RouterLink>
+        <div class="header-actions">
+          <button
+            v-if="canCancelOrder"
+            class="cancel-order-button"
+            type="button"
+            :disabled="cancellingOrder"
+            @click="handleCancelOrder"
+          >
+            {{ cancellingOrder ? '取消中...' : '取消訂單' }}
+          </button>
+          <RouterLink class="back-button" :to="{ name: 'MemberOrders' }">
+            返回訂單列表
+          </RouterLink>
+        </div>
       </header>
+
+      <p v-if="cancellationErrorMessage" class="cancellation-error" role="alert">
+        {{ cancellationErrorMessage }}
+      </p>
 
       <div v-if="loading" class="state-card" aria-live="polite">
         <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
@@ -313,6 +360,44 @@ onMounted(loadOrder)
   font-size: 13px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.cancel-order-button {
+  min-height: 42px;
+  padding: 0 var(--space-4);
+  color: var(--color-danger);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  background: var(--color-surface);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+}
+
+.cancel-order-button:hover:not(:disabled) {
+  color: var(--color-surface);
+  background: var(--color-danger);
+}
+
+.cancel-order-button:disabled {
+  color: var(--color-text-subtle);
+  cursor: not-allowed;
+  background: var(--color-disabled-bg);
+  border-color: var(--color-disabled);
+}
+
+.cancellation-error {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+}
+
 .back-button {
   display: inline-flex;
   min-height: 42px;
@@ -335,6 +420,7 @@ onMounted(loadOrder)
 }
 
 .back-button:focus-visible,
+.cancel-order-button:focus-visible,
 .state-card button:focus-visible {
   outline: none;
   box-shadow: var(--shadow-focus);
@@ -679,6 +765,10 @@ onMounted(loadOrder)
     padding-bottom: var(--space-3);
   }
 
+  .header-actions {
+    width: 100%;
+  }
+
   .progress-card {
     grid-template-columns: repeat(2, 1fr);
     row-gap: var(--space-5);
@@ -690,6 +780,11 @@ onMounted(loadOrder)
 }
 
 @media (max-width: 479.98px) {
+  .header-actions {
+    flex-direction: column;
+  }
+
+  .cancel-order-button,
   .back-button {
     width: 100%;
   }

@@ -218,6 +218,39 @@ class OrderServiceTest {
     }
 
     @Test
+    void cancelPaidOrderIsRejectedWithoutRestoringStockOrChangingPayment() {
+        Order order = new Order();
+        order.setOrderId(99);
+        order.setBuyerId(6);
+        order.setStatus(OrderStatus.PAID);
+
+        OrderItem item = new OrderItem();
+        item.setSkuId(100);
+        item.setQuantity(2);
+        order.addOrderItem(item);
+
+        PaymentMethod method = new PaymentMethod();
+        method.setMethodCode("CREDIT_CARD");
+        method.setMethodName("信用卡");
+
+        Payment payment = new Payment();
+        payment.setPaymentId(10);
+        payment.setOrder(order);
+        payment.setPaymentMethod(method);
+        payment.setStatus(PaymentStatus.SUCCESS);
+        order.getPayments().add(payment);
+
+        when(orderRepository.findForCancellation(99, 6)).thenReturn(Optional.of(order));
+        assertThatThrownBy(() -> orderService.cancelOrder(99, 6, "buyer cancelled"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Invalid order status transition: PAID -> CANCELLED");
+
+        verify(productSkuRepository, never()).restoreStock(100, 2);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.SUCCESS);
+    }
+
+    @Test
     void updateStatusRejectsPaidOutsidePaymentFlow() {
         assertThatThrownBy(() -> orderService.updateStatusBySeller(99, 1, OrderStatus.PAID, null))
                 .isInstanceOf(IllegalArgumentException.class)

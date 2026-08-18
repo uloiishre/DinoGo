@@ -31,6 +31,7 @@ import com.dinogo.sales.entity.Order;
 import com.dinogo.sales.entity.OrderItem;
 import com.dinogo.sales.entity.OrderStatus;
 import com.dinogo.sales.entity.Payment;
+import com.dinogo.sales.entity.PaymentStatus;
 import com.dinogo.sales.entity.Shipment;
 import com.dinogo.sales.exception.InvalidOrderException;
 import com.dinogo.sales.exception.OrderNotFoundException;
@@ -219,6 +220,7 @@ public class OrderService {
                 OrderStatus.CANCELLED);
 
         restoreStock(order);
+        cancelPayments(order);
 
         order.setStatus(OrderStatus.CANCELLED);
         order.setCancelReason(reason);
@@ -226,6 +228,12 @@ public class OrderService {
         order.setCancelledAt(LocalDateTime.now());
 
         return toDetailResponse(order);
+    }
+
+    private void cancelPayments(Order order) {
+        order.getPayments().stream()
+                .filter(payment -> payment.getStatus() == PaymentStatus.PENDING)
+                .forEach(payment -> payment.setStatus(PaymentStatus.CANCELLED));
     }
 
     private void restoreStock(Order order) {
