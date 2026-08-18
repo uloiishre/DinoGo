@@ -28,22 +28,28 @@ public class CheckoutService {
                         AddressRepository addressRepository) {
 
                 this.productSkuRepository = productSkuRepository;
+
                 this.addressRepository = addressRepository;
         }
+
+        // =========================================================
+        // 結帳預覽
+        // =========================================================
 
         public CheckoutPreviewResponse preview(
                         CheckoutPreviewRequest request,
                         Integer memberId) {
 
-                // =========================
+                // =====================================================
                 // 1. 驗證地址
-                // =========================
+                // =====================================================
 
                 Address address = addressRepository
                                 .findById(request.addressId())
-                                .orElseThrow(() -> new RuntimeException("收件地址不存在"));
+                                .orElseThrow(() -> new RuntimeException(
+                                                "收件地址不存在"));
 
-                // 確認地址屬於目前登入會員
+                // 確認地址屬於目前會員
                 if (!address.getMember()
                                 .getMemberId()
                                 .equals(memberId)) {
@@ -52,19 +58,23 @@ public class CheckoutService {
                                         "無權使用此收件地址");
                 }
 
-                // =========================
-                // 2. 防止同一 SKU 重複
-                // =========================
+                // =====================================================
+                // 2. 防止重複 SKU
+                // =====================================================
 
                 Set<Integer> skuIds = new HashSet<>();
 
                 BigDecimal subtotal = BigDecimal.ZERO;
 
-                // =========================
-                // 3. 查詢商品與計算小計
-                // =========================
+                // =====================================================
+                // 3. 檢查每個商品
+                // =====================================================
 
                 for (CheckoutPreviewItemRequest item : request.items()) {
+
+                        // -------------------------------------------------
+                        // 防止同一 SKU 重複
+                        // -------------------------------------------------
 
                         if (!skuIds.add(item.skuId())) {
 
@@ -73,52 +83,71 @@ public class CheckoutService {
                                                                 + item.skuId());
                         }
 
+                        // -------------------------------------------------
+                        // 數量檢查
+                        // -------------------------------------------------
+
+                        if (item.quantity() == null
+                                        || item.quantity() <= 0) {
+
+                                throw new RuntimeException(
+                                                "商品數量必須大於 0，SKU："
+                                                                + item.skuId());
+                        }
+
+                        // -------------------------------------------------
+                        // 查 SKU
+                        // -------------------------------------------------
+
                         ProductSku sku = productSkuRepository
                                         .findById(item.skuId())
                                         .orElseThrow(() -> new RuntimeException(
                                                         "SKU 不存在："
                                                                         + item.skuId()));
 
-                        // =========================
-                        // 4. SKU 是否啟用
-                        // =========================
+                        // -------------------------------------------------
+                        // SKU 是否啟用
+                        // -------------------------------------------------
 
-                        if (sku.getStatus() == null
-                                        || sku.getStatus() != (byte) 1) {
+                        if (!Byte.valueOf((byte) 1)
+                                        .equals(sku.getStatus())) {
 
                                 throw new RuntimeException(
-                                                "SKU 目前未啟用："
+                                                "商品規格已停用，SKU："
                                                                 + item.skuId());
                         }
 
-                        // =========================
-                        // 5. Product 是否上架
-                        // =========================
+                        // -------------------------------------------------
+                        // Product 是否上架
+                        // -------------------------------------------------
 
                         Product product = sku.getProduct();
 
-                        if (product.getStatus() == null
-                                        || product.getStatus() != (byte) 1) {
+                        if (!Byte.valueOf((byte) 1)
+                                        .equals(product.getStatus())) {
 
                                 throw new RuntimeException(
-                                                "商品目前未上架："
-                                                                + product.getProductId());
+                                                "商品已下架："
+                                                                + product.getProductName());
                         }
 
-                        // =========================
-                        // 6. 庫存檢查
-                        // =========================
+                        // -------------------------------------------------
+                        // 庫存
+                        // -------------------------------------------------
 
-                        if (item.quantity() > sku.getStock()) {
+                        if (sku.getStock() == null
+                                        || item.quantity() > sku.getStock()) {
 
                                 throw new RuntimeException(
-                                                "商品庫存不足，SKU："
-                                                                + item.skuId());
+                                                product.getProductName()
+                                                                + " 庫存不足，目前剩餘 "
+                                                                + sku.getStock()
+                                                                + " 件");
                         }
 
-                        // =========================
-                        // 7. 使用 DB 真實價格
-                        // =========================
+                        // -------------------------------------------------
+                        // 使用 DB 真實價格
+                        // -------------------------------------------------
 
                         BigDecimal itemSubtotal = sku.getPrice().multiply(
                                         BigDecimal.valueOf(
@@ -127,30 +156,21 @@ public class CheckoutService {
                         subtotal = subtotal.add(itemSubtotal);
                 }
 
-                // =========================
-                // 8. 運費
-                // =========================
-                //
-                // 目前專案尚未有 Shipping Fee 規則/API，
-                // 因此不自行假造運費。
-                // 等 Shipping API / 運費規則完成後再接。
-                //
+                // =====================================================
+                // 4. 運費
+                // =====================================================
 
                 BigDecimal shippingFee = BigDecimal.ZERO;
 
-                // =========================
-                // 9. 折扣
-                // =========================
-                //
-                // 目前尚未接 Coupon，
-                // 因此折扣先為 0。
-                //
+                // =====================================================
+                // 5. 折扣
+                // =====================================================
 
                 BigDecimal discount = BigDecimal.ZERO;
 
-                // =========================
-                // 10. 計算總額
-                // =========================
+                // =====================================================
+                // 6. 總額
+                // =====================================================
 
                 BigDecimal totalAmount = subtotal
                                 .add(shippingFee)

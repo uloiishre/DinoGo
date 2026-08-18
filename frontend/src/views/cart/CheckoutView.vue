@@ -15,7 +15,12 @@ const submitting = ref(false)
 const couponLoading = ref(false)
 const errorMessage = ref('')
 const couponErrorMessage = ref('')
+// ========================================
+// 商品購買狀態
+// ========================================
 
+const stockErrorMessage = ref('')
+const stockErrorItems = ref([])
 // ========================================
 // 結帳商品
 // ========================================
@@ -377,19 +382,60 @@ const buildOrderRequest = () => {
     })),
   }
 }
+// ========================================
+// 處理商品無法購買錯誤
+// ========================================
 
+const handleOrderError = (error) => {
+  console.error('建立訂單失敗：', error)
+
+  const status = error.response?.status
+  const data = error.response?.data
+
+  stockErrorMessage.value = ''
+  stockErrorItems.value = []
+
+  // ========================================
+  // 商品庫存不足 / 商品下架
+  // ========================================
+
+  if (status === 400 || status === 409) {
+    const message = data?.message || data?.error || '部分商品目前無法購買，可能已下架或庫存不足'
+
+    stockErrorMessage.value = message
+
+    // 如果後端有回傳無法購買的商品
+    if (Array.isArray(data?.items)) {
+      stockErrorItems.value = data.items
+    }
+
+    return
+  }
+
+  // ========================================
+  // 其他錯誤
+  // ========================================
+
+  errorMessage.value = data?.message || data?.error || '訂單建立失敗，請稍後再試'
+}
 // ========================================
 // 送出訂單
 // ========================================
 
 const submitOrder = async () => {
+  // ========================================
   // 沒有地址
+  // ========================================
+
   if (!selectedAddressId.value) {
     alert('請選擇收件地址')
     return
   }
 
+  // ========================================
   // 沒有商品
+  // ========================================
+
   if (checkoutItems.value.length === 0) {
     alert('沒有可結帳的商品')
     return
@@ -397,14 +443,22 @@ const submitOrder = async () => {
 
   try {
     submitting.value = true
+
     errorMessage.value = ''
+    stockErrorMessage.value = ''
+    stockErrorItems.value = []
 
     const request = buildOrderRequest()
 
     console.log('送給 Order API：', request)
 
     // ========================================
-    // 1. 建立訂單
+    // 建立正式訂單
+    //
+    // 後端會再次檢查：
+    // 1. 商品是否下架
+    // 2. SKU 是否存在
+    // 3. 庫存是否足夠
     // ========================================
 
     const response = await api.post('/orders', request)
@@ -412,7 +466,7 @@ const submitOrder = async () => {
     console.log('建立訂單成功：', response.data)
 
     // ========================================
-    // 2. 訂單成功後刪除購物車商品
+    // 訂單成功後才刪除購物車商品
     // ========================================
 
     try {
@@ -424,7 +478,7 @@ const submitOrder = async () => {
     }
 
     // ========================================
-    // 3. 清除 checkoutData
+    // 清除 checkoutData
     // ========================================
 
     localStorage.removeItem('checkoutData')
@@ -432,16 +486,18 @@ const submitOrder = async () => {
     alert('訂單建立成功！')
 
     // ========================================
-    // 4. 回首頁
+    // 回首頁
     // ========================================
 
     router.push({
       name: 'Home',
     })
   } catch (error) {
-    console.error('建立訂單失敗：', error)
+    // ========================================
+    // 訂單建立失敗
+    // ========================================
 
-    errorMessage.value = error.response?.data?.message || '訂單建立失敗，請稍後再試'
+    handleOrderError(error)
   } finally {
     submitting.value = false
   }
@@ -530,6 +586,27 @@ onMounted(() => {
           ====================================== -->
 
           <section class="checkout-card">
+            <!-- ======================================
+     商品無法購買提示
+====================================== -->
+
+            <div v-if="stockErrorMessage" class="stock-error">
+              <div class="stock-error-icon">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+              </div>
+
+              <div class="stock-error-content">
+                <strong>部分商品目前無法購買</strong>
+
+                <span>
+                  {{ stockErrorMessage }}
+                </span>
+
+                <span class="stock-error-hint">
+                  商品可能已下架或庫存不足，請返回購物車重新確認。
+                </span>
+              </div>
+            </div>
             <div class="section-header">
               <h2>
                 <i class="bi bi-bag"></i>
@@ -1053,6 +1130,17 @@ onMounted(() => {
           <!-- 送出訂單 -->
 
           <button
+            v-if="stockErrorMessage"
+            type="button"
+            class="submit-button stock-error-button"
+            @click="router.push('/cart')"
+          >
+            <i class="bi bi-cart3"></i>
+            返回購物車重新選擇
+          </button>
+
+          <button
+            v-else
             type="button"
             class="submit-button"
             :disabled="submitting || loading || !selectedAddressId || checkoutItems.length === 0"
@@ -2096,5 +2184,90 @@ onMounted(() => {
   font-family: var(--font-body);
   font-size: var(--font-size-sm);
   font-weight: 500;
+}
+/* ========================================
+   商品無法購買提示
+======================================== */
+
+.stock-error {
+  display: flex;
+
+  align-items: flex-start;
+
+  gap: var(--space-3);
+
+  margin-bottom: var(--space-4);
+
+  padding: var(--space-4);
+
+  color: var(--color-danger);
+
+  background: var(--color-surface-soft);
+
+  border: 1px solid var(--color-danger);
+
+  border-radius: var(--radius-md);
+}
+
+.stock-error-icon {
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  width: 36px;
+  height: 36px;
+
+  flex: 0 0 36px;
+
+  color: var(--color-danger);
+
+  font-size: 20px;
+}
+
+.stock-error-content {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: var(--space-1);
+
+  min-width: 0;
+}
+
+.stock-error-content strong {
+  color: var(--color-danger);
+
+  font-size: var(--font-size-sm);
+
+  font-weight: 700;
+}
+
+.stock-error-content span {
+  color: var(--color-text);
+
+  font-size: var(--font-size-sm);
+
+  line-height: 1.5;
+}
+
+.stock-error-content .stock-error-hint {
+  color: var(--color-text-muted);
+
+  font-size: var(--font-size-xs);
+}
+
+/* ========================================
+   庫存錯誤後的按鈕
+======================================== */
+
+.stock-error-button {
+  background: var(--color-danger);
+}
+
+.stock-error-button:hover {
+  background: var(--color-danger);
+
+  transform: translateY(-1px);
 }
 </style>
