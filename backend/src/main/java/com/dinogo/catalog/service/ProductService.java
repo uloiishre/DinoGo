@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
@@ -226,7 +227,8 @@ public class ProductService {
                         Integer subcategoryId,
                         Integer brandId,
                         Integer page,
-                        Integer size) {
+                        Integer size,
+                        String sort) {
 
                 Specification<Product> spec = (root, query, cb) -> {
 
@@ -274,7 +276,24 @@ public class ProductService {
                                         predicates.toArray(new Predicate[0]));
                 };
 
-                Pageable pageable = PageRequest.of(page, size);
+                Sort sorting = switch (sort == null ? "" : sort) {
+                        case "priceAsc" ->
+                                Sort.by(Sort.Direction.ASC, "basePrice");
+
+                        case "priceDesc" ->
+                                Sort.by(Sort.Direction.DESC, "basePrice");
+
+                        case "salesDesc" ->
+                                Sort.by(Sort.Direction.DESC, "soldCount");
+
+                        case "newest" ->
+                                Sort.by(Sort.Direction.DESC, "createdAt");
+
+                        default ->
+                                Sort.by(Sort.Direction.DESC, "productId");
+                };
+
+                Pageable pageable = PageRequest.of(page, size, sorting);
 
                 Page<Product> products = productRepository.findAll(spec, pageable);
 

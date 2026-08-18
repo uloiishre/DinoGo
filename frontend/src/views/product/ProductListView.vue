@@ -1,12 +1,14 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import api from '@/api/axios'
 import ProductCard from '@/views/product/ProductCard.vue'
 
 const route = useRoute()
+const router = useRouter()
 
+const sort = ref(route.query.sort || '')
 const products = ref([])
 const loading = ref(false)
 const errorMessage = ref('')
@@ -43,9 +45,11 @@ const fetchProducts = async () => {
       params.brandId = route.query.brandId
     }
 
-    const response = await api.get('/products', {
-      params,
-    })
+    if (route.query.sort) {
+      params.sort = route.query.sort
+    }
+
+    const response = await api.get('/products', { params })
 
     products.value = response.data.content
 
@@ -81,20 +85,26 @@ watch(
     route.query.categoryId,
     route.query.subcategoryId,
     route.query.brandId,
+    route.query.sort,
   ],
   () => {
     currentPage.value = 0
+    sort.value = route.query.sort || ''
     fetchProducts()
   },
 )
 
-// 監聽網址上的篩選條件
-watch(
-  () => [route.query.categoryId, route.query.subcategoryId, route.query.brandId],
-  () => {
-    fetchProducts()
-  },
-)
+// 切換排序
+const changeSort = () => {
+  currentPage.value = 0
+
+  router.push({
+    query: {
+      ...route.query,
+      sort: sort.value || undefined,
+    },
+  })
+}
 
 // 第一次進入頁面時取得商品
 onMounted(() => {
@@ -114,14 +124,30 @@ onMounted(() => {
       <div class="product-list-toolbar">
         <div class="product-count">共 {{ totalElements }} 件商品</div>
 
-        <div class="page-size-selector">
-          <label for="page-size">每頁顯示：</label>
+        <div class="toolbar-actions">
+          <!-- 排序 -->
+          <div class="sort-selector">
+            <label for="sort">排序：</label>
 
-          <select id="page-size" v-model.number="pageSize" @change="changePageSize">
-            <option :value="2">2(測試用)</option>
-            <option :value="12">12</option>
-            <option :value="24">24</option>
-          </select>
+            <select id="sort" v-model="sort" @change="changeSort">
+              <option value="">預設排序</option>
+              <option value="newest">最新上架</option>
+              <option value="priceAsc">價格：低到高</option>
+              <option value="priceDesc">價格：高到低</option>
+              <option value="salesDesc">銷量最高</option>
+            </select>
+          </div>
+
+          <!-- 每頁顯示 -->
+          <div class="page-size-selector">
+            <label for="page-size">每頁顯示：</label>
+
+            <select id="page-size" v-model.number="pageSize" @change="changePageSize">
+              <option :value="2">2(測試用)</option>
+              <option :value="12">12</option>
+              <option :value="24">24</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -265,5 +291,27 @@ onMounted(() => {
 .page-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.sort-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sort-selector select {
+  padding: 6px 10px;
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 </style>
