@@ -1,5 +1,7 @@
 <script setup>
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
+
+const route = useRoute()
 
 const navItems = [
   { label: '營運總覽', to: '/seller/dashboard', icon: 'bi-speedometer2' },
@@ -17,6 +19,14 @@ const navItems = [
 ]
 
 const plannedItems = [{ label: '銷售分析', icon: 'bi-graph-up-arrow' }]
+
+const isItemActive = (item) => {
+  if (item.to === '/seller/products') {
+    return route.path.startsWith('/seller/products')
+  }
+
+  return route.path === item.to
+}
 </script>
 
 <template>
@@ -38,10 +48,10 @@ const plannedItems = [{ label: '銷售分析', icon: 'bi-graph-up-arrow' }]
 
     <nav class="seller-nav" aria-label="賣家中心導覽">
       <div v-for="item in navItems" :key="item.to" class="seller-nav-group">
-        <RouterLink v-slot="{ href, navigate, isActive }" custom :to="item.to">
+        <RouterLink v-slot="{ href, navigate }" custom :to="item.to">
           <a
             class="seller-nav-link"
-            :class="{ 'router-link-active': isActive }"
+            :class="{ 'router-link-active': isItemActive(item) }"
             :href="href"
             @click="navigate"
           >
@@ -49,7 +59,7 @@ const plannedItems = [{ label: '銷售分析', icon: 'bi-graph-up-arrow' }]
             <span>{{ item.label }}</span>
           </a>
 
-          <div v-if="item.children && isActive" class="seller-subnav">
+          <div v-if="item.children && isItemActive(item)" class="seller-subnav">
             <RouterLink
               v-for="child in item.children"
               :key="child.to"
