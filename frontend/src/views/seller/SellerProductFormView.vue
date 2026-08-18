@@ -422,6 +422,7 @@ h2 {
   color: var(--color-text-muted);
   background: var(--color-bg-muted);
   cursor: pointer;
+  font: inherit;
   overflow: hidden;
 }
 
@@ -446,6 +447,7 @@ h2 {
   align-content: center;
   gap: var(--space-2);
   min-height: 100%;
+  font-family: var(--font-body);
 }
 
 .image-placeholder i {
@@ -481,6 +483,8 @@ textarea {
   padding: 0 var(--space-3);
   color: var(--color-text);
   background: var(--color-surface);
+  font: inherit;
+  font-weight: 400;
 }
 
 textarea {
@@ -510,6 +514,7 @@ button {
   padding: 0 var(--space-4);
   background: var(--color-surface);
   color: var(--color-text-700);
+  font: inherit;
   font-weight: 600;
 }
 

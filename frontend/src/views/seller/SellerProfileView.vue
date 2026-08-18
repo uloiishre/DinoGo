@@ -4,6 +4,9 @@ import { reactive, ref } from 'vue'
 // TODO: 等 E 模組 Seller profile API 完成後，改為從後端載入與儲存店鋪資料。
 const isSaving = ref(false)
 const savedMessage = ref('')
+const logoFileInput = ref(null)
+const logoPreviewUrl = ref('')
+const selectedLogoName = ref('')
 
 const form = reactive({
   storeName: '森日選物',
@@ -17,6 +20,21 @@ const form = reactive({
   serviceHours: '週一至週五 10:00 - 18:00',
   announcement: '出貨時間約 1-2 個工作天，遇假日順延。',
 })
+
+const openLogoPicker = () => {
+  logoFileInput.value?.click()
+}
+
+const handleLogoSelect = (event) => {
+  const file = event.target.files?.[0]
+
+  if (!file) {
+    return
+  }
+
+  selectedLogoName.value = file.name
+  logoPreviewUrl.value = URL.createObjectURL(file)
+}
 
 const statusOptions = [
   { label: '營運中', value: 'ACTIVE' },
@@ -79,6 +97,32 @@ const handleSave = () => {
           <input v-model="form.storeName" type="text" />
         </label>
 
+        <section class="logo-section full-width" aria-labelledby="store-logo-title">
+          <h3 id="store-logo-title">店鋪 Logo</h3>
+
+          <button class="logo-upload-button" type="button" @click="openLogoPicker">
+            <img
+              v-if="logoPreviewUrl"
+              class="logo-preview"
+              :src="logoPreviewUrl"
+              :alt="selectedLogoName || '店鋪 Logo 預覽'"
+            />
+            <div v-else class="logo-placeholder">
+              <i class="bi bi-image" aria-hidden="true"></i>
+              <span>點選上傳</span>
+              <small>店鋪 Logo placeholder</small>
+            </div>
+          </button>
+
+          <input
+            ref="logoFileInput"
+            class="logo-file-input"
+            type="file"
+            accept="image/*"
+            @change="handleLogoSelect"
+          />
+        </section>
+
         <label class="form-field full-width">
           店鋪介紹
           <textarea v-model="form.description"></textarea>
@@ -96,21 +140,22 @@ const handleSave = () => {
 
         <div class="section-divider full-width">
           <span>店鋪位置</span>
+          <small>選填</small>
         </div>
 
         <label class="form-field">
           縣市
-          <input v-model="form.city" type="text" />
+          <input v-model="form.city" type="text" placeholder="選填" />
         </label>
 
         <label class="form-field">
           區域
-          <input v-model="form.district" type="text" />
+          <input v-model="form.district" type="text" placeholder="選填" />
         </label>
 
         <label class="form-field full-width">
           詳細地址
-          <input v-model="form.address" type="text" />
+          <input v-model="form.address" type="text" placeholder="選填" />
         </label>
       </section>
 
@@ -124,7 +169,13 @@ const handleSave = () => {
           </div>
 
           <div class="preview-brand">
-            <span class="store-avatar">{{ form.storeName.slice(0, 1) }}</span>
+            <img
+              v-if="logoPreviewUrl"
+              class="store-avatar-image"
+              :src="logoPreviewUrl"
+              :alt="selectedLogoName || `${form.storeName} Logo`"
+            />
+            <span v-else class="store-avatar">{{ form.storeName.slice(0, 1) }}</span>
             <div>
               <strong>{{ form.storeName }}</strong>
               <span>生活選物</span>
@@ -132,7 +183,7 @@ const handleSave = () => {
           </div>
           <p class="preview-description">{{ form.description }}</p>
           <div class="preview-meta">
-            <span>{{ form.city }}{{ form.district }}</span>
+            <span>{{ form.city || form.district ? `${form.city}${form.district}` : '未提供地址' }}</span>
             <span>{{ form.serviceHours }}</span>
           </div>
         </section>
@@ -225,6 +276,13 @@ h1 {
 
 h2 {
   margin-bottom: 0;
+  color: var(--color-text-800);
+  font-family: var(--font-heading);
+  font-size: var(--font-size-base);
+}
+
+h3 {
+  margin: 0;
   color: var(--color-text-800);
   font-family: var(--font-heading);
   font-size: var(--font-size-base);
@@ -356,6 +414,14 @@ h2 {
   font-weight: 700;
 }
 
+.store-avatar-image {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+}
+
 .preview-brand div {
   display: grid;
   gap: 2px;
@@ -391,6 +457,70 @@ h2 {
   font-weight: 700;
 }
 
+.logo-section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.logo-upload-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(100%, 360px);
+  min-height: 230px;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-md);
+  padding: 0;
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font: inherit;
+  text-align: center;
+}
+
+.logo-upload-button:hover {
+  background: var(--color-disabled-bg);
+}
+
+.logo-upload-button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.logo-preview {
+  width: 100%;
+  height: 230px;
+  object-fit: cover;
+}
+
+.logo-placeholder {
+  display: grid;
+  min-height: 100%;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+}
+
+.logo-placeholder i {
+  color: var(--color-primary);
+  font-size: 32px;
+}
+
+.logo-placeholder span {
+  color: var(--color-text-700);
+  font-weight: 700;
+}
+
+.logo-placeholder small {
+  font-size: var(--font-size-sm);
+}
+
+.logo-file-input {
+  display: none;
+}
+
 .full-width {
   grid-column: 1 / -1;
 }
@@ -403,6 +533,12 @@ h2 {
   color: var(--color-text-800);
   font-size: var(--font-size-sm);
   font-weight: 700;
+}
+
+.section-divider small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
 }
 
 .section-divider::after {
