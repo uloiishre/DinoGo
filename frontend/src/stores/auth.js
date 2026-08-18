@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { login } from '@/api/auth'
+import { googleLogin, linkGoogleAccount, login } from '@/api/auth'
 import { AUTH_STORAGE_KEY } from '@/utils/auth-session'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -27,6 +27,18 @@ export const useAuthStore = defineStore('auth', () => {
     return data
   }
 
+  async function signInWithGoogle(credential) {
+    const { data } = await googleLogin({ credential })
+    setSession(data.token, data.member, data.roles)
+    return data
+  }
+
+  async function linkGoogleSignIn(credential, password) {
+    const { data } = await linkGoogleAccount({ credential, password })
+    setSession(data.token, data.member, data.roles)
+    return data
+  }
+
   function updateMember(updatedMember) {
     // Keep the Header and other components synchronized after profile updates.
     member.value = updatedMember || null
@@ -44,6 +56,8 @@ export const useAuthStore = defineStore('auth', () => {
     isSeller,
     hasRole,
     signIn,
+    signInWithGoogle,
+    linkGoogleSignIn,
     signOut,
     updateMember,
   }

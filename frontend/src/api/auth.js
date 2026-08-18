@@ -4,6 +4,14 @@ export function login(request) {
   return api.post('/auth/login', request)
 }
 
+export function googleLogin(request) {
+  return api.post('/auth/google', request)
+}
+
+export function linkGoogleAccount(request) {
+  return api.post('/auth/google/link', request)
+}
+
 export function register(request) {
   return api.post('/auth/register', request)
 }

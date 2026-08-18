@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.dinogo.config.SecurityConfig;
 import com.dinogo.member.service.LoginService;
+import com.dinogo.member.service.GoogleLoginService;
 import com.dinogo.member.service.MemberService;
 import com.dinogo.security.JwtAuthenticationFilter;
 import com.dinogo.security.JwtTokenUtil;
@@ -36,6 +37,9 @@ class AuthValidationTest {
 
     @MockitoBean
     private LoginService loginService;
+
+    @MockitoBean
+    private GoogleLoginService googleLoginService;
 
     @MockitoBean
     private JwtTokenUtil jwtTokenUtil;

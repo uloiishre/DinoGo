@@ -44,6 +44,11 @@ public class LoginService {
             throw new IllegalArgumentException("Email 或密碼錯誤");
         }
 
+        return createAuthenticatedResponse(member);
+    }
+
+    @Transactional(readOnly = true)
+    public LoginResponse createAuthenticatedResponse(Member member) {
         List<String> roles = memberRoleRepository.findByMemberMemberId(member.getMemberId())
                 .stream()
                 .map(MemberRole::getRole)

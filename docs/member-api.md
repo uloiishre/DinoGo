@@ -173,6 +173,40 @@ Request：
 
 登入成功後，將 `token` 儲存並加到後續請求的 `Authorization` header；`roles` 可供前端導覽與路由判斷使用，但後端授權仍只信任 JWT claim。不要把密碼或完整 token 寫入 log。
 
+### Google 登入與帳號綁定
+
+前端使用 Google Identity Services 取得 ID Token 後，將 token 放入 `credential` 欄位送至後端。後端會驗證簽章、issuer、有效期限與 OAuth Web Client 的 audience；不接受前端提供的 Email 或 Google user ID。
+
+`POST /api/auth/google`
+
+```json
+{
+  "credential": "<Google ID Token>"
+}
+```
+
+成功時回傳格式與一般登入相同的 `LoginResponse`。首次 Google 登入且 Email 不存在時，系統建立預設 `buyer` 會員與 `member.MemberOAuthAccount` 對照；既有 Google 對照帳號則直接登入。
+
+| Status | `message` | 時機 |
+| --- | --- | --- |
+| 401 | `Google 登入憑證無效` | token 無效、過期或驗證失敗 |
+| 401 | `Google 帳號尚未驗證 Email` | Google 未宣告 email 已驗證 |
+| 401 | `Google 帳號無法登入` | 已綁定會員不是 `ACTIVE` |
+| 409 | `此 Email 已有密碼帳號，請輸入原密碼完成 Google 帳號綁定` | Email 已有一般帳號、尚未綁定 Google |
+
+為避免以同 Email 自動合併而造成帳號接管，既有密碼帳號必須由本人輸入原密碼完成綁定：
+
+`POST /api/auth/google/link`
+
+```json
+{
+  "credential": "<Google ID Token>",
+  "password": "existing-password"
+}
+```
+
+成功時同樣回傳 `LoginResponse`。失敗時為 401（帳密或憑證不正確）或 409（Google 帳號已綁定其他會員）。ID Token 僅可用於本次驗證，不得存入前端 storage、資料庫或日誌。
+
 ## 會員資料 API
 
 以下 API 都需要 `Authorization: Bearer <token>`。
@@ -296,3 +330,4 @@ body 使用上述地址 Request。
 - C（購物車／結帳）可用 `GET /api/addresses` 取得登入會員地址；建立訂單時仍應由 D 的訂單 API 定義其 request 欄位，勿直接使用 A 的 Entity。
 - E（賣家）與 F（聊天室／客服）需要目前登入會員時，應由 JWT 的 `memberId` 取得身分，不接受前端自行指定其他會員 ID。
 - JWT 同時提供 `memberId` 與 `roles` claim。各模組可依 `roles` 顯示導覽項目，但後端必須依 Spring Security authorities 執行實際授權。
+- Google 登入成功後的 JWT 格式、`memberId` 與 `roles` claim 均與密碼登入相同；C（購物車）、D（訂單）、E（賣家）與 F（聊天室／客服）不需修改既有受保護 API 串接，但應各自 smoke test 登入後的會員／賣家流程。

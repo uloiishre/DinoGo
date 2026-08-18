@@ -15,16 +15,21 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import com.dinogo.member.dto.LoginRequest;
+import com.dinogo.member.dto.GoogleLoginRequest;
 import com.dinogo.member.dto.LoginResponse;
 import com.dinogo.member.dto.MemberResponse;
 import com.dinogo.member.dto.MemberApiErrorResponse;
 import com.dinogo.member.service.LoginService;
+import com.dinogo.member.service.GoogleLoginService;
 
 @ExtendWith(MockitoExtension.class)
 class LoginControllerTest {
 
     @Mock
     private LoginService loginService;
+
+    @Mock
+    private GoogleLoginService googleLoginService;
 
     @InjectMocks
     private LoginController loginController;
@@ -56,5 +61,19 @@ class LoginControllerTest {
         assertThat(result.getBody()).isEqualTo(MemberApiErrorResponse.from(
                 HttpStatus.UNAUTHORIZED,
                 "Email 或密碼錯誤"));
+    }
+
+    @Test
+    void googleLoginReturnsConflictWhenAccountLinkIsRequired() {
+        GoogleLoginRequest request = new GoogleLoginRequest("google-id-token");
+        when(googleLoginService.login(request))
+                .thenThrow(new com.dinogo.member.service.GoogleAccountLinkRequiredException());
+
+        ResponseEntity<?> result = loginController.googleLogin(request);
+
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(result.getBody()).isEqualTo(MemberApiErrorResponse.from(
+                HttpStatus.CONFLICT,
+                "此 Email 已有密碼帳號，請輸入原密碼完成 Google 帳號綁定"));
     }
 }
