@@ -1,7 +1,32 @@
 <script setup>
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+
 defineProps({
   compact: { type: Boolean, default: false },
 })
+
+const router = useRouter()
+
+const keyword = ref('')
+
+const searchProducts = () => {
+  const value = keyword.value.trim()
+
+  if (!value) {
+    router.push({
+      name: 'ProductList',
+    })
+    return
+  }
+
+  router.push({
+    name: 'ProductList',
+    query: {
+      keyword: value,
+    },
+  })
+}
 </script>
 
 <template>
@@ -9,20 +34,24 @@ defineProps({
     class="search-bar"
     :class="{ 'search-bar--compact': compact }"
     role="search"
-    @submit.prevent
+    @submit.prevent="searchProducts"
   >
-    <label class="visually-hidden" for="site-search">搜尋商品</label>
+    <label class="visually-hidden" for="site-search"> 搜尋商品 </label>
+
     <select class="form-select search-category" aria-label="搜尋分類">
       <option>全部分類</option>
       <option>商品</option>
       <option>品牌</option>
     </select>
+
     <input
       id="site-search"
+      v-model="keyword"
       class="form-control search-input"
       type="search"
       placeholder="搜尋商品、品牌或關鍵字"
     />
+
     <button class="btn search-submit" type="submit" aria-label="搜尋">
       <i class="bi bi-search" aria-hidden="true"></i>
     </button>
