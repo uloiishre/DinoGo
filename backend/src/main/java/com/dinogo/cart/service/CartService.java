@@ -165,7 +165,14 @@ public class CartService {
 	public CartItemResponse updateQuantity(
 			String email,
 			Integer cartItemId,
-			Integer quantity) {
+			CartItemRequest dto) {
+
+		Integer quantity = dto.quantity();
+		Integer skuId = dto.skuId();
+
+		// =========================
+		// 數量驗證
+		// =========================
 
 		if (quantity == null || quantity <= 0) {
 
@@ -173,16 +180,28 @@ public class CartService {
 					"商品數量必須大於 0");
 		}
 
+		// =========================
+		// 找會員
+		// =========================
+
 		Member member = memberRepository
 				.findByEmail(email)
-				.orElseThrow(() -> new RuntimeException("會員不存在"));
+				.orElseThrow(() -> new RuntimeException(
+						"會員不存在"));
+
+		// =========================
+		// 找購物車商品
+		// =========================
 
 		CartItem item = cartItemRepository
 				.findById(cartItemId)
 				.orElseThrow(() -> new RuntimeException(
 						"購物車商品不存在"));
 
+		// =========================
 		// 確認是否為本人購物車
+		// =========================
+
 		if (!item.getCart()
 				.getMember()
 				.getMemberId()
@@ -192,10 +211,86 @@ public class CartService {
 					"無權限修改此購物車商品");
 		}
 
+		// =========================
+		// 如果有傳 skuId
+		// =========================
+
+		if (skuId != null) {
+
+			ProductSku oldSku = item.getProductSku();
+
+			Product oldProduct = oldSku.getProduct();
+
+			// 找新的 SKU
+			ProductSku newSku = productSkuRepository
+					.findById(skuId)
+					.orElseThrow(() -> new RuntimeException(
+							"商品規格不存在"));
+
+			// =========================
+			// 確認是不是同一個商品
+			// =========================
+
+			if (!newSku.getProduct()
+					.getProductId()
+					.equals(oldProduct.getProductId())) {
+
+				throw new RuntimeException(
+						"不能更換其他商品的規格");
+			}
+
+			// =========================
+			// 新商品是否上架
+			// =========================
+
+			if (!Byte.valueOf((byte) 1)
+					.equals(newSku.getProduct().getStatus())) {
+
+				throw new RuntimeException(
+						"商品目前未上架");
+			}
+
+			// =========================
+			// 新 SKU 是否啟用
+			// =========================
+
+			if (!Byte.valueOf((byte) 1)
+					.equals(newSku.getStatus())) {
+
+				throw new RuntimeException(
+						"此商品規格目前未啟用");
+			}
+
+			// =========================
+			// 新 SKU 庫存
+			// =========================
+
+			if (quantity > newSku.getStock()) {
+
+				throw new RuntimeException(
+						"商品庫存不足，目前剩餘 "
+								+ newSku.getStock()
+								+ " 件");
+			}
+
+			// =========================
+			// ⭐ 真正更換 SKU
+			// =========================
+
+			item.setProductSku(newSku);
+		}
+
+		// =========================
+		// 取得目前 SKU
+		// =========================
+
 		ProductSku sku = item.getProductSku();
 		Product product = sku.getProduct();
 
+		// =========================
 		// 商品是否上架
+		// =========================
+
 		if (!Byte.valueOf((byte) 1)
 				.equals(product.getStatus())) {
 
@@ -203,7 +298,10 @@ public class CartService {
 					"商品目前未上架");
 		}
 
+		// =========================
 		// SKU 是否啟用
+		// =========================
+
 		if (!Byte.valueOf((byte) 1)
 				.equals(sku.getStatus())) {
 
@@ -211,7 +309,10 @@ public class CartService {
 					"此商品規格目前未啟用");
 		}
 
+		// =========================
 		// 庫存
+		// =========================
+
 		if (quantity > sku.getStock()) {
 
 			throw new RuntimeException(
@@ -220,7 +321,15 @@ public class CartService {
 							+ " 件");
 		}
 
+		// =========================
+		// 更新數量
+		// =========================
+
 		item.setQuantity(quantity);
+
+		// =========================
+		// 儲存
+		// =========================
 
 		item = cartItemRepository.save(item);
 

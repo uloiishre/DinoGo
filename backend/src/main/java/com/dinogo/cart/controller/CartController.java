@@ -102,7 +102,7 @@ public class CartController {
 		return cartService.updateQuantity(
 				email,
 				cartItemId,
-				dto.quantity());
+				dto);
 	}
 	// 刪除單筆
 	// @DeleteMapping("/items/{cartItemId}")
