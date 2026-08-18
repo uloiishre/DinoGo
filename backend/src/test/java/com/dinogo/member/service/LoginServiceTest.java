@@ -49,7 +49,7 @@ class LoginServiceTest {
         LoginRequest request = new LoginRequest("user@example.com", "password123");
         Member member = member("$2a$hashed-password", "ACTIVE");
         List<String> roles = List.of("buyer", "seller");
-        when(memberRepository.findByEmail(request.email())).thenReturn(Optional.of(member));
+        when(memberRepository.findByEmailIgnoreCase(request.email())).thenReturn(Optional.of(member));
         when(passwordEncoder.matches(request.password(), member.getPasswordHash())).thenReturn(true);
         when(memberRoleRepository.findByMemberMemberId(member.getMemberId()))
                 .thenReturn(List.of(memberRole("seller"), memberRole("buyer")));
@@ -68,7 +68,7 @@ class LoginServiceTest {
     void loginRejectsInvalidPassword() {
         LoginRequest request = new LoginRequest("user@example.com", "wrong-password");
         Member member = member("$2a$hashed-password", "ACTIVE");
-        when(memberRepository.findByEmail(request.email())).thenReturn(Optional.of(member));
+        when(memberRepository.findByEmailIgnoreCase(request.email())).thenReturn(Optional.of(member));
         when(passwordEncoder.matches(request.password(), member.getPasswordHash())).thenReturn(false);
 
         assertThatThrownBy(() -> loginService.login(request))
@@ -80,7 +80,7 @@ class LoginServiceTest {
     @Test
     void loginRejectsMissingOrInactiveMember() {
         LoginRequest missingRequest = new LoginRequest("missing@example.com", "password123");
-        when(memberRepository.findByEmail(missingRequest.email())).thenReturn(Optional.empty());
+        when(memberRepository.findByEmailIgnoreCase(missingRequest.email())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> loginService.login(missingRequest))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -88,7 +88,7 @@ class LoginServiceTest {
 
         LoginRequest inactiveRequest = new LoginRequest("inactive@example.com", "password123");
         Member inactiveMember = member("$2a$hashed-password", "INACTIVE");
-        when(memberRepository.findByEmail(inactiveRequest.email())).thenReturn(Optional.of(inactiveMember));
+        when(memberRepository.findByEmailIgnoreCase(inactiveRequest.email())).thenReturn(Optional.of(inactiveMember));
 
         assertThatThrownBy(() -> loginService.login(inactiveRequest))
                 .isInstanceOf(IllegalArgumentException.class)

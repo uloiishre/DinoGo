@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.dinogo.config.SecurityConfig;
 import com.dinogo.member.service.LoginService;
+import com.dinogo.member.service.GoogleLoginService;
 import com.dinogo.member.service.MemberService;
 import com.dinogo.security.JwtAuthenticationFilter;
 import com.dinogo.security.JwtTokenUtil;
@@ -36,6 +37,9 @@ class AuthValidationTest {
 
     @MockitoBean
     private LoginService loginService;
+
+    @MockitoBean
+    private GoogleLoginService googleLoginService;
 
     @MockitoBean
     private JwtTokenUtil jwtTokenUtil;
@@ -99,6 +103,21 @@ class AuthValidationTest {
                 .andExpect(jsonPath("$.fieldErrors").isEmpty());
 
         verifyNoInteractions(memberService);
+    }
+
+    @Test
+    void googleLoginRejectsOversizedCredential() throws Exception {
+        String requestBody = """
+                {"credential":"%s"}
+                """.formatted("x".repeat(10001));
+
+        mockMvc.perform(post("/api/auth/google")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors.credential").isNotEmpty());
+
+        verifyNoInteractions(googleLoginService);
     }
 
     private static String registerJson(

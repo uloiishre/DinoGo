@@ -1,5 +1,7 @@
 package com.dinogo.member.service;
 
+import java.util.Locale;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,7 +45,8 @@ public class MemberService {
             throw new IllegalArgumentException("密碼與確認密碼不一致");
         }
 
-        if (memberRepository.existsByEmail(request.email())) {
+        String email = request.email().trim().toLowerCase(Locale.ROOT);
+        if (memberRepository.existsByEmailIgnoreCase(email)) {
             throw new IllegalArgumentException("Email 已被註冊");
         }
 
@@ -52,7 +55,7 @@ public class MemberService {
                         "Default role 'buyer' is not configured"));
 
         Member member = new Member();
-        member.setEmail(request.email());
+        member.setEmail(email);
         member.setPasswordHash(passwordEncoder.encode(request.password()));
         member.setLastName(request.lastName());
         member.setFirstName(request.firstName());
