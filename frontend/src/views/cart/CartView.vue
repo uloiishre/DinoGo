@@ -292,7 +292,6 @@ const toggleSellerSelectAll = (group) => {
 // ================================
 
 const updateQuantity = async (item, quantity) => {
-  // 下架 / 停用 / 庫存不足商品不能修改
   if (!isItemAvailable(item)) {
     return
   }
@@ -302,21 +301,21 @@ const updateQuantity = async (item, quantity) => {
   }
 
   try {
-    await api.put(`/cart/items/${item.cartItemId}`, {
+    const response = await api.put(`/cart/items/${item.cartItemId}`, {
       skuId: item.skuId,
-      quantity,
+      quantity: Number(quantity),
     })
 
-    item.quantity = quantity
+    console.log('修改數量成功：', response.data)
 
-    // 修改後重新確認庫存
-    await fetchCart()
+    // 直接更新目前畫面的商品
+    Object.assign(item, response.data)
   } catch (error) {
     console.error('修改數量失敗:', error)
 
     alert(error.response?.data?.message || '修改商品數量失敗')
 
-    // 重新取得最新庫存
+    // 失敗時才重新取得購物車
     await fetchCart()
   }
 }
@@ -344,24 +343,24 @@ const changeSku = async (item, newSkuId) => {
       quantity: Number(item.quantity),
     })
 
-    console.log('修改 SKU API：', response.data)
+    console.log('修改 SKU 成功：', response.data)
 
-    // 直接重新取得
-    // 讓 available / stock / reason 都更新
-    await fetchCart()
+    // 直接更新目前商品
+    Object.assign(item, response.data)
   } catch (error) {
     console.error('修改商品規格失敗:', error)
 
     alert(error.response?.data?.message || '修改商品規格失敗')
 
+    // 恢復原本 SKU
     item.skuId = oldSkuId
 
+    // 失敗時才重新取得購物車
     await fetchCart()
   } finally {
     changingSkuId.value = null
   }
 }
-
 // ================================
 // 增加數量
 // ================================
