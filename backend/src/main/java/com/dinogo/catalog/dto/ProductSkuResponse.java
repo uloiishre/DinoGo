@@ -17,6 +17,8 @@ public class ProductSkuResponse {
 
     private Integer skuId;
 
+    private Integer productId;
+
     private String spec1Name;
 
     private String spec1Value;

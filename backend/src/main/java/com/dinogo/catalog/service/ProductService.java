@@ -17,6 +17,8 @@ import com.dinogo.catalog.dto.ProductImageResponse;
 import com.dinogo.catalog.dto.ProductResponse;
 import com.dinogo.catalog.dto.ProductSkuCreateRequest;
 import com.dinogo.catalog.dto.ProductSkuResponse;
+import com.dinogo.catalog.dto.ProductSkuUpdateRequest;
+import com.dinogo.catalog.dto.ProductUpdateRequest;
 import com.dinogo.catalog.entity.Brand;
 import com.dinogo.catalog.entity.Product;
 import com.dinogo.catalog.entity.ProductImage;
@@ -40,7 +42,7 @@ public class ProductService {
 
         private final ProductRepository productRepository;
         private final SellerRepository sellerRepository;
-        private final SubcategoryRepository subCategoryRepository;
+        private final SubcategoryRepository subcategoryRepository;
         private final BrandRepository brandRepository;
         private final ProductSkuRepository productSkuRepository;
         private final ProductImageRepository productImageRepository;
@@ -73,6 +75,20 @@ public class ProductService {
                                 product.getStatus());
         }
 
+        private ProductSkuResponse toProductSkuResponse(ProductSku sku) {
+
+                return new ProductSkuResponse(
+                                sku.getSkuId(),
+                                sku.getProduct().getProductId(),
+                                sku.getSpec1Name(),
+                                sku.getSpec1Value(),
+                                sku.getSpec2Name(),
+                                sku.getSpec2Value(),
+                                sku.getPrice(),
+                                sku.getStock(),
+                                sku.getStatus());
+        }
+
         // 建立商品
         @Transactional
         public ProductResponse createProduct(ProductCreateRequest request) {
@@ -83,7 +99,7 @@ public class ProductService {
                                 .findById(request.getSellerId())
                                 .orElseThrow(() -> new RuntimeException("找不到賣家"));
 
-                Subcategory subcategory = subCategoryRepository
+                Subcategory subcategory = subcategoryRepository
                                 .findById(request.getSubcategoryId())
                                 .orElseThrow(() -> new RuntimeException("找不到子分類"));
 
@@ -154,10 +170,6 @@ public class ProductService {
                                 savedProduct.getImages().add(savedImg);
                         }
                 }
-
-                System.out.println("===== RESPONSE DEBUG =====");
-
-                System.out.println("SKU 數量 = " + savedProduct.getSkus().size());
 
                 savedProduct.getSkus().forEach(sku -> {
                         System.out.println(
@@ -351,5 +363,124 @@ public class ProductService {
                                 .skus(skus)
 
                                 .build();
+        }
+
+        // 修改商品
+        public ProductResponse updateProduct(
+                        Integer productId,
+                        ProductUpdateRequest request) {
+
+                Product product = productRepository.findById(productId)
+                                .orElseThrow(() -> new RuntimeException("找不到商品：" + productId));
+
+                // 修改子分類
+                if (request.getSubcategoryId() != null) {
+                        Subcategory subcategory = subcategoryRepository
+                                        .findById(request.getSubcategoryId())
+                                        .orElseThrow(() -> new RuntimeException(
+                                                        "找不到子分類：" + request.getSubcategoryId()));
+
+                        product.setSubcategory(subcategory);
+                }
+
+                // 修改品牌
+                if (request.getBrandId() != null) {
+                        Brand brand = brandRepository
+                                        .findById(request.getBrandId())
+                                        .orElseThrow(() -> new RuntimeException(
+                                                        "找不到品牌：" + request.getBrandId()));
+
+                        product.setBrand(brand);
+                }
+
+                // 修改商品名稱
+                if (request.getProductName() != null) {
+                        product.setProductName(request.getProductName());
+                }
+
+                // 修改商品描述
+                if (request.getDescription() != null) {
+                        product.setDescription(request.getDescription());
+                }
+
+                // 修改基本價格
+                if (request.getBasePrice() != null) {
+                        product.setBasePrice(request.getBasePrice());
+                }
+
+                Product updatedProduct = productRepository.save(product);
+
+                return toProductResponse(updatedProduct);
+        }
+
+        // 修改商品Sku
+        public ProductSkuResponse updateSku(
+                        Integer productId,
+                        Integer skuId,
+                        ProductSkuUpdateRequest request) {
+
+                ProductSku sku = productSkuRepository.findById(skuId)
+                                .orElseThrow(() -> new RuntimeException("找不到 SKU：" + skuId));
+
+                // 確認 SKU 真的是這個商品的
+                if (!sku.getProduct().getProductId().equals(productId)) {
+                        throw new RuntimeException("此 SKU 不屬於指定商品");
+                }
+
+                if (request.getSpec1Name() != null) {
+                        sku.setSpec1Name(request.getSpec1Name());
+                }
+
+                if (request.getSpec1Value() != null) {
+                        sku.setSpec1Value(request.getSpec1Value());
+                }
+
+                if (request.getSpec2Name() != null) {
+                        sku.setSpec2Name(request.getSpec2Name());
+                }
+
+                if (request.getSpec2Value() != null) {
+                        sku.setSpec2Value(request.getSpec2Value());
+                }
+
+                if (request.getPrice() != null) {
+                        sku.setPrice(request.getPrice());
+                }
+
+                if (request.getStock() != null) {
+                        sku.setStock(request.getStock());
+                }
+
+                if (request.getStatus() != null) {
+                        sku.setStatus(request.getStatus());
+                }
+
+                ProductSku updatedSku = productSkuRepository.save(sku);
+
+                return toProductSkuResponse(updatedSku);
+        }
+
+        // 新增商品Sku
+        public ProductSkuResponse createSku(
+                        Integer productId,
+                        ProductSkuCreateRequest request) {
+
+                Product product = productRepository.findById(productId)
+                                .orElseThrow(() -> new RuntimeException("找不到商品：" + productId));
+
+                ProductSku sku = new ProductSku();
+
+                sku.setProduct(product);
+                sku.setSpec1Name(request.getSpec1Name());
+                sku.setSpec1Value(request.getSpec1Value());
+                sku.setSpec2Name(request.getSpec2Name());
+                sku.setSpec2Value(request.getSpec2Value());
+                sku.setPrice(request.getPrice());
+                sku.setStock(request.getStock());
+                sku.setStatus((byte) 1);
+
+                ProductSku savedSku = productSkuRepository.save(sku);
+
+                return toProductSkuResponse(savedSku);
         }
 }
