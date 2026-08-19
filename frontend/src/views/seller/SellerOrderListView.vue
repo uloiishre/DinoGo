@@ -1,80 +1,74 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import { getSellerOrders } from '@/api/sellerOrderApi'
 
-// TODO: 等 D 模組提供賣家訂單列表 API 後，改由 API 載入。
-const orders = [
-  {
-    id: 18,
-    orderNo: 'DG240826-018',
-    buyer: '陳怡安',
-    amount: 1680,
-    paymentStatus: '已付款',
-    shippingStatus: '待出貨',
-    orderStatus: '處理中',
-    createdAt: '2026-08-14 10:30',
-  },
-  {
-    id: 19,
-    orderNo: 'DG240826-019',
-    buyer: '李小華',
-    amount: 2460,
-    paymentStatus: '已付款',
-    shippingStatus: '備貨中',
-    orderStatus: '處理中',
-    createdAt: '2026-08-14 11:15',
-  },
-  {
-    id: 20,
-    orderNo: 'DG240813-003',
-    buyer: '陳美玲',
-    amount: 980,
-    paymentStatus: '已付款',
-    shippingStatus: '已送達',
-    orderStatus: '已完成',
-    createdAt: '2026-08-13 16:40',
-  },
-]
-
+const orders = ref([])
+const loading = ref(true)
+const errorMessage = ref('')
 const activeStatus = ref('ALL')
+const keyword = ref('')
 
 const statusTabs = [
-  { label: '全部', value: 'ALL' },
-  { label: '待出貨', value: '待出貨' },
-  { label: '備貨中', value: '備貨中' },
-  { label: '已完成', value: '已完成' },
+  { label: '全部', value: 'ALL', statuses: [] },
+  { label: '待付款', value: 'PENDING_PAYMENT', statuses: ['PENDING_PAYMENT'] },
+  { label: '待出貨', value: 'PENDING_SHIPMENT', statuses: ['PAID', 'PROCESSING'] },
+  { label: '待收貨', value: 'PENDING_RECEIPT', statuses: ['SHIPPED'] },
+  { label: '已完成', value: 'COMPLETED', statuses: ['COMPLETED'] },
+  { label: '不成立', value: 'CANCELLED', statuses: ['CANCELLED'] },
 ]
 
 const filteredOrders = computed(() => {
-  if (activeStatus.value === 'ALL') {
-    return orders
-  }
-
-  return orders.filter(
-    (order) =>
-      order.shippingStatus === activeStatus.value || order.orderStatus === activeStatus.value,
-  )
+  const selectedTab = statusTabs.find((tab) => tab.value === activeStatus.value)
+  const normalizedKeyword = keyword.value.trim().toLowerCase()
+  return orders.value
+    .filter((order) => !selectedTab || selectedTab.value === 'ALL' || selectedTab.statuses.includes(order.status))
+    .filter((order) => !normalizedKeyword || [order.orderNo, order.buyerId, ...(order.items ?? []).map((item) => item.productName)]
+      .filter(Boolean).join(' ').toLowerCase().includes(normalizedKeyword))
 })
+
+const statusLabels = {
+  PENDING_PAYMENT: '待付款', PAID: '待出貨', PROCESSING: '待出貨',
+  SHIPPED: '待收貨', COMPLETED: '已完成', CANCELLED: '不成立',
+}
+
+async function loadOrders() {
+  loading.value = true
+  errorMessage.value = ''
+  try {
+    const response = await getSellerOrders()
+    orders.value = Array.isArray(response.data) ? response.data : []
+  } catch (error) {
+    errorMessage.value = error.response?.data?.message ?? '無法載入賣家訂單。'
+  } finally {
+    loading.value = false
+  }
+}
 
 const formatCurrency = (amount) => {
   return new Intl.NumberFormat('zh-TW', {
     style: 'currency',
     currency: 'TWD',
     maximumFractionDigits: 0,
-  }).format(amount)
+}).format(Number(amount ?? 0))
 }
 
 const statusClass = (status) => {
-  if (status === '已完成' || status === '已送達') {
+  if (status === 'COMPLETED') {
     return 'is-done'
   }
-
-  if (status === '待出貨') {
+  if (status === 'PENDING_PAYMENT' || status === 'PAID' || status === 'PROCESSING') {
     return 'is-warning'
   }
-
+  if (status === 'CANCELLED') return 'is-cancelled'
   return 'is-processing'
 }
+
+const formatDate = (value) => value ? new Intl.DateTimeFormat('zh-TW', {
+  dateStyle: 'medium', timeStyle: 'short',
+}).format(new Date(value)) : '—'
+
+onMounted(loadOrders)
 </script>
 
 <template>
@@ -89,7 +83,7 @@ const statusClass = (status) => {
 
     <section class="list-panel">
       <div class="list-toolbar">
-        <input class="search-input" type="search" placeholder="搜尋訂單編號或買家" />
+        <input v-model="keyword" class="search-input" type="search" placeholder="搜尋訂單編號、買家編號或商品" />
 
         <div class="status-tabs" aria-label="訂單狀態篩選">
           <button
@@ -104,29 +98,33 @@ const statusClass = (status) => {
         </div>
       </div>
 
-      <div class="order-table">
+      <div v-if="loading" class="state-card" aria-live="polite">正在載入訂單…</div>
+      <div v-else-if="errorMessage" class="state-card state-error" role="alert">
+        <span>{{ errorMessage }}</span>
+        <button type="button" @click="loadOrders">重新載入</button>
+      </div>
+      <div v-else-if="filteredOrders.length === 0" class="state-card">找不到符合條件的訂單。</div>
+      <div v-else class="order-table">
         <div class="table-header">
           <span>訂單編號</span>
           <span>買家</span>
           <span>訂單金額</span>
-          <span>付款</span>
-          <span>配送</span>
+          <span>狀態</span>
           <span>建立時間</span>
           <span>操作</span>
         </div>
 
-        <article v-for="order in filteredOrders" :key="order.id" class="order-row">
-          <RouterLink class="order-no" :to="`/seller/orders/${order.id}`">
+        <article v-for="order in filteredOrders" :key="order.orderId" class="order-row">
+          <RouterLink class="order-no" :to="{ name: 'SellerOrderDetail', params: { id: order.orderId } }">
             {{ order.orderNo }}
           </RouterLink>
-          <span>{{ order.buyer }}</span>
-          <strong>{{ formatCurrency(order.amount) }}</strong>
-          <span class="status-badge is-paid">{{ order.paymentStatus }}</span>
-          <span class="status-badge" :class="statusClass(order.shippingStatus)">
-            {{ order.shippingStatus }}
+          <span>會員 #{{ order.buyerId }}</span>
+          <strong>{{ formatCurrency(order.totalAmount) }}</strong>
+          <span class="status-badge" :class="statusClass(order.status)">
+            {{ statusLabels[order.status] ?? order.status }}
           </span>
-          <span>{{ order.createdAt }}</span>
-          <RouterLink class="view-button" :to="`/seller/orders/${order.id}`">查看</RouterLink>
+          <span>{{ formatDate(order.createdAt) }}</span>
+          <RouterLink class="view-button" :to="{ name: 'SellerOrderDetail', params: { id: order.orderId } }">查看</RouterLink>
         </article>
       </div>
     </section>
@@ -223,7 +221,7 @@ h1 {
 .table-header,
 .order-row {
   display: grid;
-  grid-template-columns: minmax(160px, 1.2fr) 0.9fr 0.9fr 0.8fr 0.8fr 1fr 68px;
+  grid-template-columns: minmax(160px, 1.2fr) 0.9fr 0.9fr 0.8fr 1fr 68px;
   align-items: center;
   gap: var(--space-4);
 }
@@ -280,6 +278,23 @@ h1 {
 .status-badge.is-processing {
   background: var(--color-primary-soft);
   color: var(--color-primary-700);
+}
+
+.status-badge.is-cancelled,
+.state-error {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.state-card {
+  display: flex;
+  min-height: 160px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  color: var(--color-text-muted);
 }
 
 .view-button {

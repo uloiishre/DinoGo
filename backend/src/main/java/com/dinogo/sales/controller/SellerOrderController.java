@@ -1,5 +1,7 @@
 package com.dinogo.sales.controller;
 
+import java.util.List;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -8,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dinogo.sales.dto.OrderDetailResponse;
+import com.dinogo.sales.dto.SellerOrderListResponse;
 import com.dinogo.sales.service.OrderService;
 import com.dinogo.security.AuthenticatedMember;
 
@@ -19,6 +22,12 @@ public class SellerOrderController {
 
     public SellerOrderController(OrderService orderService) {
         this.orderService = orderService;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<SellerOrderListResponse>> getSellerOrders(
+            @AuthenticationPrincipal AuthenticatedMember member) {
+        return ResponseEntity.ok(orderService.getSellerOrders(member.memberId()));
     }
 
     @GetMapping("/{orderId}")

@@ -323,6 +323,7 @@ class OrderServiceTest {
     void getSellerOrderUsesAuthenticatedSellerOwnership() {
         Seller seller = mock(Seller.class);
         when(seller.getSellerId()).thenReturn(300);
+        when(seller.getStatus()).thenReturn("ACTIVE");
         when(sellerRepository.findByMember_MemberId(6)).thenReturn(Optional.of(seller));
         Order order = new Order();
         order.setOrderId(99);
@@ -337,9 +338,48 @@ class OrderServiceTest {
     }
 
     @Test
+    void getSellerOrdersReturnsOnlyAuthenticatedSellerOrdersNewestFirst() {
+        Seller seller = mock(Seller.class);
+        when(seller.getSellerId()).thenReturn(300);
+        when(seller.getStatus()).thenReturn("ACTIVE");
+        when(sellerRepository.findByMember_MemberId(6)).thenReturn(Optional.of(seller));
+
+        Order order = new Order();
+        order.setOrderId(99);
+        order.setOrderNo("DG-99");
+        order.setBuyerId(8);
+        order.setSellerId(300);
+        order.setStatus(OrderStatus.PAID);
+        order.setTotalAmount(new BigDecimal("1280.00"));
+        when(orderRepository.findBySellerIdOrderByCreatedAtDesc(300)).thenReturn(List.of(order));
+
+        var response = orderService.getSellerOrders(6);
+
+        assertThat(response).hasSize(1);
+        assertThat(response.getFirst().orderId()).isEqualTo(99);
+        assertThat(response.getFirst().buyerId()).isEqualTo(8);
+        verify(orderRepository).findBySellerIdOrderByCreatedAtDesc(300);
+        verify(orderRepository, never()).findAll();
+    }
+
+    @Test
+    void getSellerOrdersRejectsInactiveSeller() {
+        Seller seller = mock(Seller.class);
+        when(seller.getStatus()).thenReturn("SUSPENDED");
+        when(sellerRepository.findByMember_MemberId(6)).thenReturn(Optional.of(seller));
+
+        assertThatThrownBy(() -> orderService.getSellerOrders(6))
+                .isInstanceOf(OrderNotFoundException.class)
+                .hasMessage("Seller is inactive");
+
+        verify(orderRepository, never()).findBySellerIdOrderByCreatedAtDesc(any());
+    }
+
+    @Test
     void getSellerOrderHidesOrdersOwnedByAnotherSeller() {
         Seller seller = mock(Seller.class);
         when(seller.getSellerId()).thenReturn(300);
+        when(seller.getStatus()).thenReturn("ACTIVE");
         when(sellerRepository.findByMember_MemberId(6)).thenReturn(Optional.of(seller));
         when(orderRepository.findByOrderIdAndSellerId(99, 300)).thenReturn(Optional.empty());
 
@@ -373,6 +413,7 @@ class OrderServiceTest {
         // Arrange：JWT 登入會員 6 對應賣家 300
         Seller seller = mock(Seller.class);
         when(seller.getSellerId()).thenReturn(300);
+        when(seller.getStatus()).thenReturn("ACTIVE");
         when(sellerRepository.findByMember_MemberId(6))
                 .thenReturn(Optional.of(seller));
 
@@ -412,6 +453,7 @@ class OrderServiceTest {
         // Arrange：登入會員 6 對應賣家 300
         Seller seller = mock(Seller.class);
         when(seller.getSellerId()).thenReturn(300);
+        when(seller.getStatus()).thenReturn("ACTIVE");
         when(sellerRepository.findByMember_MemberId(6))
                 .thenReturn(Optional.of(seller));
 

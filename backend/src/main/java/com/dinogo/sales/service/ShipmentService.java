@@ -54,8 +54,7 @@ public class ShipmentService {
             Integer orderId,
             Integer memberId,
             CreateShipmentRequest request) {
-        Seller seller = sellerRepository.findByMember_MemberId(memberId)
-                .orElseThrow(() -> new OrderNotFoundException("Seller does not exist"));
+        Seller seller = getActiveSellerByMemberId(memberId);
         Order order = orderRepository
                 .findForShipmentCreation(orderId, seller.getSellerId())
                 .orElseThrow(() -> new OrderNotFoundException("Order does not exist"));
@@ -95,8 +94,7 @@ public class ShipmentService {
             Integer orderId,
             Integer memberId,
             UpdateShipmentStatusRequest request) {
-        Seller seller = sellerRepository.findByMember_MemberId(memberId)
-                .orElseThrow(() -> new OrderNotFoundException("Seller does not exist"));
+        Seller seller = getActiveSellerByMemberId(memberId);
         Shipment shipment = shipmentRepository
                 .findForStatusUpdate(orderId, seller.getSellerId())
                 .orElseThrow(() -> new OrderNotFoundException("Shipment does not exist"));
@@ -173,9 +171,19 @@ public class ShipmentService {
 
     private boolean isOrderSeller(Order order, Integer memberId) {
         return sellerRepository.findByMember_MemberId(memberId)
+                .filter(seller -> "ACTIVE".equals(seller.getStatus()))
                 .map(Seller::getSellerId)
                 .filter(order.getSellerId()::equals)
                 .isPresent();
+    }
+
+    private Seller getActiveSellerByMemberId(Integer memberId) {
+        Seller seller = sellerRepository.findByMember_MemberId(memberId)
+                .orElseThrow(() -> new OrderNotFoundException("Seller does not exist"));
+        if (!"ACTIVE".equals(seller.getStatus())) {
+            throw new OrderNotFoundException("Seller is inactive");
+        }
+        return seller;
     }
 
     private String normalize(String value) {
