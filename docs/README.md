@@ -12,6 +12,7 @@
 | 工作規範 | [teacher-code-style.md](teacher-code-style.md) | 老師教材中可重複使用的 coding pattern。 |
 | 模組 API | [member-api.md](member-api.md) | A 會員、認證與地址 API 的 request、response、錯誤格式與 JWT 規則。 |
 | 跨模組 contract | [order-cross-module-contracts.md](order-cross-module-contracts.md) | D 與 B、E 的訂單整合需求。 |
+| 前端規範 | [pinia-guide.md](pinia-guide.md) | Pinia、JWT、Axios、Store、路由守衛、手動測試與組員新增規則。 |
 | 設計入口 | [design/frontend-task-rules.md](design/frontend-task-rules.md) | 前端任務的最小設計文件閱讀路由。 |
 
 ## 任務閱讀路由
@@ -24,7 +25,7 @@
 | Spring REST、Validation、Security、JWT | `teacher-code-style.md` | 模組 API 文件、直接相關程式 |
 | A 會員／登入／地址串接 | `member-api.md` | `database-schema.md`、直接相關 Controller／DTO |
 | D、B、E 訂單整合 | `order-cross-module-contracts.md` | 相關模組 API／Service |
-| Vue、UI、Router、Axios、Pinia、前端 build | `design/frontend-task-rules.md` | 該文件指定的最小設計文件 |
+| Vue、UI、Router、Axios、Pinia、前端 build | `pinia-guide.md` | `design/frontend-task-rules.md` 及其指定的設計文件 |
 
 ## 文件維護規則
 

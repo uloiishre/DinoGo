@@ -394,3 +394,96 @@ getActiveSellerIdByMemberId(memberId)
 D 不會接受前端傳入 sellerId，會使用此 contract 後再以 orderId + sellerId 查詢訂單。
 詳細說明：docs/order-cross-module-contracts.md
 ```
+
+
+---
+
+# 七、buyerId 契約問題與處理方式
+
+> 來源：feature/pinia merge review
+
+## 7.1 背景
+
+`CheckoutView.vue` 建立訂單時，前端是否應傳送 `buyerId` 進 request body，是 merge `feature/pinia` 後必須優先處理的契約問題。
+
+## 7.2 解法選項
+
+### 解法 A：前端繼續傳 buyerId
+
+前端從 `localStorage['member']` 讀出 `memberId`，放進建立訂單 request。
+
+優點：
+
+- 不需要立刻修改後端 DTO。
+- 舊版前後端較容易暫時相容。
+
+缺點：
+
+- localStorage 可以被使用者自行修改，buyerId 不可信。
+- 若後端直接採用 request 的 buyerId，可能造成以他人身分下單或存取資料的安全問題。
+- JWT 已經包含登入身分，重複傳送是多餘且容易產生不一致。
+
+只適合短期過渡，而且後端必須忽略 request buyerId，不能拿它當真正身分。
+
+### 解法 B：後端移除 buyerId，從 JWT 決定（推薦）
+
+前端只送地址、運費、備註與商品；後端 Controller 透過：
+
+```java
+@AuthenticationPrincipal AuthenticatedMember member
+```
+
+再使用 `member.memberId()` 呼叫 service。
+
+優點：
+
+- 身分來源單一且可信。
+- 前端 request 較簡潔。
+- 防止使用者竄改 buyerId。
+- 與目前 `OrderController` 的寫法一致。
+
+缺點：
+
+- 需要修改共用的 `CreateOrderRequest.java`。
+- 前後端必須一起部署；只更新其中一邊會出現 400 或反序列化問題。
+
+推薦修改：移除 `CreateOrderRequest` record 中的 `buyerId` 欄位，以及它的 `@NotNull`、`@Positive` 驗證；保留 `OrderController` 的 `member.memberId()` 流程。
+
+### 解法 C：DTO 暫時保留 buyerId，但後端以 JWT 為準
+
+保留欄位以相容舊前端，但 service 永遠使用 Controller 傳入的 `member.memberId()`，不使用 `request.buyerId`。
+
+優點：
+
+- 舊版前端仍可送 request。
+- 可以分階段更新前後端。
+
+缺點：
+
+- DTO 仍會讓人誤以為 buyerId 是必要資料。
+- 仍有多餘欄位與驗證，容易造成維護誤用。
+
+若組員目前不能同步修改後端，才使用此方案作為短期過渡；長期仍應回到解法 B。
+
+## 7.3 推薦修改順序
+
+1. D 組確認 `CreateOrderRequest` 改為不接收 buyerId。
+2. 後端移除 DTO 的 buyerId 欄位與驗證。
+3. 後端 `OrderController` 保留 `member.memberId()`，不要改回 request.buyerId。
+4. `SecurityConfig.java` 增加：
+
+   ```java
+   .requestMatchers("/api/checkout/**").authenticated()
+   ```
+
+5. 前端 `CheckoutView.vue` 保持不送 buyerId，並只使用共用 `api`。
+6. 前端新頁面直接 `import api from '@/api/axios'`；不要在頁面新增 JWT interceptor。
+7. 測試登入、購物車、結帳預覽與建立訂單。
+
+## 7.4 Merge review 結論（feature/pinia）
+
+- `CartView.vue` 已使用 Pinia store，並使用後端回傳的 `price`，方向正確。
+- `CheckoutView.vue` 已移除頁面自己的 JWT interceptor，方向正確。
+- `router/index.js` 的 Cart、Checkout 已加登入限制，方向正確。
+- 後端 `CreateOrderRequest.java` 目前仍要求 buyerId，與前端目前 request 不一致；這是 merge 後必須先處理的契約問題。
+- `SecurityConfig.java` 目前尚未明確保護 `/api/checkout/**`，建議補上。
