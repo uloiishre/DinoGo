@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { googleLogin, linkGoogleAccount, login } from '@/api/auth'
-import { AUTH_STORAGE_KEY } from '@/utils/auth-session'
+import { AUTH_STORAGE_KEY, clearPersistedAuth } from '@/utils/auth-session'
 
 export const useAuthStore = defineStore('auth', () => {
   // The persistence plugin restores these values from sessionStorage.
@@ -11,13 +11,31 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Components use this getter instead of reading localStorage directly.
   const isAuthenticated = computed(() => Boolean(token.value))
-  const hasRole = (role) => roles.value.includes(role)
+
+  const normalizedRoles = computed(() =>
+    roles.value.map((role) => String(role).toLowerCase()),
+  )
+
+  const hasRole = (role) =>
+    Boolean(role) && normalizedRoles.value.includes(String(role).toLowerCase())
+
   const isSeller = computed(() => hasRole('seller'))
+
+  const memberName = computed(() => {
+    if (!member.value) return ''
+    const fullName = [member.value.lastName, member.value.firstName]
+      .filter(Boolean)
+      .join('')
+    return fullName || member.value.email || ''
+  })
 
   function setSession(sessionToken, sessionMember, sessionRoles = []) {
     token.value = sessionToken || ''
     member.value = sessionMember || null
     roles.value = Array.isArray(sessionRoles) ? [...sessionRoles] : []
+    if (!sessionToken) {
+      clearPersistedAuth()
+    }
   }
 
   async function signIn(credentials) {
@@ -46,6 +64,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   function signOut() {
     setSession('', null, [])
+    clearPersistedAuth()
   }
 
   return {
@@ -54,6 +73,7 @@ export const useAuthStore = defineStore('auth', () => {
     roles,
     isAuthenticated,
     isSeller,
+    memberName,
     hasRole,
     signIn,
     signInWithGoogle,
