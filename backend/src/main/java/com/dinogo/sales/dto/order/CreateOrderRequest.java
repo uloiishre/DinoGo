@@ -17,6 +17,9 @@ public record CreateOrderRequest(
         @Size(max = 500, message = "Buyer remark must not exceed 500 characters")
         String buyerRemark,
 
+        @Positive(message = "Member coupon ID must be positive")
+        Integer memberCouponId,
+
         @NotEmpty(message = "Order items are required")
         List<@Valid CreateOrderItemRequest> items) {
 }

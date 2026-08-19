@@ -55,4 +55,29 @@ public class MemberCoupon {
 
     @Column(name = "received_at")
     private LocalDateTime receivedAt;
+
+    public Integer getMemberCouponId() {
+        return memberCouponId;
+    }
+
+    public Integer getCouponId() {
+        return couponId;
+    }
+
+    public Integer getMemberId() {
+        return memberId;
+    }
+
+    public Boolean getUsed() {
+        return used;
+    }
+
+    public LocalDateTime getUsedAt() {
+        return usedAt;
+    }
+
+    public LocalDateTime getReceivedAt() {
+        return receivedAt;
+    }
+
 }

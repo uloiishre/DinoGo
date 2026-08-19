@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,9 @@ import com.dinogo.catalog.entity.Product;
 import com.dinogo.catalog.entity.ProductImage;
 import com.dinogo.catalog.entity.ProductSku;
 import com.dinogo.catalog.repository.ProductSkuRepository;
+import com.dinogo.coupon.service.CouponUsageService;
+import com.dinogo.coupon.service.CouponUsageService.AppliedCoupon;
+import com.dinogo.coupon.service.CouponUsageService.CouponItem;
 import com.dinogo.member.entity.Address;
 import com.dinogo.member.repository.AddressRepository;
 import com.dinogo.sales.dto.OrderDetailResponse;
@@ -50,6 +54,7 @@ public class OrderService {
     private final AddressRepository addressRepository;
     private final ProductSkuRepository productSkuRepository;
     private final SellerRepository sellerRepository;
+    private final CouponUsageService couponUsageService;
     private static final Map<OrderStatus, Set<OrderStatus>> ALLOWED_TRANSITIONS = Map.of(
             OrderStatus.PENDING_PAYMENT,
             Set.of(OrderStatus.PAID, OrderStatus.CANCELLED),
@@ -67,11 +72,13 @@ public class OrderService {
             OrderRepository orderRepository,
             AddressRepository addressRepository,
             ProductSkuRepository productSkuRepository,
-            SellerRepository sellerRepository) {
+            SellerRepository sellerRepository,
+            CouponUsageService couponUsageService) {
         this.orderRepository = orderRepository;
         this.addressRepository = addressRepository;
         this.productSkuRepository = productSkuRepository;
         this.sellerRepository = sellerRepository;
+        this.couponUsageService = couponUsageService;
     }
 
     @Transactional
@@ -87,6 +94,7 @@ public class OrderService {
         Set<Integer> skuIds = new HashSet<>();
         Integer sellerId = null;
         BigDecimal subtotalAmount = BigDecimal.ZERO;
+        List<CouponItem> couponItems = new ArrayList<>();
 
         for (CreateOrderItemRequest itemRequest : request.items()) {
             if (itemRequest.quantity() == null || itemRequest.quantity() <= 0) {
@@ -119,6 +127,7 @@ public class OrderService {
             BigDecimal itemSubtotal = sku.getPrice().multiply(BigDecimal.valueOf(itemRequest.quantity()));
             order.addOrderItem(createOrderItem(sku, itemRequest.quantity(), itemSubtotal));
             subtotalAmount = subtotalAmount.add(itemSubtotal);
+            couponItems.add(new CouponItem(product, itemSubtotal));
             int updated = productSkuRepository.deductStockIfAvailable(
                     itemRequest.skuId(), itemRequest.quantity());
             if (updated == 0) {
@@ -128,13 +137,27 @@ public class OrderService {
 
         // The backend owns all order amount calculations.
         BigDecimal shippingFee = BigDecimal.ZERO;
+        BigDecimal discountAmount = BigDecimal.ZERO;
+        AppliedCoupon appliedCoupon = null;
+        if (request.memberCouponId() != null) {
+            appliedCoupon = couponUsageService.validateAndCalculate(
+                    request.memberCouponId(),
+                    buyerId,
+                    sellerId,
+                    subtotalAmount,
+                    couponItems);
+            discountAmount = appliedCoupon.discount();
+        }
         order.setSellerId(sellerId);
         order.setSubtotalAmount(subtotalAmount);
         order.setShippingFee(shippingFee);
-        order.setDiscountAmount(BigDecimal.ZERO);
-        order.setTotalAmount(subtotalAmount.add(shippingFee));
+        order.setDiscountAmount(discountAmount);
+        order.setTotalAmount(subtotalAmount.add(shippingFee).subtract(discountAmount));
 
         Order savedOrder = orderRepository.save(order);
+        if (appliedCoupon != null) {
+            couponUsageService.consume(appliedCoupon);
+        }
         return toResponse(savedOrder);
     }
 

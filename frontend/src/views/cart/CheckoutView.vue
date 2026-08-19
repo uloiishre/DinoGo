@@ -56,7 +56,7 @@ const buyerRemark = ref('')
 // ========================================
 
 const coupons = ref([])
-const selectedCouponId = ref(null)
+const selectedMemberCouponId = ref(null)
 
 // ========================================
 // 金額
@@ -80,7 +80,9 @@ const selectedAddress = computed(() => {
 // ========================================
 
 const selectedCoupon = computed(() => {
-  return coupons.value.find((coupon) => coupon.couponId === selectedCouponId.value)
+  return coupons.value.find(
+    (coupon) => coupon.memberCouponId === selectedMemberCouponId.value,
+  )
 })
 
 // ========================================
@@ -240,9 +242,9 @@ const loadCoupons = async () => {
     couponLoading.value = true
     couponErrorMessage.value = ''
 
-    const response = await api.get('/coupons/available')
+    const response = await api.get('/member/coupons')
 
-    coupons.value = response.data || []
+    coupons.value = (response.data || []).filter((coupon) => coupon.status === 'AVAILABLE')
 
     console.log('可用優惠券：', coupons.value)
   } catch (error) {
@@ -273,8 +275,8 @@ const buildPreviewRequest = () => {
 
     paymentMethod: paymentMethod.value,
 
-    // 有選優惠券才傳 couponId
-    couponId: selectedCouponId.value,
+    // 只傳會員已領取的優惠券識別碼
+    memberCouponId: selectedMemberCouponId.value,
   }
 }
 
@@ -314,8 +316,8 @@ const loadCheckoutPreview = async () => {
     errorMessage.value = error.response?.data?.message || '無法取得訂單金額'
 
     // 如果優惠券無效
-    if (selectedCouponId.value) {
-      selectedCouponId.value = null
+    if (selectedMemberCouponId.value) {
+      selectedMemberCouponId.value = null
     }
   } finally {
     loading.value = false
@@ -361,7 +363,7 @@ const changeCoupon = async () => {
 // ========================================
 
 const removeCoupon = async () => {
-  selectedCouponId.value = null
+  selectedMemberCouponId.value = null
 
   couponErrorMessage.value = ''
 
@@ -377,8 +379,8 @@ const buildOrderRequest = () => {
     addressId: selectedAddressId.value,
 
     buyerRemark: buyerRemark.value.trim(),
-    // 優惠券
-    couponId: selectedCouponId.value,
+    // 會員已領取的優惠券
+    memberCouponId: selectedMemberCouponId.value,
 
     items: checkoutItems.value.map((item) => ({
       skuId: item.skuId,
@@ -1042,11 +1044,11 @@ onMounted(() => {
               <label
                 class="coupon-card"
                 :class="{
-                  selected: selectedCouponId === null,
+                  selected: selectedMemberCouponId === null,
                 }"
               >
                 <input
-                  v-model="selectedCouponId"
+                  v-model="selectedMemberCouponId"
                   type="radio"
                   name="coupon"
                   :value="null"
@@ -1066,17 +1068,17 @@ onMounted(() => {
 
               <label
                 v-for="coupon in coupons"
-                :key="coupon.couponId"
+                :key="coupon.memberCouponId"
                 class="coupon-card"
                 :class="{
-                  selected: selectedCouponId === coupon.couponId,
+                  selected: selectedMemberCouponId === coupon.memberCouponId,
                 }"
               >
                 <input
-                  v-model="selectedCouponId"
+                  v-model="selectedMemberCouponId"
                   type="radio"
                   name="coupon"
-                  :value="coupon.couponId"
+                  :value="coupon.memberCouponId"
                   @change="changeCoupon"
                 />
 
@@ -1106,7 +1108,10 @@ onMounted(() => {
                   </span>
                 </span>
 
-                <span v-if="selectedCouponId === coupon.couponId" class="coupon-selected-badge">
+                <span
+                  v-if="selectedMemberCouponId === coupon.memberCouponId"
+                  class="coupon-selected-badge"
+                >
                   已選
                 </span>
               </label>

@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 public record CouponResponse(
 		Integer couponId,
 		Integer sellerId,
+		String sellerName,
         String couponCode,
         String couponName,
         String discountType,
@@ -21,10 +22,11 @@ public record CouponResponse(
         Integer productId,
         String status
 ) {
-    public static CouponResponse from(Coupon coupon) {
+    public static CouponResponse from(Coupon coupon, String sellerName) {
         return new CouponResponse(
                 coupon.getCouponId(),
                 coupon.getSellerId(),
+                sellerName,
                 coupon.getCouponCode(),
                 coupon.getCouponName(),
                 coupon.getDiscountType(),

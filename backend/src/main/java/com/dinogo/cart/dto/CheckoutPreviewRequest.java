@@ -15,5 +15,7 @@ public record CheckoutPreviewRequest(
 
                 @NotNull(message = "Shipping method 不可為空") String shippingMethod,
 
-                @NotNull(message = "Payment method 不可為空") String paymentMethod) {
+                @NotNull(message = "Payment method 不可為空") String paymentMethod,
+
+                @Positive(message = "Member coupon ID 必須大於0") Integer memberCouponId) {
 }
