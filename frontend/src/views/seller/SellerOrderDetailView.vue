@@ -1,12 +1,14 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { getSellerOrder } from '@/api/sellerOrderApi'
+import { acceptSellerOrder, getSellerOrder } from '@/api/sellerOrderApi'
 
 const route = useRoute()
 const order = ref(null)
 const loading = ref(true)
 const errorMessage = ref('')
+const acceptingOrder = ref(false)
+const actionError = ref('')
 const orderId = computed(() => Number(route.params.id))
 
 const orderStatusLabels = {
@@ -66,6 +68,20 @@ async function loadOrder() {
   }
 }
 
+async function acceptOrder() {
+  if (order.value?.status !== 'PAID' || acceptingOrder.value) return
+
+  acceptingOrder.value = true
+  actionError.value = ''
+  try {
+    order.value = (await acceptSellerOrder(orderId.value)).data
+  } catch (error) {
+    actionError.value = error.response?.data?.message ?? '接收訂單失敗，請稍後再試。'
+  } finally {
+    acceptingOrder.value = false
+  }
+}
+
 const isStepComplete = (step) =>
   order.value &&
   step.statuses.includes(order.value.status) &&
@@ -104,6 +120,16 @@ onMounted(loadOrder)
           <p class="section-label">訂單 {{ order.orderNo }}</p>
           <strong>{{ orderStatusLabels[order.status] ?? order.status }}</strong>
           <small>{{ formatDate(order.createdAt) }}</small>
+          <button
+            v-if="order.status === 'PAID'"
+            class="accept-button"
+            type="button"
+            :disabled="acceptingOrder"
+            @click="acceptOrder"
+          >
+            {{ acceptingOrder ? '接收中…' : '接收訂單' }}
+          </button>
+          <small v-if="actionError" class="action-error" role="alert">{{ actionError }}</small>
         </div>
         <div class="order-progress" aria-label="訂單進度">
           <div v-for="step in progressSteps" :key="step.label" class="progress-item"
@@ -218,6 +244,15 @@ h2 { margin-bottom: var(--space-4); font-family: var(--font-heading); font-size:
 .shipping-card h2, .shipping-card p, .empty-message { margin-bottom: 0; }
 button { min-height: 42px; border-radius: var(--radius-md); padding: 0 var(--space-4); font-weight: 700; }
 .secondary-button { border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text-700); }
+.accept-button { width: fit-content; margin-top: var(--space-2); border: 1px solid var(--color-primary-700);
+  background: var(--color-primary-700); color: var(--color-surface); }
+.accept-button:hover:not(:disabled) { background: var(--color-primary-800); }
+.accept-button:focus-visible, .secondary-button:focus-visible, .back-button:focus-visible {
+  outline: none; box-shadow: var(--shadow-focus);
+}
+.accept-button:disabled { border-color: var(--color-disabled); background: var(--color-disabled-bg);
+  color: var(--color-text-subtle); cursor: not-allowed; }
+.action-error { color: var(--color-danger); }
 @media (max-width: 1000px) { .detail-layout { grid-template-columns: 1fr; } .shipping-card { position: static; } }
 @media (max-width: 720px) {
   .page-header, .state-card, .cancelled-notice { align-items: flex-start; flex-direction: column; }
