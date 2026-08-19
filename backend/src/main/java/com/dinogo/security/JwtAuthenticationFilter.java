@@ -48,13 +48,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         if (!authorization.startsWith(BEARER_PREFIX)) {
-            sendUnauthorized(response, "Authorization header must use Bearer token");
+            filterChain.doFilter(request, response);
             return;
         }
 
         String token = authorization.substring(BEARER_PREFIX.length()).trim();
         if (!StringUtils.hasText(token)) {
-            sendUnauthorized(response, "Bearer token is required");
+            filterChain.doFilter(request, response);
             return;
         }
 
@@ -66,7 +66,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             new SimpleGrantedAuthority("ROLE_" + role.toUpperCase(Locale.ROOT)))
                     .toList();
             if (memberId == null) {
-                sendUnauthorized(response, "JWT memberId claim is required");
+                logger.debug("JWT memberId claim is missing in token");
+                SecurityContextHolder.clearContext();
+                filterChain.doFilter(request, response);
                 return;
             }
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
@@ -78,10 +80,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
             filterChain.doFilter(request, response);
         } catch (JwtException | IllegalArgumentException exception) {
-            exception.printStackTrace();
-
+            logger.debug("Invalid or expired token: " + exception.getMessage());
             SecurityContextHolder.clearContext();
-            sendUnauthorized(response, "Invalid or expired token");
+            filterChain.doFilter(request, response);
         }
     }
 

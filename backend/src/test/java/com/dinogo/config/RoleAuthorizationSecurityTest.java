@@ -137,6 +137,27 @@ class RoleAuthorizationSecurityTest {
     }
 
     @Test
+    void publicEndpointWithInvalidTokenAllowsAccess() throws Exception {
+        when(jwtTokenUtil.extractSubject("invalid-token")).thenThrow(new IllegalArgumentException("invalid token"));
+
+        mockMvc.perform(get("/api/products")
+                        .header("Authorization", "Bearer invalid-token"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void protectedEndpointWithInvalidTokenRejectsAccessWithUnauthorized() throws Exception {
+        when(jwtTokenUtil.extractSubject("invalid-token")).thenThrow(new IllegalArgumentException("invalid token"));
+
+        mockMvc.perform(get("/api/seller/products")
+                        .param("sellerId", "1")
+                        .header("Authorization", "Bearer invalid-token"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(sellerProductService);
+    }
+
+    @Test
     void sellerCanReachSellerEndpointsAndOrderStatusUpdate() throws Exception {
         when(sellerProductService.getProducts(1)).thenReturn(List.of());
         when(couponService.getCoupons(1)).thenReturn(List.of());

@@ -66,7 +66,7 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    void invalidBearerTokenReturnsUnauthorized() throws Exception {
+    void invalidBearerTokenClearsAuthenticationAndContinuesChain() throws Exception {
         JwtTokenUtil jwtTokenUtil = mock(JwtTokenUtil.class);
         when(jwtTokenUtil.extractSubject("invalid-token"))
                 .thenThrow(new IllegalArgumentException("invalid token"));
@@ -77,7 +77,6 @@ class JwtAuthenticationFilterTest {
 
         filter.doFilter(request, response, new MockFilterChain());
 
-        assertThat(response.getStatus()).isEqualTo(401);
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
     }
 
