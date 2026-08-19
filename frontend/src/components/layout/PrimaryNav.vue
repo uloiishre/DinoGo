@@ -36,7 +36,7 @@ const navItems = [
   },
   {
     label: '優惠活動',
-    to: { name: 'ProductList', query: { filter: 'offers' } },
+    to: { name: 'CouponCenter' },
     activeKey: 'offers',
   },
   {
@@ -164,6 +164,10 @@ watch(selectedBrandId, () => {
 const isActive = (item) => {
   if (item.activeKey === 'seller') {
     return route.name === 'SellerDashboard'
+  }
+
+  if (item.activeKey === 'offers') {
+    return route.name === 'CouponCenter'
   }
 
   if (route.name !== 'ProductList') {

@@ -5,6 +5,7 @@ import com.dinogo.coupon.dto.CouponResponse;
 import com.dinogo.coupon.dto.CouponUpdateRequest;
 import com.dinogo.coupon.entity.Coupon;
 import com.dinogo.coupon.repository.CouponRepository;
+import com.dinogo.seller.repository.SellerRepository;
 import java.util.List;
 import java.util.Set;
 import org.springframework.stereotype.Service;
@@ -18,16 +19,20 @@ public class CouponService {
     private static final Set<String> SCOPE_TYPES = Set.of("STORE", "ALL", "CATEGORY", "PRODUCT");
 
     private final CouponRepository couponRepository;
+    private final SellerRepository sellerRepository;
 
-    public CouponService(CouponRepository couponRepository) {
+    public CouponService(
+            CouponRepository couponRepository,
+            SellerRepository sellerRepository) {
         this.couponRepository = couponRepository;
+        this.sellerRepository = sellerRepository;
     }
 
     @Transactional(readOnly = true)
     public List<CouponResponse> getCoupons(Integer sellerId) {
         return couponRepository.findBySellerIdOrderByCouponIdDesc(sellerId)
                 .stream()
-                .map(CouponResponse::from)
+                .map(this::toResponse)
                 .toList();
     }
 
@@ -41,13 +46,13 @@ public class CouponService {
                 .filter(coupon -> !coupon.getEndAt().isBefore(now))
                 .filter(coupon -> coupon.getLimitCount() == null
                         || coupon.getUsedCount() < coupon.getLimitCount())
-                .map(CouponResponse::from)
+                .map(this::toResponse)
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public CouponResponse getCoupon(Integer sellerId, Integer couponId) {
-        return CouponResponse.from(findSellerCoupon(sellerId, couponId));
+        return toResponse(findSellerCoupon(sellerId, couponId));
     }
 
     @Transactional
@@ -77,7 +82,7 @@ public class CouponService {
         coupon.setProductId(request.productId());
         coupon.setStatus("DRAFT");
 
-        return CouponResponse.from(couponRepository.save(coupon));
+        return toResponse(couponRepository.save(coupon));
     }
 
     @Transactional
@@ -98,26 +103,33 @@ public class CouponService {
         coupon.setCategoryId(request.categoryId());
         coupon.setProductId(request.productId());
 
-        return CouponResponse.from(couponRepository.save(coupon));
+        return toResponse(couponRepository.save(coupon));
     }
 
     @Transactional
     public CouponResponse activateCoupon(Integer sellerId, Integer couponId) {
         Coupon coupon = findSellerCoupon(sellerId, couponId);
         coupon.setStatus("ACTIVE");
-        return CouponResponse.from(couponRepository.save(coupon));
+        return toResponse(couponRepository.save(coupon));
     }
 
     @Transactional
     public CouponResponse disableCoupon(Integer sellerId, Integer couponId) {
         Coupon coupon = findSellerCoupon(sellerId, couponId);
         coupon.setStatus("DISABLED");
-        return CouponResponse.from(couponRepository.save(coupon));
+        return toResponse(couponRepository.save(coupon));
     }
 
     private Coupon findSellerCoupon(Integer sellerId, Integer couponId) {
         return couponRepository.findBySellerIdAndCouponId(sellerId, couponId)
                 .orElseThrow(() -> new IllegalArgumentException("找不到指定的優惠券"));
+    }
+
+    private CouponResponse toResponse(Coupon coupon) {
+        String sellerName = sellerRepository.findById(coupon.getSellerId())
+                .map(seller -> seller.getStoreName())
+                .orElse("未知賣家");
+        return CouponResponse.from(coupon, sellerName);
     }
 
     private void validateTimeRange(java.time.LocalDateTime startAt, java.time.LocalDateTime endAt) {

@@ -35,6 +35,11 @@ const routes = [
         component: () => import('@/views/cart/CheckoutView.vue'),
         meta: { requiresAuth: true },
       },
+      {
+        path: 'coupons',
+        name: 'CouponCenter',
+        component: () => import('@/views/coupon/CouponCenterView.vue'),
+      },
     ],
   },
   {
