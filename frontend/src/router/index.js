@@ -153,6 +153,11 @@ const routes = [
         name: 'SellerProfile',
         component: () => import('@/views/seller/SellerProfileView.vue'),
       },
+      {
+        path: 'messages',
+        name: 'SellerMessages',
+        component: () => import('@/views/seller/SellerMessagesView.vue'),
+      },
     ],
   },
   {

@@ -16,6 +16,7 @@ const navItems = [
   },
   { label: '訂單管理', to: '/seller/orders', icon: 'bi-receipt' },
   { label: '優惠券管理', to: '/seller/coupons', icon: 'bi-ticket-perforated' },
+  { label: '訊息中心', to: '/seller/messages', icon: 'bi-chat-left-text' },
   { label: '店鋪資料', to: '/seller/profile', icon: 'bi-shop' },
 ]
 
@@ -276,7 +277,7 @@ const isItemActive = (item) => {
   }
 
   .seller-nav {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(7, minmax(0, 1fr));
   }
 
   .seller-nav a.router-link-active::before {
