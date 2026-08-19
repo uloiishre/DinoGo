@@ -37,6 +37,9 @@ public class Member {
     @JsonIgnore
     private String passwordHash;
 
+    @Column(name = "auth_version", nullable = false)
+    private int authVersion;
+
     @Column(name = "last_name", nullable = false, length = 50)
     private String lastName;
 
@@ -93,6 +96,14 @@ public class Member {
 
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
+    }
+
+    public int getAuthVersion() {
+        return authVersion;
+    }
+
+    public void setAuthVersion(int authVersion) {
+        this.authVersion = authVersion;
     }
 
     public String getLastName() {

@@ -26,6 +26,8 @@ import com.dinogo.catalog.controller.ProductController;
 import com.dinogo.catalog.service.ProductService;
 import com.dinogo.coupon.controller.CouponController;
 import com.dinogo.coupon.service.CouponService;
+import com.dinogo.member.entity.Member;
+import com.dinogo.member.repository.MemberRepository;
 import com.dinogo.sales.controller.OrderController;
 import com.dinogo.sales.entity.OrderStatus;
 import com.dinogo.sales.service.OrderService;
@@ -61,6 +63,9 @@ class RoleAuthorizationSecurityTest {
 
     @MockitoBean
     private JwtTokenUtil jwtTokenUtil;
+
+    @MockitoBean
+    private MemberRepository memberRepository;
 
     @Test
     void sellerOperationsRequireAuthentication() throws Exception {
@@ -124,9 +129,12 @@ class RoleAuthorizationSecurityTest {
 
     @Test
     void legacyTokenWithoutRolesCannotAccessSellerEndpoints() throws Exception {
+        Member member = new Member();
+        member.setMemberId(1);
         when(jwtTokenUtil.extractSubject("legacy-token")).thenReturn("member@example.com");
         when(jwtTokenUtil.extractMemberId("legacy-token")).thenReturn(1);
         when(jwtTokenUtil.extractRoles("legacy-token")).thenReturn(List.of());
+        when(memberRepository.findById(1)).thenReturn(java.util.Optional.of(member));
 
         mockMvc.perform(get("/api/seller/products")
                         .param("sellerId", "1")

@@ -22,6 +22,7 @@ import com.dinogo.config.SecurityConfig;
 import com.dinogo.member.service.LoginService;
 import com.dinogo.member.service.GoogleLoginService;
 import com.dinogo.member.service.MemberService;
+import com.dinogo.member.repository.MemberRepository;
 import com.dinogo.security.JwtAuthenticationFilter;
 import com.dinogo.security.JwtTokenUtil;
 
@@ -43,6 +44,9 @@ class AuthValidationTest {
 
     @MockitoBean
     private JwtTokenUtil jwtTokenUtil;
+
+    @MockitoBean
+    private MemberRepository memberRepository;
 
     @ParameterizedTest(name = "register rejects {0}")
     @MethodSource("invalidRegistrationRequests")

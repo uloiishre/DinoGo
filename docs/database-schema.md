@@ -52,6 +52,7 @@ Table member.Member {
   member_id int [pk, increment]
   email varchar(100) [not null, unique]
   password_hash varchar(255) [not null]
+  auth_version int [not null, default: 0]
   last_name nvarchar(50) [not null]
   first_name nvarchar(50) [not null]
   birth_date date
@@ -1161,6 +1162,7 @@ CREATE TABLE member.Member (
     member_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_member PRIMARY KEY,
     email varchar(100) NOT NULL CONSTRAINT uq_member_email UNIQUE,
     password_hash varchar(255) NOT NULL,
+    auth_version int NOT NULL CONSTRAINT df_member_auth_version DEFAULT 0,
     last_name nvarchar(50) NOT NULL,
     first_name nvarchar(50) NOT NULL,
     birth_date date NULL,

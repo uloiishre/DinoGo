@@ -39,7 +39,7 @@ public class JwtTokenUtil {
         this.expirationMs = expirationMs;
     }
 
-    public String generateToken(String email, Integer memberId, List<String> roles) {
+    public String generateToken(String email, Integer memberId, List<String> roles, int authVersion) {
         Instant issuedAt = Instant.now();
         var builder = Jwts.builder()
                 .subject(email)
@@ -50,6 +50,7 @@ public class JwtTokenUtil {
             builder.claim("memberId", memberId);
         }
         builder.claim("roles", roles == null ? List.of() : List.copyOf(roles));
+        builder.claim("authVersion", authVersion);
 
         return builder.signWith(signingKey).compact();
     }
@@ -82,6 +83,11 @@ public class JwtTokenUtil {
         return roles.stream()
                 .map(this::requireRoleName)
                 .toList();
+    }
+
+    public int extractAuthVersion(String token) {
+        Integer authVersion = parseClaims(token).get("authVersion", Integer.class);
+        return authVersion == null ? 0 : authVersion;
     }
 
     public boolean isValid(String token) {

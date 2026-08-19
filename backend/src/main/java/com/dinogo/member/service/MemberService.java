@@ -1,6 +1,7 @@
 package com.dinogo.member.service;
 
 import java.util.Locale;
+import java.util.NoSuchElementException;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -8,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.dinogo.member.dto.MemberResponse;
 import com.dinogo.member.dto.MemberUpdateRequest;
+import com.dinogo.member.dto.ChangePasswordRequest;
 import com.dinogo.member.dto.RegisterRequest;
 import com.dinogo.member.dto.RegisterResponse;
 import com.dinogo.member.entity.Member;
@@ -89,6 +91,23 @@ public class MemberService {
 
         // 先 flush 觸發 Member 的 @PreUpdate，再將最新修改時間回傳給前端。
         return MemberResponse.from(memberRepository.saveAndFlush(member));
+    }
+
+    @Transactional
+    public void changePassword(Integer memberId, ChangePasswordRequest request) {
+        Member member = memberRepository.findById(memberId)
+                .orElseThrow(() -> new NoSuchElementException("Member not found"));
+
+        if (!passwordEncoder.matches(request.currentPassword(), member.getPasswordHash())) {
+            throw new IllegalArgumentException("目前密碼錯誤");
+        }
+        if (!request.newPassword().equals(request.confirmNewPassword())) {
+            throw new IllegalArgumentException("新密碼與確認密碼不一致");
+        }
+
+        member.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        member.setAuthVersion(Math.incrementExact(member.getAuthVersion()));
+        memberRepository.saveAndFlush(member);
     }
 
     // 先保留，其他功能若仍需要 email 可以使用
