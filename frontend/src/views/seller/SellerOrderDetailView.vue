@@ -1,7 +1,13 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { acceptSellerOrder, getSellerOrder } from '@/api/sellerOrderApi'
+import {
+  acceptSellerOrder,
+  createSellerShipment,
+  getSellerOrder,
+  updateSellerShipmentStatus,
+} from '@/api/sellerOrderApi'
+import { useSellerShipmentStatus } from './useSellerShipmentStatus'
 
 const route = useRoute()
 const order = ref(null)
@@ -9,6 +15,9 @@ const loading = ref(true)
 const errorMessage = ref('')
 const acceptingOrder = ref(false)
 const actionError = ref('')
+const shipmentForm = ref({ carrierName: '', trackingNo: '' })
+const creatingShipment = ref(false)
+const shipmentFormError = ref('')
 const orderId = computed(() => Number(route.params.id))
 
 const orderStatusLabels = {
@@ -43,6 +52,19 @@ const isCashOnDelivery = computed(() =>
   order.value?.payment?.paymentMethodCode === 'CASH_ON_DELIVERY')
 const progressSteps = computed(() =>
   isCashOnDelivery.value ? cashOnDeliveryProgressSteps : onlinePaymentProgressSteps)
+const canCreateShipment = computed(() =>
+  !order.value?.shipment && ['PAID', 'PROCESSING'].includes(order.value?.status))
+const {
+  shipmentAction,
+  shipmentActionError,
+  updatingShipment,
+  updateShipmentStatus,
+} = useSellerShipmentStatus({
+  order,
+  updateStatus: async (status) =>
+    (await updateSellerShipmentStatus(orderId.value, status)).data,
+  confirmAction: (message) => window.confirm(message),
+})
 
 const fullAddress = computed(() => {
   if (!order.value) return '-'
@@ -79,6 +101,32 @@ async function acceptOrder() {
     actionError.value = error.response?.data?.message ?? '接收訂單失敗，請稍後再試。'
   } finally {
     acceptingOrder.value = false
+  }
+}
+
+async function submitShipment() {
+  if (!canCreateShipment.value || creatingShipment.value) return
+
+  shipmentFormError.value = ''
+  const normalize = (value) => value.trim() || null
+  const carrierName = normalize(shipmentForm.value.carrierName)
+  const trackingNo = normalize(shipmentForm.value.trackingNo)
+  if (!carrierName || !trackingNo) {
+    shipmentFormError.value = '物流商與物流單號皆為必填。'
+    return
+  }
+
+  creatingShipment.value = true
+  try {
+    const response = await createSellerShipment(orderId.value, {
+      carrierName,
+      trackingNo,
+    })
+    order.value.shipment = response.data
+  } catch (error) {
+    shipmentFormError.value = error.response?.data?.message ?? '建立出貨資訊失敗，請稍後再試。'
+  } finally {
+    creatingShipment.value = false
   }
 }
 
@@ -192,8 +240,61 @@ onMounted(loadOrder)
             <div v-if="order.shipment.shippedAt"><p class="section-label">出貨時間</p><strong>{{ formatDate(order.shipment.shippedAt) }}</strong></div>
             <div v-if="order.shipment.availablePickupAt"><p class="section-label">可取貨時間</p><strong>{{ formatDate(order.shipment.availablePickupAt) }}</strong></div>
             <div v-if="order.shipment.deliveredAt"><p class="section-label">送達時間</p><strong>{{ formatDate(order.shipment.deliveredAt) }}</strong></div>
+            <p
+              v-if="order.shipment.status === 'PREPARING' && order.status === 'PAID'"
+              class="shipment-hint"
+            >
+              請先接收訂單，再確認商品出貨。
+            </p>
+            <p v-if="shipmentActionError" class="form-error" role="alert">{{ shipmentActionError }}</p>
+            <button
+              v-if="shipmentAction"
+              class="shipment-submit"
+              type="button"
+              :disabled="updatingShipment"
+              @click="updateShipmentStatus"
+            >
+              {{ updatingShipment ? shipmentAction.pendingLabel : shipmentAction.label }}
+            </button>
           </template>
-          <p v-else class="empty-message">尚未建立物流資料。</p>
+          <form v-else-if="canCreateShipment" class="shipment-form" @submit.prevent="submitShipment">
+            <p class="form-description">填寫物流商與單號，建立後即可接續更新配送狀態。</p>
+            <div class="form-field">
+              <label for="carrier-name">物流商</label>
+              <input
+                id="carrier-name"
+                v-model="shipmentForm.carrierName"
+                name="carrierName"
+                type="text"
+                maxlength="100"
+                required
+                autocomplete="organization"
+                placeholder="例如：黑貓宅急便"
+                :aria-invalid="Boolean(shipmentFormError)"
+                :disabled="creatingShipment"
+              >
+            </div>
+            <div class="form-field">
+              <label for="tracking-no">物流單號</label>
+              <input
+                id="tracking-no"
+                v-model="shipmentForm.trackingNo"
+                name="trackingNo"
+                type="text"
+                maxlength="100"
+                required
+                autocomplete="off"
+                placeholder="請輸入物流追蹤單號"
+                :aria-invalid="Boolean(shipmentFormError)"
+                :disabled="creatingShipment"
+              >
+            </div>
+            <p v-if="shipmentFormError" class="form-error" role="alert">{{ shipmentFormError }}</p>
+            <button class="shipment-submit" type="submit" :disabled="creatingShipment">
+              {{ creatingShipment ? '建立中…' : '建立出貨資訊' }}
+            </button>
+          </form>
+          <p v-else class="empty-message">此訂單目前無法建立物流資料。</p>
         </aside>
       </div>
     </template>
@@ -242,6 +343,23 @@ h2 { margin-bottom: var(--space-4); font-family: var(--font-heading); font-size:
 .full-width { grid-column: 1 / -1; }
 .shipping-card { position: sticky; top: var(--space-5); }
 .shipping-card h2, .shipping-card p, .empty-message { margin-bottom: 0; }
+.shipment-form, .form-field { display: grid; gap: var(--space-2); }
+.shipment-form { gap: var(--space-4); }
+.form-description { color: var(--color-text-muted); font-size: var(--font-size-sm); }
+.form-field label { color: var(--color-text-700); font-size: var(--font-size-sm); font-weight: 700; }
+.form-field input { min-height: 42px; width: 100%; border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md); padding: 0 var(--space-3); background: var(--color-surface); color: var(--color-text); }
+.form-field input:focus-visible { outline: none; border-color: var(--color-primary); box-shadow: var(--shadow-focus); }
+.form-field input:disabled { border-color: var(--color-disabled); background: var(--color-disabled-bg);
+  color: var(--color-text-subtle); cursor: not-allowed; }
+.form-error { color: var(--color-danger) !important; font-size: var(--font-size-sm); }
+.shipment-hint { border-radius: var(--radius-md); padding: var(--space-3);
+  background: var(--color-warning-soft); color: var(--color-warning) !important; }
+.shipment-submit { border: 1px solid var(--color-primary-700); background: var(--color-primary-700); color: var(--color-surface); }
+.shipment-submit:hover:not(:disabled) { background: var(--color-primary-800); }
+.shipment-submit:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+.shipment-submit:disabled { border-color: var(--color-disabled); background: var(--color-disabled-bg);
+  color: var(--color-text-subtle); cursor: not-allowed; }
 button { min-height: 42px; border-radius: var(--radius-md); padding: 0 var(--space-4); font-weight: 700; }
 .secondary-button { border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text-700); }
 .accept-button { width: fit-content; margin-top: var(--space-2); border: 1px solid var(--color-primary-700);

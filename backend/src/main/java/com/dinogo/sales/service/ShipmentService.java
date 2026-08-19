@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.dinogo.sales.dto.shipment.CreateShipmentRequest;
 import com.dinogo.sales.dto.shipment.ShipmentResponse;
 import com.dinogo.sales.dto.shipment.UpdateShipmentStatusRequest;
+import com.dinogo.sales.dto.shipment.UpdateShipmentTrackingInfoRequest;
 import com.dinogo.sales.entity.Order;
 import com.dinogo.sales.entity.OrderStatus;
 import com.dinogo.sales.entity.PaymentStatus;
@@ -124,6 +125,26 @@ public class ShipmentService {
         }
 
         shipment.setStatus(targetStatus);
+        return toResponse(shipmentRepository.save(shipment));
+    }
+
+    @Transactional
+    public ShipmentResponse updateShipmentTrackingInfo(
+            Integer orderId,
+            Integer memberId,
+            UpdateShipmentTrackingInfoRequest request) {
+        Seller seller = getActiveSellerByMemberId(memberId);
+        Shipment shipment = shipmentRepository
+                .findForStatusUpdate(orderId, seller.getSellerId())
+                .orElseThrow(() -> new OrderNotFoundException("Shipment does not exist"));
+
+        if (shipment.getStatus() != ShipmentStatus.PREPARING) {
+            throw new InvalidOrderException(
+                    "Tracking information can only be updated while shipment is preparing");
+        }
+
+        shipment.setCarrierName(normalize(request.carrierName()));
+        shipment.setTrackingNo(normalize(request.trackingNo()));
         return toResponse(shipmentRepository.save(shipment));
     }
 

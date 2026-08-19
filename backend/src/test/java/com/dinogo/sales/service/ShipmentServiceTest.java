@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.dinogo.sales.dto.shipment.CreateShipmentRequest;
 import com.dinogo.sales.dto.shipment.UpdateShipmentStatusRequest;
+import com.dinogo.sales.dto.shipment.UpdateShipmentTrackingInfoRequest;
 import com.dinogo.sales.entity.Order;
 import com.dinogo.sales.entity.OrderStatus;
 import com.dinogo.sales.entity.Payment;
@@ -171,6 +172,63 @@ class ShipmentServiceTest {
         assertEquals(ShipmentStatus.AVAILABLE_FOR_PICKUP, response.status());
         assertNotNull(response.availablePickupAt());
         assertEquals(OrderStatus.SHIPPED, shipment.getOrder().getStatus());
+    }
+
+    @Test
+    void activeOrderSellerUpdatesNormalizedTrackingInfo() {
+        Shipment shipment = shipment(order(10, 6, 30, OrderStatus.PROCESSING));
+        shipment.setCarrierName("Old Carrier");
+        shipment.setTrackingNo("OLD-1");
+        when(seller.getSellerId()).thenReturn(30);
+        when(seller.getStatus()).thenReturn("ACTIVE");
+        when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
+        when(shipmentRepository.findForStatusUpdate(10, 30)).thenReturn(Optional.of(shipment));
+        when(shipmentRepository.save(shipment)).thenReturn(shipment);
+
+        var response = shipmentService.updateShipmentTrackingInfo(
+                10, 8, new UpdateShipmentTrackingInfoRequest(
+                        "  Black Cat  ", "  TRACK-2  "));
+
+        assertEquals("Black Cat", response.carrierName());
+        assertEquals("TRACK-2", response.trackingNo());
+        assertEquals(ShipmentStatus.PREPARING, response.status());
+        verify(shipmentRepository).save(shipment);
+    }
+
+    @Test
+    void completedShipmentTrackingInfoCannotBeChanged() {
+        Shipment shipment = shipment(order(10, 6, 30, OrderStatus.COMPLETED));
+        shipment.setStatus(ShipmentStatus.DELIVERED);
+        shipment.setCarrierName("Original Carrier");
+        shipment.setTrackingNo("ORIGINAL-1");
+        when(seller.getSellerId()).thenReturn(30);
+        when(seller.getStatus()).thenReturn("ACTIVE");
+        when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
+        when(shipmentRepository.findForStatusUpdate(10, 30)).thenReturn(Optional.of(shipment));
+
+        assertThrows(InvalidOrderException.class,
+                () -> shipmentService.updateShipmentTrackingInfo(
+                        10, 8, new UpdateShipmentTrackingInfoRequest(
+                                "Changed Carrier", "CHANGED-2")));
+
+        assertEquals("Original Carrier", shipment.getCarrierName());
+        assertEquals("ORIGINAL-1", shipment.getTrackingNo());
+        verify(shipmentRepository, never()).save(any());
+    }
+
+    @Test
+    void unrelatedSellerCannotUpdateTrackingInfo() {
+        when(seller.getSellerId()).thenReturn(31);
+        when(seller.getStatus()).thenReturn("ACTIVE");
+        when(sellerRepository.findByMember_MemberId(9)).thenReturn(Optional.of(seller));
+        when(shipmentRepository.findForStatusUpdate(10, 31)).thenReturn(Optional.empty());
+
+        assertThrows(OrderNotFoundException.class,
+                () -> shipmentService.updateShipmentTrackingInfo(
+                        10, 9, new UpdateShipmentTrackingInfoRequest(
+                                "Black Cat", "TRACK-2")));
+
+        verify(shipmentRepository, never()).save(any());
     }
 
     @Test

@@ -14,3 +14,11 @@ export const acceptSellerOrder = (orderId) => {
     reason: null,
   })
 }
+
+export const createSellerShipment = (orderId, shipment) => {
+  return api.post(`/orders/${orderId}/shipment`, shipment)
+}
+
+export const updateSellerShipmentStatus = (orderId, status) => {
+  return api.patch(`/orders/${orderId}/shipment/status`, { status })
+}

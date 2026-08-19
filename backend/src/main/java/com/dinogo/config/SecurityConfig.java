@@ -38,6 +38,18 @@ public class SecurityConfig {
                                                 .requestMatchers(HttpMethod.PATCH, "/api/products/**").hasRole("SELLER")
                                                 .requestMatchers(HttpMethod.PATCH, "/api/orders/*/status").hasRole("SELLER")
                                                 .requestMatchers(
+                                                                HttpMethod.POST,
+                                                                "/api/orders/*/shipment")
+                                                .hasRole("SELLER")
+                                                .requestMatchers(
+                                                                HttpMethod.PATCH,
+                                                                "/api/orders/*/shipment/status")
+                                                .hasRole("SELLER")
+                                                .requestMatchers(
+                                                                HttpMethod.PATCH,
+                                                                "/api/orders/*/shipment/tracking-info")
+                                                .hasRole("SELLER")
+                                                .requestMatchers(
                                                                 "/api/cart/**",
                                                                 "/api/favorites/**",
                                                                 "/api/checkout/**",

@@ -12,18 +12,19 @@ const sortOrder = ref('NEWEST')
 const filters = [
   { value: 'ALL', label: '全部', statuses: [] },
   { value: 'PENDING_PAYMENT', label: '待付款', statuses: ['PENDING_PAYMENT'] },
-  { value: 'IN_PROGRESS', label: '進行中', statuses: ['PAID', 'PROCESSING', 'SHIPPED'] },
+  { value: 'PENDING_SHIPMENT', label: '待出貨', statuses: ['PAID', 'PROCESSING'] },
+  { value: 'PENDING_RECEIPT', label: '待收貨', statuses: ['SHIPPED'] },
   { value: 'COMPLETED', label: '已完成', statuses: ['COMPLETED'] },
-  { value: 'CANCELLED', label: '已取消', statuses: ['CANCELLED'] },
+  { value: 'CANCELLED', label: '不成立', statuses: ['CANCELLED'] },
 ]
 
 const statusLabels = {
   PENDING_PAYMENT: '待付款',
-  PAID: '已付款',
-  PROCESSING: '處理中',
-  SHIPPED: '已出貨',
+  PAID: '待出貨',
+  PROCESSING: '待出貨',
+  SHIPPED: '待收貨',
   COMPLETED: '已完成',
-  CANCELLED: '已取消',
+  CANCELLED: '不成立',
 }
 
 const visibleOrders = computed(() => {
