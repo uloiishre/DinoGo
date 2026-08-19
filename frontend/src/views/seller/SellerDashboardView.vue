@@ -33,10 +33,8 @@ const quickActions = [
     <header class="page-header">
       <div>
         <h1>商家營運總覽</h1>
-        <p class="eyebrow">咬日雜物 · 今日營運狀態</p>
+        <p class="eyebrow">森日選物 · 今日營運狀態</p>
       </div>
-
-      <button class="page-action" type="button">查看店鋪</button>
     </header>
 
     <div class="summary-grid">
@@ -127,16 +125,6 @@ h1 {
 h2 {
   color: var(--color-text-800);
   font-size: var(--font-size-base);
-}
-
-.page-action {
-  min-height: 40px;
-  border: 0;
-  border-radius: var(--radius-md);
-  padding: 0 var(--space-4);
-  background: var(--color-primary);
-  color: var(--color-surface);
-  font-weight: 600;
 }
 
 .summary-grid {

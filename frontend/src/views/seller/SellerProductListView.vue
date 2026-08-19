@@ -1,7 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { disableSellerProduct, getSellerProducts } from '../../api/sellerProductApi'
+import { getSellerProducts, publishSellerProduct, unpublishSellerProduct } from '../../api/sellerProductApi'
 import { getCurrentSellerId } from '@/utils/seller-session'
 
 const sellerId = getCurrentSellerId()
@@ -9,16 +9,15 @@ const sellerId = getCurrentSellerId()
 const products = ref([])
 
 const isLoading = ref(false)
+const isChangingStatus = ref(false)
 const errorMessage = ref('')
+const pendingStatusProduct = ref(null)
 
 const loadProducts = async () => {
   isLoading.value = true
   errorMessage.value = ''
 
   try {
-    //等 A/B 模組完成後，這兩處應改成：
-    // const response = await getSellerProducts()
-    // await disableSellerProduct(productId)
     const response = await getSellerProducts(sellerId)
 
     products.value = response.data
@@ -29,19 +28,60 @@ const loadProducts = async () => {
   }
 }
 
-const handleDisable = async (productId) => {
-  const confirmed = window.confirm('確定要下架這項商品嗎？')
+const openStatusDialog = (product) => {
+  pendingStatusProduct.value = product
+}
 
-  if (!confirmed) {
+const closeStatusDialog = () => {
+  if (isChangingStatus.value) {
     return
   }
 
+  pendingStatusProduct.value = null
+}
+
+const confirmStatusChange = async () => {
+  if (!pendingStatusProduct.value) {
+    return
+  }
+
+  const product = pendingStatusProduct.value
+  isChangingStatus.value = true
+  errorMessage.value = ''
+
   try {
-    await disableSellerProduct(sellerId, productId)
+    if (product.status === 'ACTIVE') {
+      await unpublishSellerProduct(product.productId)
+    } else {
+      await publishSellerProduct(product.productId)
+    }
+
+    pendingStatusProduct.value = null
     await loadProducts()
   } catch (error) {
-    errorMessage.value = '商品下架失敗，請稍後再試。'
+    errorMessage.value = product.status === 'ACTIVE'
+      ? '商品下架失敗，請稍後再試。'
+      : '商品上架失敗，請確認商品資料是否完整。'
+  } finally {
+    isChangingStatus.value = false
   }
+}
+
+const statusActionLabel = (status) => (status === 'ACTIVE' ? '下架' : '上架')
+
+const statusDialogTitle = (product) => {
+  if (!product) return ''
+  return product.status === 'ACTIVE' ? '確認下架商品' : '確認上架商品'
+}
+
+const statusDialogDescription = (product) => {
+  if (!product) return ''
+
+  if (product.status === 'ACTIVE') {
+    return '下架後，買家將不會在前台看到這項商品；你仍可在賣家中心再次上架。'
+  }
+
+  return '上架後，買家將可以在前台瀏覽並購買這項商品。'
 }
 
 const formatCurrency = (price) => `NT$${Number(price ?? 0).toLocaleString()}`
@@ -98,9 +138,15 @@ onMounted(loadProducts)
       <p v-else-if="products.length === 0" class="state-message">目前沒有商品資料。</p>
 
       <div v-for="product in products" v-else :key="product.productId" class="product-row">
-        <div class="product-name">
-          <strong>{{ product.productName }}</strong>
-          <span>#SP-{{ String(product.productId).padStart(4, '0') }}</span>
+        <div class="product-info">
+          <div class="product-thumb" aria-hidden="true">
+            <img v-if="product.imageUrl" :src="product.imageUrl" :alt="product.productName" />
+            <span v-else>{{ product.productName?.slice(0, 1) || '商' }}</span>
+          </div>
+          <div class="product-name">
+            <strong>{{ product.productName }}</strong>
+            <span>#SP-{{ String(product.productId).padStart(4, '0') }}</span>
+          </div>
         </div>
         <span>{{ formatCurrency(product.basePrice) }}</span>
         <span>{{ stockText(product.stock) }}</span>
@@ -112,16 +158,50 @@ onMounted(loadProducts)
             編輯
           </RouterLink>
           <button
-            class="danger-action"
+            class="status-action"
             type="button"
-            :disabled="product.status === 'INACTIVE'"
-            @click="handleDisable(product.productId)"
+            :class="product.status === 'ACTIVE' ? 'is-danger' : 'is-primary'"
+            @click="openStatusDialog(product)"
           >
-            下架
+            {{ statusActionLabel(product.status) }}
           </button>
         </div>
       </div>
     </section>
+
+    <Teleport to="body">
+      <div v-if="pendingStatusProduct" class="modal-backdrop" @click.self="closeStatusDialog">
+        <section class="status-modal" role="dialog" aria-modal="true" aria-labelledby="status-modal-title">
+          <div class="modal-icon" :class="pendingStatusProduct.status === 'ACTIVE' ? 'is-danger' : 'is-primary'">
+            <i
+              class="bi"
+              :class="pendingStatusProduct.status === 'ACTIVE' ? 'bi-eye-slash' : 'bi-shop-window'"
+              aria-hidden="true"
+            ></i>
+          </div>
+
+          <div class="modal-copy">
+            <h2 id="status-modal-title">{{ statusDialogTitle(pendingStatusProduct) }}</h2>
+            <p>{{ statusDialogDescription(pendingStatusProduct) }}</p>
+          </div>
+
+          <div class="modal-actions">
+            <button
+              class="confirm-action"
+              type="button"
+              :class="pendingStatusProduct.status === 'ACTIVE' ? 'is-danger' : 'is-primary'"
+              :disabled="isChangingStatus"
+              @click="confirmStatusChange"
+            >
+              {{ isChangingStatus ? '處理中...' : statusActionLabel(pendingStatusProduct.status) }}
+            </button>
+            <button class="ghost-action" type="button" :disabled="isChangingStatus" @click="closeStatusDialog">
+              取消
+            </button>
+          </div>
+        </section>
+      </div>
+    </Teleport>
   </section>
 </template>
 
@@ -151,7 +231,7 @@ h1 {
 }
 
 .secondary-action,
-.danger-action {
+.status-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -167,21 +247,22 @@ h1 {
   background: var(--color-primary-soft);
 }
 
-.danger-action {
+.status-action.is-danger {
   border: 1px solid var(--color-danger);
   color: var(--color-danger);
   background: var(--color-danger-soft);
 }
 
-.danger-action:disabled {
-  border-color: var(--color-disabled);
-  color: var(--color-text-subtle);
-  background: var(--color-disabled-bg);
-  cursor: not-allowed;
+.status-action.is-primary {
+  border: 1px solid var(--color-primary);
+  color: var(--color-surface);
+  background: var(--color-primary);
 }
 
 .secondary-action:focus-visible,
-.danger-action:focus-visible {
+.status-action:focus-visible,
+.ghost-action:focus-visible,
+.confirm-action:focus-visible {
   outline: none;
   box-shadow: var(--shadow-focus);
 }
@@ -226,9 +307,38 @@ h1 {
   font-size: var(--font-size-sm);
 }
 
+.product-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.product-thumb {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-muted);
+  color: var(--color-primary-active);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+}
+
+.product-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .product-name {
   display: grid;
   gap: var(--space-1);
+  min-width: 0;
 }
 
 .product-name strong {
@@ -278,6 +388,107 @@ h1 {
   gap: var(--space-2);
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.status-modal {
+  width: min(420px, 100%);
+  display: grid;
+  gap: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-lg);
+}
+
+.modal-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-lg);
+}
+
+.modal-icon.is-danger {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.modal-icon.is-primary {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-active);
+}
+
+.modal-copy {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.modal-copy h2,
+.modal-copy p {
+  margin: 0;
+}
+
+.modal-copy h2 {
+  color: var(--color-text-900);
+  font-family: var(--font-heading);
+  font-size: var(--font-size-lg);
+}
+
+.modal-copy p {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.7;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-start;
+  gap: var(--space-3);
+}
+
+.ghost-action,
+.confirm-action {
+  min-height: 38px;
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-4);
+  font: inherit;
+  font-weight: 700;
+}
+
+.ghost-action {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text-700);
+}
+
+.confirm-action.is-danger {
+  border: 1px solid var(--color-danger);
+  background: var(--color-danger);
+  color: var(--color-surface);
+}
+
+.confirm-action.is-primary {
+  border: 1px solid var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-surface);
+}
+
+.ghost-action:disabled,
+.confirm-action:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
 @media (max-width: 900px) {
   .table-header {
     display: none;
@@ -289,7 +500,7 @@ h1 {
     padding: var(--space-4) var(--space-5);
   }
 
-  .product-name,
+  .product-info,
   .row-actions {
     grid-column: 1 / -1;
   }
