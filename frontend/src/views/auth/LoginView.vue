@@ -46,10 +46,12 @@ async function submit() {
   try {
     // 登入資料交給 authStore 統一保存，其他元件會同步取得最新狀態。
     await authStore.signIn(form.value)
-    const redirect = typeof route.query.redirect === 'string'
-      && route.query.redirect.startsWith('/')
-      ? route.query.redirect
-      : authStore.isSeller ? '/seller/dashboard' : '/member/overview'
+    const redirect =
+      typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/')
+        ? route.query.redirect
+        : authStore.isSeller
+          ? '/seller/dashboard'
+          : '/member/overview'
     await router.push(redirect)
   } catch (error) {
     apiError.value = getErrorMessage(error)
@@ -59,10 +61,12 @@ async function submit() {
 }
 
 function redirectAfterLogin() {
-  const redirect = typeof route.query.redirect === 'string'
-    && route.query.redirect.startsWith('/')
-    ? route.query.redirect
-    : authStore.isSeller ? '/seller/dashboard' : '/member/overview'
+  const redirect =
+    typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/')
+      ? route.query.redirect
+      : authStore.isSeller
+        ? '/seller/dashboard'
+        : '/member/overview'
   return router.push(redirect)
 }
 
@@ -125,7 +129,11 @@ onMounted(async () => {
 
   try {
     await loadGoogleIdentityServices()
-    window.google.accounts.id.initialize({ client_id: clientId, callback: handleGoogleCredential })
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: handleGoogleCredential,
+      use_fedcm_for_button: true,
+    })
     await nextTick()
     const buttonWidth = Math.min(360, googleButton.value.clientWidth || 360)
     window.google.accounts.id.renderButton(googleButton.value, {
