@@ -56,7 +56,8 @@ public class LoginService {
                 .sorted()
                 .toList();
 
-        String token = jwtTokenUtil.generateToken(member.getEmail(), member.getMemberId(), roles);
+        String token = jwtTokenUtil.generateToken(
+                member.getEmail(), member.getMemberId(), roles, member.getAuthVersion());
         return new LoginResponse(token, MemberResponse.from(member), roles);
     }
 }

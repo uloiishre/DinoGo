@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.dinogo.config.SecurityConfig;
 import com.dinogo.member.service.AddressService;
+import com.dinogo.member.repository.MemberRepository;
 import com.dinogo.security.AuthenticatedMember;
 import com.dinogo.security.JwtAuthenticationFilter;
 import com.dinogo.security.JwtTokenUtil;
@@ -39,6 +40,9 @@ class AddressSecurityTest {
 
     @MockitoBean
     private JwtTokenUtil jwtTokenUtil;
+
+    @MockitoBean
+    private MemberRepository memberRepository;
 
     // 未登入與已登入授權測試。
     @Test

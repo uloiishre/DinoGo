@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.NoSuchElementException;
+
+import com.dinogo.member.dto.ChangePasswordRequest;
 import com.dinogo.member.dto.MemberApiErrorResponse;
 import com.dinogo.member.dto.MemberUpdateRequest;
 import com.dinogo.member.service.MemberService;
@@ -55,6 +58,22 @@ public class MemberController {
             return ResponseEntity
                     .status(HttpStatus.NOT_FOUND)
                     .body(MemberApiErrorResponse.from(HttpStatus.NOT_FOUND, exception.getMessage()));
+        }
+    }
+
+    @PutMapping("/password")
+    public ResponseEntity<?> changePassword(
+            @AuthenticationPrincipal AuthenticatedMember member,
+            @Valid @RequestBody ChangePasswordRequest request) {
+        try {
+            memberService.changePassword(member.memberId(), request);
+            return ResponseEntity.noContent().build();
+        } catch (NoSuchElementException exception) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(MemberApiErrorResponse.from(HttpStatus.NOT_FOUND, exception.getMessage()));
+        } catch (IllegalArgumentException exception) {
+            return ResponseEntity.badRequest()
+                    .body(MemberApiErrorResponse.from(HttpStatus.BAD_REQUEST, exception.getMessage()));
         }
     }
 }

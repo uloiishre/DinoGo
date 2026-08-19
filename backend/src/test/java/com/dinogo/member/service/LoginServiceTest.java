@@ -53,7 +53,7 @@ class LoginServiceTest {
         when(passwordEncoder.matches(request.password(), member.getPasswordHash())).thenReturn(true);
         when(memberRoleRepository.findByMemberMemberId(member.getMemberId()))
                 .thenReturn(List.of(memberRole("seller"), memberRole("buyer")));
-        when(jwtTokenUtil.generateToken(member.getEmail(), member.getMemberId(), roles))
+        when(jwtTokenUtil.generateToken(member.getEmail(), member.getMemberId(), roles, 0))
                 .thenReturn("jwt-token");
 
         LoginResponse response = loginService.login(request);
@@ -61,7 +61,7 @@ class LoginServiceTest {
         assertThat(response.token()).isEqualTo("jwt-token");
         assertThat(response.member().email()).isEqualTo(request.email());
         assertThat(response.roles()).containsExactlyElementsOf(roles);
-        verify(jwtTokenUtil).generateToken(member.getEmail(), member.getMemberId(), roles);
+        verify(jwtTokenUtil).generateToken(member.getEmail(), member.getMemberId(), roles, 0);
     }
 
     @Test

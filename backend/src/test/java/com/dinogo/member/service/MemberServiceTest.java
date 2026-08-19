@@ -22,6 +22,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.dinogo.member.dto.MemberResponse;
 import com.dinogo.member.dto.MemberUpdateRequest;
+import com.dinogo.member.dto.ChangePasswordRequest;
 import com.dinogo.member.dto.RegisterRequest;
 import com.dinogo.member.dto.RegisterResponse;
 import com.dinogo.member.entity.Member;
@@ -212,6 +213,42 @@ class MemberServiceTest {
         assertThat(member.getEmail()).isEqualTo("user@example.com");
         assertThat(member.getPasswordHash()).isEqualTo("hashed-password");
         verify(memberRepository).saveAndFlush(member);
+    }
+
+    @Test
+    void changePasswordHashesNewPasswordAndInvalidatesExistingTokens() {
+        Member member = new Member();
+        member.setMemberId(1);
+        member.setPasswordHash("old-hash");
+        member.setAuthVersion(4);
+        ChangePasswordRequest request = new ChangePasswordRequest(
+                "current-password", "new-password", "new-password");
+        when(memberRepository.findById(1)).thenReturn(Optional.of(member));
+        when(passwordEncoder.matches("current-password", "old-hash")).thenReturn(true);
+        when(passwordEncoder.encode("new-password")).thenReturn("new-hash");
+
+        memberService.changePassword(1, request);
+
+        assertThat(member.getPasswordHash()).isEqualTo("new-hash");
+        assertThat(member.getAuthVersion()).isEqualTo(5);
+        verify(memberRepository).saveAndFlush(member);
+    }
+
+    @Test
+    void changePasswordRejectsIncorrectCurrentPassword() {
+        Member member = new Member();
+        member.setMemberId(1);
+        member.setPasswordHash("old-hash");
+        ChangePasswordRequest request = new ChangePasswordRequest(
+                "wrong-password", "new-password", "new-password");
+        when(memberRepository.findById(1)).thenReturn(Optional.of(member));
+        when(passwordEncoder.matches("wrong-password", "old-hash")).thenReturn(false);
+
+        assertThatThrownBy(() -> memberService.changePassword(1, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("目前密碼錯誤");
+        verify(passwordEncoder, never()).encode(any());
+        verify(memberRepository, never()).saveAndFlush(any());
     }
 
     private Role buyerRole() {
