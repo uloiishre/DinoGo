@@ -59,6 +59,7 @@ class ShipmentServiceTest {
     void sellerCreatesPreparingShipmentForPaidOrder() {
         Order order = order(10, 6, 30, OrderStatus.PAID);
         when(seller.getSellerId()).thenReturn(30);
+        when(seller.getStatus()).thenReturn("ACTIVE");
         when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
         when(orderRepository.findForShipmentCreation(10, 30)).thenReturn(Optional.of(order));
         when(shipmentRepository.existsByOrderOrderId(10)).thenReturn(false);
@@ -78,6 +79,7 @@ class ShipmentServiceTest {
     void rejectsShipmentForUnpaidOrder() {
         Order order = order(10, 6, 30, OrderStatus.PENDING_PAYMENT);
         when(seller.getSellerId()).thenReturn(30);
+        when(seller.getStatus()).thenReturn("ACTIVE");
         when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
         when(orderRepository.findForShipmentCreation(10, 30)).thenReturn(Optional.of(order));
 
@@ -90,6 +92,7 @@ class ShipmentServiceTest {
     void rejectsDuplicateShipment() {
         Order order = order(10, 6, 30, OrderStatus.PROCESSING);
         when(seller.getSellerId()).thenReturn(30);
+        when(seller.getStatus()).thenReturn("ACTIVE");
         when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
         when(orderRepository.findForShipmentCreation(10, 30)).thenReturn(Optional.of(order));
         when(shipmentRepository.existsByOrderOrderId(10)).thenReturn(true);
@@ -116,6 +119,7 @@ class ShipmentServiceTest {
         Shipment shipment = shipment(order(10, 6, 30, OrderStatus.PROCESSING));
         when(shipmentRepository.findByOrderOrderId(10)).thenReturn(Optional.of(shipment));
         when(seller.getSellerId()).thenReturn(30);
+        when(seller.getStatus()).thenReturn("ACTIVE");
         when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
 
         var response = shipmentService.getShipment(10, 8);
@@ -137,6 +141,7 @@ class ShipmentServiceTest {
     void shippedStatusMarksShipmentAndOrderShipped() {
         Shipment shipment = shipment(order(10, 6, 30, OrderStatus.PROCESSING));
         when(seller.getSellerId()).thenReturn(30);
+        when(seller.getStatus()).thenReturn("ACTIVE");
         when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
         when(shipmentRepository.findForStatusUpdate(10, 30)).thenReturn(Optional.of(shipment));
         when(shipmentRepository.save(shipment)).thenReturn(shipment);
@@ -154,6 +159,7 @@ class ShipmentServiceTest {
         Shipment shipment = shipment(order(10, 6, 30, OrderStatus.SHIPPED));
         shipment.setStatus(ShipmentStatus.SHIPPED);
         when(seller.getSellerId()).thenReturn(30);
+        when(seller.getStatus()).thenReturn("ACTIVE");
         when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
         when(shipmentRepository.findForStatusUpdate(10, 30)).thenReturn(Optional.of(shipment));
         when(shipmentRepository.save(shipment)).thenReturn(shipment);
@@ -195,6 +201,7 @@ class ShipmentServiceTest {
         Shipment shipment = shipment(order(10, 6, 30, OrderStatus.SHIPPED));
         shipment.setStatus(ShipmentStatus.SHIPPED);
         when(seller.getSellerId()).thenReturn(30);
+        when(seller.getStatus()).thenReturn("ACTIVE");
         when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
         when(shipmentRepository.findForStatusUpdate(10, 30)).thenReturn(Optional.of(shipment));
 
@@ -209,12 +216,49 @@ class ShipmentServiceTest {
     void sellerCannotMarkShipmentDelivered() {
         Shipment shipment = shipment(order(10, 6, 30, OrderStatus.PROCESSING));
         when(seller.getSellerId()).thenReturn(30);
+        when(seller.getStatus()).thenReturn("ACTIVE");
         when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
         when(shipmentRepository.findForStatusUpdate(10, 30)).thenReturn(Optional.of(shipment));
 
         assertThrows(InvalidOrderException.class,
                 () -> shipmentService.updateShipmentStatus(
                         10, 8, new UpdateShipmentStatusRequest(ShipmentStatus.DELIVERED)));
+        verify(shipmentRepository, never()).save(any());
+    }
+
+    @Test
+    void inactiveSellerCannotCreateShipment() {
+        when(seller.getStatus()).thenReturn("SUSPENDED");
+        when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
+
+        assertThrows(OrderNotFoundException.class, () -> shipmentService.createShipment(
+                10, 8, new CreateShipmentRequest(null, null)));
+
+        verify(orderRepository, never()).findForShipmentCreation(any(), any());
+        verify(shipmentRepository, never()).save(any());
+    }
+
+    @Test
+    void inactiveSellerCannotGetShipment() {
+        Shipment shipment = shipment(order(10, 6, 30, OrderStatus.PROCESSING));
+        when(shipmentRepository.findByOrderOrderId(10)).thenReturn(Optional.of(shipment));
+        when(seller.getStatus()).thenReturn("SUSPENDED");
+        when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
+
+        assertThrows(OrderNotFoundException.class,
+                () -> shipmentService.getShipment(10, 8));
+    }
+
+    @Test
+    void inactiveSellerCannotUpdateShipmentStatus() {
+        when(seller.getStatus()).thenReturn("SUSPENDED");
+        when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
+
+        assertThrows(OrderNotFoundException.class,
+                () -> shipmentService.updateShipmentStatus(
+                        10, 8, new UpdateShipmentStatusRequest(ShipmentStatus.SHIPPED)));
+
+        verify(shipmentRepository, never()).findForStatusUpdate(any(), any());
         verify(shipmentRepository, never()).save(any());
     }
 

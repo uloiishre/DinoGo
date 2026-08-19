@@ -21,6 +21,7 @@ import com.dinogo.member.entity.Address;
 import com.dinogo.member.repository.AddressRepository;
 import com.dinogo.sales.dto.OrderDetailResponse;
 import com.dinogo.sales.dto.OrderListResponse;
+import com.dinogo.sales.dto.SellerOrderListResponse;
 import com.dinogo.sales.dto.order.CreateOrderItemRequest;
 import com.dinogo.sales.dto.order.CreateOrderRequest;
 import com.dinogo.sales.dto.order.CreateOrderResponse;
@@ -159,12 +160,19 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public OrderDetailResponse getSellerOrder(Integer orderId, Integer memberId) {
-        Seller seller = sellerRepository.findByMember_MemberId(memberId)
-                .orElseThrow(() -> new OrderNotFoundException("Seller does not exist"));
+        Seller seller = getSellerByMemberId(memberId);
         Order order = orderRepository
                 .findByOrderIdAndSellerId(orderId, seller.getSellerId())
                 .orElseThrow(() -> new OrderNotFoundException("Order does not exist"));
         return toDetailResponse(order);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SellerOrderListResponse> getSellerOrders(Integer memberId) {
+        Seller seller = getSellerByMemberId(memberId);
+        return orderRepository.findBySellerIdOrderByCreatedAtDesc(seller.getSellerId()).stream()
+                .map(this::toSellerListResponse)
+                .toList();
     }
 
     @Transactional
@@ -187,8 +195,7 @@ public class OrderService {
                     "Order status " + targetStatus
                             + " can only be set by the shipment flow");
         }
-        Seller seller = sellerRepository.findByMember_MemberId(memberId)
-                .orElseThrow(() -> new OrderNotFoundException("Seller does not exist"));
+        Seller seller = getSellerByMemberId(memberId);
 
         Order order = orderRepository
                 .findByOrderIdAndSellerId(orderId, seller.getSellerId())
@@ -345,6 +352,30 @@ public class OrderService {
                 order.getTotalAmount(),
                 order.getCreatedAt(),
                 items);
+    }
+
+    private SellerOrderListResponse toSellerListResponse(Order order) {
+        List<OrderItemResponse> items = order.getOrderItems().stream()
+                .map(this::toItemResponse)
+                .toList();
+
+        return new SellerOrderListResponse(
+                order.getOrderId(),
+                order.getOrderNo(),
+                order.getBuyerId(),
+                order.getStatus(),
+                order.getTotalAmount(),
+                order.getCreatedAt(),
+                items);
+    }
+
+    private Seller getSellerByMemberId(Integer memberId) {
+        Seller seller = sellerRepository.findByMember_MemberId(memberId)
+                .orElseThrow(() -> new OrderNotFoundException("Seller does not exist"));
+        if (!"ACTIVE".equals(seller.getStatus())) {
+            throw new OrderNotFoundException("Seller is inactive");
+        }
+        return seller;
     }
 
     private OrderDetailResponse toDetailResponse(Order order) {

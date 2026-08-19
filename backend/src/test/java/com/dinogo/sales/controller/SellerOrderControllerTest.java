@@ -7,6 +7,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,6 +26,19 @@ import com.dinogo.sales.service.OrderService;
 import com.dinogo.security.AuthenticatedMember;
 
 class SellerOrderControllerTest {
+
+    @Test
+    void getSellerOrdersUsesAuthenticatedMember() {
+        OrderService orderService = mock(OrderService.class);
+        SellerOrderController controller = new SellerOrderController(orderService);
+        AuthenticatedMember member = new AuthenticatedMember(6, "seller@example.com");
+        when(orderService.getSellerOrders(6)).thenReturn(List.of());
+
+        var result = controller.getSellerOrders(member);
+
+        org.assertj.core.api.Assertions.assertThat(result.getBody()).isEmpty();
+        verify(orderService).getSellerOrders(6);
+    }
 
     @Test
     void getSellerOrderUsesAuthenticatedMember() {
