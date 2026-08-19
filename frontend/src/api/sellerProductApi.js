@@ -16,6 +16,16 @@ export const disableSellerProduct = (sellerId, productId) => {
   })
 }
 
+// B 模組商品上架 API
+export const publishSellerProduct = (productId) => {
+  return api.patch(`/products/${productId}/publish`)
+}
+
+// B 模組商品下架 API
+export const unpublishSellerProduct = (productId) => {
+  return api.patch(`/products/${productId}/unpublish`)
+}
+
 // 取得商品詳情，編輯商品頁用來回填既有資料
 export const getProductDetail = (productId) => {
   return api.get(`/products/${productId}`)
