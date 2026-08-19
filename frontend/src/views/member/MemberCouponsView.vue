@@ -7,43 +7,7 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 const activeTab = ref('available')
 
-const fallbackCoupons = [
-  {
-    couponId: 1,
-    couponCode: 'WELCOME300',
-    couponName: 'DINO-GO 平台優惠券',
-    discountType: 'AMOUNT',
-    discountValue: 300,
-    minPurchaseAmount: 2000,
-    endAt: '2026-08-31T23:59:00',
-    status: 'AVAILABLE',
-    description: '滿 NT$2,000 可使用',
-  },
-  {
-    couponId: 2,
-    couponCode: 'BRAND95',
-    couponName: 'DINO-GO 平台優惠券',
-    discountType: 'PERCENT',
-    discountValue: 5,
-    minPurchaseAmount: 0,
-    endAt: '2026-09-15T23:59:00',
-    status: 'AVAILABLE',
-    description: '指定品牌商品適用',
-  },
-  {
-    couponId: 3,
-    couponCode: 'FREESHIP',
-    couponName: 'DINO-GO 平台優惠券',
-    discountType: 'AMOUNT',
-    discountValue: 80,
-    minPurchaseAmount: 1500,
-    endAt: '2026-09-20T23:59:00',
-    status: 'AVAILABLE',
-    description: '滿 NT$1,500 享運費折抵',
-  },
-]
-
-const couponSource = computed(() => (coupons.value.length ? coupons.value : fallbackCoupons))
+const couponSource = computed(() => coupons.value)
 
 const normalizedCoupons = computed(() =>
   couponSource.value.map((coupon) => ({
@@ -69,17 +33,17 @@ const tabs = computed(() => [
     value: 'expired',
     count: normalizedCoupons.value.filter((coupon) => coupon.normalizedStatus === 'expired').length,
   },
+  {
+    label: '不可使用',
+    value: 'unavailable',
+    count: normalizedCoupons.value.filter((coupon) => coupon.normalizedStatus === 'unavailable')
+      .length,
+  },
 ])
 
 const visibleCoupons = computed(() =>
   normalizedCoupons.value.filter((coupon) => coupon.normalizedStatus === activeTab.value),
 )
-
-function normalizeStatus(status) {
-  if (['USED', 'REDEEMED'].includes(status)) return 'used'
-  if (['EXPIRED', 'INACTIVE', 'DISABLED'].includes(status)) return 'expired'
-  return 'available'
-}
 
 function couponAmount(coupon) {
   if (coupon.discountType === 'PERCENT' || coupon.discountType === 'PERCENTAGE') {
@@ -100,9 +64,26 @@ function couponDescription(coupon) {
   return `${description} · ${formatExpireDate(coupon)} 到期`
 }
 
+function normalizeStatus(status) {
+  if (['USED', 'REDEEMED'].includes(status)) {
+    return 'used'
+  }
+
+  if (status === 'AVAILABLE') {
+    return 'available'
+  }
+
+  if (status === 'EXPIRED') {
+    return 'expired'
+  }
+
+  return 'unavailable'
+}
+
 function statusText(status) {
   if (status === 'used') return '已使用'
   if (status === 'expired') return '已過期'
+  if (status === 'unavailable') return '不可使用'
   return '可使用'
 }
 
@@ -120,10 +101,10 @@ async function loadCoupons() {
   try {
     isLoading.value = true
     errorMessage.value = ''
-    const response = await api.get('/coupons/available')
+    const response = await api.get('/member/coupons')
     coupons.value = response.data || []
   } catch (error) {
-    errorMessage.value = '目前使用展示優惠券，正式資料需等待會員優惠券 API。'
+    errorMessage.value = '無法取得我的優惠券，請稍後再試。'
     coupons.value = []
   } finally {
     isLoading.value = false
@@ -171,6 +152,7 @@ onMounted(loadCoupons)
 
         <div class="coupon-copy">
           <h2>{{ coupon.couponName || 'DINO-GO 平台優惠券' }}</h2>
+          <span class="coupon-seller">{{ coupon.sellerName || `賣家 #${coupon.sellerId}` }}</span>
           <p>{{ couponDescription(coupon) }}</p>
         </div>
 
@@ -192,6 +174,14 @@ onMounted(loadCoupons)
   width: min(980px, calc(100% - 48px));
   margin: 0 auto;
   padding: var(--space-5) 0;
+}
+
+.coupon-seller {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
 }
 
 .page-header {

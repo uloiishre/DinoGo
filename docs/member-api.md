@@ -10,7 +10,7 @@
 - 受保護 API 必須帶入：`Authorization: Bearer <token>`。
 - `memberId` 一律從 JWT 取得，request body 與 URL 不接受前端指定的會員 ID。
 - JWT 另有 `roles` claim，內容為 `buyer`、`seller`、`admin` 等小寫角色名稱陳列。
-- Token 預設有效期為 1 小時，可由後端 `jwt.expiration-ms` 設定覆寫。
+- Token 預設有效期為 1 小時，可由後端 `jwt.expiration-ms` 設定覆寫。成功變更密碼後，所有既有 token 會立即失效。
 - 未登入、JWT 缺少、格式錯誤或過期時，Security 層回傳 HTTP 401；已登入但角色不足時回傳 HTTP 403。這兩種 Security 回應目前可能為純文字，前端應以 HTTP status 判斷。
 
 ## 共用回應格式
@@ -251,6 +251,30 @@ Request：
 成功：`200 OK`，body 為更新後的 `MemberResponse`。
 
 失敗：400 欄位驗證、401 未登入或 token 無效、404 JWT 對應會員不存在。
+
+### 變更密碼
+
+`PUT /api/member/password`
+
+Request：
+
+```json
+{
+  "currentPassword": "current-password",
+  "newPassword": "new-password",
+  "confirmNewPassword": "new-password"
+}
+```
+
+| 欄位 | 必填 | 規則 |
+| --- | --- | --- |
+| `currentPassword` | 是 | 不可空白 |
+| `newPassword` | 是 | 8～72 字 |
+| `confirmNewPassword` | 是 | 8～72 字，且必須與 `newPassword` 相同 |
+
+成功：`204 No Content`。成功後系統會讓該會員全部裝置上的既有 JWT 立即失效，前端應清除目前保存的 token 並導回登入頁。
+
+失敗：400 欄位驗證、`目前密碼錯誤` 或 `新密碼與確認密碼不一致`；401 未登入或 token 無效；404 JWT 對應會員不存在。
 
 ## 收件地址 API
 

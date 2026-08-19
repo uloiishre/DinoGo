@@ -15,12 +15,13 @@ class JwtTokenUtilTest {
 
     @Test
     void generateTokenContainsMemberIdentityAndRoles() {
-        String token = jwtTokenUtil.generateToken("user@example.com", 1, List.of("buyer", "seller"));
+        String token = jwtTokenUtil.generateToken("user@example.com", 1, List.of("buyer", "seller"), 3);
 
         assertThat(jwtTokenUtil.isValid(token)).isTrue();
         assertThat(jwtTokenUtil.extractSubject(token)).isEqualTo("user@example.com");
         assertThat(jwtTokenUtil.parseClaims(token).get("memberId", Integer.class)).isEqualTo(1);
         assertThat(jwtTokenUtil.extractRoles(token)).containsExactly("buyer", "seller");
+        assertThat(jwtTokenUtil.extractAuthVersion(token)).isEqualTo(3);
     }
 
     @Test

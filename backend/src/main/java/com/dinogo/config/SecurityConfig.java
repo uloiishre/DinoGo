@@ -32,7 +32,12 @@ public class SecurityConfig {
                                 .authorizeHttpRequests(authorize -> authorize
                                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                                 .requestMatchers("/api/auth/**").permitAll()
-                                                .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
+                                                .requestMatchers(HttpMethod.GET,
+                                                                "/api/products/**",
+                                                                "/api/categories/**",
+                                                                "/api/subcategories/**",
+                                                                "/api/brands/**",
+                                                                "/api/search/**").permitAll()
                                                 .requestMatchers("/api/seller/**").hasRole("SELLER")
                                                 .requestMatchers(HttpMethod.POST, "/api/products/**").hasRole("SELLER")
                                                 .requestMatchers(HttpMethod.PATCH, "/api/products/**").hasRole("SELLER")

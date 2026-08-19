@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 
 import com.dinogo.member.dto.MemberResponse;
 import com.dinogo.member.dto.MemberApiErrorResponse;
+import com.dinogo.member.dto.ChangePasswordRequest;
 import com.dinogo.member.dto.MemberUpdateRequest;
 import com.dinogo.member.service.MemberService;
 import com.dinogo.security.AuthenticatedMember;
@@ -120,5 +121,16 @@ class MemberControllerTest {
                 assertThat(result.getBody()).isEqualTo(MemberApiErrorResponse.from(
                                 HttpStatus.NOT_FOUND,
                                 "Member not found"));
+        }
+
+        @Test
+        void changePasswordUsesAuthenticatedMemberAndReturnsNoContent() {
+                ChangePasswordRequest request = new ChangePasswordRequest(
+                                "current-password", "new-password", "new-password");
+
+                ResponseEntity<?> result = memberController.changePassword(authenticatedMember, request);
+
+                assertThat(result.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+                verify(memberService).changePassword(1, request);
         }
 }

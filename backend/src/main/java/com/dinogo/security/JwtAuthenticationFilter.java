@@ -13,6 +13,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.dinogo.member.entity.Member;
+import com.dinogo.member.repository.MemberRepository;
+
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -25,9 +28,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtTokenUtil jwtTokenUtil;
+    private final MemberRepository memberRepository;
 
-    public JwtAuthenticationFilter(JwtTokenUtil jwtTokenUtil) {
+    public JwtAuthenticationFilter(JwtTokenUtil jwtTokenUtil, MemberRepository memberRepository) {
         this.jwtTokenUtil = jwtTokenUtil;
+        this.memberRepository = memberRepository;
     }
 
     @Override
@@ -48,25 +53,35 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         if (!authorization.startsWith(BEARER_PREFIX)) {
-            sendUnauthorized(response, "Authorization header must use Bearer token");
+            filterChain.doFilter(request, response);
             return;
         }
 
         String token = authorization.substring(BEARER_PREFIX.length()).trim();
         if (!StringUtils.hasText(token)) {
-            sendUnauthorized(response, "Bearer token is required");
+            filterChain.doFilter(request, response);
             return;
         }
 
         try {
             String subject = jwtTokenUtil.extractSubject(token);
             Integer memberId = jwtTokenUtil.extractMemberId(token);
+            int tokenAuthVersion = jwtTokenUtil.extractAuthVersion(token);
             List<GrantedAuthority> authorities = jwtTokenUtil.extractRoles(token).stream()
                     .<GrantedAuthority>map(role ->
                             new SimpleGrantedAuthority("ROLE_" + role.toUpperCase(Locale.ROOT)))
                     .toList();
             if (memberId == null) {
-                sendUnauthorized(response, "JWT memberId claim is required");
+                logger.debug("JWT memberId claim is missing in token");
+                SecurityContextHolder.clearContext();
+                filterChain.doFilter(request, response);
+                return;
+            }
+            Member member = memberRepository.findById(memberId).orElse(null);
+            if (member == null || member.getAuthVersion() != tokenAuthVersion) {
+                logger.debug("JWT is no longer valid for member " + memberId);
+                SecurityContextHolder.clearContext();
+                filterChain.doFilter(request, response);
                 return;
             }
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
@@ -78,10 +93,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
             filterChain.doFilter(request, response);
         } catch (JwtException | IllegalArgumentException exception) {
-            exception.printStackTrace();
-
+            logger.debug("Invalid or expired token: " + exception.getMessage());
             SecurityContextHolder.clearContext();
-            sendUnauthorized(response, "Invalid or expired token");
+            filterChain.doFilter(request, response);
         }
     }
 

@@ -27,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.dinogo.config.SecurityConfig;
 import com.dinogo.member.dto.MemberResponse;
 import com.dinogo.member.service.MemberService;
+import com.dinogo.member.repository.MemberRepository;
 import com.dinogo.security.AuthenticatedMember;
 import com.dinogo.security.JwtAuthenticationFilter;
 import com.dinogo.security.JwtTokenUtil;
@@ -44,6 +45,9 @@ class MemberSecurityTest {
     @MockitoBean
     private JwtTokenUtil jwtTokenUtil;
 
+    @MockitoBean
+    private MemberRepository memberRepository;
+
     @Test
     void profileEndpointsRequireAuthentication() throws Exception {
         mockMvc.perform(get("/api/member/profile"))
@@ -52,6 +56,11 @@ class MemberSecurityTest {
         mockMvc.perform(put("/api/member/profile")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validUpdateJson()))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(put("/api/member/password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validPasswordJson()))
                 .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(memberService);
@@ -84,6 +93,19 @@ class MemberSecurityTest {
         verifyNoInteractions(memberService);
     }
 
+    @ParameterizedTest(name = "password change rejects {0}")
+    @MethodSource("invalidPasswordChanges")
+    void changePasswordRejectsInvalidRequest(String scenario, String requestBody, String fieldName) throws Exception {
+        mockMvc.perform(put("/api/member/password")
+                        .with(authentication(authenticationForMember(1)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors." + fieldName).isNotEmpty());
+
+        verifyNoInteractions(memberService);
+    }
+
     private static Stream<Arguments> invalidProfileUpdates() {
         return Stream.of(
                 Arguments.of("blank last name", updateJson("", "小明"), "lastName"),
@@ -91,8 +113,18 @@ class MemberSecurityTest {
                 Arguments.of("overlong first name", updateJson("王", "名".repeat(51)), "firstName"));
     }
 
+    private static Stream<Arguments> invalidPasswordChanges() {
+        return Stream.of(
+                Arguments.of("blank current password", passwordJson("", "new-password", "new-password"), "currentPassword"),
+                Arguments.of("short new password", passwordJson("current-password", "short", "short"), "newPassword"));
+    }
+
     private static String validUpdateJson() {
         return updateJson("王", "小明");
+    }
+
+    private static String validPasswordJson() {
+        return passwordJson("current-password", "new-password", "new-password");
     }
 
     private static String updateJson(String lastName, String firstName) {
@@ -102,6 +134,16 @@ class MemberSecurityTest {
                   "firstName": "%s"
                 }
                 """.formatted(lastName, firstName);
+    }
+
+    private static String passwordJson(String currentPassword, String newPassword, String confirmNewPassword) {
+        return """
+                {
+                  "currentPassword": "%s",
+                  "newPassword": "%s",
+                  "confirmNewPassword": "%s"
+                }
+                """.formatted(currentPassword, newPassword, confirmNewPassword);
     }
 
     private UsernamePasswordAuthenticationToken authenticationForMember(Integer memberId) {

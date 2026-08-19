@@ -35,6 +35,11 @@ const routes = [
         component: () => import('@/views/cart/CheckoutView.vue'),
         meta: { requiresAuth: true },
       },
+      {
+        path: 'coupons',
+        name: 'CouponCenter',
+        component: () => import('@/views/coupon/CouponCenterView.vue'),
+      },
     ],
   },
   {
@@ -152,6 +157,11 @@ const routes = [
         path: 'profile',
         name: 'SellerProfile',
         component: () => import('@/views/seller/SellerProfileView.vue'),
+      },
+      {
+        path: 'messages',
+        name: 'SellerMessages',
+        component: () => import('@/views/seller/SellerMessagesView.vue'),
       },
     ],
   },
