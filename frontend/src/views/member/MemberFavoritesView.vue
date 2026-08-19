@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import api from '@/api/axios'
 
 // ================================
@@ -14,6 +14,14 @@ const removingId = ref(null)
 const addingCartId = ref(null)
 
 // ================================
+// 規格選擇
+// ================================
+
+const showSkuModal = ref(false)
+const selectedFavorite = ref(null)
+const selectedSkuId = ref(null)
+
+// ================================
 // 取得收藏
 // ================================
 
@@ -24,7 +32,9 @@ const loadFavorites = async () => {
 
     const response = await api.get('/favorites')
 
-    favorites.value = response.data
+    favorites.value = response.data || []
+
+    console.log('收藏商品：', favorites.value)
   } catch (error) {
     console.error('取得收藏失敗：', error)
 
@@ -55,24 +65,150 @@ const removeFavorite = async (productId) => {
 }
 
 // ================================
+// 商品是否下架
+// ================================
+
+const isProductUnavailable = (favorite) => {
+  return Number(favorite.productStatus) !== 1
+}
+
+const isSkuAvailable = (sku) => {
+  if (!sku) {
+    return false
+  }
+
+  return sku.available === true
+}
+
+const isFavoriteAvailable = (favorite) => {
+  return favorite?.available === true
+}
+
+const getUnavailableText = (favorite) => {
+  if (Number(favorite.productStatus) !== 1) {
+    return '已下架'
+  }
+
+  if (Number(favorite.skuStatus) !== 1) {
+    return '規格已停用'
+  }
+
+  if (Number(favorite.skuStock || 0) <= 0) {
+    return '庫存不足'
+  }
+
+  return ''
+}
+
+// ================================
+// 取得可購買 SKU
+// ================================
+
+// const getAvailableSkus = (favorite) => {
+//   if (!favorite?.skus) {
+//     return []
+//   }
+
+//   return favorite.skus.filter((sku) => isSkuAvailable(sku))
+// }
+
+// ================================
+// 開啟規格選擇
+// ================================
+const openSkuSelector = (favorite) => {
+  if (!isFavoriteAvailable(favorite)) {
+    return
+  }
+
+  selectedFavorite.value = favorite
+
+  // 預設選第一個有庫存的 SKU
+  const firstAvailableSku = favorite.skus?.find((sku) => sku.available === true)
+
+  selectedSkuId.value = firstAvailableSku?.skuId ?? null
+
+  showSkuModal.value = true
+}
+
+// ================================
+// 關閉規格選擇
+// ================================
+
+const closeSkuSelector = () => {
+  if (addingCartId.value !== null) {
+    return
+  }
+
+  showSkuModal.value = false
+  selectedFavorite.value = null
+  selectedSkuId.value = null
+}
+const getUnavailableReason = (favorite) => {
+  if (Number(favorite.productStatus) !== 1) {
+    return '已下架'
+  }
+
+  if (Number(favorite.skuStatus) !== 1) {
+    return '規格已停用'
+  }
+
+  if (Number(favorite.skuStock || 0) <= 0) {
+    return '庫存不足'
+  }
+
+  return ''
+}
+// ================================
 // 加入購物車
 // ================================
 
-const addToCart = async (favorite) => {
+const addToCart = async () => {
+  if (!selectedFavorite.value || !selectedSkuId.value) {
+    return
+  }
+
+  const favorite = selectedFavorite.value
+
+  // 商品下架
+  if (Number(favorite.productStatus) !== 1) {
+    alert('此商品目前已下架，無法加入購物車')
+    return
+  }
+
+  // 找目前選擇的 SKU
+  const selectedSku = favorite.skus?.find((sku) => sku.skuId === Number(selectedSkuId.value))
+
+  if (!selectedSku) {
+    alert('找不到商品規格')
+    return
+  }
+
+  // SKU 不可購買
+  if (!isSkuAvailable(selectedSku)) {
+    if (Number(selectedSku.skuStatus) !== 1) {
+      alert('此商品規格目前未啟用')
+    } else if (Number(selectedSku.skuStock || 0) <= 0) {
+      alert('此規格目前庫存不足')
+    }
+
+    return
+  }
+
   try {
     addingCartId.value = favorite.productId
 
-    if (!favorite.skuId) {
-      alert('此商品缺少 SKU 資訊，無法加入購物車')
-      return
-    }
-
     await api.post('/cart/items', {
-      skuId: favorite.skuId,
+      skuId: Number(selectedSku.skuId),
       quantity: 1,
     })
 
     alert('已加入購物車')
+
+    // 先結束加入購物車狀態
+    addingCartId.value = null
+
+    // 再關閉規格選擇視窗
+    closeSkuSelector()
   } catch (error) {
     console.error('加入購物車失敗：', error)
 
@@ -103,7 +239,6 @@ onMounted(() => {
   loadFavorites()
 })
 </script>
-
 <template>
   <main class="favorite-page">
     <div class="favorite-container">
@@ -149,11 +284,19 @@ onMounted(() => {
       <div v-else-if="favorites.length > 0" class="favorite-grid">
         <!-- 收藏商品 -->
 
-        <article v-for="favorite in favorites" :key="favorite.favoriteId" class="favorite-card">
+        <article
+          v-for="favorite in favorites"
+          :key="favorite.favoriteId"
+          class="favorite-card"
+          :class="{
+            unavailable: !isFavoriteAvailable(favorite),
+          }"
+        >
           <!-- 商品圖片 -->
-          <!-- 點圖片進入商品詳細頁 -->
+          <!-- 商品圖片 -->
 
           <RouterLink
+            v-if="isFavoriteAvailable(favorite)"
             :to="{
               name: 'ProductDetail',
               params: {
@@ -170,8 +313,6 @@ onMounted(() => {
               </div>
             </div>
 
-            <!-- 商品資訊 -->
-
             <div class="product-info">
               <h2 class="product-name">
                 {{ favorite.productName }}
@@ -180,6 +321,36 @@ onMounted(() => {
               <p class="product-price">NT$ {{ formatPrice(favorite.basePrice) }}</p>
             </div>
           </RouterLink>
+
+          <!-- 不可購買商品 -->
+
+          <div v-else class="product-link product-link-disabled">
+            <div class="product-image">
+              <img v-if="favorite.imageUrl" :src="favorite.imageUrl" :alt="favorite.productName" />
+
+              <div v-else class="image-placeholder" aria-label="沒有商品圖片">
+                <i class="bi bi-image"></i>
+              </div>
+
+              <div class="unavailable-overlay">
+                <span class="unavailable-line"></span>
+
+                <span class="unavailable-text">
+                  {{ getUnavailableText(favorite) }}
+                </span>
+
+                <span class="unavailable-line"></span>
+              </div>
+            </div>
+
+            <div class="product-info">
+              <h2 class="product-name">
+                {{ favorite.productName }}
+              </h2>
+
+              <p class="product-price">NT$ {{ formatPrice(favorite.basePrice) }}</p>
+            </div>
+          </div>
 
           <!-- 商品操作 -->
 
@@ -205,8 +376,8 @@ onMounted(() => {
             <button
               type="button"
               class="cart-button"
-              :disabled="addingCartId === favorite.productId"
-              @click="addToCart(favorite)"
+              :disabled="!isFavoriteAvailable(favorite) || addingCartId === favorite.productId"
+              @click="openSkuSelector(favorite)"
             >
               <i
                 class="bi"
@@ -214,13 +385,136 @@ onMounted(() => {
               ></i>
 
               <span>
-                {{ addingCartId === favorite.productId ? '加入中...' : '加入購物車' }}
+                {{
+                  addingCartId === favorite.productId
+                    ? '加入中...'
+                    : !isFavoriteAvailable(favorite)
+                      ? getUnavailableText(favorite)
+                      : '加入購物車'
+                }}
               </span>
             </button>
           </div>
         </article>
       </div>
+      <!-- ========================================
+     SKU 選擇 Modal
+======================================== -->
 
+      <div
+        v-if="showSkuModal && selectedFavorite"
+        class="sku-modal-backdrop"
+        @click.self="closeSkuSelector"
+      >
+        <div class="sku-modal">
+          <!-- Header -->
+
+          <div class="sku-modal-header">
+            <h2>選擇商品規格</h2>
+
+            <button
+              type="button"
+              class="sku-close-button"
+              :disabled="addingCartId !== null"
+              @click="closeSkuSelector"
+            >
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+
+          <!-- 商品 -->
+
+          <div class="sku-product">
+            <img
+              v-if="selectedFavorite.imageUrl"
+              :src="selectedFavorite.imageUrl"
+              :alt="selectedFavorite.productName"
+            />
+
+            <div>
+              <strong>
+                {{ selectedFavorite.productName }}
+              </strong>
+
+              <span>
+                NT$
+                {{ formatPrice(selectedFavorite.basePrice) }}
+              </span>
+            </div>
+          </div>
+
+          <!-- 規格 -->
+
+          <div class="sku-selection">
+            <label class="sku-modal-label">商品規格</label>
+
+            <div class="sku-option-list">
+              <label
+                v-for="sku in selectedFavorite.skus"
+                :key="sku.skuId"
+                class="sku-option"
+                :class="{
+                  selected: selectedSkuId === sku.skuId,
+                  disabled: !isSkuAvailable(sku),
+                }"
+              >
+                <input
+                  v-model="selectedSkuId"
+                  type="radio"
+                  name="favoriteSku"
+                  :value="sku.skuId"
+                  :disabled="!isSkuAvailable(sku)"
+                />
+
+                <span class="sku-radio"></span>
+
+                <span class="sku-option-content">
+                  <strong>
+                    {{ sku.skuName }}
+                  </strong>
+
+                  <span v-if="Number(sku.skuStatus) !== 1"> 規格已停用 </span>
+
+                  <span v-else-if="Number(sku.skuStock || 0) <= 0"> 庫存不足 </span>
+
+                  <span v-else> 庫存 {{ sku.skuStock }} 件 </span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Footer -->
+
+          <div class="sku-modal-footer">
+            <button
+              type="button"
+              class="sku-cancel-button"
+              :disabled="addingCartId !== null"
+              @click="closeSkuSelector"
+            >
+              取消
+            </button>
+
+            <button
+              type="button"
+              class="sku-confirm-button"
+              :disabled="!selectedSkuId || addingCartId !== null"
+              @click="addToCart"
+            >
+              <span v-if="addingCartId !== null">
+                <span class="spinner-border spinner-border-sm" role="status"></span>
+
+                加入中...
+              </span>
+
+              <span v-else>
+                <i class="bi bi-cart-plus"></i>
+                加入購物車
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
       <!-- ================================
            沒有收藏商品
       ================================= -->
@@ -743,5 +1037,458 @@ onMounted(() => {
 
 .product-link .product-price {
   color: var(--color-primary);
+}
+/* ========================================
+   商品不可購買
+======================================== */
+
+.favorite-card.unavailable {
+  opacity: 0.6;
+}
+
+.favorite-card.unavailable:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.favorite-card.unavailable .product-link {
+  cursor: default;
+}
+
+/* ========================================
+   商品圖片失效遮罩
+======================================== */
+
+.product-image {
+  position: relative;
+}
+
+.unavailable-overlay {
+  position: absolute;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: var(--space-2);
+
+  background: rgba(128, 128, 128, 0.35);
+
+  pointer-events: none;
+}
+
+.unavailable-text {
+  position: relative;
+  z-index: 2;
+
+  padding: var(--space-1) var(--space-3);
+
+  color: #444;
+
+  background: rgba(255, 255, 255, 0.9);
+
+  border-radius: var(--radius-sm);
+
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+
+  white-space: nowrap;
+}
+
+.unavailable-line {
+  width: 30px;
+  height: 1px;
+
+  background: #555;
+}
+
+/* ========================================
+   不可購買按鈕
+======================================== */
+
+.favorite-card.unavailable .cart-button {
+  color: var(--color-text-muted);
+
+  background: var(--color-surface-soft);
+
+  border-color: var(--color-border);
+
+  cursor: not-allowed;
+}
+
+/* ========================================
+   SKU Modal
+======================================== */
+
+.sku-modal-backdrop {
+  position: fixed;
+
+  inset: 0;
+
+  z-index: 1000;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: var(--space-4);
+
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.sku-modal {
+  width: 100%;
+  max-width: 520px;
+
+  max-height: 90vh;
+
+  overflow-y: auto;
+
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-border);
+
+  border-radius: var(--radius-lg);
+
+  box-shadow: var(--shadow-lg);
+}
+
+/* ========================================
+   SKU Modal Header
+======================================== */
+
+.sku-modal-header {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  padding: var(--space-5);
+
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sku-modal-header h2 {
+  margin: 0;
+
+  color: var(--color-text);
+
+  font-size: var(--font-size-md);
+  font-weight: 700;
+}
+
+.sku-close-button {
+  width: 36px;
+  height: 36px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  color: var(--color-text-muted);
+
+  background: transparent;
+
+  border: 0;
+
+  border-radius: var(--radius-md);
+
+  cursor: pointer;
+}
+
+.sku-close-button:hover:not(:disabled) {
+  color: var(--color-text);
+
+  background: var(--color-surface-soft);
+}
+
+/* ========================================
+   SKU Product
+======================================== */
+
+.sku-product {
+  display: flex;
+
+  align-items: center;
+
+  gap: var(--space-3);
+
+  padding: var(--space-4) var(--space-5);
+
+  background: var(--color-surface-soft);
+}
+
+.sku-product img {
+  width: 64px;
+  height: 64px;
+
+  object-fit: contain;
+
+  border-radius: var(--radius-md);
+
+  background: var(--color-surface);
+}
+
+.sku-product > div {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: var(--space-1);
+
+  min-width: 0;
+}
+
+.sku-product strong {
+  color: var(--color-text);
+
+  font-size: var(--font-size-sm);
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+}
+
+.sku-product span {
+  color: var(--color-primary);
+
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+/* ========================================
+   SKU Selection
+======================================== */
+
+.sku-selection {
+  padding: var(--space-5);
+}
+
+.sku-modal-label {
+  display: block;
+
+  margin-bottom: var(--space-3);
+
+  color: var(--color-text);
+
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.sku-option-list {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: var(--space-2);
+}
+
+.sku-option {
+  position: relative;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: var(--space-3);
+
+  padding: var(--space-3);
+
+  border: 1px solid var(--color-border);
+
+  border-radius: var(--radius-md);
+
+  background: var(--color-surface);
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.sku-option:hover:not(.disabled) {
+  border-color: var(--color-primary);
+
+  background: var(--color-primary-soft);
+}
+
+.sku-option.selected {
+  border-color: var(--color-primary);
+
+  background: var(--color-primary-soft);
+}
+
+.sku-option.disabled {
+  opacity: 0.45;
+
+  cursor: not-allowed;
+}
+
+.sku-option input {
+  position: absolute;
+
+  width: 1px;
+  height: 1px;
+
+  opacity: 0;
+}
+
+.sku-radio {
+  position: relative;
+
+  width: 18px;
+  height: 18px;
+
+  flex: 0 0 18px;
+
+  border: 2px solid var(--color-border);
+
+  border-radius: 50%;
+}
+
+.sku-option.selected .sku-radio {
+  border-color: var(--color-primary);
+}
+
+.sku-option.selected .sku-radio::after {
+  content: '';
+
+  position: absolute;
+
+  top: 3px;
+  left: 3px;
+
+  width: 8px;
+  height: 8px;
+
+  border-radius: 50%;
+
+  background: var(--color-primary);
+}
+
+.sku-option-content {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: var(--space-1);
+}
+
+.sku-option-content strong {
+  color: var(--color-text);
+
+  font-size: var(--font-size-sm);
+}
+
+.sku-option-content span {
+  color: var(--color-text-muted);
+
+  font-size: var(--font-size-xs);
+}
+
+/* ========================================
+   SKU Modal Footer
+======================================== */
+
+.sku-modal-footer {
+  display: flex;
+
+  gap: var(--space-2);
+
+  padding: var(--space-4) var(--space-5);
+
+  border-top: 1px solid var(--color-border);
+}
+
+.sku-cancel-button,
+.sku-confirm-button {
+  flex: 1;
+
+  min-height: 44px;
+
+  padding: var(--space-2) var(--space-4);
+
+  border-radius: var(--radius-md);
+
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+
+  cursor: pointer;
+}
+
+.sku-cancel-button {
+  color: var(--color-text);
+
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-border);
+}
+
+.sku-cancel-button:hover:not(:disabled) {
+  background: var(--color-surface-soft);
+}
+
+.sku-confirm-button {
+  color: var(--color-surface);
+
+  background: var(--color-primary);
+
+  border: 1px solid var(--color-primary);
+}
+
+.sku-confirm-button:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+
+  border-color: var(--color-primary-hover);
+}
+
+.sku-confirm-button:disabled,
+.sku-cancel-button:disabled {
+  opacity: 0.55;
+
+  cursor: not-allowed;
+}
+
+/* ========================================
+   Mobile
+======================================== */
+
+@media (max-width: 480px) {
+  .sku-modal-backdrop {
+    align-items: flex-end;
+
+    padding: 0;
+  }
+
+  .sku-modal {
+    max-width: none;
+
+    max-height: 90vh;
+
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+
+  .sku-modal-header {
+    padding: var(--space-4);
+  }
+
+  .sku-selection {
+    padding: var(--space-4);
+  }
+
+  .sku-modal-footer {
+    padding: var(--space-4);
+  }
+}
+.product-link-disabled {
+  cursor: default;
 }
 </style>

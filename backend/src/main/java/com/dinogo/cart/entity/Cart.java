@@ -1,5 +1,6 @@
 package com.dinogo.cart.entity;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import com.dinogo.member.entity.Member;
@@ -25,7 +26,7 @@ public class Cart {
 	@JoinColumn(name = "member_id")
 	private Member member;
 	@OneToMany(mappedBy = "cart")
-	private List<CartItem> cartItems;
+	private List<CartItem> cartItems = new ArrayList<>();
 
 	public int getCartId() {
 		return cartId;
