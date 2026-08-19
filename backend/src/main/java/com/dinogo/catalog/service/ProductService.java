@@ -2,6 +2,7 @@ package com.dinogo.catalog.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -329,6 +330,62 @@ public class ProductService {
 
                 List<ProductSkuResponse> skus = product.getSkus()
                                 .stream()
+                                .filter(sku -> sku.getStatus() == 1)
+                                .map(sku -> ProductSkuResponse.builder()
+                                                .skuId(sku.getSkuId())
+                                                .spec1Name(sku.getSpec1Name())
+                                                .spec1Value(sku.getSpec1Value())
+                                                .spec2Name(sku.getSpec2Name())
+                                                .spec2Value(sku.getSpec2Value())
+                                                .price(sku.getPrice())
+                                                .stock(sku.getStock())
+                                                .status(sku.getStatus())
+                                                .build())
+                                .toList();
+
+                return ProductDetailResponse.builder()
+                                .productId(product.getProductId())
+                                .productName(product.getProductName())
+                                .description(product.getDescription())
+                                .basePrice(product.getBasePrice())
+                                .status(product.getStatus())
+                                .viewCount(product.getViewCount())
+                                .soldCount(product.getSoldCount())
+
+                                .brandId(product.getBrand().getBrandId())
+                                .brandName(product.getBrand().getBrandName())
+
+                                .subcategoryId(product.getSubcategory().getSubcategoryId())
+                                .subcategoryName(product.getSubcategory().getSubcategoryName())
+
+                                .categoryId(product.getSubcategory().getCategory().getCategoryId())
+                                .categoryName(product.getSubcategory().getCategory().getCategoryName())
+
+                                .images(images)
+                                .skus(skus)
+
+                                .build();
+        }
+
+        // 賣家讀取商品詳情
+        // 包含已停用的 SKU，供編輯商品使用
+        public ProductDetailResponse getSellerProductDetail(Integer productId) {
+
+                Product product = productRepository.findById(productId)
+                                .orElseThrow(() -> new RuntimeException("找不到商品"));
+
+                List<ProductImageResponse> images = product.getImages()
+                                .stream()
+                                .map(image -> ProductImageResponse.builder()
+                                                .imageId(image.getImageId())
+                                                .imageUrl(image.getImageUrl())
+                                                .sortOrder(image.getSortOrder())
+                                                .build())
+                                .toList();
+
+                // 賣家需要看到全部 SKU，包括 status = 0
+                List<ProductSkuResponse> skus = product.getSkus()
+                                .stream()
                                 .map(sku -> ProductSkuResponse.builder()
                                                 .skuId(sku.getSkuId())
                                                 .spec1Name(sku.getSpec1Name())
@@ -460,27 +517,108 @@ public class ProductService {
                 return toProductSkuResponse(updatedSku);
         }
 
-        // 新增商品Sku
-        public ProductSkuResponse createSku(
+        // 批次新增商品 SKU
+        @Transactional
+        public List<ProductSkuResponse> createSkus(
                         Integer productId,
-                        ProductSkuCreateRequest request) {
+                        List<ProductSkuCreateRequest> requests) {
 
                 Product product = productRepository.findById(productId)
                                 .orElseThrow(() -> new RuntimeException("找不到商品：" + productId));
 
-                ProductSku sku = new ProductSku();
+                if (requests == null || requests.isEmpty()) {
+                        throw new RuntimeException("至少需要一筆 SKU");
+                }
 
-                sku.setProduct(product);
-                sku.setSpec1Name(request.getSpec1Name());
-                sku.setSpec1Value(request.getSpec1Value());
-                sku.setSpec2Name(request.getSpec2Name());
-                sku.setSpec2Value(request.getSpec2Value());
-                sku.setPrice(request.getPrice());
-                sku.setStock(request.getStock());
-                sku.setStatus((byte) 1);
+                List<ProductSku> existingSkus = productSkuRepository.findByProductProductId(productId);
 
-                ProductSku savedSku = productSkuRepository.save(sku);
+                // 先檢查整批資料
+                for (int i = 0; i < requests.size(); i++) {
 
-                return toProductSkuResponse(savedSku);
+                        ProductSkuCreateRequest request = requests.get(i);
+
+                        // 檢查是否與資料庫既有 SKU 重複
+                        boolean duplicateExisting = existingSkus.stream().anyMatch(sku -> Objects.equals(
+                                        sku.getSpec1Value(),
+                                        request.getSpec1Value())
+                                        &&
+                                        Objects.equals(
+                                                        sku.getSpec2Value(),
+                                                        request.getSpec2Value()));
+
+                        if (duplicateExisting) {
+                                throw new RuntimeException(
+                                                "SKU 已存在："
+                                                                + request.getSpec1Value()
+                                                                + " / "
+                                                                + request.getSpec2Value());
+                        }
+
+                        // 檢查這次送進來的 batch 本身是否重複
+                        for (int j = i + 1; j < requests.size(); j++) {
+
+                                ProductSkuCreateRequest other = requests.get(j);
+
+                                boolean duplicateInBatch = Objects.equals(
+                                                request.getSpec1Value(),
+                                                other.getSpec1Value())
+                                                &&
+                                                Objects.equals(
+                                                                request.getSpec2Value(),
+                                                                other.getSpec2Value());
+
+                                if (duplicateInBatch) {
+                                        throw new RuntimeException(
+                                                        "批次資料中有重複 SKU："
+                                                                        + request.getSpec1Value()
+                                                                        + " / "
+                                                                        + request.getSpec2Value());
+                                }
+                        }
+                }
+
+                // 全部驗證成功後才開始新增
+                List<ProductSkuResponse> result = new ArrayList<>();
+
+                for (ProductSkuCreateRequest request : requests) {
+
+                        ProductSku sku = new ProductSku();
+
+                        sku.setProduct(product);
+
+                        sku.setSpec1Name(request.getSpec1Name());
+                        sku.setSpec1Value(request.getSpec1Value());
+
+                        sku.setSpec2Name(request.getSpec2Name());
+                        sku.setSpec2Value(request.getSpec2Value());
+
+                        sku.setPrice(request.getPrice());
+                        sku.setStock(request.getStock());
+                        sku.setStatus((byte) 1);
+
+                        ProductSku savedSku = productSkuRepository.save(sku);
+
+                        result.add(toProductSkuResponse(savedSku));
+                }
+
+                return result;
+        }
+
+        public ProductSkuResponse disableSku(
+                        Integer productId,
+                        Integer skuId) {
+
+                ProductSku sku = productSkuRepository.findById(skuId)
+                                .orElseThrow(() -> new RuntimeException("找不到 SKU：" + skuId));
+
+                if (!sku.getProduct().getProductId().equals(productId)) {
+                        throw new RuntimeException("此 SKU 不屬於指定商品");
+                }
+
+                sku.setStatus((byte) 0);
+
+                ProductSku updatedSku = productSkuRepository.save(sku);
+
+                return toProductSkuResponse(updatedSku);
         }
 }

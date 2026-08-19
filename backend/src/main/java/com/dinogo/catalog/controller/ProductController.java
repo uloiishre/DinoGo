@@ -1,5 +1,7 @@
 package com.dinogo.catalog.controller;
 
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -99,11 +101,19 @@ public class ProductController {
         return productService.updateSku(productId, skuId, request);
     }
 
-    @PostMapping("/{productId}/skus")
-    public ProductSkuResponse createSku(
+    @PostMapping("/{productId}/skus/batch")
+    public List<ProductSkuResponse> createSkus(
             @PathVariable Integer productId,
-            @Valid @RequestBody ProductSkuCreateRequest request) {
+            @Valid @RequestBody List<ProductSkuCreateRequest> requests) {
 
-        return productService.createSku(productId, request);
+        return productService.createSkus(productId, requests);
+    }
+
+    @PatchMapping("/{productId}/skus/{skuId}/disable")
+    public ProductSkuResponse disableSku(
+            @PathVariable Integer productId,
+            @PathVariable Integer skuId) {
+
+        return productService.disableSku(productId, skuId);
     }
 }

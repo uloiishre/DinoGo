@@ -21,4 +21,7 @@ public interface ProductSkuRepository extends JpaRepository<ProductSku, Integer>
     @Query("UPDATE ProductSku sku SET sku.stock = sku.stock + :quantity WHERE sku.skuId = :skuId")
     int restoreStock(@Param("skuId") Integer skuId, @Param("quantity") Integer quantity);
 
+    List<ProductSku> findByProductProductIdAndStatus(
+            Integer productId,
+            Byte status);
 }
