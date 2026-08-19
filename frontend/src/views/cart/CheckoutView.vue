@@ -45,8 +45,12 @@ const shippingMethod = ref('HOME_DELIVERY')
 // 付款方式
 // ========================================
 
-const paymentMethod = ref('CREDIT_CARD')
+const paymentMethod = ref('CASH_ON_DELIVERY')
+// ========================================
+// 訂單備註
+// ========================================
 
+const buyerRemark = ref('')
 // ========================================
 // 優惠券
 // ========================================
@@ -372,8 +376,7 @@ const buildOrderRequest = () => {
   return {
     addressId: selectedAddressId.value,
 
-    buyerRemark: '',
-
+    buyerRemark: buyerRemark.value.trim(),
     // 優惠券
     couponId: selectedCouponId.value,
 
@@ -473,19 +476,33 @@ const submitOrder = async () => {
     // 訂單成功後才刪除購物車商品
     // ========================================
 
-    try {
-      await createPayment(createdOrderId, paymentMethod.value)
-    } catch (paymentError) {
-      console.error('付款失敗：', paymentError)
+    // ========================================
+    // 線上付款才建立付款
+    // 貨到付款不需要立即付款
+    // ========================================
 
-      await finalizeCreatedOrder()
+    if (paymentMethod.value !== 'COD') {
+      try {
+        const paymentResponse = await createPayment(createdOrderId, paymentMethod.value)
 
-      alert(
-        paymentError.response?.data?.message ||
-          '訂單已建立，但付款尚未完成。請至訂單詳情確認付款狀態。',
-      )
-      await router.push({ name: 'MemberOrderDetail', params: { id: createdOrderId } })
-      return
+        await simulatePayment(createdOrderId, paymentResponse.data.paymentId)
+      } catch (paymentError) {
+        console.error('付款失敗：', paymentError)
+
+        await finalizeCreatedOrder()
+
+        alert(
+          paymentError.response?.data?.message ||
+            '訂單已建立，但付款尚未完成。請至訂單詳情確認付款狀態。',
+        )
+
+        await router.push({
+          name: 'MemberOrderDetail',
+          params: { id: createdOrderId },
+        })
+
+        return
+      }
     }
 
     console.log('建立訂單成功：', response.data)
@@ -496,12 +513,6 @@ const submitOrder = async () => {
     // ========================================
 
     await finalizeCreatedOrder()
-
-    alert(
-      paymentMethod.value === 'CASH_ON_DELIVERY'
-        ? '訂單建立成功，請等待賣家出貨！'
-        : '訂單建立成功，付款狀態將在金流確認後更新。',
-    )
 
     // ========================================
     // 回首頁
@@ -707,7 +718,33 @@ onMounted(() => {
               </div>
             </div>
           </section>
+          <!-- ======================================
+     訂單備註
+====================================== -->
 
+          <section class="checkout-card">
+            <div class="section-header">
+              <h2>
+                <i class="bi bi-chat-left-text"></i>
+                訂單備註
+              </h2>
+            </div>
+
+            <div class="remark-wrapper">
+              <textarea
+                v-model="buyerRemark"
+                class="remark-input"
+                maxlength="500"
+                rows="4"
+                placeholder="有需要告訴賣家的事項嗎？例如：請下午送達、商品請小心包裝等"
+              ></textarea>
+
+              <div class="remark-footer">
+                <span>選填</span>
+                <span>{{ buyerRemark.length }}/500</span>
+              </div>
+            </div>
+          </section>
           <!-- ======================================
                收件資料
           ====================================== -->
@@ -848,6 +885,30 @@ onMounted(() => {
             </div>
 
             <div class="option-list">
+              <!-- 貨到付款 -->
+
+              <label
+                class="option-card"
+                :class="{
+                  selected: paymentMethod === 'CASH_ON_DELIVERY',
+                }"
+              >
+                <input
+                  v-model="paymentMethod"
+                  type="radio"
+                  value="CASH_ON_DELIVERY"
+                  name="payment"
+                  @change="changePaymentMethod"
+                />
+
+                <span class="radio-dot"></span>
+
+                <span class="option-content">
+                  <strong>貨到付款</strong>
+
+                  <span>收到商品時再付款</span>
+                </span>
+              </label>
               <!-- 信用卡 -->
 
               <label
@@ -2279,5 +2340,63 @@ onMounted(() => {
   background: var(--color-danger);
 
   transform: translateY(-1px);
+}
+/* ========================================
+   訂單備註
+======================================== */
+
+.remark-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.remark-input {
+  width: 100%;
+  min-height: 100px;
+
+  padding: var(--space-3);
+
+  box-sizing: border-box;
+
+  color: var(--color-text);
+
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+
+  line-height: 1.6;
+
+  resize: vertical;
+
+  outline: none;
+
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.remark-input::placeholder {
+  color: var(--color-text-subtle);
+}
+
+.remark-input:focus {
+  border-color: var(--color-primary);
+
+  box-shadow: var(--shadow-focus);
+}
+
+.remark-footer {
+  display: flex;
+
+  justify-content: space-between;
+
+  color: var(--color-text-subtle);
+
+  font-size: var(--font-size-xs);
 }
 </style>

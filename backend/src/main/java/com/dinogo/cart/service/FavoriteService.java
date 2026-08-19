@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.dinogo.cart.dto.AddFavoriteRequest;
 import com.dinogo.cart.dto.FavoriteResponse;
+import com.dinogo.cart.dto.FavoriteSkuResponse;
 import com.dinogo.cart.entity.Favorite;
 import com.dinogo.cart.repository.FavoriteRepository;
 import com.dinogo.catalog.entity.Product;
@@ -52,8 +53,15 @@ public class FavoriteService {
 		Product product = productRepository.findById(request.productId())
 				.orElseThrow(() -> new RuntimeException("商品不存在"));
 
+		// 商品已下架，不允許新增收藏
+		if (!Byte.valueOf((byte) 1).equals(product.getStatus())) {
+			throw new RuntimeException("商品已下架，無法加入收藏");
+		}
+
 		// 檢查是否已收藏
-		Optional<Favorite> existing = favoriteRepository.findByMemberAndProduct_ProductId(member, request.productId());
+		Optional<Favorite> existing = favoriteRepository.findByMemberAndProduct_ProductId(
+				member,
+				request.productId());
 
 		if (existing.isPresent()) {
 			return toResponse(existing.get());
@@ -98,8 +106,36 @@ public class FavoriteService {
 		removeFavorite(member, productId);
 	}
 
+	private String buildSkuName(ProductSku sku) {
+
+		StringBuilder sb = new StringBuilder();
+
+		if (sku.getSpec1Value() != null
+				&& !sku.getSpec1Value().isBlank()) {
+
+			sb.append(sku.getSpec1Value());
+		}
+
+		if (sku.getSpec2Value() != null
+				&& !sku.getSpec2Value().isBlank()) {
+
+			if (sb.length() > 0) {
+				sb.append(" / ");
+			}
+
+			sb.append(sku.getSpec2Value());
+		}
+
+		return sb.toString();
+	}
+
 	private FavoriteResponse toResponse(Favorite favorite) {
+
 		Product product = favorite.getProduct();
+
+		// ================================
+		// 商品圖片
+		// ================================
 
 		String imageUrl = product.getImages()
 				.stream()
@@ -107,19 +143,54 @@ public class FavoriteService {
 				.map(ProductImage::getImageUrl)
 				.orElse(null);
 
-		Integer skuId = product.getSkus()
+		// ================================
+		// 所有 SKU
+		// ================================
+
+		List<FavoriteSkuResponse> skus = product.getSkus()
 				.stream()
-				.findFirst()
-				.map(ProductSku::getSkuId)
-				.orElse(null);
+				.map(sku -> {
+
+					String skuName = buildSkuName(sku);
+
+					boolean skuAvailable = Byte.valueOf((byte) 1).equals(sku.getStatus())
+							&& sku.getStock() != null
+							&& sku.getStock() > 0;
+
+					return new FavoriteSkuResponse(
+							sku.getSkuId(),
+							skuName,
+							sku.getStatus(),
+							sku.getStock(),
+							skuAvailable);
+				})
+				.toList();
+
+		// ================================
+		// 商品是否可以購買
+		//
+		// 商品啟用
+		// +
+		// 至少一個 SKU 可以購買
+		// ================================
+
+		boolean available = Byte.valueOf((byte) 1).equals(product.getStatus())
+				&& skus.stream()
+						.anyMatch(FavoriteSkuResponse::available);
+
+		// ================================
+		// 回傳
+		// ================================
 
 		return new FavoriteResponse(
 				favorite.getFavoriteId(),
 				product.getProductId(),
-				skuId,
 				product.getProductName(),
 				product.getBasePrice(),
-				imageUrl);
+				imageUrl,
+				product.getStatus(),
+				skus,
+				available);
 	}
 
 }
