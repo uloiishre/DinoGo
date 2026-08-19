@@ -26,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.dinogo.catalog.entity.Product;
 import com.dinogo.catalog.entity.ProductSku;
 import com.dinogo.catalog.repository.ProductSkuRepository;
+import com.dinogo.coupon.service.CouponUsageService;
 import com.dinogo.member.entity.Address;
 import com.dinogo.member.entity.Member;
 import com.dinogo.member.repository.AddressRepository;
@@ -57,6 +58,8 @@ class OrderServiceTest {
     private ProductSkuRepository productSkuRepository;
     @Mock
     private SellerRepository sellerRepository;
+    @Mock
+    private CouponUsageService couponUsageService;
     @Captor
     private ArgumentCaptor<Order> orderCaptor;
 
@@ -64,7 +67,12 @@ class OrderServiceTest {
 
     @BeforeEach
     void setUp() {
-        orderService = new OrderService(orderRepository, addressRepository, productSkuRepository, sellerRepository);
+        orderService = new OrderService(
+                orderRepository,
+                addressRepository,
+                productSkuRepository,
+                sellerRepository,
+                couponUsageService);
     }
 
     @Test
@@ -479,7 +487,7 @@ class OrderServiceTest {
     }
 
     private CreateOrderRequest request(List<CreateOrderItemRequest> items) {
-        return new CreateOrderRequest(10, "請小心包裝", items);
+        return new CreateOrderRequest(10, "請小心包裝", null, items);
     }
 
     private void mockOwnedAddress(Integer memberId, Integer addressId) {

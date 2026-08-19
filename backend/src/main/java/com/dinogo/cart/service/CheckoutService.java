@@ -2,6 +2,8 @@ package com.dinogo.cart.service;
 
 import java.math.BigDecimal;
 import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 import org.springframework.stereotype.Service;
@@ -15,6 +17,8 @@ import com.dinogo.catalog.entity.ProductSku;
 import com.dinogo.catalog.repository.ProductSkuRepository;
 import com.dinogo.member.entity.Address;
 import com.dinogo.member.repository.AddressRepository;
+import com.dinogo.coupon.service.CouponUsageService;
+import com.dinogo.coupon.service.CouponUsageService.CouponItem;
 
 @Service
 @Transactional(readOnly = true)
@@ -22,14 +26,17 @@ public class CheckoutService {
 
         private final ProductSkuRepository productSkuRepository;
         private final AddressRepository addressRepository;
+        private final CouponUsageService couponUsageService;
 
         public CheckoutService(
                         ProductSkuRepository productSkuRepository,
-                        AddressRepository addressRepository) {
+                        AddressRepository addressRepository,
+                        CouponUsageService couponUsageService) {
 
                 this.productSkuRepository = productSkuRepository;
 
                 this.addressRepository = addressRepository;
+                this.couponUsageService = couponUsageService;
         }
 
         // =========================================================
@@ -65,6 +72,8 @@ public class CheckoutService {
                 Set<Integer> skuIds = new HashSet<>();
 
                 BigDecimal subtotal = BigDecimal.ZERO;
+                Integer sellerId = null;
+                List<CouponItem> couponItems = new ArrayList<>();
 
                 // =====================================================
                 // 3. 檢查每個商品
@@ -154,6 +163,13 @@ public class CheckoutService {
                                                         item.quantity()));
 
                         subtotal = subtotal.add(itemSubtotal);
+                        Integer itemSellerId = product.getSeller().getSellerId();
+                        if (sellerId == null) {
+                                sellerId = itemSellerId;
+                        } else if (!sellerId.equals(itemSellerId)) {
+                                throw new RuntimeException("一次結帳只能包含同一賣家的商品");
+                        }
+                        couponItems.add(new CouponItem(product, itemSubtotal));
                 }
 
                 // =====================================================
@@ -167,6 +183,15 @@ public class CheckoutService {
                 // =====================================================
 
                 BigDecimal discount = BigDecimal.ZERO;
+                if (request.memberCouponId() != null) {
+                        discount = couponUsageService.validateAndCalculate(
+                                        request.memberCouponId(),
+                                        memberId,
+                                        sellerId,
+                                        subtotal,
+                                        couponItems)
+                                        .discount();
+                }
 
                 // =====================================================
                 // 6. 總額
