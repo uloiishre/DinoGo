@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDateTime;
 
 @Service
 public class CouponService {
@@ -26,6 +27,20 @@ public class CouponService {
     public List<CouponResponse> getCoupons(Integer sellerId) {
         return couponRepository.findBySellerIdOrderByCouponIdDesc(sellerId)
                 .stream()
+                .map(CouponResponse::from)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<CouponResponse> getAvailableCoupons() {
+        LocalDateTime now = LocalDateTime.now();
+
+        return couponRepository.findByStatusOrderByCouponIdDesc("ACTIVE")
+                .stream()
+                .filter(coupon -> !coupon.getStartAt().isAfter(now))
+                .filter(coupon -> !coupon.getEndAt().isBefore(now))
+                .filter(coupon -> coupon.getLimitCount() == null
+                        || coupon.getUsedCount() < coupon.getLimitCount())
                 .map(CouponResponse::from)
                 .toList();
     }

@@ -144,6 +144,11 @@ const routes = [
         component: () => import('@/views/seller/SellerOrderDetailView.vue'),
       },
       {
+        path: 'coupons',
+        name: 'SellerCoupons',
+        component: () => import('@/views/seller/SellerCouponsView.vue'),
+      },
+      {
         path: 'profile',
         name: 'SellerProfile',
         component: () => import('@/views/seller/SellerProfileView.vue'),

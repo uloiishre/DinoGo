@@ -29,6 +29,30 @@ public class MemberCoupon {
     @Column(name = "used_at")
     private LocalDateTime usedAt;
 
+    public void setMemberCouponId(Integer memberCouponId) {
+        this.memberCouponId = memberCouponId;
+    }
+
+    public void setCouponId(Integer couponId) {
+        this.couponId = couponId;
+    }
+
+    public void setMemberId(Integer memberId) {
+        this.memberId = memberId;
+    }
+
+    public void setUsed(Boolean used) {
+        this.used = used;
+    }
+
+    public void setUsedAt(LocalDateTime usedAt) {
+        this.usedAt = usedAt;
+    }
+
+    public void setReceivedAt(LocalDateTime receivedAt) {
+        this.receivedAt = receivedAt;
+    }
+
     @Column(name = "received_at")
     private LocalDateTime receivedAt;
 }
