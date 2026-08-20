@@ -16,6 +16,9 @@ const errorMessage = ref('')
 const submitted = ref(false)
 
 const hasMinimumLength = computed(() => form.value.newPassword.length >= 8)
+const isWithinMaximumLength = computed(
+  () => form.value.newPassword.length <= 72 && form.value.confirmNewPassword.length <= 72,
+)
 const hasEnglishAndNumber = computed(
   () => /[A-Za-z]/.test(form.value.newPassword) && /\d/.test(form.value.newPassword),
 )
@@ -35,6 +38,7 @@ const isFormValid = computed(
   () =>
     Boolean(form.value.currentPassword) &&
     hasMinimumLength.value &&
+    isWithinMaximumLength.value &&
     hasEnglishAndNumber.value &&
     isDifferentFromCurrent.value &&
     passwordsMatch.value,
@@ -103,6 +107,7 @@ async function savePassword() {
                 type="password"
                 autocomplete="new-password"
                 placeholder="至少 8 個字元"
+                maxlength="72"
                 :disabled="isSaving"
                 required
               />
@@ -115,6 +120,7 @@ async function savePassword() {
                 v-model="form.confirmNewPassword"
                 type="password"
                 autocomplete="new-password"
+                maxlength="72"
                 :class="{ 'is-invalid': confirmPasswordError }"
                 :aria-invalid="Boolean(confirmPasswordError)"
                 :aria-describedby="confirmPasswordError ? 'confirm-password-error' : undefined"
