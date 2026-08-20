@@ -3,6 +3,7 @@ import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import api from '@/api/axios'
+import { logSafeError } from '@/utils/safeError'
 import ProductCard from '@/views/product/ProductCard.vue'
 import { getPublicStore } from '@/api/sellerProfileApi'
 
@@ -73,7 +74,7 @@ const fetchProducts = async () => {
     totalElements.value = response.data.totalElements
     currentPage.value = response.data.number
   } catch (error) {
-    console.error('取得商品失敗：', error)
+    logSafeError('取得商品失敗：', error)
     errorMessage.value = '商品資料載入失敗'
   } finally {
     loading.value = false

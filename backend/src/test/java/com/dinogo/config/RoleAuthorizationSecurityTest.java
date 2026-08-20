@@ -1,6 +1,7 @@
 package com.dinogo.config;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -29,8 +30,10 @@ import com.dinogo.coupon.service.CouponService;
 import com.dinogo.member.entity.Member;
 import com.dinogo.member.repository.MemberRepository;
 import com.dinogo.sales.controller.OrderController;
+import com.dinogo.sales.controller.ShipmentController;
 import com.dinogo.sales.entity.OrderStatus;
 import com.dinogo.sales.service.OrderService;
+import com.dinogo.sales.service.ShipmentService;
 import com.dinogo.security.AuthenticatedMember;
 import com.dinogo.security.JwtAuthenticationFilter;
 import com.dinogo.security.JwtTokenUtil;
@@ -41,7 +44,8 @@ import com.dinogo.seller.service.SellerProductService;
         SellerProductController.class,
         CouponController.class,
         ProductController.class,
-        OrderController.class
+        OrderController.class,
+        ShipmentController.class
 })
 @Import({ SecurityConfig.class, JwtAuthenticationFilter.class })
 class RoleAuthorizationSecurityTest {
@@ -60,6 +64,9 @@ class RoleAuthorizationSecurityTest {
 
     @MockitoBean
     private OrderService orderService;
+
+    @MockitoBean
+    private ShipmentService shipmentService;
 
     @MockitoBean
     private JwtTokenUtil jwtTokenUtil;
@@ -115,6 +122,34 @@ class RoleAuthorizationSecurityTest {
                 .andExpect(status().isForbidden());
 
         verifyNoInteractions(orderService);
+    }
+
+    @Test
+    void buyerCannotUpdateShipmentTrackingInfo() throws Exception {
+        mockMvc.perform(patch("/api/orders/1/shipment/tracking-info")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"carrierName\":\"Black Cat\",\"trackingNo\":\"TRACK-1\"}")
+                        .with(authentication(authenticationForRole("BUYER"))))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(shipmentService);
+    }
+
+    @Test
+    void buyerCannotCreateShipmentOrUpdateShipmentStatus() throws Exception {
+        mockMvc.perform(post("/api/orders/1/shipment")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"carrierName\":\"Black Cat\",\"trackingNo\":\"TRACK-1\"}")
+                        .with(authentication(authenticationForRole("BUYER"))))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(patch("/api/orders/1/shipment/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"SHIPPED\"}")
+                        .with(authentication(authenticationForRole("BUYER"))))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(shipmentService);
     }
 
     @Test
@@ -196,6 +231,35 @@ class RoleAuthorizationSecurityTest {
         verify(couponService).getCoupons(1);
         verify(productService).createProduct(any());
         verify(orderService).updateStatusBySeller(1, 1, OrderStatus.PROCESSING, null);
+    }
+
+    @Test
+    void sellerCanReachShipmentTrackingInfoUpdate() throws Exception {
+        mockMvc.perform(patch("/api/orders/1/shipment/tracking-info")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"carrierName\":\"Black Cat\",\"trackingNo\":\"TRACK-1\"}")
+                        .with(authentication(authenticationForRole("SELLER"))))
+                .andExpect(status().isOk());
+
+        verify(shipmentService).updateShipmentTrackingInfo(eq(1), eq(1), any());
+    }
+
+    @Test
+    void sellerCanCreateShipmentAndUpdateShipmentStatus() throws Exception {
+        mockMvc.perform(post("/api/orders/1/shipment")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"carrierName\":\"Black Cat\",\"trackingNo\":\"TRACK-1\"}")
+                        .with(authentication(authenticationForRole("SELLER"))))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(patch("/api/orders/1/shipment/status")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"SHIPPED\"}")
+                        .with(authentication(authenticationForRole("SELLER"))))
+                .andExpect(status().isOk());
+
+        verify(shipmentService).createShipment(eq(1), eq(1), any());
+        verify(shipmentService).updateShipmentStatus(eq(1), eq(1), any());
     }
 
     private UsernamePasswordAuthenticationToken authenticationForRole(String role) {

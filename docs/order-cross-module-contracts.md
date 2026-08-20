@@ -114,7 +114,7 @@ PROCESSING → SHIPPED
 | --- | --- |
 | `PENDING_PAYMENT → PAID` | Payment SUCCESS 流程 |
 | `任何狀態 → CANCELLED` | 專用取消流程，必須處理庫存回補 |
-| `SHIPPED → COMPLETED` | 買家確認收貨或物流完成流程 |
+| Shipment `AVAILABLE_FOR_PICKUP → DELIVERED`、Order `SHIPPED → COMPLETED` | 買家確認收貨流程；Shipment 仍為 `SHIPPED` 時不得確認 |
 
 ## 2.6 E 模組不需要負責
 

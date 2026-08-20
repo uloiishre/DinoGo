@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "node --test",
+    "test": "node --test \"test/*.test.js\" && vitest run",
+    "test:component": "vitest run",
     "preview": "vite preview",
     "format": "prettier --write --experimental-cli src/"
   },
@@ -21,9 +22,12 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.8",
+    "@vue/test-utils": "^2.4.11",
+    "jsdom": "^30.0.1",
     "prettier": "3.9.5",
     "vite": "^8.1.5",
-    "vite-plugin-vue-devtools": "^8.1.5"
+    "vite-plugin-vue-devtools": "^8.1.5",
+    "vitest": "^4.1.11"
   },
   "engines": {
     "node": "^22.18.0 || >=24.12.0"

@@ -1,13 +1,15 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { getSellerOrders } from '@/api/sellerOrderApi'
+import { acceptSellerOrder, getSellerOrders } from '@/api/sellerOrderApi'
 
 const orders = ref([])
 const loading = ref(true)
 const errorMessage = ref('')
 const activeStatus = ref('ALL')
 const keyword = ref('')
+const acceptingOrderId = ref(null)
+const actionErrors = ref({})
 
 const statusTabs = [
   { label: '全部', value: 'ALL', statuses: [] },
@@ -42,6 +44,24 @@ async function loadOrders() {
     errorMessage.value = error.response?.data?.message ?? '無法載入賣家訂單。'
   } finally {
     loading.value = false
+  }
+}
+
+async function acceptOrder(order) {
+  if (order.status !== 'PAID' || acceptingOrderId.value !== null) return
+
+  acceptingOrderId.value = order.orderId
+  actionErrors.value = { ...actionErrors.value, [order.orderId]: '' }
+  try {
+    const response = await acceptSellerOrder(order.orderId)
+    order.status = response.data.status
+  } catch (error) {
+    actionErrors.value = {
+      ...actionErrors.value,
+      [order.orderId]: error.response?.data?.message ?? '接收訂單失敗，請稍後再試。',
+    }
+  } finally {
+    acceptingOrderId.value = null
   }
 }
 
@@ -296,6 +316,61 @@ h1 {
   color: var(--color-text-muted);
 }
 
+.view-button {
+  width: fit-content;
+  min-height: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  color: var(--color-primary-700);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.view-button:hover {
+  color: var(--color-primary);
+}
+
+.order-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.accept-button {
+  min-height: 36px;
+  border: 1px solid var(--color-primary-700);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  background: var(--color-primary-700);
+  color: var(--color-surface);
+  font-weight: 700;
+}
+
+.accept-button:hover:not(:disabled) {
+  background: var(--color-primary-800);
+}
+
+.accept-button:focus-visible,
+.view-button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.accept-button:disabled {
+  border-color: var(--color-disabled);
+  background: var(--color-disabled-bg);
+  color: var(--color-text-subtle);
+  cursor: not-allowed;
+}
+
+.action-error {
+  flex-basis: 100%;
+  color: var(--color-danger);
+}
+
 @media (max-width: 1100px) {
   .table-header {
     display: none;
@@ -307,7 +382,8 @@ h1 {
     padding: var(--space-4) var(--space-5);
   }
 
-  .order-no {
+  .order-no,
+  .order-actions {
     grid-column: 1 / -1;
   }
 }

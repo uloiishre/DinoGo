@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.dinogo.sales.dto.shipment.CreateShipmentRequest;
 import com.dinogo.sales.dto.shipment.ShipmentResponse;
 import com.dinogo.sales.dto.shipment.UpdateShipmentStatusRequest;
+import com.dinogo.sales.dto.shipment.UpdateShipmentTrackingInfoRequest;
 import com.dinogo.sales.entity.Order;
 import com.dinogo.sales.entity.OrderStatus;
 import com.dinogo.sales.entity.PaymentStatus;
@@ -128,19 +129,55 @@ public class ShipmentService {
     }
 
     @Transactional
+    public ShipmentResponse updateShipmentTrackingInfo(
+            Integer orderId,
+            Integer memberId,
+            UpdateShipmentTrackingInfoRequest request) {
+        Seller seller = getActiveSellerByMemberId(memberId);
+        Shipment shipment = shipmentRepository
+                .findForStatusUpdate(orderId, seller.getSellerId())
+                .orElseThrow(() -> new OrderNotFoundException("Shipment does not exist"));
+
+        if (shipment.getStatus() != ShipmentStatus.PREPARING) {
+            throw new InvalidOrderException(
+                    "Tracking information can only be updated while shipment is preparing");
+        }
+
+        shipment.setCarrierName(normalize(request.carrierName()));
+        shipment.setTrackingNo(normalize(request.trackingNo()));
+        return toResponse(shipmentRepository.save(shipment));
+    }
+
+    @Transactional
     public ShipmentResponse confirmDelivery(Integer orderId, Integer buyerId) {
         Shipment shipment = shipmentRepository
                 .findForDeliveryConfirmation(orderId, buyerId)
                 .orElseThrow(() -> new OrderNotFoundException("Shipment does not exist"));
 
         if (shipment.getStatus() == ShipmentStatus.DELIVERED) {
-            completeCashOnDeliveryPayment(orderId, LocalDateTime.now());
+            Order order = shipment.getOrder();
+            if (order.getStatus() == OrderStatus.SHIPPED) {
+                order.setStatus(OrderStatus.COMPLETED);
+            } else if (order.getStatus() != OrderStatus.COMPLETED) {
+                throw new InvalidOrderException(
+                        "Delivered shipment has an incompatible order status: "
+                                + order.getStatus());
+            }
+
+            LocalDateTime completedAt = order.getCompletedAt();
+            if (completedAt == null) {
+                completedAt = shipment.getDeliveredAt() != null
+                        ? shipment.getDeliveredAt()
+                        : LocalDateTime.now();
+                order.setCompletedAt(completedAt);
+            }
+
+            completeCashOnDeliveryPayment(orderId, completedAt);
             return toResponse(shipment);
         }
-        if (shipment.getStatus() != ShipmentStatus.SHIPPED
-                && shipment.getStatus() != ShipmentStatus.AVAILABLE_FOR_PICKUP) {
+        if (shipment.getStatus() != ShipmentStatus.AVAILABLE_FOR_PICKUP) {
             throw new InvalidOrderException(
-                    "Only shipped shipments can be confirmed as delivered");
+                    "Only shipments available for pickup can be confirmed as delivered");
         }
 
         Order order = shipment.getOrder();

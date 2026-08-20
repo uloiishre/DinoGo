@@ -1,12 +1,27 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { getSellerOrder } from '@/api/sellerOrderApi'
+import {
+  acceptSellerOrder,
+  createSellerShipment,
+  getSellerOrder,
+  updateSellerShipmentStatus,
+} from '@/api/sellerOrderApi'
+import { useSellerShipmentStatus } from './useSellerShipmentStatus'
 
 const route = useRoute()
 const order = ref(null)
 const loading = ref(true)
 const errorMessage = ref('')
+const acceptingOrder = ref(false)
+const actionError = ref('')
+const shipmentForm = ref({ carrierName: '', trackingNo: '' })
+const creatingShipment = ref(false)
+const shipmentFormError = ref('')
+const fetchingOrder = ref(false)
+const AUTO_REFRESH_INTERVAL_MS = 10_000
+let autoRefreshTimer = null
+let latestLoadRequestId = 0
 const orderId = computed(() => Number(route.params.id))
 
 const orderStatusLabels = {
@@ -34,13 +49,33 @@ const cashOnDeliveryProgressSteps = [
   { label: '訂單成立', statuses: ['PROCESSING', 'SHIPPED', 'COMPLETED'] },
   { label: '備貨中', statuses: ['PROCESSING', 'SHIPPED', 'COMPLETED'] },
   { label: '已出貨', statuses: ['SHIPPED', 'COMPLETED'] },
-  { label: '已送達', statuses: ['COMPLETED'], shipmentStatus: 'DELIVERED' },
+  {
+    label: '已送達',
+    statuses: ['SHIPPED', 'COMPLETED'],
+    shipmentStatuses: ['AVAILABLE_FOR_PICKUP', 'DELIVERED'],
+  },
   { label: '已完成', statuses: ['COMPLETED'] },
 ]
 const isCashOnDelivery = computed(() =>
   order.value?.payment?.paymentMethodCode === 'CASH_ON_DELIVERY')
 const progressSteps = computed(() =>
   isCashOnDelivery.value ? cashOnDeliveryProgressSteps : onlinePaymentProgressSteps)
+const canCreateShipment = computed(() =>
+  !order.value?.shipment && ['PAID', 'PROCESSING'].includes(order.value?.status))
+const {
+  shipmentAction,
+  shipmentActionError,
+  updatingShipment,
+  updateShipmentStatus,
+} = useSellerShipmentStatus({
+  order,
+  updateStatus: async (status) => {
+    const shipment = (await updateSellerShipmentStatus(orderId.value, status)).data
+    invalidatePendingOrderLoad()
+    return shipment
+  },
+  confirmAction: (message) => window.confirm(message),
+})
 
 const fullAddress = computed(() => {
   if (!order.value) return '-'
@@ -49,20 +84,95 @@ const fullAddress = computed(() => {
     .filter(Boolean).join(' ')
 })
 
-async function loadOrder() {
-  loading.value = true
-  errorMessage.value = ''
+async function loadOrder({ silent = false, force = false } = {}) {
+  if (fetchingOrder.value && !force) return
+
+  const requestId = ++latestLoadRequestId
+  fetchingOrder.value = true
+  if (!silent) {
+    loading.value = true
+    errorMessage.value = ''
+  }
   if (!Number.isInteger(orderId.value) || orderId.value <= 0) {
-    errorMessage.value = '訂單編號格式不正確。'
-    loading.value = false
+    if (!silent) {
+      errorMessage.value = '訂單編號格式不正確。'
+      if (requestId === latestLoadRequestId) loading.value = false
+    }
+    if (requestId === latestLoadRequestId) fetchingOrder.value = false
     return
   }
   try {
-    order.value = (await getSellerOrder(orderId.value)).data
+    const response = await getSellerOrder(orderId.value)
+    if (requestId === latestLoadRequestId) order.value = response.data
   } catch (error) {
-    errorMessage.value = error.response?.data?.message ?? '無法載入訂單詳情。'
+    if (!silent && requestId === latestLoadRequestId) {
+      errorMessage.value = error.response?.data?.message ?? '無法載入訂單詳情。'
+    }
   } finally {
-    loading.value = false
+    if (requestId === latestLoadRequestId) {
+      if (!silent) loading.value = false
+      fetchingOrder.value = false
+    }
+  }
+}
+
+function invalidatePendingOrderLoad() {
+  latestLoadRequestId += 1
+  fetchingOrder.value = false
+}
+
+function applyOrderResponse(nextOrder) {
+  invalidatePendingOrderLoad()
+  order.value = nextOrder
+}
+
+function shouldAutoRefresh() {
+  return order.value && !['COMPLETED', 'CANCELLED'].includes(order.value.status)
+}
+
+function refreshOrderSilently() {
+  if (document.hidden || !shouldAutoRefresh()) return
+  void loadOrder({ silent: true })
+}
+
+async function acceptOrder() {
+  if (order.value?.status !== 'PAID' || acceptingOrder.value) return
+
+  acceptingOrder.value = true
+  actionError.value = ''
+  try {
+    applyOrderResponse((await acceptSellerOrder(orderId.value)).data)
+  } catch (error) {
+    actionError.value = error.response?.data?.message ?? '接收訂單失敗，請稍後再試。'
+  } finally {
+    acceptingOrder.value = false
+  }
+}
+
+async function submitShipment() {
+  if (!canCreateShipment.value || creatingShipment.value) return
+
+  shipmentFormError.value = ''
+  const normalize = (value) => value.trim() || null
+  const carrierName = normalize(shipmentForm.value.carrierName)
+  const trackingNo = normalize(shipmentForm.value.trackingNo)
+  if (!carrierName || !trackingNo) {
+    shipmentFormError.value = '物流商與物流單號皆為必填。'
+    return
+  }
+
+  creatingShipment.value = true
+  try {
+    const response = await createSellerShipment(orderId.value, {
+      carrierName,
+      trackingNo,
+    })
+    invalidatePendingOrderLoad()
+    order.value.shipment = response.data
+  } catch (error) {
+    shipmentFormError.value = error.response?.data?.message ?? '建立出貨資訊失敗，請稍後再試。'
+  } finally {
+    creatingShipment.value = false
   }
 }
 
@@ -70,7 +180,7 @@ const isStepComplete = (step) =>
   order.value &&
   step.statuses.includes(order.value.status) &&
   (!step.paymentStatus || order.value.payment?.status === step.paymentStatus) &&
-  (!step.shipmentStatus || order.value.shipment?.status === step.shipmentStatus)
+  (!step.shipmentStatuses || step.shipmentStatuses.includes(order.value.shipment?.status))
 const formatCurrency = (value) => new Intl.NumberFormat('zh-TW', {
   style: 'currency', currency: 'TWD', maximumFractionDigits: 0,
 }).format(Number(value ?? 0))
@@ -78,7 +188,18 @@ const formatDate = (value) => value ? new Intl.DateTimeFormat('zh-TW', {
   dateStyle: 'medium', timeStyle: 'short',
 }).format(new Date(value)) : '-'
 
-onMounted(loadOrder)
+onMounted(() => {
+  void loadOrder()
+  window.addEventListener('focus', refreshOrderSilently)
+  document.addEventListener('visibilitychange', refreshOrderSilently)
+  autoRefreshTimer = window.setInterval(refreshOrderSilently, AUTO_REFRESH_INTERVAL_MS)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('focus', refreshOrderSilently)
+  document.removeEventListener('visibilitychange', refreshOrderSilently)
+  if (autoRefreshTimer !== null) window.clearInterval(autoRefreshTimer)
+})
 </script>
 
 <template>
@@ -95,7 +216,7 @@ onMounted(loadOrder)
     <div v-if="loading" class="state-card" aria-live="polite">載入訂單中…</div>
     <div v-else-if="errorMessage" class="state-card state-error" role="alert">
       <strong>無法載入訂單</strong><span>{{ errorMessage }}</span>
-      <button class="secondary-button" type="button" @click="loadOrder">重新載入</button>
+      <button class="secondary-button" type="button" @click="loadOrder()">重新載入</button>
     </div>
 
     <template v-else-if="order">
@@ -104,6 +225,16 @@ onMounted(loadOrder)
           <p class="section-label">訂單 {{ order.orderNo }}</p>
           <strong>{{ orderStatusLabels[order.status] ?? order.status }}</strong>
           <small>{{ formatDate(order.createdAt) }}</small>
+          <button
+            v-if="order.status === 'PAID'"
+            class="accept-button"
+            type="button"
+            :disabled="acceptingOrder"
+            @click="acceptOrder"
+          >
+            {{ acceptingOrder ? '接收中…' : '接收訂單' }}
+          </button>
+          <small v-if="actionError" class="action-error" role="alert">{{ actionError }}</small>
         </div>
         <div class="order-progress" aria-label="訂單進度">
           <div v-for="step in progressSteps" :key="step.label" class="progress-item"
@@ -166,8 +297,61 @@ onMounted(loadOrder)
             <div v-if="order.shipment.shippedAt"><p class="section-label">出貨時間</p><strong>{{ formatDate(order.shipment.shippedAt) }}</strong></div>
             <div v-if="order.shipment.availablePickupAt"><p class="section-label">可取貨時間</p><strong>{{ formatDate(order.shipment.availablePickupAt) }}</strong></div>
             <div v-if="order.shipment.deliveredAt"><p class="section-label">送達時間</p><strong>{{ formatDate(order.shipment.deliveredAt) }}</strong></div>
+            <p
+              v-if="order.shipment.status === 'PREPARING' && order.status === 'PAID'"
+              class="shipment-hint"
+            >
+              請先接收訂單，再確認商品出貨。
+            </p>
+            <p v-if="shipmentActionError" class="form-error" role="alert">{{ shipmentActionError }}</p>
+            <button
+              v-if="shipmentAction"
+              class="shipment-submit"
+              type="button"
+              :disabled="updatingShipment"
+              @click="updateShipmentStatus"
+            >
+              {{ updatingShipment ? shipmentAction.pendingLabel : shipmentAction.label }}
+            </button>
           </template>
-          <p v-else class="empty-message">尚未建立物流資料。</p>
+          <form v-else-if="canCreateShipment" class="shipment-form" @submit.prevent="submitShipment">
+            <p class="form-description">填寫物流商與單號，建立後即可接續更新配送狀態。</p>
+            <div class="form-field">
+              <label for="carrier-name">物流商</label>
+              <input
+                id="carrier-name"
+                v-model="shipmentForm.carrierName"
+                name="carrierName"
+                type="text"
+                maxlength="100"
+                required
+                autocomplete="organization"
+                placeholder="例如：黑貓宅急便"
+                :aria-invalid="Boolean(shipmentFormError)"
+                :disabled="creatingShipment"
+              >
+            </div>
+            <div class="form-field">
+              <label for="tracking-no">物流單號</label>
+              <input
+                id="tracking-no"
+                v-model="shipmentForm.trackingNo"
+                name="trackingNo"
+                type="text"
+                maxlength="100"
+                required
+                autocomplete="off"
+                placeholder="請輸入物流追蹤單號"
+                :aria-invalid="Boolean(shipmentFormError)"
+                :disabled="creatingShipment"
+              >
+            </div>
+            <p v-if="shipmentFormError" class="form-error" role="alert">{{ shipmentFormError }}</p>
+            <button class="shipment-submit" type="submit" :disabled="creatingShipment">
+              {{ creatingShipment ? '建立中…' : '建立出貨資訊' }}
+            </button>
+          </form>
+          <p v-else class="empty-message">此訂單目前無法建立物流資料。</p>
         </aside>
       </div>
     </template>
@@ -216,8 +400,34 @@ h2 { margin-bottom: var(--space-4); font-family: var(--font-heading); font-size:
 .full-width { grid-column: 1 / -1; }
 .shipping-card { position: sticky; top: var(--space-5); }
 .shipping-card h2, .shipping-card p, .empty-message { margin-bottom: 0; }
+.shipment-form, .form-field { display: grid; gap: var(--space-2); }
+.shipment-form { gap: var(--space-4); }
+.form-description { color: var(--color-text-muted); font-size: var(--font-size-sm); }
+.form-field label { color: var(--color-text-700); font-size: var(--font-size-sm); font-weight: 700; }
+.form-field input { min-height: 42px; width: 100%; border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md); padding: 0 var(--space-3); background: var(--color-surface); color: var(--color-text); }
+.form-field input:focus-visible { outline: none; border-color: var(--color-primary); box-shadow: var(--shadow-focus); }
+.form-field input:disabled { border-color: var(--color-disabled); background: var(--color-disabled-bg);
+  color: var(--color-text-subtle); cursor: not-allowed; }
+.form-error { color: var(--color-danger) !important; font-size: var(--font-size-sm); }
+.shipment-hint { border-radius: var(--radius-md); padding: var(--space-3);
+  background: var(--color-warning-soft); color: var(--color-warning) !important; }
+.shipment-submit { border: 1px solid var(--color-primary-700); background: var(--color-primary-700); color: var(--color-surface); }
+.shipment-submit:hover:not(:disabled) { background: var(--color-primary-800); }
+.shipment-submit:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+.shipment-submit:disabled { border-color: var(--color-disabled); background: var(--color-disabled-bg);
+  color: var(--color-text-subtle); cursor: not-allowed; }
 button { min-height: 42px; border-radius: var(--radius-md); padding: 0 var(--space-4); font-weight: 700; }
 .secondary-button { border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text-700); }
+.accept-button { width: fit-content; margin-top: var(--space-2); border: 1px solid var(--color-primary-700);
+  background: var(--color-primary-700); color: var(--color-surface); }
+.accept-button:hover:not(:disabled) { background: var(--color-primary-800); }
+.accept-button:focus-visible, .secondary-button:focus-visible, .back-button:focus-visible {
+  outline: none; box-shadow: var(--shadow-focus);
+}
+.accept-button:disabled { border-color: var(--color-disabled); background: var(--color-disabled-bg);
+  color: var(--color-text-subtle); cursor: not-allowed; }
+.action-error { color: var(--color-danger); }
 @media (max-width: 1000px) { .detail-layout { grid-template-columns: 1fr; } .shipping-card { position: static; } }
 @media (max-width: 720px) {
   .page-header, .state-card, .cancelled-notice { align-items: flex-start; flex-direction: column; }

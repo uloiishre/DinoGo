@@ -1,7 +1,8 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { cancelOrder, confirmDelivery, getOrder } from '@/api/order'
+import { getOrderDisplayStatus } from '@/utils/orderDisplayStatus'
 
 const route = useRoute()
 const order = ref(null)
@@ -11,18 +12,14 @@ const confirmingDelivery = ref(false)
 const deliveryErrorMessage = ref('')
 const cancellingOrder = ref(false)
 const cancellationErrorMessage = ref('')
+const fetchingOrder = ref(false)
+const AUTO_REFRESH_INTERVAL_MS = 10_000
+let autoRefreshTimer = null
+let latestLoadRequestId = 0
 
 const orderId = computed(() => Number(route.params.id ?? route.params.orderId))
 const canCancelOrder = computed(() => order.value?.status === 'PENDING_PAYMENT')
-
-const statusLabels = {
-  PENDING_PAYMENT: '待付款',
-  PAID: '已付款',
-  PROCESSING: '待出貨',
-  SHIPPED: '已出貨',
-  COMPLETED: '已完成',
-  CANCELLED: '已取消',
-}
+const displayStatus = computed(() => getOrderDisplayStatus(order.value))
 
 const paymentStatusLabels = {
   PENDING: '待付款',
@@ -57,23 +54,53 @@ const fullAddress = computed(() => {
     .join(' ')
 })
 
-async function loadOrder() {
-  loading.value = true
-  errorMessage.value = ''
+async function loadOrder({ silent = false, force = false } = {}) {
+  if (fetchingOrder.value && !force) return
+
+  const requestId = ++latestLoadRequestId
+  fetchingOrder.value = true
+  if (!silent) {
+    loading.value = true
+    errorMessage.value = ''
+  }
 
   if (!Number.isInteger(orderId.value) || orderId.value <= 0) {
-    errorMessage.value = '訂單編號格式不正確。'
-    loading.value = false
+    if (!silent) {
+      errorMessage.value = '訂單編號格式不正確。'
+      if (requestId === latestLoadRequestId) loading.value = false
+    }
+    if (requestId === latestLoadRequestId) fetchingOrder.value = false
     return
   }
 
   try {
-    order.value = (await getOrder(orderId.value)).data
+    const response = await getOrder(orderId.value)
+    if (requestId === latestLoadRequestId) order.value = response.data
   } catch (error) {
-    errorMessage.value = error.response?.data?.message ?? '訂單詳情載入失敗，請稍後再試。'
+    if (!silent && requestId === latestLoadRequestId) {
+      errorMessage.value = error.response?.data?.message ?? '訂單詳情載入失敗，請稍後再試。'
+    }
   } finally {
-    loading.value = false
+    if (requestId === latestLoadRequestId) {
+      if (!silent) loading.value = false
+      fetchingOrder.value = false
+    }
   }
+}
+
+function applyOrderResponse(nextOrder) {
+  latestLoadRequestId += 1
+  fetchingOrder.value = false
+  order.value = nextOrder
+}
+
+function shouldAutoRefresh() {
+  return order.value && !['COMPLETED', 'CANCELLED'].includes(order.value.status)
+}
+
+function refreshOrderSilently() {
+  if (document.hidden || !shouldAutoRefresh()) return
+  void loadOrder({ silent: true })
 }
 
 async function handleConfirmDelivery() {
@@ -82,7 +109,7 @@ async function handleConfirmDelivery() {
   deliveryErrorMessage.value = ''
   try {
     await confirmDelivery(orderId.value)
-    await loadOrder()
+    await loadOrder({ force: true })
   } catch (error) {
     deliveryErrorMessage.value = error.response?.data?.message ?? '確認收貨失敗，請稍後再試'
   } finally {
@@ -110,7 +137,7 @@ async function handleCancelOrder() {
   cancellingOrder.value = true
   cancellationErrorMessage.value = ''
   try {
-    order.value = (await cancelOrder(orderId.value, { reason })).data
+    applyOrderResponse((await cancelOrder(orderId.value, { reason })).data)
   } catch (error) {
     cancellationErrorMessage.value =
       error.response?.data?.message ?? '取消訂單失敗，請稍後再試'
@@ -143,7 +170,18 @@ function formatDate(value) {
   }).format(new Date(value))
 }
 
-onMounted(loadOrder)
+onMounted(() => {
+  void loadOrder()
+  window.addEventListener('focus', refreshOrderSilently)
+  document.addEventListener('visibilitychange', refreshOrderSilently)
+  autoRefreshTimer = window.setInterval(refreshOrderSilently, AUTO_REFRESH_INTERVAL_MS)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('focus', refreshOrderSilently)
+  document.removeEventListener('visibilitychange', refreshOrderSilently)
+  if (autoRefreshTimer !== null) window.clearInterval(autoRefreshTimer)
+})
 </script>
 
 <template>
@@ -187,7 +225,7 @@ onMounted(loadOrder)
         <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
         <strong>無法載入訂單</strong>
         <span>{{ errorMessage }}</span>
-        <button type="button" @click="loadOrder">重新載入</button>
+        <button type="button" @click="loadOrder()">重新載入</button>
       </div>
 
       <template v-else-if="order">
@@ -222,8 +260,8 @@ onMounted(loadOrder)
           <section class="detail-card product-card">
             <div class="card-heading">
               <h2>商品明細</h2>
-              <span class="status-badge" :class="`status-${order.status?.toLowerCase()}`">
-                {{ statusLabels[order.status] ?? order.status }}
+              <span class="status-badge" :class="`status-${displayStatus.key.toLowerCase()}`">
+                {{ displayStatus.label }}
               </span>
             </div>
 
@@ -286,7 +324,7 @@ onMounted(loadOrder)
                   </template>
                 </p>
                 <button
-                  v-if="['SHIPPED', 'AVAILABLE_FOR_PICKUP'].includes(order.shipment.status)"
+                  v-if="order.shipment.status === 'AVAILABLE_FOR_PICKUP'"
                   class="btn btn-primary mt-2"
                   type="button"
                   :disabled="confirmingDelivery"
@@ -625,7 +663,9 @@ onMounted(loadOrder)
   border-radius: var(--radius-sm);
 }
 
-.status-pending_payment {
+.status-pending_payment,
+.status-pending_shipment,
+.status-pending_pickup {
   color: var(--color-warning);
   background: var(--color-warning-soft);
 }

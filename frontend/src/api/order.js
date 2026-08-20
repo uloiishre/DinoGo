@@ -19,6 +19,17 @@ export function createPayment(orderId, paymentMethodCode) {
   )
 }
 
+export function getPaymentCapabilities() {
+  return api.get('/payments/capabilities')
+}
+
+export function simulatePayment(orderId, paymentId, status = 'SUCCESS', failureReason = null) {
+  return api.post(`/orders/${orderId}/payments/${paymentId}/simulate`, {
+    status,
+    failureReason,
+  })
+}
+
 export function confirmDelivery(orderId) {
   return api.patch(`/orders/${orderId}/shipment/confirm-delivery`)
 }

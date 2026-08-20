@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.dinogo.sales.dto.shipment.CreateShipmentRequest;
 import com.dinogo.sales.dto.shipment.ShipmentResponse;
 import com.dinogo.sales.dto.shipment.UpdateShipmentStatusRequest;
+import com.dinogo.sales.dto.shipment.UpdateShipmentTrackingInfoRequest;
 import com.dinogo.sales.service.ShipmentService;
 import com.dinogo.security.AuthenticatedMember;
 
@@ -56,6 +57,15 @@ public class ShipmentController {
             @AuthenticationPrincipal AuthenticatedMember member,
             @Valid @RequestBody UpdateShipmentStatusRequest request) {
         return ResponseEntity.ok(shipmentService.updateShipmentStatus(
+                orderId, member.memberId(), request));
+    }
+
+    @PatchMapping("/tracking-info")
+    public ResponseEntity<ShipmentResponse> updateShipmentTrackingInfo(
+            @PathVariable Integer orderId,
+            @AuthenticationPrincipal AuthenticatedMember member,
+            @Valid @RequestBody UpdateShipmentTrackingInfoRequest request) {
+        return ResponseEntity.ok(shipmentService.updateShipmentTrackingInfo(
                 orderId, member.memberId(), request));
     }
 

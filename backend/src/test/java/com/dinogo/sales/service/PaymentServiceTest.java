@@ -26,6 +26,7 @@ import com.dinogo.sales.entity.Payment;
 import com.dinogo.sales.entity.PaymentMethod;
 import com.dinogo.sales.entity.PaymentStatus;
 import com.dinogo.sales.exception.InvalidOrderException;
+import com.dinogo.sales.exception.OrderNotFoundException;
 import com.dinogo.sales.repository.OrderRepository;
 import com.dinogo.sales.repository.PaymentMethodRepository;
 import com.dinogo.sales.repository.PaymentRepository;
@@ -47,7 +48,8 @@ class PaymentServiceTest {
         paymentService = new PaymentService(
                 paymentRepository,
                 paymentMethodRepository,
-                orderRepository);
+                orderRepository,
+                true);
     }
 
     @Test
@@ -106,6 +108,22 @@ class PaymentServiceTest {
     }
 
     @Test
+    void simulateDoesNotExposeAnotherBuyersPayment() {
+        when(paymentRepository.findForSimulation(20, 10, 99))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                OrderNotFoundException.class,
+                () -> paymentService.simulatePaymentResult(
+                        10,
+                        20,
+                        99,
+                        new SimulatePaymentRequest(PaymentStatus.SUCCESS, null)));
+
+        verify(paymentRepository, never()).save(any(Payment.class));
+    }
+
+    @Test
     void createPaymentUsesOrderTotalAndSelectedMethod() {
         Order order = pendingOrder();
         PaymentMethod method = paymentMethod();
@@ -124,6 +142,25 @@ class PaymentServiceTest {
         assertEquals(new BigDecimal("1000.00"), response.amount());
         assertEquals(PaymentStatus.PENDING, response.status());
         assertEquals("CREDIT_CARD", response.paymentMethodCode());
+    }
+
+    @Test
+    void disabledSimulationRejectsOnlinePaymentBeforeCreatingPendingPayment() {
+        PaymentService disabledPaymentService = new PaymentService(
+                paymentRepository,
+                paymentMethodRepository,
+                orderRepository,
+                false);
+
+        assertThrows(
+                InvalidOrderException.class,
+                () -> disabledPaymentService.createPayment(
+                        10,
+                        1,
+                        new CreatePaymentRequest("CREDIT_CARD")));
+
+        verify(orderRepository, never()).findForPaymentCreation(any(), any());
+        verify(paymentRepository, never()).save(any(Payment.class));
     }
 
     @Test

@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import com.dinogo.sales.dto.shipment.CreateShipmentRequest;
 import com.dinogo.sales.dto.shipment.ShipmentResponse;
 import com.dinogo.sales.dto.shipment.UpdateShipmentStatusRequest;
+import com.dinogo.sales.dto.shipment.UpdateShipmentTrackingInfoRequest;
 import com.dinogo.sales.entity.ShipmentStatus;
 import com.dinogo.sales.service.ShipmentService;
 import com.dinogo.security.AuthenticatedMember;
@@ -66,6 +67,24 @@ class ShipmentControllerTest {
         assertThat(actual.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(actual.getBody()).isSameAs(serviceResponse);
         verify(shipmentService).updateShipmentStatus(10, 8, request);
+    }
+
+    @Test
+    void updateShipmentTrackingInfoUsesAuthenticatedMember() {
+        ShipmentService shipmentService = mock(ShipmentService.class);
+        AuthenticatedMember member = new AuthenticatedMember(8, "seller@example.com");
+        UpdateShipmentTrackingInfoRequest request =
+                new UpdateShipmentTrackingInfoRequest("Black Cat", "TRACK-2");
+        ShipmentResponse serviceResponse = response();
+        when(shipmentService.updateShipmentTrackingInfo(10, 8, request))
+                .thenReturn(serviceResponse);
+
+        var actual = new ShipmentController(shipmentService)
+                .updateShipmentTrackingInfo(10, member, request);
+
+        assertThat(actual.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(actual.getBody()).isSameAs(serviceResponse);
+        verify(shipmentService).updateShipmentTrackingInfo(10, 8, request);
     }
 
     @Test
