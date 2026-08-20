@@ -15,6 +15,7 @@ import com.dinogo.catalog.dto.ProductCreateRequest;
 import com.dinogo.catalog.dto.ProductDetailResponse;
 import com.dinogo.catalog.dto.ProductImageCreateRequest;
 import com.dinogo.catalog.dto.ProductImageResponse;
+import com.dinogo.catalog.dto.ProductImageSortUpdateRequest;
 import com.dinogo.catalog.dto.ProductResponse;
 import com.dinogo.catalog.dto.ProductSkuCreateRequest;
 import com.dinogo.catalog.dto.ProductSkuResponse;
@@ -325,6 +326,7 @@ public class ProductService {
                                                 .imageId(image.getImageId())
                                                 .imageUrl(image.getImageUrl())
                                                 .sortOrder(image.getSortOrder())
+                                                .isMain(image.getIsMain())
                                                 .build())
                                 .toList();
 
@@ -380,6 +382,7 @@ public class ProductService {
                                                 .imageId(image.getImageId())
                                                 .imageUrl(image.getImageUrl())
                                                 .sortOrder(image.getSortOrder())
+                                                .isMain(image.getIsMain())
                                                 .build())
                                 .toList();
 
@@ -620,5 +623,83 @@ public class ProductService {
                 ProductSku updatedSku = productSkuRepository.save(sku);
 
                 return toProductSkuResponse(updatedSku);
+        }
+
+        // 修改商品主圖
+        @Transactional
+        public ProductImageResponse updateMainImage(
+                        Integer productId,
+                        Integer imageId) {
+
+                ProductImage targetImage = productImageRepository.findById(imageId)
+                                .orElseThrow(() -> new RuntimeException("找不到圖片：" + imageId));
+
+                if (!targetImage.getProduct().getProductId().equals(productId)) {
+                        throw new RuntimeException("此圖片不屬於指定商品");
+                }
+
+                List<ProductImage> images = productImageRepository.findByProductProductId(productId);
+
+                // 先全部取消主圖
+                for (ProductImage image : images) {
+                        image.setIsMain(false);
+                }
+
+                // 指定新的主圖
+                targetImage.setIsMain(true);
+
+                productImageRepository.saveAll(images);
+
+                return ProductImageResponse.builder()
+                                .imageId(targetImage.getImageId())
+                                .imageUrl(targetImage.getImageUrl())
+                                .sortOrder(targetImage.getSortOrder())
+                                .build();
+        }
+
+        // 修改商品排序
+        @Transactional
+        public List<ProductImageResponse> updateImageSort(
+                        Integer productId,
+                        List<ProductImageSortUpdateRequest> requests) {
+
+                List<ProductImageResponse> responses = new ArrayList<>();
+
+                for (ProductImageSortUpdateRequest request : requests) {
+
+                        ProductImage image = productImageRepository
+                                        .findById(request.getImageId())
+                                        .orElseThrow(() -> new RuntimeException(
+                                                        "找不到圖片：" + request.getImageId()));
+
+                        // 確認圖片真的屬於這個商品
+                        if (!image.getProduct()
+                                        .getProductId()
+                                        .equals(productId)) {
+
+                                throw new RuntimeException(
+                                                "圖片不屬於商品：" + productId);
+                        }
+
+                        if (request.getSortOrder() == null ||
+                                        request.getSortOrder() < 1) {
+
+                                throw new RuntimeException(
+                                                "圖片排序必須大於等於 1");
+                        }
+
+                        image.setSortOrder(request.getSortOrder());
+
+                        ProductImage savedImage = productImageRepository.save(image);
+
+                        responses.add(
+                                        ProductImageResponse.builder()
+                                                        .imageId(savedImage.getImageId())
+                                                        .imageUrl(savedImage.getImageUrl())
+                                                        .sortOrder(savedImage.getSortOrder())
+                                                        .build());
+                }
+
+                return responses;
         }
 }

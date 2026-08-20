@@ -8,6 +8,7 @@ import {
   updateSellerProductSku,
   createSellerProductSkus,
   disableSellerProductSku,
+  updateSellerProductMainImage,
 } from '@/api/sellerProductApi'
 import { getCurrentSellerId } from '@/utils/seller-session'
 import { logSafeError } from '@/utils/safeError'
@@ -24,6 +25,7 @@ const errorMessage = ref('')
 const imageFileInput = ref(null)
 const imagePreviewUrl = ref('')
 const selectedImageName = ref('')
+const selectedMainImageId = ref(null)
 
 const pageTitle = computed(() => (isEditMode.value ? '編輯商品' : '新增商品'))
 const pageDescription = computed(() =>
@@ -50,6 +52,9 @@ const form = reactive({
   skus: [createEmptySku()],
   status: 'ACTIVE',
   imageUrl: '',
+
+  // 商品既有圖片
+  images: [],
 })
 
 // 規格設定
@@ -228,14 +233,34 @@ const buildCreatePayload = () => ({
 
 const fillProductForm = (product) => {
   form.productName = product.productName ?? ''
-  form.subcategoryId = product.subcategoryId ? String(product.subcategoryId) : ''
-  form.brandId = product.brandId ? String(product.brandId) : ''
+
+  form.subcategoryId = product.subcategoryId
+    ? String(product.subcategoryId)
+    : ''
+
+  form.brandId = product.brandId
+    ? String(product.brandId)
+    : ''
+
   form.basePrice = product.basePrice ?? ''
   form.description = product.description ?? ''
   form.status = toFormStatus(product.status)
-  form.imageUrl = product.images?.[0]?.imageUrl ?? product.imageUrl ?? ''
+
+  // 商品圖片
+  form.images = product.images ?? []
+
+  const mainImage =
+    form.images.find((image) => image.isMain === true) ??
+    form.images[0] ??
+    null
+
+  form.imageUrl = mainImage?.imageUrl ?? product.imageUrl ?? ''
+
   imagePreviewUrl.value = ''
 
+  selectedMainImageId.value = mainImage?.imageId ?? null
+
+  // SKU
   const skus = product.skus ?? []
 
   form.skus = skus.length
@@ -266,21 +291,35 @@ const fillProductForm = (product) => {
   // 還原規格一
   spec1Name.value = skus[0].spec1Name ?? ''
 
-  spec1Values.value = [...new Set(skus.map((sku) => sku.spec1Value).filter((value) => value))]
+  spec1Values.value = [
+    ...new Set(
+      skus
+        .map((sku) => sku.spec1Value)
+        .filter((value) => value),
+    ),
+  ]
 
   // 判斷是否有第二規格
-  hasSpec2.value = skus.some((sku) => sku.spec2Name && sku.spec2Value)
+  hasSpec2.value = skus.some(
+    (sku) => sku.spec2Name && sku.spec2Value,
+  )
 
   if (hasSpec2.value) {
-    spec2Name.value = skus.find((sku) => sku.spec2Name)?.spec2Name ?? ''
+    spec2Name.value =
+      skus.find((sku) => sku.spec2Name)?.spec2Name ?? ''
 
-    spec2Values.value = [...new Set(skus.map((sku) => sku.spec2Value).filter((value) => value))]
+    spec2Values.value = [
+      ...new Set(
+        skus
+          .map((sku) => sku.spec2Value)
+          .filter((value) => value),
+      ),
+    ]
   } else {
     spec2Name.value = ''
     spec2Values.value = ['']
   }
 
-  // 依照既有規格值產生所有候選 SKU
   generateSkuList()
 }
 
@@ -386,12 +425,23 @@ const handleSubmit = async () => {
     isSubmitting.value = true
 
     if (isEditMode.value) {
-      // 編輯商品基本資料
-      await updateSellerProduct(productId.value, buildProductPayload())
+  // ① 編輯商品基本資料
+  await updateSellerProduct(
+    productId.value,
+    buildProductPayload(),
+  )
 
-      // 修改 / 新增 / 停用 SKU
-      await saveProductSkus()
-    } else {
+  // ② 修改 / 新增 / 停用 SKU
+  await saveProductSkus()
+
+  // ③ 設定商品主圖
+  if (selectedMainImageId.value) {
+    await updateSellerProductMainImage(
+      productId.value,
+      selectedMainImageId.value,
+    )
+  }
+} else {
       // 新增商品時 Product + SKU 一次建立
       await createSellerProduct(buildCreatePayload())
     }
@@ -613,11 +663,11 @@ onMounted(loadProduct)
 
           <button class="image-upload-button" type="button" @click="openImagePicker">
             <img
-              v-if="imagePreviewUrl"
-              class="image-preview"
-              :src="imagePreviewUrl"
-              :alt="selectedImageName || '點選上傳商品圖片'"
-            />
+  v-if="imagePreviewUrl || form.imageUrl"
+  class="image-preview"
+  :src="imagePreviewUrl || form.imageUrl"
+  :alt="selectedImageName || '商品主圖'"
+/>
             <div v-else class="image-placeholder">
               <i class="bi bi-image" aria-hidden="true"></i>
               <span>點選上傳</span>
@@ -632,6 +682,45 @@ onMounted(loadProduct)
             accept="image/*"
             @change="handleImageSelect"
           />
+          <!-- 編輯商品：既有商品圖片 -->
+<div
+  v-if="isEditMode && form.images.length > 0"
+  class="existing-image-list"
+>
+  <p class="image-list-title">目前商品圖片</p>
+
+  <div
+    v-for="image in form.images"
+    :key="image.imageId"
+    class="existing-image-item"
+    :class="{
+      'is-main': selectedMainImageId === image.imageId,
+    }"
+  >
+    <img
+      :src="image.imageUrl"
+      alt="商品圖片"
+      class="existing-image-thumbnail"
+    />
+
+    <label class="main-image-option">
+      <input
+        v-model="selectedMainImageId"
+        type="radio"
+        name="mainImage"
+        :value="image.imageId"
+      />
+
+      <span>
+        {{
+          selectedMainImageId === image.imageId
+            ? '目前主圖'
+            : '設為主圖'
+        }}
+      </span>
+    </label>
+  </div>
+</div>
         </section>
 
         <div class="form-actions side-actions">
@@ -949,6 +1038,61 @@ button {
   height: 14px;
   min-width: 14px;
   margin: 0;
+  cursor: pointer;
+}
+
+.existing-image-list {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.image-list-title {
+  margin: 0;
+  color: var(--color-text-700);
+  font-weight: 700;
+}
+
+.existing-image-item {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+
+  padding: var(--space-2);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.existing-image-item.is-main {
+  border-color: var(--color-primary);
+}
+
+.existing-image-thumbnail {
+  width: 72px;
+  height: 72px;
+
+  border-radius: var(--radius-md);
+
+  object-fit: cover;
+}
+
+.main-image-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+
+  cursor: pointer;
+}
+
+.main-image-option input[type='radio'] {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+
+  margin: 0;
+
   cursor: pointer;
 }
 
