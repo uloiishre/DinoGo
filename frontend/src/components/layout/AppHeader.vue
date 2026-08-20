@@ -49,6 +49,7 @@ const cartStore = useCartStore()
 
 <style scoped>
 .app-header {
+  margin: 0;
   color: var(--color-text);
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
