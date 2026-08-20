@@ -99,11 +99,11 @@ onMounted(loadMessages)
 </script>
 
 <template>
-  <section class="message-page" aria-labelledby="message-page-title">
+  <section class="seller-page" aria-labelledby="message-page-title">
     <header class="page-header">
       <div>
         <p class="eyebrow">訊息管理</p>
-        <h1 id="message-page-title" class="dg-heading">訊息中心</h1>
+        <h1 id="message-page-title">訊息中心</h1>
         <p>查看訂單動態、平台公告與優惠通知。</p>
       </div>
       <button
@@ -117,7 +117,7 @@ onMounted(loadMessages)
     </header>
 
     <div class="message-layout">
-      <nav class="category-panel dg-card" aria-label="訊息分類">
+      <nav class="category-panel" aria-label="訊息分類">
         <button
           v-for="category in categories"
           :key="category.value"
@@ -133,7 +133,7 @@ onMounted(loadMessages)
         </button>
       </nav>
 
-      <div class="message-panel dg-card" aria-live="polite" :aria-busy="isLoading">
+      <div class="message-panel" aria-live="polite" :aria-busy="isLoading">
         <div v-if="errorMessage" class="state-panel error-state" role="alert">
           <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
           <p>{{ errorMessage }}</p>
@@ -174,14 +174,16 @@ onMounted(loadMessages)
 </template>
 
 <style scoped>
-.message-page { max-width: 1440px; margin: 0 auto; }
-.page-header { min-height: 92px; display: flex; justify-content: space-between; align-items: center; gap: var(--space-5); margin-bottom: var(--space-5); }
+.seller-page { display: grid; gap: var(--space-5); max-width: 1160px; }
+.page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-5); }
 .eyebrow { margin: 0 0 var(--space-1); color: var(--color-text-muted); font-size: var(--font-size-sm); }
-h1 { margin: 0; font-size: var(--font-size-xl); color: var(--color-text); }
+h1 { margin: 0; font-family: var(--font-heading); font-size: var(--font-size-xl); color: var(--color-text); }
 .page-header p:last-child { margin: var(--space-1) 0 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
 .mark-all-button, .state-panel button { min-height: 40px; padding: 0 var(--space-4); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-primary-active); font-weight: 600; }
 .mark-all-button:disabled { border-color: var(--color-disabled); background: var(--color-disabled-bg); color: var(--color-text-subtle); cursor: not-allowed; }
 .message-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: var(--space-5); min-height: 460px; }
+.category-panel,
+.message-panel { border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); }
 .category-panel { align-self: start; display: grid; gap: var(--space-1); padding: var(--space-3); }
 .category-panel button { min-height: 44px; display: flex; justify-content: space-between; align-items: center; border: 0; border-radius: var(--radius-sm); padding: 0 var(--space-3); background: transparent; color: var(--color-text-700); text-align: left; }
 .category-panel button:hover { background: var(--color-surface-soft); }

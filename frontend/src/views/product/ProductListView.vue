@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { logSafeError } from '@/utils/safeError'
 import ProductCard from '@/views/product/ProductCard.vue'
+import { getPublicStore } from '@/api/sellerProfileApi'
 
 const route = useRoute()
 const router = useRouter()
@@ -15,7 +16,22 @@ const loading = ref(false)
 const errorMessage = ref('')
 const currentPage = ref(0)
 const pageSize = ref(12)
+const storeProfile = ref(null)
 
+const loadStoreProfile = async () => {
+  if (!route.query.sellerId) {
+    storeProfile.value = null
+    return
+  }
+
+  try {
+    const response = await getPublicStore(route.query.sellerId)
+    storeProfile.value = response.data
+  } catch (error) {
+    console.error('Load public store failed:', error)
+    storeProfile.value = null
+  }
+}
 const totalPages = ref(0)
 const totalElements = ref(0)
 
@@ -109,13 +125,45 @@ const changeSort = () => {
 
 // 第一次進入頁面時取得商品
 onMounted(() => {
+  loadStoreProfile()
   fetchProducts()
 })
+const formatStoreTime = (time) => {
+  if (!time) {
+    return ''
+  }
+
+  return time.slice(0, 5)
+}
 </script>
 
 <template>
   <main class="product-list-page">
     <div class="container py-5">
+      <section v-if="route.query.sellerId && storeProfile" class="store-banner">
+        <img
+          v-if="storeProfile.storeLogoUrl"
+          class="store-avatar-image"
+          :src="storeProfile.storeLogoUrl"
+          :alt="`${storeProfile.storeName} Logo`"
+        />
+
+        <div class="store-copy">
+          <span>品牌與商家</span>
+          <h1>{{ storeProfile.storeName }}</h1>
+          <p>{{ storeProfile.storeDescription }}</p>
+        </div>
+
+        <div class="store-meta">
+          <strong>{{ storeProfile.status === 'ACTIVE' ? '營運中' : '暫停接單' }}</strong>
+          <span v-if="storeProfile.serviceStartTime && storeProfile.serviceEndTime">
+            營業時間 {{ formatStoreTime(storeProfile.serviceStartTime) }} -
+            {{ formatStoreTime(storeProfile.serviceEndTime) }}
+          </span>
+          <span v-else>商品持續更新</span>
+        </div>
+      </section>
+
       <!-- 標題 -->
       <div class="mb-4">
         <h1 class="page-title">商品列表</h1>
@@ -220,6 +268,67 @@ onMounted(() => {
   font-size: var(--font-size-xl);
 }
 
+.store-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  background: var(--color-surface);
+}
+
+.store-avatar {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-surface);
+  font-family: var(--font-heading);
+  font-size: var(--font-size-xl);
+  font-weight: 800;
+}
+
+.store-copy {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.store-copy span,
+.store-copy p,
+.store-meta span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.store-copy h1,
+.store-copy p {
+  margin: 0;
+}
+
+.store-copy h1 {
+  color: var(--color-text-900);
+  font-family: var(--font-heading);
+  font-size: var(--font-size-xl);
+}
+
+.store-meta {
+  display: grid;
+  gap: 2px;
+  margin-left: auto;
+  border-left: 1px solid var(--color-border);
+  padding-left: var(--space-4);
+}
+
+.store-meta strong {
+  color: var(--color-success);
+}
+
 .error-message {
   color: var(--color-danger);
 }
@@ -314,5 +423,26 @@ onMounted(() => {
 
   background: var(--color-surface);
   color: var(--color-text);
+}
+
+@media (max-width: 680px) {
+  .store-banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .store-meta {
+    margin-left: 0;
+    border-left: 0;
+    padding-left: 0;
+  }
+}
+.store-avatar-image {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  border: 1px solid var(--color-border);
 }
 </style>

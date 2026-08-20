@@ -7,3 +7,7 @@ export function getMemberProfile() {
 export function updateMemberProfile(request) {
   return api.put('/member/profile', request)
 }
+
+export function changePassword(request) {
+  return api.put('/member/password', request)
+}

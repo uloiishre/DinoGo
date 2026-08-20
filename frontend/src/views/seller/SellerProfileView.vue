@@ -1,40 +1,17 @@
 <script setup>
-import { reactive, ref } from 'vue'
+import { getSellerProfile, updateSellerProfile } from '@/api/sellerProfileApi'
+import { computed, onMounted, reactive, ref } from 'vue'
 
-// TODO: 等 E 模組 Seller profile API 完成後，改為從後端載入與儲存店鋪資料。
 const isSaving = ref(false)
 const savedMessage = ref('')
-const logoFileInput = ref(null)
-const logoPreviewUrl = ref('')
-const selectedLogoName = ref('')
+const logoUrl = ref('')
+const logoLoadFailed = ref(false)
 
 const form = reactive({
-  storeName: '森日選物',
+  storeName: '',
   status: 'ACTIVE',
-  description: '提供耐用、安靜且適合日常使用的生活選物。',
-  email: 'hello@morihibi.example',
-  phone: '02-2345-6789',
-  city: '台北市',
-  district: '中山區',
-  address: '南京東路三段 100 號',
-  serviceHours: '週一至週五 10:00 - 18:00',
-  announcement: '出貨時間約 1-2 個工作天，遇假日順延。',
+  description: '',
 })
-
-const openLogoPicker = () => {
-  logoFileInput.value?.click()
-}
-
-const handleLogoSelect = (event) => {
-  const file = event.target.files?.[0]
-
-  if (!file) {
-    return
-  }
-
-  selectedLogoName.value = file.name
-  logoPreviewUrl.value = URL.createObjectURL(file)
-}
 
 const statusOptions = [
   { label: '營運中', value: 'ACTIVE' },
@@ -48,15 +25,71 @@ const statusText = {
   REVIEWING: '審核中',
 }
 
-const handleSave = () => {
+const serviceTimeOptions = [
+  { label: '09:00 - 18:00', start: '09:00:00', end: '18:00:00' },
+  { label: '10:00 - 19:00', start: '10:00:00', end: '19:00:00' },
+  { label: '11:00 - 20:00', start: '11:00:00', end: '20:00:00' },
+  { label: '全天候客服', start: '00:00:00', end: '23:59:00' },
+]
+
+const selectedServiceTime = ref('09:00:00|18:00:00')
+
+const selectedServiceTimeLabel = computed(() => {
+  const option = serviceTimeOptions.find(
+    (item) => `${item.start}|${item.end}` === selectedServiceTime.value,
+  )
+
+  return option?.label || '未設定客服時間'
+})
+
+const applyProfileToForm = (profile) => {
+  form.storeName = profile.storeName ?? ''
+  form.description = profile.storeDescription ?? ''
+  form.status = profile.status ?? 'ACTIVE'
+
+  if (profile.serviceStartTime && profile.serviceEndTime) {
+    selectedServiceTime.value = `${profile.serviceStartTime}|${profile.serviceEndTime}`
+  }
+
+  logoUrl.value = profile.storeLogoUrl ?? ''
+  logoLoadFailed.value = false
+}
+
+const handleSave = async () => {
   isSaving.value = true
   savedMessage.value = ''
+  const [serviceStartTime, serviceEndTime] = selectedServiceTime.value.split('|')
 
-  window.setTimeout(() => {
+  try {
+    const response = await updateSellerProfile({
+      storeName: form.storeName,
+      storeDescription: form.description,
+      storeLogoUrl: logoUrl.value.trim() || null,
+      status: form.status,
+      serviceStartTime,
+      serviceEndTime,
+    })
+
+    applyProfileToForm(response.data)
+    savedMessage.value = '店鋪資料已更新。'
+  } catch (error) {
+    console.error('Update seller profile failed:', error)
+    savedMessage.value = '店鋪資料儲存失敗，請稍後再試。'
+  } finally {
     isSaving.value = false
-    savedMessage.value = '店鋪資料已暫存於前端展示版本。'
-  }, 500)
+  }
 }
+
+onMounted(async () => {
+  try {
+    const response = await getSellerProfile()
+    applyProfileToForm(response.data)
+  } catch (error) {
+    console.error('Load seller profile failed:', error)
+    savedMessage.value = '店鋪資料載入失敗，請確認是否已登入賣家帳號。'
+  }
+})
+
 </script>
 
 <template>
@@ -65,7 +98,7 @@ const handleSave = () => {
       <div>
         <p class="eyebrow">店鋪資料</p>
         <h1>店鋪資料</h1>
-        <p class="page-description">管理商家館公開資訊與營業設定。</p>
+        <p class="page-description">管理店鋪公開資訊與營業設定。</p>
       </div>
     </header>
 
@@ -75,19 +108,41 @@ const handleSave = () => {
         <div>
           <p class="section-label">店鋪目前狀態</p>
           <strong>{{ statusText[form.status] }}</strong>
-          <span>{{ form.status === 'ACTIVE' ? '顧客可以瀏覽並購買你的商品。' : '目前不會接收新的訂單。' }}</span>
+          <span>{{
+            form.status === 'ACTIVE' ? '顧客可以瀏覽並購買你的商品。' : '目前不會接收新的訂單。'
+          }}</span>
         </div>
       </div>
-
-      <button class="secondary-button" type="button">查看商家館</button>
     </section>
 
     <form class="profile-grid" @submit.prevent="handleSave">
+      <section class="preview-card store-banner-preview">
+        <div class="preview-brand">
+          <img
+            v-if="logoUrl && !logoLoadFailed"
+            class="store-avatar-image"
+            :src="logoUrl"
+            :alt="`${form.storeName} Logo`"
+            @error="logoLoadFailed = true"
+          />
+          <span v-else class="store-avatar">{{ form.storeName.slice(0, 1) }}</span>
+          <div>
+            <p class="section-kicker">前台店鋪橫幅預覽</p>
+            <strong>{{ form.storeName }}</strong>
+            <span>{{ form.description }}</span>
+          </div>
+        </div>
+        <div class="preview-meta">
+          <span>{{ statusText[form.status] }}</span>
+          <span>{{ selectedServiceTimeLabel }}</span>
+        </div>
+      </section>
+
       <section class="profile-card">
         <div class="card-heading">
           <div>
             <p class="section-kicker">公開資料</p>
-            <h2>商家館資訊</h2>
+            <h2>店鋪公開資訊</h2>
           </div>
           <span class="visibility-note">顧客可見</span>
         </div>
@@ -100,27 +155,23 @@ const handleSave = () => {
         <section class="logo-section full-width" aria-labelledby="store-logo-title">
           <h3 id="store-logo-title">店鋪 Logo</h3>
 
-          <button class="logo-upload-button" type="button" @click="openLogoPicker">
-            <img
-              v-if="logoPreviewUrl"
-              class="logo-preview"
-              :src="logoPreviewUrl"
-              :alt="selectedLogoName || '店鋪 Logo 預覽'"
+          <label class="form-field">
+            Logo 圖片網址
+            <input
+              v-model="logoUrl"
+              type="url"
+              placeholder="https://example.com/store-logo.png"
+              @input="logoLoadFailed = false"
             />
-            <div v-else class="logo-placeholder">
-              <i class="bi bi-image" aria-hidden="true"></i>
-              <span>點選上傳</span>
-              <small>店鋪 Logo placeholder</small>
-            </div>
-          </button>
-
-          <input
-            ref="logoFileInput"
-            class="logo-file-input"
-            type="file"
-            accept="image/*"
-            @change="handleLogoSelect"
+          </label>
+          <img
+            v-if="logoUrl && !logoLoadFailed"
+            class="logo-preview"
+            :src="logoUrl"
+            :alt="`${form.storeName} Logo 預覽`"
+            @error="logoLoadFailed = true"
           />
+          <p v-else class="logo-help">請輸入可公開存取的圖片網址，儲存後會同步到店鋪頁。</p>
         </section>
 
         <label class="form-field full-width">
@@ -128,66 +179,9 @@ const handleSave = () => {
           <textarea v-model="form.description"></textarea>
         </label>
 
-        <label class="form-field">
-          聯絡 Email
-          <input v-model="form.email" type="email" />
-        </label>
-
-        <label class="form-field">
-          客服電話
-          <input v-model="form.phone" type="tel" />
-        </label>
-
-        <div class="section-divider full-width">
-          <span>店鋪位置</span>
-          <small>選填</small>
-        </div>
-
-        <label class="form-field">
-          縣市
-          <input v-model="form.city" type="text" placeholder="選填" />
-        </label>
-
-        <label class="form-field">
-          區域
-          <input v-model="form.district" type="text" placeholder="選填" />
-        </label>
-
-        <label class="form-field full-width">
-          詳細地址
-          <input v-model="form.address" type="text" placeholder="選填" />
-        </label>
       </section>
 
       <aside class="profile-side">
-        <section class="preview-card">
-          <div class="card-heading compact-heading">
-            <div>
-              <p class="section-kicker">即時預覽</p>
-              <h2>商家館顯示</h2>
-            </div>
-          </div>
-
-          <div class="preview-brand">
-            <img
-              v-if="logoPreviewUrl"
-              class="store-avatar-image"
-              :src="logoPreviewUrl"
-              :alt="selectedLogoName || `${form.storeName} Logo`"
-            />
-            <span v-else class="store-avatar">{{ form.storeName.slice(0, 1) }}</span>
-            <div>
-              <strong>{{ form.storeName }}</strong>
-              <span>生活選物</span>
-            </div>
-          </div>
-          <p class="preview-description">{{ form.description }}</p>
-          <div class="preview-meta">
-            <span>{{ form.city || form.district ? `${form.city}${form.district}` : '未提供地址' }}</span>
-            <span>{{ form.serviceHours }}</span>
-          </div>
-        </section>
-
         <section class="settings-card">
           <div class="card-heading compact-heading">
             <div>
@@ -207,13 +201,17 @@ const handleSave = () => {
 
           <label class="form-field">
             客服時間
-            <input v-model="form.serviceHours" type="text" />
+            <select v-model="selectedServiceTime">
+              <option
+                v-for="option in serviceTimeOptions"
+                :key="option.label"
+                :value="`${option.start}|${option.end}`"
+              >
+                {{ option.label }}
+              </option>
+            </select>
           </label>
 
-          <label class="form-field">
-            店鋪公告
-            <textarea v-model="form.announcement"></textarea>
-          </label>
         </section>
       </aside>
 
@@ -348,7 +346,7 @@ h3 {
 
 .profile-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: var(--space-5);
 }
@@ -391,14 +389,20 @@ h3 {
 }
 
 .preview-card {
-  border-top: 3px solid var(--color-primary);
+  border-left: 4px solid var(--color-primary);
+}
+
+.store-banner-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
 }
 
 .preview-brand {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  margin-top: var(--space-4);
 }
 
 .store-avatar {
@@ -431,18 +435,16 @@ h3 {
   color: var(--color-text-900);
 }
 
-.preview-description {
-  min-height: 48px;
-  margin: var(--space-4) 0;
-  color: var(--color-text-700);
-  line-height: 1.6;
+.preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
-.preview-meta {
-  display: grid;
-  gap: var(--space-2);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-border);
+.preview-meta span {
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+  background: var(--color-bg-muted);
 }
 
 .settings-card {
@@ -463,24 +465,27 @@ h3 {
 }
 
 .logo-upload-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
   width: min(100%, 360px);
-  min-height: 230px;
+  min-height: 220px;
   overflow: hidden;
-  border: 0;
+  border: 1px dashed var(--color-border-strong);
   border-radius: var(--radius-md);
-  padding: 0;
+  padding: var(--space-4);
   background: var(--color-bg-muted);
   color: var(--color-text-muted);
   cursor: pointer;
   font: inherit;
   text-align: center;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
 }
 
 .logo-upload-button:hover {
-  background: var(--color-disabled-bg);
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
 }
 
 .logo-upload-button:focus-visible {
@@ -490,31 +495,41 @@ h3 {
 
 .logo-preview {
   width: 100%;
-  height: 230px;
+  height: 220px;
+  border-radius: calc(var(--radius-md) - 2px);
   object-fit: cover;
 }
 
 .logo-placeholder {
   display: grid;
-  min-height: 100%;
+  place-items: center;
   align-content: center;
-  justify-items: center;
   gap: var(--space-2);
-  font-family: var(--font-body);
+  min-height: 188px;
 }
-
 .logo-placeholder i {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
   color: var(--color-primary);
-  font-size: 32px;
+  font-size: 24px;
 }
 
 .logo-placeholder span {
-  color: var(--color-text-700);
-  font-weight: 700;
+  color: var(--color-text-900);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
 }
 
 .logo-placeholder small {
-  font-size: var(--font-size-sm);
+  max-width: 240px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  line-height: 1.5;
 }
 
 .logo-file-input {
@@ -622,12 +637,9 @@ textarea {
 }
 
 @media (max-width: 1000px) {
-  .profile-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .profile-side {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .store-banner-preview {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 

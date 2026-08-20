@@ -1,7 +1,14 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { createSellerProduct, getProductDetail, updateSellerProduct } from '@/api/sellerProductApi'
+import {
+  createSellerProduct,
+  getProductDetail,
+  updateSellerProduct,
+  updateSellerProductSku,
+  createSellerProductSkus,
+  disableSellerProductSku,
+} from '@/api/sellerProductApi'
 import { getCurrentSellerId } from '@/utils/seller-session'
 import { logSafeError } from '@/utils/safeError'
 
@@ -45,8 +52,120 @@ const form = reactive({
   imageUrl: '',
 })
 
-const addSku = () => {
-  form.skus.push(createEmptySku())
+// 規格設定
+const spec1Name = ref('')
+const spec1Values = ref([''])
+
+const hasSpec2 = ref(false)
+const spec2Name = ref('')
+const spec2Values = ref([''])
+
+// 新增規格一的值
+const addSpec1Value = () => {
+  spec1Values.value.push('')
+}
+
+// 刪除規格一的值
+const removeSpec1Value = (index) => {
+  if (spec1Values.value.length <= 1) {
+    return
+  }
+
+  spec1Values.value.splice(index, 1)
+  generateSkuList()
+}
+
+// 新增第二規格
+const addSpec2 = () => {
+  hasSpec2.value = true
+  spec2Values.value = ['']
+  generateSkuList()
+}
+
+// 移除第二規格
+const removeSpec2 = () => {
+  hasSpec2.value = false
+  spec2Name.value = ''
+  spec2Values.value = ['']
+  generateSkuList()
+}
+
+// 新增規格二的值
+const addSpec2Value = () => {
+  spec2Values.value.push('')
+}
+
+// 刪除規格二的值
+const removeSpec2Value = (index) => {
+  if (spec2Values.value.length <= 1) {
+    return
+  }
+
+  spec2Values.value.splice(index, 1)
+  generateSkuList()
+}
+
+// 自動產生 SKU
+// 自動產生 SKU 候選組合
+const generateSkuList = () => {
+  const values1 = spec1Values.value.map((value) => value.trim()).filter((value) => value !== '')
+
+  const values2 = spec2Values.value.map((value) => value.trim()).filter((value) => value !== '')
+
+  const oldSkus = [...form.skus]
+  const newSkus = []
+
+  // 只有第一規格
+  if (!hasSpec2.value) {
+    for (const value1 of values1) {
+      const oldSku = oldSkus.find((sku) => sku.spec1Value === value1 && !sku.spec2Value)
+
+      newSkus.push({
+        skuId: oldSku?.skuId,
+
+        spec1Name: spec1Name.value.trim(),
+        spec1Value: value1,
+
+        spec2Name: null,
+        spec2Value: null,
+
+        // 新增商品：預設勾選
+        // 編輯商品：資料庫原本存在才勾選
+        enabled: oldSku?.enabled ?? (oldSku?.skuId ? true : !isEditMode.value),
+
+        price: oldSku?.price ?? '',
+        stock: oldSku?.stock ?? '',
+        status: oldSku?.status ?? 1,
+      })
+    }
+  } else {
+    // 兩種規格
+    for (const value1 of values1) {
+      for (const value2 of values2) {
+        const oldSku = oldSkus.find((sku) => sku.spec1Value === value1 && sku.spec2Value === value2)
+
+        newSkus.push({
+          skuId: oldSku?.skuId,
+
+          spec1Name: spec1Name.value.trim(),
+          spec1Value: value1,
+
+          spec2Name: spec2Name.value.trim(),
+          spec2Value: value2,
+
+          // 新增商品：預設勾選
+          // 編輯商品：既有 SKU 勾選，不存在的組合不勾
+          enabled: oldSku?.enabled ?? (oldSku?.skuId ? true : !isEditMode.value),
+
+          price: oldSku?.price ?? '',
+          stock: oldSku?.stock ?? '',
+          status: oldSku?.status ?? 1,
+        })
+      }
+    }
+  }
+
+  form.skus = newSkus
 }
 
 const openImagePicker = () => {
@@ -71,7 +190,8 @@ const toFormStatus = (status) => {
   return 'INACTIVE'
 }
 
-const buildPayload = () => ({
+// 商品基本資料
+const buildProductPayload = () => ({
   sellerId,
   subcategoryId: Number(form.subcategoryId),
   brandId: Number(form.brandId),
@@ -79,14 +199,23 @@ const buildPayload = () => ({
   description: form.description.trim(),
   basePrice: Number(form.basePrice),
   status: form.status === 'ACTIVE' ? 1 : 2,
-  skus: form.skus.map((sku) => ({
-    spec1Name: sku.spec1Name.trim(),
-    spec1Value: sku.spec1Value.trim(),
-    spec2Name: sku.spec2Name?.trim() || null,
-    spec2Value: sku.spec2Value?.trim() || null,
-    price: Number(sku.price),
-    stock: Number(sku.stock),
-  })),
+})
+
+// 建立商品使用
+const buildCreatePayload = () => ({
+  ...buildProductPayload(),
+
+  skus: form.skus
+    .filter((sku) => sku.enabled)
+    .map((sku) => ({
+      spec1Name: sku.spec1Name.trim(),
+      spec1Value: sku.spec1Value.trim(),
+      spec2Name: sku.spec2Name?.trim() || null,
+      spec2Value: sku.spec2Value?.trim() || null,
+      price: Number(sku.price),
+      stock: Number(sku.stock),
+    })),
+
   images: form.imageUrl
     ? [
         {
@@ -106,17 +235,53 @@ const fillProductForm = (product) => {
   form.status = toFormStatus(product.status)
   form.imageUrl = product.images?.[0]?.imageUrl ?? product.imageUrl ?? ''
   imagePreviewUrl.value = ''
-  form.skus = product.skus?.length
-    ? product.skus.map((sku) => ({
+
+  const skus = product.skus ?? []
+
+  form.skus = skus.length
+    ? skus.map((sku) => ({
+        skuId: sku.skuId,
         spec1Name: sku.spec1Name ?? '',
         spec1Value: sku.spec1Value ?? '',
-        spec2Name: sku.spec2Name ?? '',
-        spec2Value: sku.spec2Value ?? '',
+        spec2Name: sku.spec2Name ?? null,
+        spec2Value: sku.spec2Value ?? null,
+
+        enabled: (sku.status ?? 1) === 1,
+
         price: sku.price ?? '',
         stock: sku.stock ?? '',
         status: sku.status ?? 1,
       }))
-    : [createEmptySku()]
+    : []
+
+  if (skus.length === 0) {
+    spec1Name.value = ''
+    spec1Values.value = ['']
+    hasSpec2.value = false
+    spec2Name.value = ''
+    spec2Values.value = ['']
+    return
+  }
+
+  // 還原規格一
+  spec1Name.value = skus[0].spec1Name ?? ''
+
+  spec1Values.value = [...new Set(skus.map((sku) => sku.spec1Value).filter((value) => value))]
+
+  // 判斷是否有第二規格
+  hasSpec2.value = skus.some((sku) => sku.spec2Name && sku.spec2Value)
+
+  if (hasSpec2.value) {
+    spec2Name.value = skus.find((sku) => sku.spec2Name)?.spec2Name ?? ''
+
+    spec2Values.value = [...new Set(skus.map((sku) => sku.spec2Value).filter((value) => value))]
+  } else {
+    spec2Name.value = ''
+    spec2Values.value = ['']
+  }
+
+  // 依照既有規格值產生所有候選 SKU
+  generateSkuList()
 }
 
 const loadProduct = async () => {
@@ -137,42 +302,105 @@ const loadProduct = async () => {
   }
 }
 
+// 儲存商品 SKU
+const saveProductSkus = async () => {
+  // 既有而且目前有販售的 SKU
+  const existingSkus = form.skus.filter((sku) => sku.skuId && sku.enabled)
+
+  // 沒有 skuId，代表這次新產生的 SKU
+  const newSkus = form.skus.filter((sku) => !sku.skuId && sku.enabled)
+
+  // 原本存在，但現在取消販售
+  const disabledSkus = form.skus.filter((sku) => sku.skuId && !sku.enabled && sku.status !== 0)
+
+  // ① 修改既有 SKU
+  for (const sku of existingSkus) {
+    await updateSellerProductSku(productId.value, sku.skuId, {
+      spec1Name: sku.spec1Name,
+      spec1Value: sku.spec1Value,
+      spec2Name: sku.spec2Name || null,
+      spec2Value: sku.spec2Value || null,
+      price: Number(sku.price),
+      stock: Number(sku.stock),
+      status: 1,
+    })
+  }
+
+  // ② 批次新增新的 SKU
+  if (newSkus.length > 0) {
+    await createSellerProductSkus(
+      productId.value,
+      newSkus.map((sku) => ({
+        spec1Name: sku.spec1Name,
+        spec1Value: sku.spec1Value,
+        spec2Name: sku.spec2Name || null,
+        spec2Value: sku.spec2Value || null,
+        price: Number(sku.price),
+        stock: Number(sku.stock),
+      })),
+    )
+  }
+
+  // ③ 停用取消販售的 SKU
+  for (const sku of disabledSkus) {
+    await disableSellerProductSku(productId.value, sku.skuId)
+  }
+}
+
+// 儲存商品
 const handleSubmit = async () => {
+  // 商品名稱驗證
   if (!form.productName.trim()) {
     errorMessage.value = '請輸入商品名稱。'
     return
   }
 
+  // 分類、品牌驗證
   if (!form.subcategoryId || !form.brandId) {
     errorMessage.value = '請選擇商品分類與品牌。'
     return
   }
 
-  if (Number(form.basePrice) < 0) {
-    errorMessage.value = '商品價格不可小於 0。'
+  // 商品基本價格驗證
+  if (Number(form.basePrice) < 1) {
+    errorMessage.value = '商品價格不可小於 1 元。'
     return
   }
 
-  if (form.skus.some((sku) => Number(sku.price) < 0 || Number(sku.stock) < 0)) {
-    errorMessage.value = 'SKU 價格與庫存不可小於 0。'
+  // 只驗證目前有勾選販售的 SKU
+  const activeSkus = form.skus.filter((sku) => sku.enabled)
+
+  if (!isEditMode.value && activeSkus.length === 0) {
+    errorMessage.value = '新增商品至少需要一個販售規格。'
     return
   }
+
+  if (activeSkus.some((sku) => Number(sku.price) < 1 || Number(sku.stock) < 0)) {
+    errorMessage.value = 'SKU 價格不可小於 1 元，庫存不可小於 0。'
+    return
+  }
+
   errorMessage.value = ''
-
-  const payload = buildPayload()
 
   try {
     isSubmitting.value = true
+
     if (isEditMode.value) {
-      await updateSellerProduct(productId.value, payload)
+      // 編輯商品基本資料
+      await updateSellerProduct(productId.value, buildProductPayload())
+
+      // 修改 / 新增 / 停用 SKU
+      await saveProductSkus()
     } else {
-      await createSellerProduct(payload)
+      // 新增商品時 Product + SKU 一次建立
+      await createSellerProduct(buildCreatePayload())
     }
+
     router.push('/seller/products')
   } catch (error) {
     logSafeError('Save seller product failed:', error)
     errorMessage.value = isEditMode.value
-      ? '編輯商品失敗，請確認 B 模組是否已提供商品修改 API。'
+      ? '編輯商品失敗，請確認商品資料與 SKU 是否正確。'
       : '新增商品失敗，請確認欄位是否正常。'
   } finally {
     isSubmitting.value = false
@@ -224,7 +452,7 @@ onMounted(loadProduct)
 
         <label class="form-field">
           基本售價
-          <input v-model="form.basePrice" type="number" min="0" placeholder="0" />
+          <input v-model="form.basePrice" type="number" min="1" placeholder="1" />
         </label>
 
         <label class="form-field full-width">
@@ -235,39 +463,146 @@ onMounted(loadProduct)
         <section class="sku-section full-width">
           <div class="section-header">
             <h2>商品規格 SKU</h2>
-            <button type="button" @click="addSku">新增 SKU</button>
           </div>
 
-          <div v-for="(sku, index) in form.skus" :key="index" class="sku-row">
-            <label class="form-field">
-              規格 1 名稱
-              <input v-model="sku.spec1Name" placeholder="例如：顏色、尺寸" />
-            </label>
+          <!-- 規格一 -->
+          <div class="spec-block">
+            <div class="spec-title">
+              <strong>規格一</strong>
+            </div>
 
             <label class="form-field">
-              規格 1 值
-              <input v-model="sku.spec1Value" placeholder="例如：白、L" />
+              規格名稱
+              <input v-model="spec1Name" placeholder="例如：顏色" @input="generateSkuList" />
             </label>
 
-            <label class="form-field">
-              規格 2 名稱
-              <input v-model="sku.spec2Name" placeholder="例如：容量、版本" />
-            </label>
+            <div class="spec-values">
+              <label>規格值</label>
+
+              <div
+                v-for="(value, index) in spec1Values"
+                :key="`spec1-${index}`"
+                class="spec-value-row"
+              >
+                <input
+                  v-model="spec1Values[index]"
+                  placeholder="例如：白色"
+                  @input="generateSkuList"
+                />
+
+                <button
+                  v-if="spec1Values.length > 1"
+                  type="button"
+                  @click="removeSpec1Value(index)"
+                >
+                  刪除
+                </button>
+              </div>
+
+              <button type="button" @click="addSpec1Value">＋ 新增規格值</button>
+            </div>
+          </div>
+
+          <!-- 新增第二規格 -->
+          <button v-if="!hasSpec2" type="button" class="add-spec-button" @click="addSpec2">
+            ＋ 新增第二規格
+          </button>
+
+          <!-- 規格二 -->
+          <div v-if="hasSpec2" class="spec-block">
+            <div class="spec-title">
+              <strong>規格二</strong>
+
+              <button type="button" @click="removeSpec2">移除規格二</button>
+            </div>
 
             <label class="form-field">
-              規格 2 值
-              <input v-model="sku.spec2Value" placeholder="例如：256GB、Pro" />
+              規格名稱
+              <input v-model="spec2Name" placeholder="例如：容量" @input="generateSkuList" />
             </label>
 
-            <label class="form-field">
-              SKU 價格
-              <input v-model="sku.price" type="number" min="0" />
-            </label>
+            <div class="spec-values">
+              <label>規格值</label>
 
-            <label class="form-field">
-              SKU 庫存
-              <input v-model="sku.stock" type="number" min="0" />
-            </label>
+              <div
+                v-for="(value, index) in spec2Values"
+                :key="`spec2-${index}`"
+                class="spec-value-row"
+              >
+                <input
+                  v-model="spec2Values[index]"
+                  placeholder="例如：256GB"
+                  @input="generateSkuList"
+                />
+
+                <button
+                  v-if="spec2Values.length > 1"
+                  type="button"
+                  @click="removeSpec2Value(index)"
+                >
+                  刪除
+                </button>
+              </div>
+
+              <button type="button" @click="addSpec2Value">＋ 新增規格值</button>
+            </div>
+          </div>
+
+          <!-- 自動產生 SKU 組合 -->
+          <div v-if="form.skus.length > 0" class="sku-combination-section">
+            <h3>規格組合</h3>
+
+            <div class="sku-table-wrapper">
+              <table class="sku-table">
+                <thead>
+                  <tr>
+                    <th>{{ spec1Name || '規格一' }}</th>
+
+                    <th v-if="hasSpec2">
+                      {{ spec2Name || '規格二' }}
+                    </th>
+                    <th class="checkbox-cell">販售</th>
+                    <th class="checkbox-cell">價格</th>
+                    <th class="checkbox-cell">庫存</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  <tr
+                    v-for="(sku, index) in form.skus"
+                    :key="`${sku.spec1Value}-${sku.spec2Value || ''}`"
+                  >
+                    <td>{{ sku.spec1Value }}</td>
+
+                    <td v-if="hasSpec2">
+                      {{ sku.spec2Value }}
+                    </td>
+                    <td class="checkbox-cell">
+                      <input v-model="form.skus[index].enabled" type="checkbox" />
+                    </td>
+                    <td>
+                      <input
+                        v-model="form.skus[index].price"
+                        type="number"
+                        min="1"
+                        placeholder="價格"
+                        :disabled="!sku.enabled"
+                      />
+                    </td>
+
+                    <td>
+                      <input
+                        v-model="form.skus[index].stock"
+                        type="number"
+                        min="0"
+                        placeholder="庫存"
+                        :disabled="!sku.enabled"
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>
       </div>
@@ -543,6 +878,78 @@ button {
 
 .state-message {
   color: var(--color-text-muted);
+}
+
+.spec-block {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.spec-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.spec-values {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.spec-value-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+}
+
+.add-spec-button {
+  justify-self: start;
+}
+
+.sku-combination-section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.sku-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.sku-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.sku-table th,
+.sku-table td {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.sku-table th {
+  background: var(--color-bg-muted);
+}
+
+.sku-table input {
+  min-width: 120px;
+}
+
+.checkbox-cell {
+  text-align: center !important;
+}
+
+.sku-table input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+  min-width: 14px;
+  margin: 0;
+  cursor: pointer;
 }
 
 @media (max-width: 960px) {

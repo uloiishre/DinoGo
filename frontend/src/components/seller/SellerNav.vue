@@ -1,5 +1,9 @@
 <script setup>
 import { RouterLink, useRoute } from 'vue-router'
+import { computed } from 'vue'
+import { getCurrentSellerId } from '@/utils/seller-session'
+
+const sellerId = computed(() => getCurrentSellerId() || 1)
 
 const route = useRoute()
 
@@ -9,10 +13,6 @@ const navItems = [
     label: '商品管理',
     to: '/seller/products',
     icon: 'bi-box-seam',
-    children: [
-      { label: '商品列表', to: '/seller/products' },
-      { label: '新增商品', to: '/seller/products/new' },
-    ],
   },
   { label: '訂單管理', to: '/seller/orders', icon: 'bi-receipt' },
   { label: '優惠券管理', to: '/seller/coupons', icon: 'bi-ticket-perforated' },
@@ -33,8 +33,6 @@ const isItemActive = (item) => {
 
 <template>
   <aside class="seller-nav-shell">
-    <div class="nav-topline">D-01 商家中心首頁</div>
-
     <RouterLink class="brand-link" to="/seller/dashboard">
       <strong>DINO-GO</strong>
       <span>商家中心</span>
@@ -48,6 +46,10 @@ const isItemActive = (item) => {
       </div>
     </section>
 
+    <RouterLink v-if="sellerId" class="store-link" :to="`/products?sellerId=${sellerId}`">
+      查看店鋪
+    </RouterLink>
+
     <nav class="seller-nav" aria-label="賣家中心導覽">
       <div v-for="item in navItems" :key="item.to" class="seller-nav-group">
         <RouterLink v-slot="{ href, navigate }" custom :to="item.to">
@@ -60,17 +62,6 @@ const isItemActive = (item) => {
             <i class="nav-mark bi" :class="item.icon" aria-hidden="true"></i>
             <span>{{ item.label }}</span>
           </a>
-
-          <div v-if="item.children && isItemActive(item)" class="seller-subnav">
-            <RouterLink
-              v-for="child in item.children"
-              :key="child.to"
-              class="seller-subnav-link"
-              :to="child.to"
-            >
-              {{ child.label }}
-            </RouterLink>
-          </div>
         </RouterLink>
       </div>
 
@@ -86,11 +77,6 @@ const isItemActive = (item) => {
         <small>規劃中</small>
       </div>
     </nav>
-
-    <RouterLink class="support-link" to="/seller/dashboard">
-      <span class="support-mark">?</span>
-      商家協助中心
-    </RouterLink>
   </aside>
 </template>
 
@@ -102,16 +88,9 @@ const isItemActive = (item) => {
   height: 100vh;
   min-height: 100vh;
   display: grid;
-  grid-template-rows: auto auto auto 1fr auto;
+  grid-template-rows: auto auto auto 1fr;
   background: var(--color-primary-800);
   color: var(--color-text-50);
-}
-
-.nav-topline {
-  padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  font-size: var(--font-size-xs);
-  font-weight: 700;
 }
 
 .brand-link {
@@ -143,8 +122,7 @@ const isItemActive = (item) => {
 }
 
 .seller-card-icon,
-.nav-mark,
-.support-mark {
+.nav-mark {
   display: inline-grid;
   place-items: center;
   width: 24px;
@@ -159,6 +137,29 @@ const isItemActive = (item) => {
 .seller-card div {
   display: grid;
   gap: 2px;
+}
+
+.store-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  margin: var(--space-3) var(--space-4) 0;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-surface);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.store-link:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.store-link i {
+  font-size: var(--font-size-sm);
 }
 
 .seller-nav {
@@ -208,36 +209,6 @@ const isItemActive = (item) => {
   background: rgba(255, 255, 255, 0.12);
 }
 
-.seller-subnav {
-  display: grid;
-  gap: 2px;
-  margin-left: 36px;
-  padding: 2px 0 6px;
-}
-
-.seller-subnav-link {
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-  border-radius: var(--radius-sm);
-  padding: 0 var(--space-3);
-  color: var(--color-text-200);
-  font-size: var(--font-size-xs);
-  font-weight: 500;
-  text-decoration: none;
-}
-
-.seller-subnav-link:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--color-surface);
-}
-
-.seller-subnav-link.router-link-exact-active {
-  background: transparent;
-  color: var(--color-surface);
-  font-weight: 700;
-}
-
 .seller-nav-link small {
   margin-left: auto;
   color: var(--color-text-200);
@@ -249,20 +220,9 @@ const isItemActive = (item) => {
   opacity: 0.58;
 }
 
-.support-link {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-4) var(--space-5);
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
-  color: var(--color-text-100);
-  text-decoration: none;
-  font-size: var(--font-size-sm);
-}
-
 .seller-nav a:focus-visible,
 .brand-link:focus-visible,
-.support-link:focus-visible {
+.store-link:focus-visible {
   outline: none;
   box-shadow: var(--shadow-focus);
 }
@@ -294,12 +254,8 @@ const isItemActive = (item) => {
     display: none;
   }
 
-  .seller-subnav {
-    display: none;
-  }
-
-  .support-link {
-    display: none;
+  .store-link {
+    margin-bottom: var(--space-3);
   }
 }
 

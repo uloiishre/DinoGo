@@ -131,7 +131,6 @@ onMounted(loadOrders)
           <span>訂單金額</span>
           <span>狀態</span>
           <span>建立時間</span>
-          <span>操作</span>
         </div>
 
         <article v-for="order in filteredOrders" :key="order.orderId" class="order-row">
@@ -144,21 +143,6 @@ onMounted(loadOrders)
             {{ statusLabels[order.status] ?? order.status }}
           </span>
           <span>{{ formatDate(order.createdAt) }}</span>
-          <div class="order-actions">
-            <button
-              v-if="order.status === 'PAID'"
-              class="accept-button"
-              type="button"
-              :disabled="acceptingOrderId !== null"
-              @click="acceptOrder(order)"
-            >
-              {{ acceptingOrderId === order.orderId ? '接收中…' : '接收訂單' }}
-            </button>
-            <RouterLink class="view-button" :to="{ name: 'SellerOrderDetail', params: { id: order.orderId } }">查看</RouterLink>
-            <small v-if="actionErrors[order.orderId]" class="action-error" role="alert">
-              {{ actionErrors[order.orderId] }}
-            </small>
-          </div>
         </article>
       </div>
     </section>
@@ -255,16 +239,17 @@ h1 {
 .table-header,
 .order-row {
   display: grid;
-  grid-template-columns: minmax(160px, 1.2fr) 0.9fr 0.9fr 0.8fr 1fr minmax(140px, auto);
+  grid-template-columns: minmax(160px, 1.3fr) 0.9fr 0.9fr 0.8fr 1fr;
   align-items: center;
   gap: var(--space-4);
 }
 
 .table-header {
-  min-height: 44px;
+  min-height: 42px;
   padding: 0 var(--space-5);
-  background: #050505;
-  color: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
   font-size: var(--font-size-xs);
   font-weight: 700;
 }

@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/api/axios'
@@ -10,6 +10,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const showCategoryFilter = ref(false)
+const primaryNav = ref(null)
 
 const categories = ref([])
 const subcategories = ref([])
@@ -56,6 +57,13 @@ const navItems = [
 
 const toggleCategoryFilter = () => {
   showCategoryFilter.value = !showCategoryFilter.value
+}
+
+// 分類面板開啟時，點擊導覽以外的區域應關閉，避免浮層遮住頁面內容。
+const closeCategoryFilterOnOutsideClick = (event) => {
+  if (showCategoryFilter.value && !primaryNav.value?.contains(event.target)) {
+    showCategoryFilter.value = false
+  }
 }
 
 const fetchCategories = async () => {
@@ -187,12 +195,22 @@ const isActive = (item) => {
 }
 
 onMounted(async () => {
+  document.addEventListener('click', closeCategoryFilterOnOutsideClick)
   await Promise.all([fetchCategories(), fetchBrands()])
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', closeCategoryFilterOnOutsideClick)
 })
 </script>
 
 <template>
-  <nav class="primary-nav" aria-label="Primary navigation">
+  <nav
+    ref="primaryNav"
+    class="primary-nav"
+    aria-label="Primary navigation"
+    @keydown.esc="showCategoryFilter = false"
+  >
     <div class="container primary-nav__inner">
       <button
         class="primary-nav__toggle d-flex d-lg-none align-items-center justify-content-between"
@@ -222,15 +240,11 @@ onMounted(async () => {
             :class="{
               'primary-nav__link--active-filter': selectedSubcategoryId || selectedBrandId,
             }"
+            :aria-expanded="showCategoryFilter"
             @click="toggleCategoryFilter"
           >
-            <i class="bi bi-grid" aria-hidden="true"></i>
+            <i class="bi bi-list" aria-hidden="true"></i>
             <span>全部分類</span>
-
-            <i
-              class="bi ms-auto"
-              :class="showCategoryFilter ? 'bi-chevron-up' : 'bi-chevron-down'"
-            ></i>
           </button>
 
           <!-- 展開選單 -->
@@ -351,7 +365,8 @@ onMounted(async () => {
 <style scoped>
 .primary-nav {
   position: relative;
-  min-height: 72px;
+  min-height: 54px;
+  margin: 0;
   color: var(--color-text-muted);
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
@@ -359,15 +374,16 @@ onMounted(async () => {
 }
 
 .primary-nav__inner {
+  display: flex;
   width: 100%;
-  height: 100%;
+  min-height: inherit;
+  align-items: center;
   max-width: 1440px;
 }
 
 .primary-nav__menu {
-  height: 100%;
   width: 100%;
-  gap: 28px;
+  gap: var(--space-3);
 }
 
 .primary-nav__toggle {
@@ -384,7 +400,7 @@ onMounted(async () => {
   flex: 0 0 auto;
   align-items: center;
   gap: var(--space-1);
-  min-height: 52px;
+  min-height: 40px;
   padding: 0 var(--space-4);
 
   color: inherit;
@@ -410,8 +426,8 @@ onMounted(async () => {
 }
 
 .primary-nav__link--all {
-  width: 160px;
-  min-height: 52px;
+  width: 116px;
+  min-height: 40px;
 
   color: var(--color-surface);
 
@@ -561,6 +577,7 @@ onMounted(async () => {
   }
 
   .primary-nav__inner {
+    display: block;
     min-height: 0;
   }
 

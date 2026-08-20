@@ -41,7 +41,9 @@ public class SecurityConfig {
                                                 .requestMatchers("/api/seller/**").hasRole("SELLER")
                                                 .requestMatchers(HttpMethod.POST, "/api/products/**").hasRole("SELLER")
                                                 .requestMatchers(HttpMethod.PATCH, "/api/products/**").hasRole("SELLER")
-                                                .requestMatchers(HttpMethod.PATCH, "/api/orders/*/status").hasRole("SELLER")
+                                                .requestMatchers(HttpMethod.PUT, "/api/products/**").hasRole("SELLER")
+                                                .requestMatchers(HttpMethod.PATCH, "/api/orders/*/status")
+                                                .hasRole("SELLER")
                                                 .requestMatchers(
                                                                 HttpMethod.POST,
                                                                 "/api/orders/*/shipment")
