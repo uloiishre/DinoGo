@@ -102,7 +102,7 @@ const isAccountActive = computed(() => accountItems.some((item) => item.routeNam
 
 .dg-member-nav-inner {
   display: flex;
-  min-height: inherit;
+  height: calc(var(--member-nav-height) - 1px);
   max-width: 1440px;
   align-items: center;
   justify-content: space-between;
@@ -149,7 +149,7 @@ const isAccountActive = computed(() => accountItems.some((item) => item.routeNam
 .dg-member-menu {
   display: flex;
   min-width: 0;
-  height: 100%;
+  align-self: stretch;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-1);
