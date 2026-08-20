@@ -1,6 +1,7 @@
 package com.dinogo.seller.entity;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 import com.dinogo.member.entity.Member;
 
@@ -17,6 +18,34 @@ import jakarta.persistence.Table;
 @Entity
 @Table(schema = "seller", name = "Seller")
 public class Seller {
+
+    public void setSellerId(Integer sellerId) {
+        this.sellerId = sellerId;
+    }
+
+    public void setStoreName(String storeName) {
+        this.storeName = storeName;
+    }
+
+    public void setStoreDescription(String storeDescription) {
+        this.storeDescription = storeDescription;
+    }
+
+    public void setStoreLogoUrl(String storeLogoUrl) {
+        this.storeLogoUrl = storeLogoUrl;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -42,8 +71,30 @@ public class Seller {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    public LocalTime getServiceStartTime() {
+        return serviceStartTime;
+    }
+
+    public void setServiceStartTime(LocalTime serviceStartTime) {
+        this.serviceStartTime = serviceStartTime;
+    }
+
+    public LocalTime getServiceEndTime() {
+        return serviceEndTime;
+    }
+
+    public void setServiceEndTime(LocalTime serviceEndTime) {
+        this.serviceEndTime = serviceEndTime;
+    }
+
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Column(name = "service_start_time")
+    private LocalTime serviceStartTime;
+
+    @Column(name = "service_end_time")
+    private LocalTime serviceEndTime;
 
     public Integer getSellerId() {
         return sellerId;
