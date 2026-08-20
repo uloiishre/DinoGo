@@ -26,10 +26,11 @@ const memberItems = [
   { label: '訊息', to: '/member/messages', icon: 'bi-bell' },
 ]
 
-// 帳戶設定包含個人資料與地址管理，任一子頁啟用時父選單保持 active。
+// 帳戶設定包含會員資料、地址與密碼，任一子頁啟用時父選單保持 active。
 const accountItems = [
   { label: '個人資料', routeName: 'MemberProfile', icon: 'bi-person-vcard' },
   { label: '地址管理', routeName: 'MemberAddresses', icon: 'bi-geo-alt' },
+  { label: '修改密碼', routeName: 'MemberPassword', icon: 'bi-key' },
 ]
 const isAccountActive = computed(() => accountItems.some((item) => item.routeName === route.name))
 </script>
@@ -57,7 +58,7 @@ const isAccountActive = computed(() => accountItems.some((item) => item.routeNam
           <span>{{ item.label }}</span>
         </RouterLink>
 
-        <!-- 帳戶設定使用下拉選單切換個人資料與地址管理。 -->
+        <!-- 帳戶設定使用下拉選單切換會員資料、地址與密碼。 -->
         <div class="dropdown dg-member-account-menu" role="listitem">
           <button
             class="dg-member-nav-link dg-member-account-button"
@@ -101,7 +102,7 @@ const isAccountActive = computed(() => accountItems.some((item) => item.routeNam
 
 .dg-member-nav-inner {
   display: flex;
-  min-height: inherit;
+  height: calc(var(--member-nav-height) - 1px);
   max-width: 1440px;
   align-items: center;
   justify-content: space-between;
@@ -148,7 +149,7 @@ const isAccountActive = computed(() => accountItems.some((item) => item.routeNam
 .dg-member-menu {
   display: flex;
   min-width: 0;
-  height: 100%;
+  align-self: stretch;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-1);
