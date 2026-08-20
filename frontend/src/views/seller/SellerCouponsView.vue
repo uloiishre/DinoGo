@@ -47,6 +47,33 @@ const usedCouponCount = computed(() =>
   coupons.value.reduce((sum, coupon) => sum + Number(coupon.usedCount ?? 0), 0),
 )
 
+const statItems = computed(() => [
+  {
+    label: '啟用中',
+    value: activeCoupons.value.length,
+    note: '顧客目前可使用',
+    icon: 'bi-lightning-charge',
+  },
+  {
+    label: '草稿',
+    value: draftCoupons.value.length,
+    note: '尚未公開',
+    icon: 'bi-pencil-square',
+  },
+  {
+    label: '已使用',
+    value: usedCouponCount.value,
+    note: '累計核銷張數',
+    icon: 'bi-receipt',
+  },
+  {
+    label: '已停用/過期',
+    value: disabledCoupons.value.length + expiredCoupons.value.length,
+    note: '需檢查或重開',
+    icon: 'bi-pause-circle',
+  },
+])
+
 const statusTabs = computed(() => [
   { label: '全部', value: 'ALL', count: coupons.value.length },
   { label: '草稿', value: 'DRAFT', count: draftCoupons.value.length },
@@ -547,7 +574,7 @@ onMounted(loadCoupons)
                   ? `${form.discountValue || 0}% 折扣`
                   : `折 NT$${form.discountValue || 0}`
               }}
-              · 滿 NT${form.minPurchaseAmount || 0} 可用
+              · 滿 {{ formatCurrency(form.minPurchaseAmount || 0) }} 可用
             </p>
           </section>
 
@@ -618,6 +645,59 @@ h3 {
   margin: var(--space-1) 0 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
+}
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.summary-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 104px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  background: var(--color-surface);
+}
+
+.summary-card > i {
+  display: inline-flex;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-active);
+  font-size: 20px;
+}
+
+.summary-card div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.summary-card span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.summary-card strong {
+  color: var(--color-text-900);
+  font-size: 28px;
+  line-height: 1;
+}
+
+.summary-card em {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-style: normal;
 }
 
 .header-actions,
@@ -918,7 +998,7 @@ h3 {
 }
 
 .coupon-drawer {
-  width: min(100vw, 620px);
+  width: min(100vw, 720px);
   height: 100vh;
   overflow-y: auto;
   background: var(--color-surface);
@@ -970,8 +1050,25 @@ h3 {
 
 .split-fields {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
   gap: var(--space-3);
+}
+
+.form-field {
+  min-width: 0;
+}
+
+input,
+select {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 680px) {
+  .split-fields {
+    grid-template-columns: 1fr;
+  }
 }
 
 .form-field {
