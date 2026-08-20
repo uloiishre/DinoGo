@@ -256,6 +256,28 @@ class ShipmentServiceTest {
     }
 
     @Test
+    void buyerCannotConfirmDeliveryBeforeShipmentIsAvailableForPickup() {
+        Shipment shipment = shipment(order(10, 6, 30, OrderStatus.SHIPPED));
+        shipment.setStatus(ShipmentStatus.SHIPPED);
+        when(shipmentRepository.findForDeliveryConfirmation(10, 6))
+                .thenReturn(Optional.of(shipment));
+
+        InvalidOrderException exception = assertThrows(
+                InvalidOrderException.class,
+                () -> shipmentService.confirmDelivery(10, 6));
+
+        assertEquals(
+                "Only shipments available for pickup can be confirmed as delivered",
+                exception.getMessage());
+        assertEquals(OrderStatus.SHIPPED, shipment.getOrder().getStatus());
+        assertEquals(ShipmentStatus.SHIPPED, shipment.getStatus());
+        verify(paymentRepository, never())
+                .findFirstByOrderOrderIdAndStatusAndPaymentMethodMethodCode(
+                        any(), any(), any());
+        verify(shipmentRepository, never()).save(any());
+    }
+
+    @Test
     void retryingSameStatusReturnsExistingShipmentWithoutSaving() {
         Shipment shipment = shipment(order(10, 6, 30, OrderStatus.SHIPPED));
         shipment.setStatus(ShipmentStatus.SHIPPED);

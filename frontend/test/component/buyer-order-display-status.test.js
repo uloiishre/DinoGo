@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 import OrderDetail from '../../src/views/sales/OrderDetail.vue'
 import OrderList from '../../src/views/sales/OrderList.vue'
-import { getMemberOrders, getOrder } from '../../src/api/order.js'
+import { confirmDelivery, getMemberOrders, getOrder } from '../../src/api/order.js'
 
 vi.mock('vue-router', () => ({
   RouterLink: { template: '<a><slot /></a>' },
@@ -121,5 +121,82 @@ describe('buyer order detail aggregate display status', () => {
     expect(badge.text()).toBe('待取貨')
     expect(badge.classes()).toContain('status-pending_pickup')
     expect(wrapper.text()).toContain('可取貨')
+    expect(wrapper.get('button.btn-primary').text()).toBe('確認收貨')
+    wrapper.unmount()
+  })
+
+  test('refreshes an active order and advances the progress after the seller ships it', async () => {
+    getOrder
+      .mockResolvedValueOnce({
+        data: orderFixture({
+          status: 'PROCESSING',
+          shipment: null,
+        }),
+      })
+      .mockResolvedValueOnce({
+        data: orderFixture({
+          status: 'SHIPPED',
+          shipment: {
+            status: 'SHIPPED',
+            carrierName: '黑貓宅急便',
+            trackingNo: 'TRACK-001',
+          },
+        }),
+      })
+
+    const wrapper = mount(OrderDetail)
+    await flushPromises()
+
+    let progressSteps = wrapper.findAll('.progress-step')
+    expect(progressSteps[2].classes()).not.toContain('complete')
+    expect(wrapper.text()).toContain('尚未建立物流資料')
+
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+
+    expect(getOrder).toHaveBeenCalledTimes(2)
+    progressSteps = wrapper.findAll('.progress-step')
+    expect(progressSteps[2].text()).toBe('商品出貨')
+    expect(progressSteps[2].classes()).toContain('complete')
+    expect(wrapper.get('.status-badge').text()).toBe('運送中')
+    expect(wrapper.text()).toContain('黑貓宅急便')
+    expect(wrapper.text()).toContain('TRACK-001')
+    expect(wrapper.find('button.btn-primary').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  test('keeps the confirmed state when an older silent refresh resolves later', async () => {
+    let resolveStaleRefresh
+    const availableOrder = orderFixture({
+      shipment: { status: 'AVAILABLE_FOR_PICKUP' },
+    })
+    const completedOrder = orderFixture({
+      status: 'COMPLETED',
+      shipment: { status: 'DELIVERED' },
+    })
+    getOrder
+      .mockResolvedValueOnce({ data: availableOrder })
+      .mockReturnValueOnce(new Promise((resolve) => { resolveStaleRefresh = resolve }))
+      .mockResolvedValueOnce({ data: completedOrder })
+    confirmDelivery.mockResolvedValue({ data: null })
+
+    const wrapper = mount(OrderDetail)
+    await flushPromises()
+
+    window.dispatchEvent(new Event('focus'))
+    await Promise.resolve()
+    await wrapper.get('button.btn-primary').trigger('click')
+    await flushPromises()
+
+    expect(confirmDelivery).toHaveBeenCalledWith(10)
+    expect(getOrder).toHaveBeenCalledTimes(3)
+    expect(wrapper.find('button.btn-primary').exists()).toBe(false)
+
+    resolveStaleRefresh({ data: availableOrder })
+    await flushPromises()
+
+    expect(wrapper.find('button.btn-primary').exists()).toBe(false)
+    expect(wrapper.findAll('.progress-step').every((step) => step.classes().includes('complete'))).toBe(true)
+    wrapper.unmount()
   })
 })

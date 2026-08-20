@@ -1,5 +1,5 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import SellerOrderDetailView from '../../src/views/seller/SellerOrderDetailView.vue'
 import {
@@ -8,6 +8,8 @@ import {
   getSellerOrder,
   updateSellerShipmentStatus,
 } from '../../src/api/sellerOrderApi.js'
+
+enableAutoUnmount(afterEach)
 
 vi.mock('vue-router', () => ({
   RouterLink: { template: '<a><slot /></a>' },
@@ -160,6 +162,81 @@ describe('seller shipment operation flow', () => {
     ])
     expect(progressItems.slice(0, 4).every((item) => item.classes().includes('completed'))).toBe(true)
     expect(progressItems[4].classes()).not.toContain('completed')
+  })
+
+  test('refreshes the seller progress to completed after the buyer confirms receipt', async () => {
+    const cashOnDeliveryPayment = {
+      status: 'PENDING',
+      paymentMethodCode: 'CASH_ON_DELIVERY',
+      paymentMethodName: '貨到付款',
+    }
+    const availableShipment = {
+      shipmentId: 3,
+      status: 'AVAILABLE_FOR_PICKUP',
+      carrierName: '黑貓宅急便',
+      trackingNo: 'TRACK-001',
+    }
+    getSellerOrder
+      .mockResolvedValueOnce({
+        data: orderFixture({
+          status: 'SHIPPED',
+          payment: cashOnDeliveryPayment,
+          shipment: availableShipment,
+        }),
+      })
+      .mockResolvedValueOnce({
+        data: orderFixture({
+          status: 'COMPLETED',
+          payment: { ...cashOnDeliveryPayment, status: 'SUCCESS' },
+          shipment: {
+            ...availableShipment,
+            status: 'DELIVERED',
+            deliveredAt: '2026-08-20T08:18:00Z',
+          },
+        }),
+      })
+
+    const wrapper = mount(SellerOrderDetailView)
+    await flushPromises()
+
+    let progressItems = wrapper.findAll('.progress-item')
+    expect(progressItems[4].classes()).not.toContain('completed')
+
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+
+    expect(getSellerOrder).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('.status-copy > strong').text()).toBe('已完成')
+    progressItems = wrapper.findAll('.progress-item')
+    expect(progressItems.every((item) => item.classes().includes('completed'))).toBe(true)
+    expect(wrapper.text()).toContain('已送達')
+    expect(wrapper.find('button.shipment-submit').exists()).toBe(false)
+  })
+
+  test('does not let an older silent refresh overwrite an accepted order', async () => {
+    let resolveStaleRefresh
+    const paidOrder = orderFixture()
+    const processingOrder = orderFixture({ status: 'PROCESSING' })
+    getSellerOrder
+      .mockResolvedValueOnce({ data: paidOrder })
+      .mockReturnValueOnce(new Promise((resolve) => { resolveStaleRefresh = resolve }))
+    acceptSellerOrder.mockResolvedValue({ data: processingOrder })
+
+    const wrapper = mount(SellerOrderDetailView)
+    await flushPromises()
+
+    window.dispatchEvent(new Event('focus'))
+    await Promise.resolve()
+    await wrapper.get('button.accept-button').trigger('click')
+    await flushPromises()
+
+    expect(acceptSellerOrder).toHaveBeenCalledWith(10)
+    expect(wrapper.find('button.accept-button').exists()).toBe(false)
+
+    resolveStaleRefresh({ data: paidOrder })
+    await flushPromises()
+
+    expect(wrapper.find('button.accept-button').exists()).toBe(false)
   })
 
   test('does not update shipment when the confirmation dialog is cancelled', async () => {

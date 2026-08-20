@@ -175,10 +175,9 @@ public class ShipmentService {
             completeCashOnDeliveryPayment(orderId, completedAt);
             return toResponse(shipment);
         }
-        if (shipment.getStatus() != ShipmentStatus.SHIPPED
-                && shipment.getStatus() != ShipmentStatus.AVAILABLE_FOR_PICKUP) {
+        if (shipment.getStatus() != ShipmentStatus.AVAILABLE_FOR_PICKUP) {
             throw new InvalidOrderException(
-                    "Only shipped shipments can be confirmed as delivered");
+                    "Only shipments available for pickup can be confirmed as delivered");
         }
 
         Order order = shipment.getOrder();
