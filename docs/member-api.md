@@ -25,13 +25,15 @@
   "firstName": "小明",
   "birthDate": "2000-01-01",
   "phone": "0912345678",
+  "emailOrderNotifications": true,
+  "emailMarketingNotifications": false,
   "status": "ACTIVE",
   "createdAt": "2026-08-17T10:00:00",
   "updatedAt": "2026-08-17T10:00:00"
 }
 ```
 
-`birthDate`、`phone`、`createdAt`、`updatedAt` 可能為 `null`；日期使用 ISO-8601 格式。
+`birthDate`、`phone`、`createdAt`、`updatedAt` 可能為 `null`；日期使用 ISO-8601 格式。`emailOrderNotifications` 預設為 `true`，`emailMarketingNotifications` 預設為 `false`。
 
 ### 地址資料 `AddressResponse`
 
@@ -109,6 +111,8 @@ Request：
     "firstName": "小明",
     "birthDate": "2000-01-01",
     "phone": "0912345678",
+    "emailOrderNotifications": true,
+    "emailMarketingNotifications": false,
     "status": "ACTIVE",
     "createdAt": "2026-08-17T10:00:00",
     "updatedAt": "2026-08-17T10:00:00"
@@ -156,6 +160,8 @@ Request：
     "firstName": "小明",
     "birthDate": "2000-01-01",
     "phone": "0912345678",
+    "emailOrderNotifications": true,
+    "emailMarketingNotifications": false,
     "status": "ACTIVE",
     "createdAt": "2026-08-17T10:00:00",
     "updatedAt": "2026-08-17T10:00:00"
@@ -237,7 +243,9 @@ Request：
   "lastName": "王",
   "firstName": "小明",
   "birthDate": "2000-01-01",
-  "phone": "0912345678"
+  "phone": "0912345678",
+  "emailOrderNotifications": true,
+  "emailMarketingNotifications": false
 }
 ```
 
@@ -247,6 +255,8 @@ Request：
 | `firstName` | 是 | 最長 50 字 |
 | `birthDate` | 否 | `YYYY-MM-DD` |
 | `phone` | 否 | 最長 20 字 |
+| `emailOrderNotifications` | 否 | `true` 時接收訂單狀態 Email；省略時維持既有設定 |
+| `emailMarketingNotifications` | 否 | `true` 時接收行銷 Email；省略時維持既有設定 |
 
 成功：`200 OK`，body 為更新後的 `MemberResponse`。
 
