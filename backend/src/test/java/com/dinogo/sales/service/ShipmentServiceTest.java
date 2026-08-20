@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -338,6 +339,43 @@ class ShipmentServiceTest {
         assertEquals(PaymentStatus.SUCCESS, payment.getStatus());
         assertNotNull(payment.getPaidAt());
         verify(shipmentRepository, never()).save(any());
+    }
+
+    @Test
+    void deliveredShipmentRepairsLegacyShippedOrder() {
+        Order order = order(10, 6, 30, OrderStatus.SHIPPED);
+        Shipment shipment = shipment(order);
+        LocalDateTime deliveredAt = LocalDateTime.of(2026, 8, 20, 9, 30);
+        shipment.setStatus(ShipmentStatus.DELIVERED);
+        shipment.setDeliveredAt(deliveredAt);
+        when(shipmentRepository.findForDeliveryConfirmation(10, 6))
+                .thenReturn(Optional.of(shipment));
+        when(paymentRepository.findFirstByOrderOrderIdAndStatusAndPaymentMethodMethodCode(
+                10, PaymentStatus.PENDING, "CASH_ON_DELIVERY"))
+                .thenReturn(Optional.empty());
+
+        var response = shipmentService.confirmDelivery(10, 6);
+
+        assertEquals(ShipmentStatus.DELIVERED, response.status());
+        assertEquals(OrderStatus.COMPLETED, order.getStatus());
+        assertEquals(deliveredAt, order.getCompletedAt());
+        verify(shipmentRepository, never()).save(any());
+    }
+
+    @Test
+    void deliveredShipmentRejectsIncompatibleOrderStatus() {
+        Shipment shipment = shipment(order(10, 6, 30, OrderStatus.CANCELLED));
+        shipment.setStatus(ShipmentStatus.DELIVERED);
+        when(shipmentRepository.findForDeliveryConfirmation(10, 6))
+                .thenReturn(Optional.of(shipment));
+
+        assertThrows(
+                InvalidOrderException.class,
+                () -> shipmentService.confirmDelivery(10, 6));
+
+        verify(paymentRepository, never())
+                .findFirstByOrderOrderIdAndStatusAndPaymentMethodMethodCode(
+                        any(), any(), any());
     }
 
     @Test

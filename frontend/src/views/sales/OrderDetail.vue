@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { cancelOrder, confirmDelivery, getOrder } from '@/api/order'
+import { getOrderDisplayStatus } from '@/utils/orderDisplayStatus'
 
 const route = useRoute()
 const order = ref(null)
@@ -14,15 +15,7 @@ const cancellationErrorMessage = ref('')
 
 const orderId = computed(() => Number(route.params.id ?? route.params.orderId))
 const canCancelOrder = computed(() => order.value?.status === 'PENDING_PAYMENT')
-
-const statusLabels = {
-  PENDING_PAYMENT: '待付款',
-  PAID: '已付款',
-  PROCESSING: '待出貨',
-  SHIPPED: '已出貨',
-  COMPLETED: '已完成',
-  CANCELLED: '已取消',
-}
+const displayStatus = computed(() => getOrderDisplayStatus(order.value))
 
 const paymentStatusLabels = {
   PENDING: '待付款',
@@ -222,8 +215,8 @@ onMounted(loadOrder)
           <section class="detail-card product-card">
             <div class="card-heading">
               <h2>商品明細</h2>
-              <span class="status-badge" :class="`status-${order.status?.toLowerCase()}`">
-                {{ statusLabels[order.status] ?? order.status }}
+              <span class="status-badge" :class="`status-${displayStatus.key.toLowerCase()}`">
+                {{ displayStatus.label }}
               </span>
             </div>
 
@@ -625,7 +618,9 @@ onMounted(loadOrder)
   border-radius: var(--radius-sm);
 }
 
-.status-pending_payment {
+.status-pending_payment,
+.status-pending_shipment,
+.status-pending_pickup {
   color: var(--color-warning);
   background: var(--color-warning-soft);
 }

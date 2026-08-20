@@ -26,6 +26,7 @@ import com.dinogo.sales.entity.Payment;
 import com.dinogo.sales.entity.PaymentMethod;
 import com.dinogo.sales.entity.PaymentStatus;
 import com.dinogo.sales.exception.InvalidOrderException;
+import com.dinogo.sales.exception.OrderNotFoundException;
 import com.dinogo.sales.repository.OrderRepository;
 import com.dinogo.sales.repository.PaymentMethodRepository;
 import com.dinogo.sales.repository.PaymentRepository;
@@ -103,6 +104,22 @@ class PaymentServiceTest {
                         new SimulatePaymentRequest(PaymentStatus.CANCELLED, null)));
 
         verify(paymentRepository, never()).save(payment);
+    }
+
+    @Test
+    void simulateDoesNotExposeAnotherBuyersPayment() {
+        when(paymentRepository.findForSimulation(20, 10, 99))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                OrderNotFoundException.class,
+                () -> paymentService.simulatePaymentResult(
+                        10,
+                        20,
+                        99,
+                        new SimulatePaymentRequest(PaymentStatus.SUCCESS, null)));
+
+        verify(paymentRepository, never()).save(any(Payment.class));
     }
 
     @Test

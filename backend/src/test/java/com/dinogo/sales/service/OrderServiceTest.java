@@ -268,6 +268,31 @@ class OrderServiceTest {
     }
 
     @Test
+    void getMemberOrdersIncludesShipmentSummary() {
+        Order order = new Order();
+        order.setOrderId(99);
+        order.setOrderNo("DG-99");
+        order.setBuyerId(6);
+        order.setSellerId(300);
+        order.setStatus(OrderStatus.SHIPPED);
+        order.setTotalAmount(new BigDecimal("1280.00"));
+
+        Shipment shipment = new Shipment();
+        shipment.setShipmentId(30);
+        shipment.setOrder(order);
+        shipment.setStatus(ShipmentStatus.AVAILABLE_FOR_PICKUP);
+        order.setShipment(shipment);
+
+        when(orderRepository.findByBuyerIdOrderByCreatedAtDesc(6)).thenReturn(List.of(order));
+
+        var response = orderService.getMemberOrders(6);
+
+        assertThat(response).hasSize(1);
+        assertThat(response.getFirst().shipment().status())
+                .isEqualTo(ShipmentStatus.AVAILABLE_FOR_PICKUP);
+    }
+
+    @Test
     void getMemberOrderIncludesLatestPaymentAndShipment() {
         Order order = new Order();
         order.setOrderId(99);

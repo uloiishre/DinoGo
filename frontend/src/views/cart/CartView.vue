@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/api/axios'
+import { logSafeError } from '@/utils/safeError'
 
 const pageTitle = '購物車'
 const router = useRouter()
@@ -35,8 +36,6 @@ const fetchCart = async () => {
   try {
     const response = await api.get('/cart')
 
-    console.log('購物車 API：', response.data)
-
     cart.value = {
       ...response.data,
 
@@ -56,7 +55,7 @@ const fetchCart = async () => {
       return item && isItemAvailable(item)
     })
   } catch (error) {
-    console.error('取得購物車失敗:', error)
+    logSafeError('取得購物車失敗:', error)
 
     errorMessage.value = error.response?.data?.message || '無法取得購物車資料，請稍後再試。'
   } finally {
@@ -171,7 +170,7 @@ const deleteUnavailableItems = async () => {
     // 清除這些商品的勾選
     selectedCartItemIds.value = selectedCartItemIds.value.filter((id) => !ids.includes(id))
   } catch (error) {
-    console.error('刪除失效商品失敗:', error)
+    logSafeError('刪除失效商品失敗:', error)
 
     // 即使部分刪除成功，也重新取得最新資料
     await fetchCart()
@@ -306,12 +305,10 @@ const updateQuantity = async (item, quantity) => {
       quantity: Number(quantity),
     })
 
-    console.log('修改數量成功：', response.data)
-
     // 直接更新目前畫面的商品
     Object.assign(item, response.data)
   } catch (error) {
-    console.error('修改數量失敗:', error)
+    logSafeError('修改數量失敗:', error)
 
     alert(error.response?.data?.message || '修改商品數量失敗')
 
@@ -343,12 +340,10 @@ const changeSku = async (item, newSkuId) => {
       quantity: Number(item.quantity),
     })
 
-    console.log('修改 SKU 成功：', response.data)
-
     // 直接更新目前商品
     Object.assign(item, response.data)
   } catch (error) {
-    console.error('修改商品規格失敗:', error)
+    logSafeError('修改商品規格失敗:', error)
 
     alert(error.response?.data?.message || '修改商品規格失敗')
 
@@ -409,7 +404,7 @@ const removeItem = async (item) => {
 
     selectedCartItemIds.value = selectedCartItemIds.value.filter((id) => id !== item.cartItemId)
   } catch (error) {
-    console.error('刪除商品失敗:', error)
+    logSafeError('刪除商品失敗:', error)
 
     alert(error.response?.data?.message || '刪除商品失敗')
   }
@@ -446,7 +441,7 @@ const deleteSelectedItems = async () => {
 
     selectedCartItemIds.value = []
   } catch (error) {
-    console.error('刪除選取商品失敗:', error)
+    logSafeError('刪除選取商品失敗:', error)
 
     await fetchCart()
 

@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '@/api/axios'
+import { logSafeError } from '@/utils/safeError'
 
 const route = useRoute()
 
@@ -38,7 +39,7 @@ const fetchProductDetail = async () => {
       selectedSpec2.value = firstSku.spec2Value || ''
     }
   } catch (error) {
-    console.error('取得商品詳情失敗：', error)
+    logSafeError('取得商品詳情失敗：', error)
     errorMessage.value = '商品資料載入失敗'
   } finally {
     loading.value = false

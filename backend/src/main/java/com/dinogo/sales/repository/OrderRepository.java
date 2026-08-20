@@ -16,7 +16,7 @@ import com.dinogo.sales.entity.Order;
 /** 訂單聚合的持久化介面。 */
 public interface OrderRepository extends JpaRepository<Order, Integer> {
     // 因為 orderItems 是 Lazy Loading，列表或詳情映射 DTO 時可能產生 N+1。用 @EntityGraph
-    @EntityGraph(attributePaths = "orderItems")
+    @EntityGraph(attributePaths = { "orderItems", "shipment" })
     List<Order> findByBuyerIdOrderByCreatedAtDesc(Integer buyerId);
 
     @EntityGraph(attributePaths = { "orderItems", "shipment" })

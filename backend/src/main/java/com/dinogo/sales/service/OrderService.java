@@ -374,7 +374,8 @@ public class OrderService {
                 order.getStatus(),
                 order.getTotalAmount(),
                 order.getCreatedAt(),
-                items);
+                items,
+                toShipmentSummary(order.getShipment()));
     }
 
     private SellerOrderListResponse toSellerListResponse(Order order) {

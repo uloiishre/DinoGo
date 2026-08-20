@@ -24,6 +24,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.dinogo.config.SecurityConfig;
+import com.dinogo.member.repository.MemberRepository;
 import com.dinogo.sales.dto.shipment.ShipmentResponse;
 import com.dinogo.sales.entity.ShipmentStatus;
 import com.dinogo.sales.exception.OrderNotFoundException;
@@ -49,6 +50,9 @@ class ShipmentControllerWebMvcTest {
 
     @MockitoBean
     private JwtTokenUtil jwtTokenUtil;
+
+    @MockitoBean
+    private MemberRepository memberRepository;
 
     @Test
     void sellerCanUpdateTrackingInfo() throws Exception {

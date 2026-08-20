@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import com.dinogo.sales.dto.order.OrderItemResponse;
+import com.dinogo.sales.dto.order.OrderShipmentSummary;
 import com.dinogo.sales.entity.OrderStatus;
 
 public record OrderListResponse(Integer orderId,
@@ -13,5 +14,6 @@ public record OrderListResponse(Integer orderId,
         OrderStatus status,
         BigDecimal totalAmount,
         LocalDateTime createdAt,
-        List<OrderItemResponse> items) {
+        List<OrderItemResponse> items,
+        OrderShipmentSummary shipment) {
 }

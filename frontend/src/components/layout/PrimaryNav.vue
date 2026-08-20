@@ -3,6 +3,7 @@ import { onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/api/axios'
+import { logSafeError } from '@/utils/safeError'
 
 const route = useRoute()
 const router = useRouter()
@@ -62,7 +63,7 @@ const fetchCategories = async () => {
     const response = await api.get('/categories')
     categories.value = response.data
   } catch (error) {
-    console.error('取得分類失敗：', error)
+    logSafeError('取得分類失敗：', error)
   }
 }
 
@@ -71,7 +72,7 @@ const fetchBrands = async () => {
     const response = await api.get('/brands')
     brands.value = response.data
   } catch (error) {
-    console.error('取得品牌失敗：', error)
+    logSafeError('取得品牌失敗：', error)
   }
 }
 
@@ -90,7 +91,7 @@ const fetchSubcategories = async () => {
 
     subcategories.value = response.data
   } catch (error) {
-    console.error('取得子分類失敗：', error)
+    logSafeError('取得子分類失敗：', error)
   }
 }
 

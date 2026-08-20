@@ -45,7 +45,11 @@ const cashOnDeliveryProgressSteps = [
   { label: '訂單成立', statuses: ['PROCESSING', 'SHIPPED', 'COMPLETED'] },
   { label: '備貨中', statuses: ['PROCESSING', 'SHIPPED', 'COMPLETED'] },
   { label: '已出貨', statuses: ['SHIPPED', 'COMPLETED'] },
-  { label: '已送達', statuses: ['COMPLETED'], shipmentStatus: 'DELIVERED' },
+  {
+    label: '已送達',
+    statuses: ['SHIPPED', 'COMPLETED'],
+    shipmentStatuses: ['AVAILABLE_FOR_PICKUP', 'DELIVERED'],
+  },
   { label: '已完成', statuses: ['COMPLETED'] },
 ]
 const isCashOnDelivery = computed(() =>
@@ -134,7 +138,7 @@ const isStepComplete = (step) =>
   order.value &&
   step.statuses.includes(order.value.status) &&
   (!step.paymentStatus || order.value.payment?.status === step.paymentStatus) &&
-  (!step.shipmentStatus || order.value.shipment?.status === step.shipmentStatus)
+  (!step.shipmentStatuses || step.shipmentStatuses.includes(order.value.shipment?.status))
 const formatCurrency = (value) => new Intl.NumberFormat('zh-TW', {
   style: 'currency', currency: 'TWD', maximumFractionDigits: 0,
 }).format(Number(value ?? 0))

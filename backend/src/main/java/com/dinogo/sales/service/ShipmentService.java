@@ -155,7 +155,24 @@ public class ShipmentService {
                 .orElseThrow(() -> new OrderNotFoundException("Shipment does not exist"));
 
         if (shipment.getStatus() == ShipmentStatus.DELIVERED) {
-            completeCashOnDeliveryPayment(orderId, LocalDateTime.now());
+            Order order = shipment.getOrder();
+            if (order.getStatus() == OrderStatus.SHIPPED) {
+                order.setStatus(OrderStatus.COMPLETED);
+            } else if (order.getStatus() != OrderStatus.COMPLETED) {
+                throw new InvalidOrderException(
+                        "Delivered shipment has an incompatible order status: "
+                                + order.getStatus());
+            }
+
+            LocalDateTime completedAt = order.getCompletedAt();
+            if (completedAt == null) {
+                completedAt = shipment.getDeliveredAt() != null
+                        ? shipment.getDeliveredAt()
+                        : LocalDateTime.now();
+                order.setCompletedAt(completedAt);
+            }
+
+            completeCashOnDeliveryPayment(orderId, completedAt);
             return toResponse(shipment);
         }
         if (shipment.getStatus() != ShipmentStatus.SHIPPED

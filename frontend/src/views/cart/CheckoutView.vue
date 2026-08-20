@@ -2,7 +2,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/api/axios'
-import { createPayment } from '@/api/order'
+import { createPayment, simulatePayment } from '@/api/order'
+import { logSafeError } from '@/utils/safeError'
 
 const pageTitle = '結帳'
 const router = useRouter()
@@ -143,8 +144,6 @@ const loadCheckoutItems = () => {
 
     const parsedData = JSON.parse(data)
 
-    console.log('localStorage.checkoutData：', parsedData)
-
     // ========================================
     // 基本資料檢查
     // ========================================
@@ -192,15 +191,13 @@ const loadCheckoutItems = () => {
 
     checkoutItems.value = parsedData.items
 
-    console.log('Checkout 商品：', checkoutItems.value)
-
     // ========================================
     // 成功
     // ========================================
 
     return true
   } catch (error) {
-    console.error('讀取結帳資料失敗：', error)
+    logSafeError('讀取結帳資料失敗：', error)
 
     alert('結帳資料錯誤，請重新選擇商品')
 
@@ -227,7 +224,7 @@ const loadAddresses = async () => {
 
     selectedAddressId.value = defaultAddress?.addressId ?? addresses.value[0]?.addressId ?? null
   } catch (error) {
-    console.error('取得地址失敗：', error)
+    logSafeError('取得地址失敗：', error)
 
     errorMessage.value = error.response?.data?.message || '無法取得收件地址'
   }
@@ -246,9 +243,8 @@ const loadCoupons = async () => {
 
     coupons.value = (response.data || []).filter((coupon) => coupon.status === 'AVAILABLE')
 
-    console.log('可用優惠券：', coupons.value)
   } catch (error) {
-    console.error('取得優惠券失敗：', error)
+    logSafeError('取得優惠券失敗：', error)
 
     couponErrorMessage.value = error.response?.data?.message || '無法取得可用優惠券'
 
@@ -295,8 +291,6 @@ const loadCheckoutPreview = async () => {
 
     const request = buildPreviewRequest()
 
-    console.log('Checkout Preview Request：', request)
-
     const response = await api.post('/checkout/preview', request)
 
     const data = response.data
@@ -309,9 +303,8 @@ const loadCheckoutPreview = async () => {
 
     totalAmount.value = Number(data.totalAmount || 0)
 
-    console.log('Checkout Preview Response：', data)
   } catch (error) {
-    console.error('取得結帳金額失敗：', error)
+    logSafeError('取得結帳金額失敗：', error)
 
     errorMessage.value = error.response?.data?.message || '無法取得訂單金額'
 
@@ -393,7 +386,7 @@ const buildOrderRequest = () => {
 // ========================================
 
 const handleOrderError = (error) => {
-  console.error('建立訂單失敗：', error)
+  logSafeError('建立訂單失敗：', error)
 
   const status = error.response?.status
   const data = error.response?.data
@@ -429,6 +422,8 @@ const handleOrderError = (error) => {
 // ========================================
 
 const submitOrder = async () => {
+  if (submitting.value) return
+
   // ========================================
   // 沒有地址
   // ========================================
@@ -447,6 +442,7 @@ const submitOrder = async () => {
     return
   }
 
+  const submittedPaymentMethod = paymentMethod.value
   let createdOrderId = null
 
   try {
@@ -457,8 +453,6 @@ const submitOrder = async () => {
     stockErrorItems.value = []
 
     const request = buildOrderRequest()
-
-    console.log('送給 Order API：', request)
 
     // ========================================
     // 建立正式訂單
@@ -472,42 +466,37 @@ const submitOrder = async () => {
     const response = await api.post('/orders', request)
     createdOrderId = response.data.orderId
 
-    console.log('建立訂單成功：', response.data)
-
     // ========================================
     // 訂單成功後才刪除購物車商品
     // ========================================
 
     // ========================================
-    // 線上付款才建立付款
-    // 貨到付款不需要立即付款
+    // 所有付款方式都建立付款紀錄；只有線上付款立即模擬成功結果
     // ========================================
 
-    if (paymentMethod.value !== 'COD') {
-      try {
-        const paymentResponse = await createPayment(createdOrderId, paymentMethod.value)
+    try {
+      const paymentResponse = await createPayment(createdOrderId, submittedPaymentMethod)
 
+      if (submittedPaymentMethod !== 'CASH_ON_DELIVERY') {
         await simulatePayment(createdOrderId, paymentResponse.data.paymentId)
-      } catch (paymentError) {
-        console.error('付款失敗：', paymentError)
-
-        await finalizeCreatedOrder()
-
-        alert(
-          paymentError.response?.data?.message ||
-            '訂單已建立，但付款尚未完成。請至訂單詳情確認付款狀態。',
-        )
-
-        await router.push({
-          name: 'MemberOrderDetail',
-          params: { id: createdOrderId },
-        })
-
-        return
       }
-    }
+    } catch (paymentError) {
+      logSafeError('付款失敗：', paymentError)
 
-    console.log('建立訂單成功：', response.data)
+      await finalizeCreatedOrder()
+
+      alert(
+        paymentError.response?.data?.message ||
+          '訂單已建立，但付款尚未完成。請至訂單詳情確認付款狀態。',
+      )
+
+      await router.push({
+        name: 'MemberOrderDetail',
+        params: { id: createdOrderId },
+      })
+
+      return
+    }
 
     // ========================================
     // 2. 訂單成功後刪除購物車商品
@@ -520,7 +509,7 @@ const submitOrder = async () => {
     // 回首頁
     // ========================================
 
-    router.push({ name: 'MemberOrderDetail', params: { id: createdOrderId } })
+    await router.push({ name: 'MemberOrderDetail', params: { id: createdOrderId } })
   } catch (error) {
     // ========================================
     // 訂單建立失敗
@@ -540,12 +529,12 @@ const submitOrder = async () => {
 const finalizeCreatedOrder = async () => {
   try {
     await clearCheckoutItemsFromCart()
-    console.log('購物車商品已移除')
   } catch (cartError) {
-    console.error('購物車商品移除失敗：', cartError)
+    logSafeError('購物車商品移除失敗：', cartError)
   }
 
   localStorage.removeItem('checkoutData')
+  checkoutItems.value = []
 }
 
 const clearCheckoutItemsFromCart = async () => {
@@ -900,6 +889,7 @@ onMounted(() => {
                   type="radio"
                   value="CASH_ON_DELIVERY"
                   name="payment"
+                  :disabled="submitting"
                   @change="changePaymentMethod"
                 />
 
@@ -924,6 +914,7 @@ onMounted(() => {
                   type="radio"
                   value="CREDIT_CARD"
                   name="payment"
+                  :disabled="submitting"
                   @change="changePaymentMethod"
                 />
 
@@ -949,6 +940,7 @@ onMounted(() => {
                   type="radio"
                   value="LINE_PAY"
                   name="payment"
+                  :disabled="submitting"
                   @change="changePaymentMethod"
                 />
 
@@ -961,30 +953,6 @@ onMounted(() => {
                 </span>
               </label>
 
-              <!-- 貨到付款 -->
-
-              <label
-                class="option-card"
-                :class="{
-                  selected: paymentMethod === 'CASH_ON_DELIVERY',
-                }"
-              >
-                <input
-                  v-model="paymentMethod"
-                  type="radio"
-                  value="CASH_ON_DELIVERY"
-                  name="payment"
-                  @change="changePaymentMethod"
-                />
-
-                <span class="radio-dot"></span>
-
-                <span class="option-content">
-                  <strong>貨到付款</strong>
-
-                  <span>收到商品時再付款</span>
-                </span>
-              </label>
             </div>
           </section>
 

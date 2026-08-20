@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { createSellerProduct, getProductDetail, updateSellerProduct } from '@/api/sellerProductApi'
 import { getCurrentSellerId } from '@/utils/seller-session'
+import { logSafeError } from '@/utils/safeError'
 
 const sellerId = getCurrentSellerId()
 const route = useRoute()
@@ -129,7 +130,7 @@ const loadProduct = async () => {
     const response = await getProductDetail(productId.value)
     fillProductForm(response.data)
   } catch (error) {
-    console.error('Load seller product failed:', error)
+    logSafeError('Load seller product failed:', error)
     errorMessage.value = '商品資料載入失敗，請確認商品是否存在。'
   } finally {
     isLoading.value = false
@@ -169,7 +170,7 @@ const handleSubmit = async () => {
     }
     router.push('/seller/products')
   } catch (error) {
-    console.error('Save seller product failed:', error)
+    logSafeError('Save seller product failed:', error)
     errorMessage.value = isEditMode.value
       ? '編輯商品失敗，請確認 B 模組是否已提供商品修改 API。'
       : '新增商品失敗，請確認欄位是否正常。'

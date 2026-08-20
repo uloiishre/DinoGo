@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { getMemberOrders } from '@/api/order'
+import { getOrderDisplayStatus, isOrderInDisplayGroup } from '@/utils/orderDisplayStatus'
 
 const orders = ref([])
 const loading = ref(true)
@@ -10,22 +11,13 @@ const keyword = ref('')
 const sortOrder = ref('NEWEST')
 
 const filters = [
-  { value: 'ALL', label: '全部', statuses: [] },
-  { value: 'PENDING_PAYMENT', label: '待付款', statuses: ['PENDING_PAYMENT'] },
-  { value: 'PENDING_SHIPMENT', label: '待出貨', statuses: ['PAID', 'PROCESSING'] },
-  { value: 'PENDING_RECEIPT', label: '待收貨', statuses: ['SHIPPED'] },
-  { value: 'COMPLETED', label: '已完成', statuses: ['COMPLETED'] },
-  { value: 'CANCELLED', label: '不成立', statuses: ['CANCELLED'] },
+  { value: 'ALL', label: '全部' },
+  { value: 'PENDING_PAYMENT', label: '待付款' },
+  { value: 'PENDING_SHIPMENT', label: '待出貨' },
+  { value: 'PENDING_RECEIPT', label: '待收貨' },
+  { value: 'COMPLETED', label: '已完成' },
+  { value: 'CANCELLED', label: '不成立' },
 ]
-
-const statusLabels = {
-  PENDING_PAYMENT: '待付款',
-  PAID: '待出貨',
-  PROCESSING: '待出貨',
-  SHIPPED: '待收貨',
-  COMPLETED: '已完成',
-  CANCELLED: '不成立',
-}
 
 const visibleOrders = computed(() => {
   const selectedFilter = filters.find((filter) => filter.value === activeStatus.value)
@@ -34,7 +26,7 @@ const visibleOrders = computed(() => {
   return orders.value
     .filter((order) => {
       if (!selectedFilter || selectedFilter.value === 'ALL') return true
-      return selectedFilter.statuses.includes(order.status)
+      return isOrderInDisplayGroup(order, selectedFilter.value)
     })
     .filter((order) => {
       if (!normalizedKeyword) return true
@@ -179,8 +171,11 @@ onMounted(loadOrders)
             <small>{{ formatDate(order.createdAt) }}</small>
           </div>
 
-          <span class="status-badge" :class="`status-${order.status?.toLowerCase()}`">
-            {{ statusLabels[order.status] ?? order.status }}
+          <span
+            class="status-badge"
+            :class="`status-${getOrderDisplayStatus(order).key.toLowerCase()}`"
+          >
+            {{ getOrderDisplayStatus(order).label }}
           </span>
 
           <strong class="order-total">{{ formatCurrency(order.totalAmount) }}</strong>
@@ -420,7 +415,9 @@ onMounted(loadOrders)
   border-radius: var(--radius-sm);
 }
 
-.status-pending_payment {
+.status-pending_payment,
+.status-pending_shipment,
+.status-pending_pickup {
   color: var(--color-warning);
   background: var(--color-warning-soft);
 }

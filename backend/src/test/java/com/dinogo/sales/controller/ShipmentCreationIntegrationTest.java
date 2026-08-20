@@ -24,6 +24,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.dinogo.config.SecurityConfig;
+import com.dinogo.member.repository.MemberRepository;
 import com.dinogo.sales.entity.Order;
 import com.dinogo.sales.entity.OrderStatus;
 import com.dinogo.sales.entity.Shipment;
@@ -64,6 +65,9 @@ class ShipmentCreationIntegrationTest {
 
     @MockitoBean
     private JwtTokenUtil jwtTokenUtil;
+
+    @MockitoBean
+    private MemberRepository memberRepository;
 
     @Test
     void validFrontendPayloadPassesControllerValidationAndCreatesShipment() throws Exception {

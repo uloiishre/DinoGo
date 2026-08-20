@@ -118,6 +118,50 @@ describe('seller shipment operation flow', () => {
     expect(wrapper.text()).toContain('已出貨')
   })
 
+  test('advances a cash-on-delivery order to delivered after marking it available for pickup', async () => {
+    const shippedShipment = {
+      shipmentId: 3,
+      status: 'SHIPPED',
+      carrierName: '黑貓宅急便',
+      trackingNo: 'TRACK-001',
+    }
+    updateSellerShipmentStatus.mockResolvedValue({
+      data: {
+        ...shippedShipment,
+        status: 'AVAILABLE_FOR_PICKUP',
+        availablePickupAt: '2026-08-20T08:16:00Z',
+      },
+    })
+    const wrapper = await mountView(orderFixture({
+      status: 'SHIPPED',
+      payment: {
+        status: 'PENDING',
+        paymentMethodCode: 'CASH_ON_DELIVERY',
+        paymentMethodName: '貨到付款',
+      },
+      shipment: shippedShipment,
+    }))
+
+    let progressItems = wrapper.findAll('.progress-item')
+    expect(progressItems[3].classes()).not.toContain('completed')
+    expect(wrapper.get('button.shipment-submit').text()).toBe('標記可取貨')
+
+    await wrapper.get('button.shipment-submit').trigger('click')
+    await flushPromises()
+
+    expect(updateSellerShipmentStatus).toHaveBeenCalledWith(10, 'AVAILABLE_FOR_PICKUP')
+    progressItems = wrapper.findAll('.progress-item')
+    expect(progressItems.map((item) => item.text())).toEqual([
+      '訂單成立',
+      '備貨中',
+      '已出貨',
+      '已送達',
+      '已完成',
+    ])
+    expect(progressItems.slice(0, 4).every((item) => item.classes().includes('completed'))).toBe(true)
+    expect(progressItems[4].classes()).not.toContain('completed')
+  })
+
   test('does not update shipment when the confirmation dialog is cancelled', async () => {
     window.confirm.mockReturnValue(false)
     const wrapper = await mountView(orderFixture({

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import api from '@/api/axios'
+import { logSafeError } from '@/utils/safeError'
 
 // ================================
 // 收藏商品
@@ -34,9 +35,8 @@ const loadFavorites = async () => {
 
     favorites.value = response.data || []
 
-    console.log('收藏商品：', favorites.value)
   } catch (error) {
-    console.error('取得收藏失敗：', error)
+    logSafeError('取得收藏失敗：', error)
 
     errorMessage.value = error.response?.data?.message || '無法取得收藏商品'
   } finally {
@@ -56,7 +56,7 @@ const removeFavorite = async (productId) => {
 
     favorites.value = favorites.value.filter((item) => item.productId !== productId)
   } catch (error) {
-    console.error('移除收藏失敗：', error)
+    logSafeError('移除收藏失敗：', error)
 
     alert(error.response?.data?.message || '移除收藏失敗，請稍後再試')
   } finally {
@@ -210,7 +210,7 @@ const addToCart = async () => {
     // 再關閉規格選擇視窗
     closeSkuSelector()
   } catch (error) {
-    console.error('加入購物車失敗：', error)
+    logSafeError('加入購物車失敗：', error)
 
     if (error.response?.status === 401) {
       alert('請先登入會員')
