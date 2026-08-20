@@ -6,7 +6,7 @@ globalThis.sessionStorage = {
   removeItem: () => {},
 }
 
-const [{ createPayment, simulatePayment }, { default: api }] = await Promise.all([
+const [{ createPayment, getPaymentCapabilities, simulatePayment }, { default: api }] = await Promise.all([
   import('../src/api/order.js'),
   import('../src/api/axios.js'),
 ])
@@ -75,4 +75,29 @@ test('simulatePayment posts a successful MVP payment result', async (context) =>
     failureReason: null,
   })
   assert.equal(response.data.status, 'SUCCESS')
+})
+
+test('getPaymentCapabilities reads the runtime payment configuration', async (context) => {
+  const originalAdapter = api.defaults.adapter
+  let capturedRequest
+  context.after(() => {
+    api.defaults.adapter = originalAdapter
+  })
+
+  api.defaults.adapter = async (config) => {
+    capturedRequest = config
+    return {
+      data: { simulationEnabled: false },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+    }
+  }
+
+  const response = await getPaymentCapabilities()
+
+  assert.equal(capturedRequest.method, 'get')
+  assert.equal(capturedRequest.url, '/payments/capabilities')
+  assert.equal(response.data.simulationEnabled, false)
 })

@@ -1,13 +1,20 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-const { apiMock, createPaymentMock, pushMock, simulatePaymentMock } = vi.hoisted(() => ({
+const {
+  apiMock,
+  createPaymentMock,
+  getPaymentCapabilitiesMock,
+  pushMock,
+  simulatePaymentMock,
+} = vi.hoisted(() => ({
   apiMock: {
     delete: vi.fn(),
     get: vi.fn(),
     post: vi.fn(),
   },
   createPaymentMock: vi.fn(),
+  getPaymentCapabilitiesMock: vi.fn(),
   pushMock: vi.fn(),
   simulatePaymentMock: vi.fn(),
 }))
@@ -15,6 +22,7 @@ const { apiMock, createPaymentMock, pushMock, simulatePaymentMock } = vi.hoisted
 vi.mock('../../src/api/axios.js', () => ({ default: apiMock }))
 vi.mock('../../src/api/order.js', () => ({
   createPayment: createPaymentMock,
+  getPaymentCapabilities: getPaymentCapabilitiesMock,
   simulatePayment: simulatePaymentMock,
 }))
 vi.mock('vue-router', () => ({
@@ -77,11 +85,13 @@ beforeEach(() => {
   })
   apiMock.delete.mockResolvedValue({})
   createPaymentMock.mockResolvedValue({ data: { paymentId: 20, status: 'PENDING' } })
+  getPaymentCapabilitiesMock.mockResolvedValue({ data: { simulationEnabled: false } })
   simulatePaymentMock.mockResolvedValue({ data: { paymentId: 20, status: 'SUCCESS' } })
 })
 
 describe('checkout payment flow', () => {
   test('creates and simulates an online payment', async () => {
+    getPaymentCapabilitiesMock.mockResolvedValue({ data: { simulationEnabled: true } })
     const wrapper = mount(CheckoutView)
     await flushPromises()
 
@@ -99,6 +109,7 @@ describe('checkout payment flow', () => {
   })
 
   test('locks and snapshots the payment method while order creation is pending', async () => {
+    getPaymentCapabilitiesMock.mockResolvedValue({ data: { simulationEnabled: true } })
     let resolveOrderRequest
     const defaultPostImplementation = apiMock.post.getMockImplementation()
     apiMock.post.mockImplementation((url, ...args) => {
@@ -186,6 +197,8 @@ describe('checkout payment flow', () => {
 
     expect(createPaymentMock).toHaveBeenCalledWith(10, 'CASH_ON_DELIVERY')
     expect(simulatePaymentMock).not.toHaveBeenCalled()
+    expect(wrapper.find('input[value="CREDIT_CARD"]').exists()).toBe(false)
+    expect(wrapper.find('input[value="LINE_PAY"]').exists()).toBe(false)
   })
 
   test('logs only a safe summary when payment fails', async () => {

@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/api/axios'
-import { createPayment, simulatePayment } from '@/api/order'
+import { createPayment, getPaymentCapabilities, simulatePayment } from '@/api/order'
 import { logSafeError } from '@/utils/safeError'
 
 const pageTitle = '結帳'
@@ -47,6 +47,7 @@ const shippingMethod = ref('HOME_DELIVERY')
 // ========================================
 
 const paymentMethod = ref('CASH_ON_DELIVERY')
+const paymentSimulationEnabled = ref(false)
 // ========================================
 // 訂單備註
 // ========================================
@@ -85,6 +86,8 @@ const selectedCoupon = computed(() => {
     (coupon) => coupon.memberCouponId === selectedMemberCouponId.value,
   )
 })
+
+const onlinePaymentAvailable = computed(() => paymentSimulationEnabled.value)
 
 // ========================================
 // 金額格式
@@ -251,6 +254,20 @@ const loadCoupons = async () => {
     coupons.value = []
   } finally {
     couponLoading.value = false
+  }
+}
+
+const loadPaymentCapabilities = async () => {
+  try {
+    const response = await getPaymentCapabilities()
+    paymentSimulationEnabled.value = response.data?.simulationEnabled === true
+  } catch (error) {
+    logSafeError('取得付款能力失敗：', error)
+    paymentSimulationEnabled.value = false
+  }
+
+  if (!paymentSimulationEnabled.value && paymentMethod.value !== 'CASH_ON_DELIVERY') {
+    paymentMethod.value = 'CASH_ON_DELIVERY'
   }
 }
 
@@ -445,6 +462,11 @@ const submitOrder = async () => {
   const submittedPaymentMethod = paymentMethod.value
   let createdOrderId = null
 
+  if (submittedPaymentMethod !== 'CASH_ON_DELIVERY' && !onlinePaymentAvailable.value) {
+    errorMessage.value = '目前環境未啟用線上付款，請選擇貨到付款。'
+    return
+  }
+
   try {
     submitting.value = true
 
@@ -477,7 +499,7 @@ const submitOrder = async () => {
     try {
       const paymentResponse = await createPayment(createdOrderId, submittedPaymentMethod)
 
-      if (submittedPaymentMethod !== 'CASH_ON_DELIVERY') {
+      if (submittedPaymentMethod !== 'CASH_ON_DELIVERY' && onlinePaymentAvailable.value) {
         await simulatePayment(createdOrderId, paymentResponse.data.paymentId)
       }
     } catch (paymentError) {
@@ -558,7 +580,7 @@ const init = async () => {
   }
 
   // 同時取得地址與優惠券
-  await Promise.all([loadAddresses(), loadCoupons()])
+  await Promise.all([loadAddresses(), loadCoupons(), loadPaymentCapabilities()])
 
   // 有地址才取得結帳金額
   if (selectedAddressId.value) {
@@ -904,6 +926,7 @@ onMounted(() => {
               <!-- 信用卡 -->
 
               <label
+                v-if="onlinePaymentAvailable"
                 class="option-card"
                 :class="{
                   selected: paymentMethod === 'CREDIT_CARD',
@@ -930,6 +953,7 @@ onMounted(() => {
               <!-- LINE Pay -->
 
               <label
+                v-if="onlinePaymentAvailable"
                 class="option-card"
                 :class="{
                   selected: paymentMethod === 'LINE_PAY',

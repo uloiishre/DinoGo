@@ -2,7 +2,9 @@ package com.dinogo.sales.controller;
 
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
@@ -24,7 +26,7 @@ import com.dinogo.security.AuthenticatedMember;
 import com.dinogo.security.JwtAuthenticationFilter;
 import com.dinogo.security.JwtTokenUtil;
 
-@WebMvcTest(PaymentController.class)
+@WebMvcTest(controllers = { PaymentController.class, PaymentCapabilityController.class })
 @Import({ SecurityConfig.class, JwtAuthenticationFilter.class })
 class PaymentSimulationDisabledWebMvcTest {
 
@@ -49,6 +51,20 @@ class PaymentSimulationDisabledWebMvcTest {
                 .andExpect(status().isNotFound());
 
         verifyNoInteractions(paymentService);
+    }
+
+    @Test
+    void buyerCanReadDisabledPaymentCapabilities() throws Exception {
+        mockMvc.perform(get("/api/payments/capabilities")
+                        .with(authentication(buyerAuthentication())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.simulationEnabled").value(false));
+    }
+
+    @Test
+    void unauthenticatedMemberCannotReadPaymentCapabilities() throws Exception {
+        mockMvc.perform(get("/api/payments/capabilities"))
+                .andExpect(status().isUnauthorized());
     }
 
     private UsernamePasswordAuthenticationToken buyerAuthentication() {

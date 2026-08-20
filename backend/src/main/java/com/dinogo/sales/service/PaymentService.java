@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Value;
 
 import com.dinogo.sales.dto.payment.CreatePaymentRequest;
 import com.dinogo.sales.dto.payment.PaymentResponse;
@@ -31,14 +32,17 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final PaymentMethodRepository paymentMethodRepository;
     private final OrderRepository orderRepository;
+    private final boolean simulationEnabled;
 
     public PaymentService(
             PaymentRepository paymentRepository,
             PaymentMethodRepository paymentMethodRepository,
-            OrderRepository orderRepository) {
+            OrderRepository orderRepository,
+            @Value("${app.payment.simulation-enabled:false}") boolean simulationEnabled) {
         this.paymentRepository = paymentRepository;
         this.paymentMethodRepository = paymentMethodRepository;
         this.orderRepository = orderRepository;
+        this.simulationEnabled = simulationEnabled;
     }
 
     @Transactional
@@ -46,6 +50,11 @@ public class PaymentService {
             Integer orderId,
             Integer buyerId,
             CreatePaymentRequest request) {
+
+        if (!simulationEnabled && !CASH_ON_DELIVERY.equals(request.paymentMethodCode())) {
+            throw new InvalidOrderException(
+                    "Online payment is not available in this environment");
+        }
 
         Order order = orderRepository
                 .findForPaymentCreation(orderId, buyerId)

@@ -48,7 +48,8 @@ class PaymentServiceTest {
         paymentService = new PaymentService(
                 paymentRepository,
                 paymentMethodRepository,
-                orderRepository);
+                orderRepository,
+                true);
     }
 
     @Test
@@ -141,6 +142,25 @@ class PaymentServiceTest {
         assertEquals(new BigDecimal("1000.00"), response.amount());
         assertEquals(PaymentStatus.PENDING, response.status());
         assertEquals("CREDIT_CARD", response.paymentMethodCode());
+    }
+
+    @Test
+    void disabledSimulationRejectsOnlinePaymentBeforeCreatingPendingPayment() {
+        PaymentService disabledPaymentService = new PaymentService(
+                paymentRepository,
+                paymentMethodRepository,
+                orderRepository,
+                false);
+
+        assertThrows(
+                InvalidOrderException.class,
+                () -> disabledPaymentService.createPayment(
+                        10,
+                        1,
+                        new CreatePaymentRequest("CREDIT_CARD")));
+
+        verify(orderRepository, never()).findForPaymentCreation(any(), any());
+        verify(paymentRepository, never()).save(any(Payment.class));
     }
 
     @Test

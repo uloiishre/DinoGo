@@ -61,6 +61,7 @@ public class SecurityConfig {
                                                                 "/api/favorites/**",
                                                                 "/api/checkout/**",
                                                                 "/api/orders/**",
+                                                                "/api/payments/**",
                                                                 // 收件地址包含個資，只允許已登入會員存取。
                                                                 "/api/addresses/**",
                                                                 "/api/member/**")
