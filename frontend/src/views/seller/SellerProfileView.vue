@@ -1,45 +1,17 @@
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
-// TODO: 等 E 模組 Seller profile API 完成後，改為從後端載入與儲存店鋪資料。
+import { getSellerProfile, updateSellerProfile } from '@/api/sellerProfileApi'
+import { computed, onMounted, reactive, ref } from 'vue'
+
 const isSaving = ref(false)
 const savedMessage = ref('')
-const logoFileInput = ref(null)
-const logoPreviewUrl = ref('')
-const selectedLogoName = ref('')
+const logoUrl = ref('')
+const logoLoadFailed = ref(false)
 
-const SELLER_PROFILE_KEY = 'dinogo:seller-profile:1'
 const form = reactive({
-  storeName: '森日選物',
+  storeName: '',
   status: 'ACTIVE',
-  description: '提供耐用、安靜且適合日常使用的生活選物。',
-  email: 'hello@morihibi.example',
-  phone: '02-2345-6789',
-  city: '台北市',
-  district: '中山區',
-  address: '南京東路三段 100 號',
-  serviceHours: '週一至週五 10:00 - 18:00',
-  announcement: '出貨時間約 1-2 個工作天，遇假日順延。',
+  description: '',
 })
-
-const openLogoPicker = () => {
-  logoFileInput.value?.click()
-}
-
-const handleLogoSelect = (event) => {
-  const file = event.target.files?.[0]
-
-  if (!file) {
-    return
-  }
-
-  selectedLogoName.value = file.name
-
-  const reader = new FileReader()
-  reader.onload = () => {
-    logoPreviewUrl.value = reader.result
-  }
-  reader.readAsDataURL(file)
-}
 
 const statusOptions = [
   { label: '營運中', value: 'ACTIVE' },
@@ -53,48 +25,71 @@ const statusText = {
   REVIEWING: '審核中',
 }
 
-const handleSave = () => {
+const serviceTimeOptions = [
+  { label: '09:00 - 18:00', start: '09:00:00', end: '18:00:00' },
+  { label: '10:00 - 19:00', start: '10:00:00', end: '19:00:00' },
+  { label: '11:00 - 20:00', start: '11:00:00', end: '20:00:00' },
+  { label: '全天候客服', start: '00:00:00', end: '23:59:00' },
+]
+
+const selectedServiceTime = ref('09:00:00|18:00:00')
+
+const selectedServiceTimeLabel = computed(() => {
+  const option = serviceTimeOptions.find(
+    (item) => `${item.start}|${item.end}` === selectedServiceTime.value,
+  )
+
+  return option?.label || '未設定客服時間'
+})
+
+const applyProfileToForm = (profile) => {
+  form.storeName = profile.storeName ?? ''
+  form.description = profile.storeDescription ?? ''
+  form.status = profile.status ?? 'ACTIVE'
+
+  if (profile.serviceStartTime && profile.serviceEndTime) {
+    selectedServiceTime.value = `${profile.serviceStartTime}|${profile.serviceEndTime}`
+  }
+
+  logoUrl.value = profile.storeLogoUrl ?? ''
+  logoLoadFailed.value = false
+}
+
+const handleSave = async () => {
   isSaving.value = true
   savedMessage.value = ''
+  const [serviceStartTime, serviceEndTime] = selectedServiceTime.value.split('|')
 
-  const payload = {
-    ...form,
-    logoPreviewUrl: logoPreviewUrl.value,
-    selectedLogoName: selectedLogoName.value,
-  }
+  try {
+    const response = await updateSellerProfile({
+      storeName: form.storeName,
+      storeDescription: form.description,
+      storeLogoUrl: logoUrl.value.trim() || null,
+      status: form.status,
+      serviceStartTime,
+      serviceEndTime,
+    })
 
-  localStorage.setItem(SELLER_PROFILE_KEY, JSON.stringify(payload))
-
-  window.setTimeout(() => {
+    applyProfileToForm(response.data)
+    savedMessage.value = '店鋪資料已更新。'
+  } catch (error) {
+    console.error('Update seller profile failed:', error)
+    savedMessage.value = '店鋪資料儲存失敗，請稍後再試。'
+  } finally {
     isSaving.value = false
-    savedMessage.value = '店鋪資料已儲存，前台店鋪頁會同步顯示。'
-  }, 300)
-}
-onMounted(() => {
-  const savedProfile = localStorage.getItem(SELLER_PROFILE_KEY)
-
-  if (!savedProfile) {
-    return
   }
+}
 
-  const profile = JSON.parse(savedProfile)
-
-  Object.assign(form, {
-    storeName: profile.storeName ?? form.storeName,
-    status: profile.status ?? form.status,
-    description: profile.description ?? form.description,
-    email: profile.email ?? form.email,
-    phone: profile.phone ?? form.phone,
-    city: profile.city ?? form.city,
-    district: profile.district ?? form.district,
-    address: profile.address ?? form.address,
-    serviceHours: profile.serviceHours ?? form.serviceHours,
-    announcement: profile.announcement ?? form.announcement,
-  })
-
-  logoPreviewUrl.value = profile.logoPreviewUrl ?? ''
-  selectedLogoName.value = profile.selectedLogoName ?? ''
+onMounted(async () => {
+  try {
+    const response = await getSellerProfile()
+    applyProfileToForm(response.data)
+  } catch (error) {
+    console.error('Load seller profile failed:', error)
+    savedMessage.value = '店鋪資料載入失敗，請確認是否已登入賣家帳號。'
+  }
 })
+
 </script>
 
 <template>
@@ -124,10 +119,11 @@ onMounted(() => {
       <section class="preview-card store-banner-preview">
         <div class="preview-brand">
           <img
-            v-if="logoPreviewUrl"
+            v-if="logoUrl && !logoLoadFailed"
             class="store-avatar-image"
-            :src="logoPreviewUrl"
-            :alt="selectedLogoName || `${form.storeName} Logo`"
+            :src="logoUrl"
+            :alt="`${form.storeName} Logo`"
+            @error="logoLoadFailed = true"
           />
           <span v-else class="store-avatar">{{ form.storeName.slice(0, 1) }}</span>
           <div>
@@ -138,10 +134,7 @@ onMounted(() => {
         </div>
         <div class="preview-meta">
           <span>{{ statusText[form.status] }}</span>
-          <span>{{
-            form.city || form.district ? `${form.city}${form.district}` : '未提供地址'
-          }}</span>
-          <span>{{ form.serviceHours }}</span>
+          <span>{{ selectedServiceTimeLabel }}</span>
         </div>
       </section>
 
@@ -162,27 +155,23 @@ onMounted(() => {
         <section class="logo-section full-width" aria-labelledby="store-logo-title">
           <h3 id="store-logo-title">店鋪 Logo</h3>
 
-          <button class="logo-upload-button" type="button" @click="openLogoPicker">
-            <img
-              v-if="logoPreviewUrl"
-              class="logo-preview"
-              :src="logoPreviewUrl"
-              :alt="selectedLogoName || '店鋪 Logo 預覽'"
+          <label class="form-field">
+            Logo 圖片網址
+            <input
+              v-model="logoUrl"
+              type="url"
+              placeholder="https://example.com/store-logo.png"
+              @input="logoLoadFailed = false"
             />
-            <div v-else class="logo-placeholder">
-              <i class="bi bi-image" aria-hidden="true"></i>
-              <span>點選上傳</span>
-              <small>店鋪 Logo placeholder</small>
-            </div>
-          </button>
-
-          <input
-            ref="logoFileInput"
-            class="logo-file-input"
-            type="file"
-            accept="image/*"
-            @change="handleLogoSelect"
+          </label>
+          <img
+            v-if="logoUrl && !logoLoadFailed"
+            class="logo-preview"
+            :src="logoUrl"
+            :alt="`${form.storeName} Logo 預覽`"
+            @error="logoLoadFailed = true"
           />
+          <p v-else class="logo-help">請輸入可公開存取的圖片網址，儲存後會同步到店鋪頁。</p>
         </section>
 
         <label class="form-field full-width">
@@ -190,35 +179,6 @@ onMounted(() => {
           <textarea v-model="form.description"></textarea>
         </label>
 
-        <label class="form-field">
-          聯絡 Email
-          <input v-model="form.email" type="email" />
-        </label>
-
-        <label class="form-field">
-          客服電話
-          <input v-model="form.phone" type="tel" />
-        </label>
-
-        <div class="section-divider full-width">
-          <span>店鋪位置</span>
-          <small>選填</small>
-        </div>
-
-        <label class="form-field">
-          縣市
-          <input v-model="form.city" type="text" placeholder="選填" />
-        </label>
-
-        <label class="form-field">
-          區域
-          <input v-model="form.district" type="text" placeholder="選填" />
-        </label>
-
-        <label class="form-field full-width">
-          詳細地址
-          <input v-model="form.address" type="text" placeholder="選填" />
-        </label>
       </section>
 
       <aside class="profile-side">
@@ -241,13 +201,17 @@ onMounted(() => {
 
           <label class="form-field">
             客服時間
-            <input v-model="form.serviceHours" type="text" />
+            <select v-model="selectedServiceTime">
+              <option
+                v-for="option in serviceTimeOptions"
+                :key="option.label"
+                :value="`${option.start}|${option.end}`"
+              >
+                {{ option.label }}
+              </option>
+            </select>
           </label>
 
-          <label class="form-field">
-            店鋪公告
-            <textarea v-model="form.announcement"></textarea>
-          </label>
         </section>
       </aside>
 
@@ -501,24 +465,27 @@ h3 {
 }
 
 .logo-upload-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
   width: min(100%, 360px);
-  min-height: 230px;
+  min-height: 220px;
   overflow: hidden;
-  border: 0;
+  border: 1px dashed var(--color-border-strong);
   border-radius: var(--radius-md);
-  padding: 0;
+  padding: var(--space-4);
   background: var(--color-bg-muted);
   color: var(--color-text-muted);
   cursor: pointer;
   font: inherit;
   text-align: center;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
 }
 
 .logo-upload-button:hover {
-  background: var(--color-disabled-bg);
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
 }
 
 .logo-upload-button:focus-visible {
@@ -528,31 +495,41 @@ h3 {
 
 .logo-preview {
   width: 100%;
-  height: 230px;
+  height: 220px;
+  border-radius: calc(var(--radius-md) - 2px);
   object-fit: cover;
 }
 
 .logo-placeholder {
   display: grid;
-  min-height: 100%;
+  place-items: center;
   align-content: center;
-  justify-items: center;
   gap: var(--space-2);
-  font-family: var(--font-body);
+  min-height: 188px;
 }
-
 .logo-placeholder i {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
   color: var(--color-primary);
-  font-size: 32px;
+  font-size: 24px;
 }
 
 .logo-placeholder span {
-  color: var(--color-text-700);
-  font-weight: 700;
+  color: var(--color-text-900);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
 }
 
 .logo-placeholder small {
-  font-size: var(--font-size-sm);
+  max-width: 240px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  line-height: 1.5;
 }
 
 .logo-file-input {

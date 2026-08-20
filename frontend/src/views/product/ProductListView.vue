@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import api from '@/api/axios'
 import ProductCard from '@/views/product/ProductCard.vue'
+import { getPublicStore } from '@/api/sellerProfileApi'
 
 const route = useRoute()
 const router = useRouter()
@@ -16,20 +17,19 @@ const currentPage = ref(0)
 const pageSize = ref(12)
 const storeProfile = ref(null)
 
-const loadStoreProfile = () => {
-  const savedProfile = localStorage.getItem('dinogo:seller-profile:1')
-
-  if (!savedProfile) {
-    storeProfile.value = {
-      storeName: '森日選物',
-      description: '提供耐用、安靜且適合日常使用的生活選物。',
-      status: 'ACTIVE',
-      logoPreviewUrl: '',
-    }
+const loadStoreProfile = async () => {
+  if (!route.query.sellerId) {
+    storeProfile.value = null
     return
   }
 
-  storeProfile.value = JSON.parse(savedProfile)
+  try {
+    const response = await getPublicStore(route.query.sellerId)
+    storeProfile.value = response.data
+  } catch (error) {
+    console.error('Load public store failed:', error)
+    storeProfile.value = null
+  }
 }
 const totalPages = ref(0)
 const totalElements = ref(0)
@@ -127,6 +127,13 @@ onMounted(() => {
   loadStoreProfile()
   fetchProducts()
 })
+const formatStoreTime = (time) => {
+  if (!time) {
+    return ''
+  }
+
+  return time.slice(0, 5)
+}
 </script>
 
 <template>
@@ -134,24 +141,25 @@ onMounted(() => {
     <div class="container py-5">
       <section v-if="route.query.sellerId && storeProfile" class="store-banner">
         <img
-          v-if="storeProfile.logoPreviewUrl"
+          v-if="storeProfile.storeLogoUrl"
           class="store-avatar-image"
-          :src="storeProfile.logoPreviewUrl"
+          :src="storeProfile.storeLogoUrl"
           :alt="`${storeProfile.storeName} Logo`"
         />
-        <div v-else class="store-avatar" aria-hidden="true">
-          {{ storeProfile.storeName?.slice(0, 1) || '店' }}
-        </div>
 
         <div class="store-copy">
           <span>品牌與商家</span>
           <h1>{{ storeProfile.storeName }}</h1>
-          <p>{{ storeProfile.description }}</p>
+          <p>{{ storeProfile.storeDescription }}</p>
         </div>
 
         <div class="store-meta">
           <strong>{{ storeProfile.status === 'ACTIVE' ? '營運中' : '暫停接單' }}</strong>
-          <span>{{ storeProfile.serviceHours || '商品持續更新' }}</span>
+          <span v-if="storeProfile.serviceStartTime && storeProfile.serviceEndTime">
+            營業時間 {{ formatStoreTime(storeProfile.serviceStartTime) }} -
+            {{ formatStoreTime(storeProfile.serviceEndTime) }}
+          </span>
+          <span v-else>商品持續更新</span>
         </div>
       </section>
 
