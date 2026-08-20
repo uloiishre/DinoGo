@@ -111,7 +111,6 @@ onMounted(loadOrders)
           <span>訂單金額</span>
           <span>狀態</span>
           <span>建立時間</span>
-          <span>操作</span>
         </div>
 
         <article v-for="order in filteredOrders" :key="order.orderId" class="order-row">
@@ -124,7 +123,6 @@ onMounted(loadOrders)
             {{ statusLabels[order.status] ?? order.status }}
           </span>
           <span>{{ formatDate(order.createdAt) }}</span>
-          <RouterLink class="view-button" :to="{ name: 'SellerOrderDetail', params: { id: order.orderId } }">查看</RouterLink>
         </article>
       </div>
     </section>
@@ -221,16 +219,17 @@ h1 {
 .table-header,
 .order-row {
   display: grid;
-  grid-template-columns: minmax(160px, 1.2fr) 0.9fr 0.9fr 0.8fr 1fr 68px;
+  grid-template-columns: minmax(160px, 1.3fr) 0.9fr 0.9fr 0.8fr 1fr;
   align-items: center;
   gap: var(--space-4);
 }
 
 .table-header {
-  min-height: 44px;
+  min-height: 42px;
   padding: 0 var(--space-5);
-  background: #050505;
-  color: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
   font-size: var(--font-size-xs);
   font-weight: 700;
 }
@@ -297,22 +296,6 @@ h1 {
   color: var(--color-text-muted);
 }
 
-.view-button {
-  width: fit-content;
-  min-height: auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  color: var(--color-primary-700);
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.view-button:hover {
-  color: var(--color-primary);
-}
-
 @media (max-width: 1100px) {
   .table-header {
     display: none;
@@ -324,8 +307,7 @@ h1 {
     padding: var(--space-4) var(--space-5);
   }
 
-  .order-no,
-  .view-button {
+  .order-no {
     grid-column: 1 / -1;
   }
 }

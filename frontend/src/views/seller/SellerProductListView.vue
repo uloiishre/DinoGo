@@ -118,6 +118,11 @@ onMounted(loadProducts)
         <p class="eyebrow">商品管理</p>
         <h1>賣家商品列表</h1>
       </div>
+
+      <RouterLink class="primary-action" to="/seller/products/new">
+        <i class="bi bi-plus-lg" aria-hidden="true"></i>
+        新增商品
+      </RouterLink>
     </header>
 
     <p v-if="errorMessage" class="error-message">
@@ -144,19 +149,18 @@ onMounted(loadProducts)
             <span v-else>{{ product.productName?.slice(0, 1) || '商' }}</span>
           </div>
           <div class="product-name">
-            <strong>{{ product.productName }}</strong>
+            <RouterLink :to="`/seller/products/${product.productId}/edit`">
+              {{ product.productName }}
+            </RouterLink>
             <span>#SP-{{ String(product.productId).padStart(4, '0') }}</span>
           </div>
         </div>
-        <span>{{ formatCurrency(product.basePrice) }}</span>
-        <span>{{ stockText(product.stock) }}</span>
+        <span class="product-price">{{ formatCurrency(product.basePrice) }}</span>
+        <span class="product-stock">{{ stockText(product.stock) }}</span>
         <span class="status-badge" :class="statusClass(product.status)">
           {{ statusLabel(product.status) }}
         </span>
         <div class="row-actions">
-          <RouterLink class="secondary-action" :to="`/seller/products/${product.productId}/edit`">
-            編輯
-          </RouterLink>
           <button
             class="status-action"
             type="button"
@@ -230,7 +234,7 @@ h1 {
   font-size: var(--font-size-xl);
 }
 
-.secondary-action,
+.primary-action,
 .status-action {
   display: inline-flex;
   align-items: center;
@@ -242,9 +246,11 @@ h1 {
   text-decoration: none;
 }
 
-.secondary-action {
-  color: var(--color-primary-700);
-  background: var(--color-primary-soft);
+.primary-action {
+  gap: var(--space-2);
+  border: 1px solid var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-surface);
 }
 
 .status-action.is-danger {
@@ -259,7 +265,7 @@ h1 {
   background: var(--color-primary);
 }
 
-.secondary-action:focus-visible,
+.primary-action:focus-visible,
 .status-action:focus-visible,
 .ghost-action:focus-visible,
 .confirm-action:focus-visible {
@@ -341,9 +347,22 @@ h1 {
   min-width: 0;
 }
 
-.product-name strong {
+.product-name a {
   color: var(--color-text);
   font-size: var(--font-size-base);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.product-name a:hover {
+  color: var(--color-primary);
+}
+
+.product-price,
+.product-stock {
+  color: var(--color-text-900);
+  font-size: var(--font-size-base);
+  font-weight: 800;
 }
 
 .product-name span,

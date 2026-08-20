@@ -14,7 +14,23 @@ const loading = ref(false)
 const errorMessage = ref('')
 const currentPage = ref(0)
 const pageSize = ref(12)
+const storeProfile = ref(null)
 
+const loadStoreProfile = () => {
+  const savedProfile = localStorage.getItem('dinogo:seller-profile:1')
+
+  if (!savedProfile) {
+    storeProfile.value = {
+      storeName: '森日選物',
+      description: '提供耐用、安靜且適合日常使用的生活選物。',
+      status: 'ACTIVE',
+      logoPreviewUrl: '',
+    }
+    return
+  }
+
+  storeProfile.value = JSON.parse(savedProfile)
+}
 const totalPages = ref(0)
 const totalElements = ref(0)
 
@@ -108,6 +124,7 @@ const changeSort = () => {
 
 // 第一次進入頁面時取得商品
 onMounted(() => {
+  loadStoreProfile()
   fetchProducts()
 })
 </script>
@@ -115,6 +132,29 @@ onMounted(() => {
 <template>
   <main class="product-list-page">
     <div class="container py-5">
+      <section v-if="route.query.sellerId && storeProfile" class="store-banner">
+        <img
+          v-if="storeProfile.logoPreviewUrl"
+          class="store-avatar-image"
+          :src="storeProfile.logoPreviewUrl"
+          :alt="`${storeProfile.storeName} Logo`"
+        />
+        <div v-else class="store-avatar" aria-hidden="true">
+          {{ storeProfile.storeName?.slice(0, 1) || '店' }}
+        </div>
+
+        <div class="store-copy">
+          <span>品牌與商家</span>
+          <h1>{{ storeProfile.storeName }}</h1>
+          <p>{{ storeProfile.description }}</p>
+        </div>
+
+        <div class="store-meta">
+          <strong>{{ storeProfile.status === 'ACTIVE' ? '營運中' : '暫停接單' }}</strong>
+          <span>{{ storeProfile.serviceHours || '商品持續更新' }}</span>
+        </div>
+      </section>
+
       <!-- 標題 -->
       <div class="mb-4">
         <h1 class="page-title">商品列表</h1>
@@ -219,6 +259,67 @@ onMounted(() => {
   font-size: var(--font-size-xl);
 }
 
+.store-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  background: var(--color-surface);
+}
+
+.store-avatar {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-surface);
+  font-family: var(--font-heading);
+  font-size: var(--font-size-xl);
+  font-weight: 800;
+}
+
+.store-copy {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.store-copy span,
+.store-copy p,
+.store-meta span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.store-copy h1,
+.store-copy p {
+  margin: 0;
+}
+
+.store-copy h1 {
+  color: var(--color-text-900);
+  font-family: var(--font-heading);
+  font-size: var(--font-size-xl);
+}
+
+.store-meta {
+  display: grid;
+  gap: 2px;
+  margin-left: auto;
+  border-left: 1px solid var(--color-border);
+  padding-left: var(--space-4);
+}
+
+.store-meta strong {
+  color: var(--color-success);
+}
+
 .error-message {
   color: var(--color-danger);
 }
@@ -313,5 +414,26 @@ onMounted(() => {
 
   background: var(--color-surface);
   color: var(--color-text);
+}
+
+@media (max-width: 680px) {
+  .store-banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .store-meta {
+    margin-left: 0;
+    border-left: 0;
+    padding-left: 0;
+  }
+}
+.store-avatar-image {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-md);
+  object-fit: cover;
+  border: 1px solid var(--color-border);
 }
 </style>

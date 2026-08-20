@@ -1,6 +1,5 @@
 <script setup>
-import { reactive, ref } from 'vue'
-
+import { onMounted, reactive, ref } from 'vue'
 // TODO: 等 E 模組 Seller profile API 完成後，改為從後端載入與儲存店鋪資料。
 const isSaving = ref(false)
 const savedMessage = ref('')
@@ -8,6 +7,7 @@ const logoFileInput = ref(null)
 const logoPreviewUrl = ref('')
 const selectedLogoName = ref('')
 
+const SELLER_PROFILE_KEY = 'dinogo:seller-profile:1'
 const form = reactive({
   storeName: '森日選物',
   status: 'ACTIVE',
@@ -33,7 +33,12 @@ const handleLogoSelect = (event) => {
   }
 
   selectedLogoName.value = file.name
-  logoPreviewUrl.value = URL.createObjectURL(file)
+
+  const reader = new FileReader()
+  reader.onload = () => {
+    logoPreviewUrl.value = reader.result
+  }
+  reader.readAsDataURL(file)
 }
 
 const statusOptions = [
@@ -52,11 +57,44 @@ const handleSave = () => {
   isSaving.value = true
   savedMessage.value = ''
 
+  const payload = {
+    ...form,
+    logoPreviewUrl: logoPreviewUrl.value,
+    selectedLogoName: selectedLogoName.value,
+  }
+
+  localStorage.setItem(SELLER_PROFILE_KEY, JSON.stringify(payload))
+
   window.setTimeout(() => {
     isSaving.value = false
-    savedMessage.value = '店鋪資料已暫存於前端展示版本。'
-  }, 500)
+    savedMessage.value = '店鋪資料已儲存，前台店鋪頁會同步顯示。'
+  }, 300)
 }
+onMounted(() => {
+  const savedProfile = localStorage.getItem(SELLER_PROFILE_KEY)
+
+  if (!savedProfile) {
+    return
+  }
+
+  const profile = JSON.parse(savedProfile)
+
+  Object.assign(form, {
+    storeName: profile.storeName ?? form.storeName,
+    status: profile.status ?? form.status,
+    description: profile.description ?? form.description,
+    email: profile.email ?? form.email,
+    phone: profile.phone ?? form.phone,
+    city: profile.city ?? form.city,
+    district: profile.district ?? form.district,
+    address: profile.address ?? form.address,
+    serviceHours: profile.serviceHours ?? form.serviceHours,
+    announcement: profile.announcement ?? form.announcement,
+  })
+
+  logoPreviewUrl.value = profile.logoPreviewUrl ?? ''
+  selectedLogoName.value = profile.selectedLogoName ?? ''
+})
 </script>
 
 <template>
@@ -65,7 +103,7 @@ const handleSave = () => {
       <div>
         <p class="eyebrow">店鋪資料</p>
         <h1>店鋪資料</h1>
-        <p class="page-description">管理商家館公開資訊與營業設定。</p>
+        <p class="page-description">管理店鋪公開資訊與營業設定。</p>
       </div>
     </header>
 
@@ -75,19 +113,43 @@ const handleSave = () => {
         <div>
           <p class="section-label">店鋪目前狀態</p>
           <strong>{{ statusText[form.status] }}</strong>
-          <span>{{ form.status === 'ACTIVE' ? '顧客可以瀏覽並購買你的商品。' : '目前不會接收新的訂單。' }}</span>
+          <span>{{
+            form.status === 'ACTIVE' ? '顧客可以瀏覽並購買你的商品。' : '目前不會接收新的訂單。'
+          }}</span>
         </div>
       </div>
-
-      <button class="secondary-button" type="button">查看商家館</button>
     </section>
 
     <form class="profile-grid" @submit.prevent="handleSave">
+      <section class="preview-card store-banner-preview">
+        <div class="preview-brand">
+          <img
+            v-if="logoPreviewUrl"
+            class="store-avatar-image"
+            :src="logoPreviewUrl"
+            :alt="selectedLogoName || `${form.storeName} Logo`"
+          />
+          <span v-else class="store-avatar">{{ form.storeName.slice(0, 1) }}</span>
+          <div>
+            <p class="section-kicker">前台店鋪橫幅預覽</p>
+            <strong>{{ form.storeName }}</strong>
+            <span>{{ form.description }}</span>
+          </div>
+        </div>
+        <div class="preview-meta">
+          <span>{{ statusText[form.status] }}</span>
+          <span>{{
+            form.city || form.district ? `${form.city}${form.district}` : '未提供地址'
+          }}</span>
+          <span>{{ form.serviceHours }}</span>
+        </div>
+      </section>
+
       <section class="profile-card">
         <div class="card-heading">
           <div>
             <p class="section-kicker">公開資料</p>
-            <h2>商家館資訊</h2>
+            <h2>店鋪公開資訊</h2>
           </div>
           <span class="visibility-note">顧客可見</span>
         </div>
@@ -160,34 +222,6 @@ const handleSave = () => {
       </section>
 
       <aside class="profile-side">
-        <section class="preview-card">
-          <div class="card-heading compact-heading">
-            <div>
-              <p class="section-kicker">即時預覽</p>
-              <h2>商家館顯示</h2>
-            </div>
-          </div>
-
-          <div class="preview-brand">
-            <img
-              v-if="logoPreviewUrl"
-              class="store-avatar-image"
-              :src="logoPreviewUrl"
-              :alt="selectedLogoName || `${form.storeName} Logo`"
-            />
-            <span v-else class="store-avatar">{{ form.storeName.slice(0, 1) }}</span>
-            <div>
-              <strong>{{ form.storeName }}</strong>
-              <span>生活選物</span>
-            </div>
-          </div>
-          <p class="preview-description">{{ form.description }}</p>
-          <div class="preview-meta">
-            <span>{{ form.city || form.district ? `${form.city}${form.district}` : '未提供地址' }}</span>
-            <span>{{ form.serviceHours }}</span>
-          </div>
-        </section>
-
         <section class="settings-card">
           <div class="card-heading compact-heading">
             <div>
@@ -348,7 +382,7 @@ h3 {
 
 .profile-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: var(--space-5);
 }
@@ -391,14 +425,20 @@ h3 {
 }
 
 .preview-card {
-  border-top: 3px solid var(--color-primary);
+  border-left: 4px solid var(--color-primary);
+}
+
+.store-banner-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
 }
 
 .preview-brand {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  margin-top: var(--space-4);
 }
 
 .store-avatar {
@@ -431,18 +471,16 @@ h3 {
   color: var(--color-text-900);
 }
 
-.preview-description {
-  min-height: 48px;
-  margin: var(--space-4) 0;
-  color: var(--color-text-700);
-  line-height: 1.6;
+.preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
-.preview-meta {
-  display: grid;
-  gap: var(--space-2);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-border);
+.preview-meta span {
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+  background: var(--color-bg-muted);
 }
 
 .settings-card {
@@ -622,12 +660,9 @@ textarea {
 }
 
 @media (max-width: 1000px) {
-  .profile-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .profile-side {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .store-banner-preview {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 
