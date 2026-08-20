@@ -165,6 +165,8 @@ class MemberServiceTest {
         member.setEmail("user@example.com");
         member.setLastName("王");
         member.setFirstName("小明");
+        member.setEmailOrderNotifications(true);
+        member.setEmailMarketingNotifications(false);
         member.setCreatedAt(LocalDateTime.of(2025, 8, 18, 10, 0));
         member.setUpdatedAt(LocalDateTime.of(2025, 8, 20, 9, 30));
         when(memberRepository.findById(member.getMemberId()))
@@ -200,7 +202,7 @@ class MemberServiceTest {
         });
 
         MemberUpdateRequest request = new MemberUpdateRequest(
-                "林", "小美", LocalDate.of(1998, 2, 3), "0987654321");
+                "林", "小美", LocalDate.of(1998, 2, 3), "0987654321", false, true);
 
         MemberResponse response = memberService.updateProfile(member.getMemberId(), request);
 
@@ -208,6 +210,8 @@ class MemberServiceTest {
         assertThat(response.firstName()).isEqualTo("小美");
         assertThat(response.birthDate()).isEqualTo(LocalDate.of(1998, 2, 3));
         assertThat(response.phone()).isEqualTo("0987654321");
+        assertThat(response.emailOrderNotifications()).isFalse();
+        assertThat(response.emailMarketingNotifications()).isTrue();
         assertThat(response.createdAt()).isEqualTo(LocalDateTime.of(2025, 8, 18, 10, 0));
         assertThat(response.updatedAt()).isEqualTo(LocalDateTime.of(2026, 8, 14, 15, 10));
         assertThat(member.getEmail()).isEqualTo("user@example.com");

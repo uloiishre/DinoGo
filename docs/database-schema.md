@@ -57,6 +57,8 @@ Table member.Member {
   first_name nvarchar(50) [not null]
   birth_date date
   phone varchar(20)
+  email_order_notifications bit [not null, default: 1]
+  email_marketing_notifications bit [not null, default: 0]
   status varchar(20) [not null, default: 'ACTIVE']
   created_at datetime2 [not null, default: `SYSDATETIME()`]
   updated_at datetime2 [not null, default: `SYSDATETIME()`]
@@ -1167,6 +1169,8 @@ CREATE TABLE member.Member (
     first_name nvarchar(50) NOT NULL,
     birth_date date NULL,
     phone varchar(20) NULL,
+    email_order_notifications bit NOT NULL CONSTRAINT df_member_email_order_notifications DEFAULT 1,
+    email_marketing_notifications bit NOT NULL CONSTRAINT df_member_email_marketing_notifications DEFAULT 0,
     status varchar(20) NOT NULL CONSTRAINT df_member_status DEFAULT 'ACTIVE',
     created_at datetime2 NOT NULL CONSTRAINT df_member_created_at DEFAULT SYSDATETIME(),
     updated_at datetime2 NOT NULL CONSTRAINT df_member_updated_at DEFAULT SYSDATETIME()

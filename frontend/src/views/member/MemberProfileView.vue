@@ -32,8 +32,7 @@ function applyProfile(profile) {
     firstName: profile.firstName ?? '',
     birthDate: profile.birthDate ?? '',
     phone: profile.phone ?? '',
-    // Default to opt-out until the notifications API provides saved preferences.
-    emailOrderNotifications: profile.emailOrderNotifications ?? false,
+    emailOrderNotifications: profile.emailOrderNotifications ?? true,
     emailMarketingNotifications: profile.emailMarketingNotifications ?? false,
   }
   form.value = { ...profileForm }
@@ -99,6 +98,8 @@ async function saveProfile() {
       firstName: form.value.firstName,
       birthDate: form.value.birthDate || null,
       phone: form.value.phone || null,
+      emailOrderNotifications: form.value.emailOrderNotifications,
+      emailMarketingNotifications: form.value.emailMarketingNotifications,
     })
     applyProfile(data)
     authStore.updateMember(data)
