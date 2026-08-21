@@ -101,7 +101,7 @@ describe('checkout payment flow', () => {
     await flushPromises()
 
     expect(createPaymentMock).toHaveBeenCalledWith(10, 'CREDIT_CARD')
-    expect(simulatePaymentMock).toHaveBeenCalledWith(10, 20)
+    expect(simulatePaymentMock).toHaveBeenCalledWith(10, 20, 'SUCCESS', null)
     expect(pushMock).toHaveBeenCalledWith({
       name: 'MemberOrderDetail',
       params: { id: 10 },
@@ -139,7 +139,7 @@ describe('checkout payment flow', () => {
     await flushPromises()
 
     expect(createPaymentMock).toHaveBeenCalledWith(10, 'CREDIT_CARD')
-    expect(simulatePaymentMock).toHaveBeenCalledWith(10, 20)
+    expect(simulatePaymentMock).toHaveBeenCalledWith(10, 20, 'SUCCESS', null)
   })
 
   test('prevents repeated orders while creation and navigation are pending', async () => {
@@ -199,6 +199,25 @@ describe('checkout payment flow', () => {
     expect(simulatePaymentMock).not.toHaveBeenCalled()
     expect(wrapper.find('input[value="CREDIT_CARD"]').exists()).toBe(false)
     expect(wrapper.find('input[value="LINE_PAY"]').exists()).toBe(false)
+    expect(wrapper.find('.payment-simulation').exists()).toBe(false)
+  })
+
+  test('submits a simulated failed online payment with an optional reason', async () => {
+    getPaymentCapabilitiesMock.mockResolvedValue({ data: { simulationEnabled: true } })
+    const wrapper = mount(CheckoutView)
+    await flushPromises()
+
+    await wrapper.get('input[value="CREDIT_CARD"]').setValue()
+    await wrapper.get('input[value="FAILED"]').setValue()
+    await wrapper.get('.payment-failure-reason input').setValue('銀行授權失敗')
+    await wrapper.get('button.submit-button:not(.stock-error-button)').trigger('click')
+    await flushPromises()
+
+    expect(simulatePaymentMock).toHaveBeenCalledWith(10, 20, 'FAILED', '銀行授權失敗')
+    expect(pushMock).toHaveBeenCalledWith({
+      name: 'MemberOrderDetail',
+      params: { id: 10 },
+    })
   })
 
   test('logs only a safe summary when payment fails', async () => {

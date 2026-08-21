@@ -252,8 +252,9 @@ B 只需要保證回補操作正確且為 atomic update。
 
 ```text
 悲觀鎖定訂單
-→ 僅 PENDING_PAYMENT 訂單可由買家取消
-→ PAID、PROCESSING（含貨到付款待出貨）及後續狀態禁止取消
+→ `PENDING_PAYMENT` 訂單可由買家取消
+→ 貨到付款訂單在 `PROCESSING`、付款仍為 `PENDING` 且 Shipment 尚未出貨（無 Shipment 或 `PREPARING`）時也可由買家取消
+→ 已線上付款成功、已出貨及後續狀態禁止取消；退款不屬於此 MVP 流程
 → 逐筆 restoreStock
 → 訂單改為 CANCELLED
 → 同一 transaction commit

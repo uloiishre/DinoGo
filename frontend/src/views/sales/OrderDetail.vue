@@ -12,13 +12,22 @@ const confirmingDelivery = ref(false)
 const deliveryErrorMessage = ref('')
 const cancellingOrder = ref(false)
 const cancellationErrorMessage = ref('')
+const cancellationReason = ref('')
+const showCancellationModal = ref(false)
 const fetchingOrder = ref(false)
 const AUTO_REFRESH_INTERVAL_MS = 10_000
 let autoRefreshTimer = null
 let latestLoadRequestId = 0
 
 const orderId = computed(() => Number(route.params.id ?? route.params.orderId))
-const canCancelOrder = computed(() => order.value?.status === 'PENDING_PAYMENT')
+const canCancelOrder = computed(() => {
+  if (order.value?.status === 'PENDING_PAYMENT') return true
+
+  return order.value?.status === 'PROCESSING'
+    && order.value.payment?.paymentMethodCode === 'CASH_ON_DELIVERY'
+    && order.value.payment?.status === 'PENDING'
+    && (!order.value.shipment || order.value.shipment.status === 'PREPARING')
+})
 const displayStatus = computed(() => getOrderDisplayStatus(order.value))
 
 const paymentStatusLabels = {
@@ -117,13 +126,21 @@ async function handleConfirmDelivery() {
   }
 }
 
+function openCancellationModal() {
+  if (!canCancelOrder.value) return
+  cancellationReason.value = ''
+  cancellationErrorMessage.value = ''
+  showCancellationModal.value = true
+}
+
+function closeCancellationModal() {
+  if (!cancellingOrder.value) showCancellationModal.value = false
+}
+
 async function handleCancelOrder() {
   if (!canCancelOrder.value || cancellingOrder.value) return
 
-  const input = window.prompt('請輸入取消訂單原因（最多 500 字）')
-  if (input === null) return
-
-  const reason = input.trim()
+  const reason = cancellationReason.value.trim()
   if (!reason) {
     cancellationErrorMessage.value = '請輸入取消訂單原因'
     return
@@ -132,12 +149,11 @@ async function handleCancelOrder() {
     cancellationErrorMessage.value = '取消原因不可超過 500 字'
     return
   }
-  if (!window.confirm('確定要取消這筆訂單嗎？取消後無法復原。')) return
-
   cancellingOrder.value = true
   cancellationErrorMessage.value = ''
   try {
     applyOrderResponse((await cancelOrder(orderId.value, { reason })).data)
+    showCancellationModal.value = false
   } catch (error) {
     cancellationErrorMessage.value =
       error.response?.data?.message ?? '取消訂單失敗，請稍後再試'
@@ -202,7 +218,7 @@ onUnmounted(() => {
             class="cancel-order-button"
             type="button"
             :disabled="cancellingOrder"
-            @click="handleCancelOrder"
+            @click="openCancellationModal"
           >
             {{ cancellingOrder ? '取消中...' : '取消訂單' }}
           </button>
@@ -212,7 +228,7 @@ onUnmounted(() => {
         </div>
       </header>
 
-      <p v-if="cancellationErrorMessage" class="cancellation-error" role="alert">
+      <p v-if="cancellationErrorMessage && !showCancellationModal" class="cancellation-error" role="alert">
         {{ cancellationErrorMessage }}
       </p>
 
@@ -360,6 +376,38 @@ onUnmounted(() => {
           </aside>
         </div>
       </template>
+
+      <div
+        v-if="showCancellationModal"
+        class="modal-backdrop"
+        @click.self="closeCancellationModal"
+      >
+        <form class="cancellation-modal" role="dialog" aria-modal="true" aria-labelledby="cancel-order-title" @submit.prevent="handleCancelOrder">
+          <h2 id="cancel-order-title">取消此筆訂單？</h2>
+          <p>取消後無法復原；符合資格的訂單將停止處理並回補庫存。</p>
+          <label for="cancellation-reason">取消原因</label>
+          <textarea
+            id="cancellation-reason"
+            v-model="cancellationReason"
+            maxlength="500"
+            required
+            autofocus
+            placeholder="請說明取消原因"
+            :disabled="cancellingOrder"
+            :aria-invalid="Boolean(cancellationErrorMessage)"
+          ></textarea>
+          <div class="reason-count">{{ cancellationReason.length }} / 500</div>
+          <p v-if="cancellationErrorMessage" class="cancellation-error" role="alert">
+            {{ cancellationErrorMessage }}
+          </p>
+          <div class="modal-actions">
+            <button type="button" class="modal-secondary-button" :disabled="cancellingOrder" @click="closeCancellationModal">返回訂單</button>
+            <button type="submit" class="modal-danger-button" :disabled="cancellingOrder">
+              {{ cancellingOrder ? '取消中...' : '確認取消訂單' }}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   </section>
 </template>
@@ -434,6 +482,99 @@ onUnmounted(() => {
   background: var(--color-danger-soft);
   border: 1px solid var(--color-danger);
   border-radius: var(--radius-md);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: rgb(0 0 0 / 45%);
+}
+
+.cancellation-modal {
+  display: grid;
+  width: min(100%, 480px);
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.cancellation-modal h2,
+.cancellation-modal p {
+  margin: 0;
+}
+
+.cancellation-modal > p {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+}
+
+.cancellation-modal label {
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.cancellation-modal textarea {
+  min-height: 112px;
+  padding: var(--space-3);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  font: inherit;
+  resize: vertical;
+}
+
+.cancellation-modal textarea:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
+}
+
+.reason-count {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+  text-align: right;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.modal-secondary-button,
+.modal-danger-button {
+  min-height: 42px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-weight: 700;
+}
+
+.modal-secondary-button {
+  color: var(--color-text-700);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+}
+
+.modal-danger-button {
+  color: var(--color-surface);
+  background: var(--color-danger);
+  border: 1px solid var(--color-danger);
+}
+
+.modal-secondary-button:focus-visible,
+.modal-danger-button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
 }
 
 .back-button {
