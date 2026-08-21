@@ -63,9 +63,10 @@ public class SecurityConfig {
                                                                 "/api/orders/**",
                                                                 "/api/payments/**",
                                                                 // 收件地址包含個資，只允許已登入會員存取。
-                                                                "/api/addresses/**",
+                                                "/api/addresses/**",
                                                                 "/api/member/**")
                                                 .authenticated()
+                                                .requestMatchers("/api/admin/**").hasRole("ADMIN")
                                                 .anyRequest().permitAll())
                                 .exceptionHandling(exceptionHandling -> exceptionHandling
                                                 .authenticationEntryPoint((request, response, exception) -> response

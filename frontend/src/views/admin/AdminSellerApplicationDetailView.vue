@@ -1,32 +1,74 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
+import {
+  approveSellerApplication,
+  getSellerApplication,
+  rejectSellerApplication,
+} from '@/api/sellerApplicationApi'
 
 const route = useRoute()
 const decision = ref('approve')
 const rejectionReason = ref('')
 const isConfirmed = ref(false)
 const feedback = ref('')
+const isSubmitting = ref(false)
 
-const application = {
-  id: route.params.id || 'APP-20260820-0012',
-  applicant: '王小明',
-  email: 'wang@example.com',
-  memberSince: '2026/06/12',
-  storeName: '森野選物所',
-  description: '以自然選物、居家器物為主，提供安心的慢生活提案。',
-  logoUrl: 'https://example.com/mori-logo.png',
-  submittedAt: '2026/08/20 10:24',
-}
+const application = reactive({
+  id: route.params.id,
+  memberId: '',
+  storeName: '',
+  description: '',
+  logoUrl: '',
+  submittedAt: '',
+  status: 'PENDING',
+})
 
 const canConfirm = computed(
   () => isConfirmed.value && (decision.value === 'approve' || rejectionReason.value.trim()),
 )
 
-function confirmDecision() {
-  if (!canConfirm.value) return
-  feedback.value = '此為前端審核介面；待後端審核 API 串接後才會正式送出。'
+const formatDate = (value) => (value ? new Date(value).toLocaleString('zh-TW') : '-')
+
+const loadApplication = async () => {
+  try {
+    const response = await getSellerApplication(application.id)
+    const data = response.data
+    application.memberId = data.memberId
+    application.storeName = data.storeName
+    application.description = data.storeDescription || '-'
+    application.logoUrl = data.storeLogoUrl || '-'
+    application.submittedAt = formatDate(data.createdAt)
+    application.status = data.status
+  } catch (error) {
+    feedback.value = error.response?.data?.message || '申請資料載入失敗。'
+  }
 }
+
+async function confirmDecision() {
+  if (!canConfirm.value || isSubmitting.value) return
+
+  isSubmitting.value = true
+  feedback.value = ''
+
+  try {
+    if (decision.value === 'approve') {
+      await approveSellerApplication(application.id)
+      application.status = 'APPROVED'
+      feedback.value = '申請已核准，已建立賣家資料並更新會員權限。'
+    } else {
+      await rejectSellerApplication(application.id, rejectionReason.value.trim())
+      application.status = 'REJECTED'
+      feedback.value = '申請已駁回。'
+    }
+  } catch (error) {
+    feedback.value = error.response?.data?.message || '審核操作失敗，請稍後再試。'
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+onMounted(loadApplication)
 </script>
 
 <template>
@@ -38,7 +80,7 @@ function confirmDecision() {
         </p>
         <h1 id="admin-application-detail-title">審核：{{ application.storeName }}</h1>
       </div>
-      <span class="admin-application-detail__status">待審核</span>
+      <span class="admin-application-detail__status">{{ application.status }}</span>
     </header>
 
     <aside class="admin-application-detail__notice" aria-label="核准影響說明">
@@ -51,9 +93,7 @@ function confirmDecision() {
         <article class="admin-application-detail__card">
           <h2>申請會員</h2>
           <dl>
-            <div><dt>姓名</dt><dd>{{ application.applicant }}</dd></div>
-            <div><dt>Email</dt><dd>{{ application.email }}</dd></div>
-            <div><dt>會員建立日期</dt><dd>{{ application.memberSince }}</dd></div>
+            <div><dt>會員編號</dt><dd>{{ application.memberId }}</dd></div>
           </dl>
         </article>
 
@@ -104,7 +144,7 @@ function confirmDecision() {
             <RouterLink class="admin-application-detail__back dg-focus-ring" to="/admin/seller-applications">
               返回清單
             </RouterLink>
-            <button class="admin-application-detail__confirm dg-btn-primary dg-focus-ring" :disabled="!canConfirm" type="submit">
+            <button class="admin-application-detail__confirm dg-btn-primary dg-focus-ring" :disabled="!canConfirm || isSubmitting" type="submit">
               確認{{ decision === 'approve' ? '核准' : '駁回' }}
             </button>
           </div>
