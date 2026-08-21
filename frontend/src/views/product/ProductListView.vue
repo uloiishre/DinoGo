@@ -5,8 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { logSafeError } from '@/utils/safeError'
 import ProductCard from '@/views/product/ProductCard.vue'
-import { getPublicStore } from '@/api/sellerProfileApi'
-
+import { getPublicStore, resolveSellerLogoUrl } from '@/api/sellerProfileApi'
 const route = useRoute()
 const router = useRouter()
 
@@ -144,7 +143,7 @@ const formatStoreTime = (time) => {
         <img
           v-if="storeProfile.storeLogoUrl"
           class="store-avatar-image"
-          :src="storeProfile.storeLogoUrl"
+          :src="resolveSellerLogoUrl(storeProfile.storeLogoUrl)"
           :alt="`${storeProfile.storeName} Logo`"
         />
 
