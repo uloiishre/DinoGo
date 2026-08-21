@@ -1,37 +1,36 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { listSellerApplications } from '@/api/sellerApplicationApi'
 
 const searchQuery = ref('')
+const feedback = ref('')
 
-const applications = [
-  {
-    id: 1,
-    applicant: '王小明',
-    email: 'wang@example.com',
-    storeName: '森野選物所',
-    submittedAt: '2026/08/20 10:24',
-  },
-  {
-    id: 2,
-    applicant: '陳怡安',
-    email: 'chen@example.com',
-    storeName: '慢日生活商店',
-    submittedAt: '2026/08/20 09:18',
-  },
-  {
-    id: 3,
-    applicant: '林書妍',
-    email: 'lin@example.com',
-    storeName: '山居好物',
-    submittedAt: '2026/08/19 16:42',
-  },
-]
+const applications = ref([])
+
+const formatDate = (value) => (value ? new Date(value).toLocaleString('zh-TW') : '-')
+
+const loadApplications = async () => {
+  try {
+    const response = await listSellerApplications('PENDING')
+    applications.value = response.data.map((application) => ({
+      id: application.applicationId,
+      applicant: `會員 #${application.memberId}`,
+      email: '-',
+      storeName: application.storeName,
+      submittedAt: formatDate(application.createdAt),
+    }))
+  } catch (error) {
+    feedback.value = error.response?.data?.message || '申請列表載入失敗。'
+  }
+}
+
+onMounted(loadApplications)
 
 const filteredApplications = computed(() => {
   const keyword = searchQuery.value.trim().toLocaleLowerCase()
-  if (!keyword) return applications
+  if (!keyword) return applications.value
 
-  return applications.filter((application) =>
+  return applications.value.filter((application) =>
     [application.applicant, application.email, application.storeName].some((value) =>
       value.toLocaleLowerCase().includes(keyword),
     ),
@@ -47,7 +46,7 @@ const filteredApplications = computed(() => {
         <h1 id="admin-seller-applications-title">商家申請審核</h1>
         <p>依申請資料與會員資訊完成核准或駁回。</p>
       </div>
-      <strong>待處理 12 件</strong>
+      <strong>待處理 {{ applications.length }} 件</strong>
     </header>
 
     <div class="admin-seller-applications__tabs" role="tablist" aria-label="申請狀態">
@@ -100,20 +99,21 @@ const filteredApplications = computed(() => {
         <span class="admin-seller-applications__review" role="cell">
           <RouterLink
             class="admin-seller-applications__review-link dg-btn-primary dg-focus-ring"
-            :to="{ name: 'AdminSellerApplicationDetail', params: { id: `APP-20260820-00${application.id}` } }"
+            :to="{ name: 'AdminSellerApplicationDetail', params: { id: application.id } }"
           >
             審核申請
           </RouterLink>
         </span>
       </div>
 
-      <p v-if="!filteredApplications.length" class="admin-seller-applications__empty" role="status">
+      <p v-if="feedback" class="admin-seller-applications__empty" role="status">{{ feedback }}</p>
+      <p v-else-if="!filteredApplications.length" class="admin-seller-applications__empty" role="status">
         找不到符合條件的申請。
       </p>
     </div>
 
     <footer class="admin-seller-applications__footer">
-      <p>顯示 1–3 筆，共 12 筆待審核申請</p>
+      <p>顯示 {{ filteredApplications.length }} 筆，共 {{ applications.length }} 筆待審核申請</p>
       <span aria-label="分頁"
         >‹&nbsp;&nbsp;1&nbsp;&nbsp;2&nbsp;&nbsp;3&nbsp;&nbsp;4&nbsp;&nbsp;›</span
       >

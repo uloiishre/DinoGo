@@ -2,10 +2,12 @@ package com.dinogo.seller.repository;
 
 import java.util.Collection;
 import java.util.List;
-import com.dinogo.seller.entity.Seller;
+import java.util.Optional;
+
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
-import java.util.Optional;
+
+import com.dinogo.seller.entity.Seller;
 
 public interface SellerRepository extends JpaRepository<Seller, Integer> {
     Optional<Seller> findBySellerId(Integer sellerId);
@@ -19,10 +21,7 @@ public interface SellerRepository extends JpaRepository<Seller, Integer> {
 
     boolean existsBySellerIdAndStatus(Integer sellerId, String status);
 
-    // 搜尋 store_name 包含 keyword，且 status 是 ACTIVE 的商家。
-    // 例如搜尋「森日」，可以找到「森日選物測試」。
-    List<Seller> findByStoreNameContainingAndStatus(
-            String keyword,
-            String status);
+    boolean existsByMember_MemberId(Integer memberId);
 
+    List<Seller> findByStoreNameContainingAndStatus(String keyword, String status);
 }
