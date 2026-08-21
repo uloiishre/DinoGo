@@ -6,7 +6,10 @@ globalThis.sessionStorage = {
   removeItem: () => {},
 }
 
-const [{ acceptSellerOrder, createSellerShipment, updateSellerShipmentStatus }, { default: api }] = await Promise.all([
+const [
+  { acceptSellerOrder, createSellerShipment, updateSellerShipmentStatus, updateSellerShipmentTrackingInfo },
+  { default: api },
+] = await Promise.all([
   import('../src/api/sellerOrderApi.js'),
   import('../src/api/axios.js'),
 ])
@@ -88,4 +91,30 @@ test('updateSellerShipmentStatus patches the next shipment status', async (conte
   assert.equal(request.url, '/orders/10/shipment/status')
   assert.deepEqual(JSON.parse(request.data), { status: 'SHIPPED' })
   assert.equal(response.data.status, 'SHIPPED')
+})
+
+test('updateSellerShipmentTrackingInfo patches editable shipment details', async (context) => {
+  const originalAdapter = api.defaults.adapter
+  context.after(() => {
+    api.defaults.adapter = originalAdapter
+  })
+
+  let request
+  api.defaults.adapter = async (config) => {
+    request = config
+    return {
+      data: { shipmentId: 3, status: 'PREPARING' },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+    }
+  }
+
+  const shipment = { carrierName: '新竹物流', trackingNo: 'NEW-001' }
+  await updateSellerShipmentTrackingInfo(10, shipment)
+
+  assert.equal(request.method, 'patch')
+  assert.equal(request.url, '/orders/10/shipment/tracking-info')
+  assert.deepEqual(JSON.parse(request.data), shipment)
 })

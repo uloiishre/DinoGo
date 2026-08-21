@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 
-export function useSellerShipmentStatus({ order, updateStatus, confirmAction }) {
+export function useSellerShipmentStatus({ order, updateStatus }) {
   const updatingShipment = ref(false)
   const shipmentActionError = ref('')
 
@@ -10,7 +10,6 @@ export function useSellerShipmentStatus({ order, updateStatus, confirmAction }) 
         status: 'SHIPPED',
         label: '確認出貨',
         pendingLabel: '出貨確認中…',
-        confirmMessage: '確認商品已交付物流商並完成出貨？此操作無法復原。',
       }
     }
     if (order.value?.shipment?.status === 'SHIPPED') {
@@ -18,7 +17,6 @@ export function useSellerShipmentStatus({ order, updateStatus, confirmAction }) 
         status: 'AVAILABLE_FOR_PICKUP',
         label: '標記可取貨',
         pendingLabel: '更新中…',
-        confirmMessage: '確認商品已送達取貨地點？此操作無法復原。',
       }
     }
     return null
@@ -26,8 +24,6 @@ export function useSellerShipmentStatus({ order, updateStatus, confirmAction }) 
 
   async function updateShipmentStatus() {
     if (!shipmentAction.value || updatingShipment.value) return
-    if (!confirmAction(shipmentAction.value.confirmMessage)) return
-
     const targetStatus = shipmentAction.value.status
     updatingShipment.value = true
     shipmentActionError.value = ''
