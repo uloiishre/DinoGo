@@ -15,6 +15,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.dinogo.catalog.dto.ProductCreateRequest;
 import com.dinogo.catalog.dto.ProductDetailResponse;
+import com.dinogo.catalog.dto.ProductImageResponse;
+import com.dinogo.catalog.dto.ProductImageSortUpdateRequest;
+import com.dinogo.catalog.dto.ProductImageUpdateRequest;
+import com.dinogo.catalog.dto.ProductMainImageUpdateRequest;
 import com.dinogo.catalog.dto.ProductResponse;
 import com.dinogo.catalog.dto.ProductSkuCreateRequest;
 import com.dinogo.catalog.dto.ProductSkuResponse;
@@ -115,5 +119,25 @@ public class ProductController {
             @PathVariable Integer skuId) {
 
         return productService.disableSku(productId, skuId);
+    }
+
+    // 修改商品主圖
+    @PutMapping("/{productId}/images/main")
+    public ProductImageResponse updateMainImage(
+            @PathVariable Integer productId,
+            @RequestBody ProductMainImageUpdateRequest request) {
+
+        return productService.updateMainImage(
+                productId,
+                request.getImageId());
+    }
+
+    // 修改商品排序
+    @PutMapping("/{productId}/images/sort")
+    public List<ProductImageResponse> updateImageSort(
+            @PathVariable Integer productId,
+            @RequestBody List<ProductImageSortUpdateRequest> requests) {
+
+        return productService.updateImageSort(productId, requests);
     }
 }
