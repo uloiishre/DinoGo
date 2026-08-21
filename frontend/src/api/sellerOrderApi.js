@@ -22,3 +22,7 @@ export const createSellerShipment = (orderId, shipment) => {
 export const updateSellerShipmentStatus = (orderId, status) => {
   return api.patch(`/orders/${orderId}/shipment/status`, { status })
 }
+
+export const updateSellerShipmentTrackingInfo = (orderId, shipment) => {
+  return api.patch(`/orders/${orderId}/shipment/tracking-info`, shipment)
+}
