@@ -98,7 +98,12 @@ const filteredApplications = computed(() => {
         <span role="cell">{{ application.submittedAt }}</span>
         <span role="cell"><b>待審核</b></span>
         <span class="admin-seller-applications__review" role="cell">
-          <button class="dg-btn-primary dg-focus-ring" type="button">審核申請</button>
+          <RouterLink
+            class="admin-seller-applications__review-link dg-btn-primary dg-focus-ring"
+            :to="{ name: 'AdminSellerApplicationDetail', params: { id: `APP-20260820-00${application.id}` } }"
+          >
+            審核申請
+          </RouterLink>
         </span>
       </div>
 
@@ -299,13 +304,18 @@ h1 {
   justify-content: end;
 }
 
-.admin-seller-applications__review button {
+.admin-seller-applications__review-link {
+  display: inline-flex;
   min-height: 44px;
+  align-items: center;
+  justify-content: center;
   border-radius: var(--radius-md);
   padding: 0 18px;
+  color: var(--color-surface);
   font: inherit;
   font-size: var(--font-size-sm);
   font-weight: 600;
+  text-decoration: none;
 }
 
 .admin-seller-applications__empty {

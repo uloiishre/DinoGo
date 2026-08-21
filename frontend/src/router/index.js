@@ -187,6 +187,11 @@ const routes = [
         name: 'AdminSellerApplications',
         component: () => import('@/views/admin/AdminSellerApplicationsView.vue'),
       },
+      {
+        path: 'seller-applications/:id',
+        name: 'AdminSellerApplicationDetail',
+        component: () => import('@/views/admin/AdminSellerApplicationDetailView.vue'),
+      },
     ],
   },
   {
