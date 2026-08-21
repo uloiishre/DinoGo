@@ -45,7 +45,7 @@ const application = {
           </div>
         </dl>
 
-        <hr />
+        <div class="status-divider" aria-hidden="true"></div>
 
         <p class="seller-application-status__restriction">
           資料送出後不可直接修改；若審核未通過，你可依駁回原因修正並重新提出申請。
@@ -188,11 +188,8 @@ dd {
   font-weight: 700;
 }
 
-hr {
-  width: 100%;
+.status-divider {
   height: 1px;
-  margin: 0;
-  border: 0;
   background: var(--color-border);
 }
 
