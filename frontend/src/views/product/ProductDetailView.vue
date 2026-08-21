@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '@/api/axios'
 import { logSafeError } from '@/utils/safeError'
+import { getImageUrl } from '@/utils/imageUrl'
 
 const route = useRoute()
 
@@ -26,9 +27,15 @@ const fetchProductDetail = async () => {
 
     product.value = response.data
 
-    // 預設第一張圖片
     if (product.value.images?.length) {
-      selectedImage.value = product.value.images[0].imageUrl
+      product.value.images.sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999))
+    }
+    // 預設第一張圖片為主圖
+    if (product.value.images?.length) {
+      const mainImage =
+        product.value.images.find((image) => image.isMain) ?? product.value.images[0]
+
+      selectedImage.value = mainImage.imageUrl
     }
 
     // 預設第一個 SKU
@@ -215,7 +222,7 @@ onMounted(() => {
             <div class="main-image-wrapper">
               <img
                 v-if="selectedImage"
-                :src="selectedImage"
+                :src="getImageUrl(selectedImage)"
                 :alt="product.productName"
                 class="product-main-image"
               />
@@ -235,7 +242,11 @@ onMounted(() => {
                 }"
                 @click="selectedImage = image.imageUrl"
               >
-                <img :src="image.imageUrl" :alt="product.productName" class="thumbnail-image" />
+                <img
+                  :src="getImageUrl(image.imageUrl)"
+                  :alt="product.productName"
+                  class="thumbnail-image"
+                />
               </button>
             </div>
           </div>
