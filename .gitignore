@@ -54,3 +54,6 @@ AGENTS.local.md
 frontend/node_modules/
 frontend/dist/
 frontend/*.local
+
+# Uploaded runtime files
+backend/uploads/
