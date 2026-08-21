@@ -27,12 +27,12 @@
 目前 `DinoGo` 實際有 29 張資料表與 10 個 Schema。`DinoGo_0811_schema.sql`
 也與此實際狀態一致。
 
-| 項目 | 文件設計 | 0811 實際匯出 |
-| ---- | -------- | ------------ |
-| 資料表數量 | 35 張 | 29 張 |
-| Schema 數量 | 9 個 | 10 個 |
-| 實際多出的 Schema | 無 | `sysmsg`（目前沒有資料表） |
-| 文件中尚未建立的表 | 無 | `review.ProductRecord`、`review.MemberRecord`、`msg.MsgTemplate`、`msg.MsgSample`、`msg.Msg`、`msg.MsgRecipient` |
+| 項目               | 文件設計 | 0811 實際匯出                                                                                                    |
+| ------------------ | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| 資料表數量         | 35 張    | 29 張                                                                                                            |
+| Schema 數量        | 9 個     | 10 個                                                                                                            |
+| 實際多出的 Schema  | 無       | `sysmsg`（目前沒有資料表）                                                                                       |
+| 文件中尚未建立的表 | 無       | `review.ProductRecord`、`review.MemberRecord`、`msg.MsgTemplate`、`msg.MsgSample`、`msg.Msg`、`msg.MsgRecipient` |
 
 因此目前資料庫實際狀態與文件設計規格不一致。MSSQL DDL 區塊仍保留 35 張表的設計版本；若 6 張表已確定不再使用，才應進一步同步刪除 DBML、DDL、責任分工與驗收標準中的相關內容。
 
@@ -123,6 +123,20 @@ Table seller.Seller {
   status varchar(30) [not null]
   created_at datetime2 [not null, default: `SYSDATETIME()`]
   updated_at datetime2 [not null, default: `SYSDATETIME()`]
+}
+// E：賣家申請審核
+Table seller.SellerApplication {
+  application_id int [pk, increment]
+  member_id int [not null, ref: > member.Member.member_id]
+  store_name varchar(100) [not null]
+  store_description varchar(500)
+  store_logo_url varchar(255)
+  status varchar(30) [not null]
+  reject_reason varchar(500)
+  reviewed_by int
+  reviewed_at datetime2
+  created_at datetime2 [not null]
+  updated_at datetime2 [not null]
 }
 
 // B：商品目錄模組
@@ -848,15 +862,15 @@ Table service.Reply {
 
 ## 模組責任對照表
 
-| 組員             | 負責資料表                                                                                                                                                                      | 說明                                                                            |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| A                | `member.Member`, `member.Address`, `member.Role`, `member.MemberRole`, `member.MemberOAuthAccount`                                                                                                              | 會員與帳號模組，負責會員資料、地址、角色、權限關聯與第三方登入對照              |
-| B                | `catalog.Category`, `catalog.Subcategory`, `catalog.Brand`, `catalog.Product`, `catalog.ProductSku`, `catalog.ProductImage`                                                                                                   | 商品目錄模組，負責商品分類、品牌、商品與商品 SKU 管理                           |
-| C                | `cart.Cart`, `cart.CartItem`, `cart.Favorite`                                                                                                                                                 | 購物車與收藏模組，負責購物車內容與會員收藏清單                                  |
-| D                | `sales.Orders`, `sales.OrderItem`, `sales.PaymentMethod`, `sales.Payment`, `sales.Shipment`                                                                                                                 | 訂單、付款與物流模組，負責訂單流轉、付款紀錄與物流狀態                          |
-| E                | `seller.Seller`, `seller.Coupon`, `seller.MemberCoupon`, `seller.SellerAiSalesAnalysis`                                                                                                                  | 賣家中心後台模組，負責商家資料、賣家優惠券、會員領券紀錄與 AI 銷售分析           |
+| 組員             | 負責資料表                                                                                                                                                                                               | 說明                                                                            |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| A                | `member.Member`, `member.Address`, `member.Role`, `member.MemberRole`, `member.MemberOAuthAccount`                                                                                                       | 會員與帳號模組，負責會員資料、地址、角色、權限關聯與第三方登入對照              |
+| B                | `catalog.Category`, `catalog.Subcategory`, `catalog.Brand`, `catalog.Product`, `catalog.ProductSku`, `catalog.ProductImage`                                                                              | 商品目錄模組，負責商品分類、品牌、商品與商品 SKU 管理                           |
+| C                | `cart.Cart`, `cart.CartItem`, `cart.Favorite`                                                                                                                                                            | 購物車與收藏模組，負責購物車內容與會員收藏清單                                  |
+| D                | `sales.Orders`, `sales.OrderItem`, `sales.PaymentMethod`, `sales.Payment`, `sales.Shipment`                                                                                                              | 訂單、付款與物流模組，負責訂單流轉、付款紀錄與物流狀態                          |
+| E                | `seller.Seller`, `seller.Coupon`, `seller.MemberCoupon`, `seller.SellerAiSalesAnalysis`                                                                                                                  | 賣家中心後台模組，負責商家資料、賣家優惠券、會員領券紀錄與 AI 銷售分析          |
 | F                | `msg.MsgTemplate`, `msg.MsgSample`, `msg.Msg`, `msg.MsgRecipient`, `review.ProductRecord`, `review.MemberRecord`, `service.Role`, `service.Topic`, `service.Subtheme`, `service.Demand`, `service.Reply` | 通知、評價與客服模組，負責正式訊息、收件狀態、商品/會員評價、客服分類與系統回覆 |
-| 全體組員（暫定） | `ai.AiConversation`                                                                                                                                                               | AI 對話對照模組，暫定由全體組員共同負責                                         |
+| 全體組員（暫定） | `ai.AiConversation`                                                                                                                                                                                      | AI 對話對照模組，暫定由全體組員共同負責                                         |
 
 ## 建表順序（MSSQL）
 
@@ -1090,7 +1104,7 @@ SET IDENTITY_INSERT seller.Coupon OFF;
 - AI 模組 `ai.AiConversation` 暫定由全體組員共同負責。
 - 資料庫命名應使用 SQL Server Schema 架構；不得使用 PostgreSQL 預設 Schema `public`。
 - Schema 使用小寫模組名，資料表使用 PascalCase，例如 member.Member、member.Address、
-eview.ProductRecord。
+  eview.ProductRecord。
 - 不應保留舊訊息表名 `notification_template`、`notification`；訊息相關表應為 `msg.MsgTemplate`、`msg.MsgSample`、`msg.Msg`、`msg.MsgRecipient`。
 - 訊息型別欄位統一使用 `msg_type`，不再混用 `mesg_type` 或 `message_type`。
 - `member.Member` 與 `cart.Cart` 應為一對一，`cart.Cart.member_id` 必須唯一。
@@ -1600,13 +1614,13 @@ CREATE INDEX ix_seller_ai_sales_analysis_period ON seller.SellerAiSalesAnalysis(
 
 目前這份資料模型總共有 35 張表。A-F 組員負責 34 張，AI 模組 1 張暫定由全體組員共同負責。
 
-| 模組 / 組員                       | 資料表                                                                                                                                                                          | 小計 |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| A：會員與帳號模組                 | `member.Member`, `member.Address`, `member.Role`, `member.MemberRole`, `member.MemberOAuthAccount`                                                                                                              | 5    |
-| B：商品目錄模組                   | `catalog.Category`, `catalog.Subcategory`, `catalog.Brand`, `catalog.Product`, `catalog.ProductSku`, `catalog.ProductImage`                                                                                                   | 6    |
-| C：購物車與收藏模組               | `cart.Cart`, `cart.CartItem`, `cart.Favorite`                                                                                                                                                 | 3    |
-| D：訂單、付款與物流模組           | `sales.Orders`, `sales.OrderItem`, `sales.PaymentMethod`, `sales.Payment`, `sales.Shipment`                                                                                                                 | 5    |
-| E：賣家中心模組                   | `seller.Seller`, `seller.Coupon`, `seller.MemberCoupon`, `seller.SellerAiSalesAnalysis`                                                                                                                  | 4    |
-| F：通知、評價與客服模組           | `msg.MsgTemplate`, `msg.MsgSample`, `msg.Msg`, `msg.MsgRecipient`, `review.ProductRecord`, `review.MemberRecord`, `service.Role`, `service.Topic`, `service.Subtheme`, `service.Demand`, `service.Reply` | 11   |
-| 全體組員（暫定）：AI 模組         | `ai.AiConversation`                                                                                                                                                               | 1    |
-| 總計                              | A-F 小計 34 張，AI 全體暫定負責 1 張                                                                                                                                            | 35   |
+| 模組 / 組員               | 資料表                                                                                                                                                                                                   | 小計 |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| A：會員與帳號模組         | `member.Member`, `member.Address`, `member.Role`, `member.MemberRole`, `member.MemberOAuthAccount`                                                                                                       | 5    |
+| B：商品目錄模組           | `catalog.Category`, `catalog.Subcategory`, `catalog.Brand`, `catalog.Product`, `catalog.ProductSku`, `catalog.ProductImage`                                                                              | 6    |
+| C：購物車與收藏模組       | `cart.Cart`, `cart.CartItem`, `cart.Favorite`                                                                                                                                                            | 3    |
+| D：訂單、付款與物流模組   | `sales.Orders`, `sales.OrderItem`, `sales.PaymentMethod`, `sales.Payment`, `sales.Shipment`                                                                                                              | 5    |
+| E：賣家中心模組           | `seller.Seller`, `seller.Coupon`, `seller.MemberCoupon`, `seller.SellerAiSalesAnalysis`                                                                                                                  | 4    |
+| F：通知、評價與客服模組   | `msg.MsgTemplate`, `msg.MsgSample`, `msg.Msg`, `msg.MsgRecipient`, `review.ProductRecord`, `review.MemberRecord`, `service.Role`, `service.Topic`, `service.Subtheme`, `service.Demand`, `service.Reply` | 11   |
+| 全體組員（暫定）：AI 模組 | `ai.AiConversation`                                                                                                                                                                                      | 1    |
+| 總計                      | A-F 小計 34 張，AI 全體暫定負責 1 張                                                                                                                                                                     | 35   |
