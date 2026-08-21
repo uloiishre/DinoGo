@@ -90,7 +90,7 @@ const getUnavailableText = (favorite) => {
   }
 
   if (Number(favorite.skuStatus) !== 1) {
-    return '規格已停用'
+    return '商品無法購買'
   }
 
   if (Number(favorite.skuStock || 0) <= 0) {
@@ -149,7 +149,7 @@ const getUnavailableReason = (favorite) => {
   }
 
   if (Number(favorite.skuStatus) !== 1) {
-    return '規格已停用'
+    return '商品無法購買'
   }
 
   if (Number(favorite.skuStock || 0) <= 0) {
@@ -293,7 +293,6 @@ onMounted(() => {
           }"
         >
           <!-- 商品圖片 -->
-          <!-- 商品圖片 -->
 
           <RouterLink
             v-if="isFavoriteAvailable(favorite)"
@@ -397,6 +396,19 @@ onMounted(() => {
           </div>
         </article>
       </div>
+      <!-- ================================
+           沒有收藏商品
+      ================================= -->
+
+      <div v-else class="empty-favorite">
+        <div class="empty-icon">
+          <i class="bi bi-heart"></i>
+        </div>
+
+        <h2>收藏商品會顯示在這裡</h2>
+
+        <p>立刻去逛逛，找到喜歡的商品吧</p>
+      </div>
       <!-- ========================================
      SKU 選擇 Modal
 ======================================== -->
@@ -473,7 +485,7 @@ onMounted(() => {
                     {{ sku.skuName }}
                   </strong>
 
-                  <span v-if="Number(sku.skuStatus) !== 1"> 規格已停用 </span>
+                  <span v-if="Number(sku.skuStatus) !== 1"> 商品無法購買 </span>
 
                   <span v-else-if="Number(sku.skuStock || 0) <= 0"> 庫存不足 </span>
 
@@ -514,19 +526,6 @@ onMounted(() => {
             </button>
           </div>
         </div>
-      </div>
-      <!-- ================================
-           沒有收藏商品
-      ================================= -->
-
-      <div v-else class="empty-favorite">
-        <div class="empty-icon">
-          <i class="bi bi-heart"></i>
-        </div>
-
-        <h2>收藏商品會顯示在這裡</h2>
-
-        <p>立刻去逛逛，找到喜歡的商品吧</p>
       </div>
     </div>
   </main>

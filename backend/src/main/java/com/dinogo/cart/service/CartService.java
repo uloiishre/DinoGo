@@ -175,9 +175,7 @@ public class CartService {
 		// =========================
 
 		if (quantity == null || quantity <= 0) {
-
-			throw new RuntimeException(
-					"商品數量必須大於 0");
+			throw new RuntimeException("商品數量必須大於 0");
 		}
 
 		// =========================
@@ -186,8 +184,7 @@ public class CartService {
 
 		Member member = memberRepository
 				.findByEmail(email)
-				.orElseThrow(() -> new RuntimeException(
-						"會員不存在"));
+				.orElseThrow(() -> new RuntimeException("會員不存在"));
 
 		// =========================
 		// 找購物車商品
@@ -195,8 +192,7 @@ public class CartService {
 
 		CartItem item = cartItemRepository
 				.findById(cartItemId)
-				.orElseThrow(() -> new RuntimeException(
-						"購物車商品不存在"));
+				.orElseThrow(() -> new RuntimeException("購物車商品不存在"));
 
 		// =========================
 		// 確認是否為本人購物車
@@ -207,13 +203,12 @@ public class CartService {
 				.getMemberId()
 				.equals(member.getMemberId())) {
 
-			throw new RuntimeException(
-					"無權限修改此購物車商品");
+			throw new RuntimeException("無權限修改此購物車商品");
 		}
 
-		// =========================
-		// 如果有傳 skuId
-		// =========================
+		// =========================================================
+		// 如果有傳 skuId，處理 SKU 修改
+		// =========================================================
 
 		if (skuId != null) {
 
@@ -221,7 +216,10 @@ public class CartService {
 
 			Product oldProduct = oldSku.getProduct();
 
+			// =========================
 			// 找新的 SKU
+			// =========================
+
 			ProductSku newSku = productSkuRepository
 					.findById(skuId)
 					.orElseThrow(() -> new RuntimeException(
@@ -237,6 +235,29 @@ public class CartService {
 
 				throw new RuntimeException(
 						"不能更換其他商品的規格");
+			}
+
+			// =====================================================
+			// 如果 SKU 根本沒有改變
+			// =====================================================
+
+			if (oldSku.getSkuId().equals(newSku.getSkuId())) {
+
+				// 檢查庫存
+				if (newSku.getStock() == null
+						|| quantity > newSku.getStock()) {
+
+					throw new RuntimeException(
+							"商品庫存不足，目前剩餘 "
+									+ newSku.getStock()
+									+ " 件");
+				}
+
+				item.setQuantity(quantity);
+
+				item = cartItemRepository.save(item);
+
+				return toResponse(item);
 			}
 
 			// =========================
@@ -261,11 +282,64 @@ public class CartService {
 						"此商品規格目前未啟用");
 			}
 
-			// =========================
-			// 新 SKU 庫存
-			// =========================
+			// =====================================================
+			// ⭐ 找目前購物車是否已經有新的 SKU
+			// =====================================================
 
-			if (quantity > newSku.getStock()) {
+			CartItem existingItem = cartItemRepository
+					.findByCartCartIdAndProductSkuSkuId(
+							item.getCart().getCartId(),
+							newSku.getSkuId());
+
+			// =====================================================
+			// 情況 1：購物車已經有這個 SKU
+			// =====================================================
+
+			if (existingItem != null) {
+
+				// 原本數量 + 目標 SKU 原本數量
+				int mergedQuantity = existingItem.getQuantity() + item.getQuantity();
+
+				// =========================
+				// 檢查合併後庫存
+				// =========================
+
+				if (newSku.getStock() == null
+						|| mergedQuantity > newSku.getStock()) {
+
+					throw new RuntimeException(
+							"合併後商品數量超過庫存，目前剩餘 "
+									+ newSku.getStock()
+									+ " 件");
+				}
+
+				// =========================
+				// 合併數量
+				// =========================
+
+				existingItem.setQuantity(mergedQuantity);
+
+				// =========================
+				// 刪除原本 CartItem
+				// =========================
+
+				cartItemRepository.delete(item);
+
+				// =========================
+				// 儲存合併後商品
+				// =========================
+
+				existingItem = cartItemRepository.save(existingItem);
+
+				return toResponse(existingItem);
+			}
+
+			// =====================================================
+			// 情況 2：購物車沒有這個 SKU
+			// =====================================================
+
+			if (newSku.getStock() == null
+					|| quantity > newSku.getStock()) {
 
 				throw new RuntimeException(
 						"商品庫存不足，目前剩餘 "
@@ -273,18 +347,23 @@ public class CartService {
 								+ " 件");
 			}
 
-			// =========================
-			// ⭐ 真正更換 SKU
-			// =========================
-
+			// 直接修改 SKU
 			item.setProductSku(newSku);
+
+			// 修改數量
+			item.setQuantity(quantity);
+
+			item = cartItemRepository.save(item);
+
+			return toResponse(item);
 		}
 
-		// =========================
-		// 取得目前 SKU
-		// =========================
+		// =========================================================
+		// 沒有傳 skuId → 單純修改數量
+		// =========================================================
 
 		ProductSku sku = item.getProductSku();
+
 		Product product = sku.getProduct();
 
 		// =========================
@@ -313,7 +392,8 @@ public class CartService {
 		// 庫存
 		// =========================
 
-		if (quantity > sku.getStock()) {
+		if (sku.getStock() == null
+				|| quantity > sku.getStock()) {
 
 			throw new RuntimeException(
 					"商品庫存不足，目前剩餘 "
@@ -327,15 +407,10 @@ public class CartService {
 
 		item.setQuantity(quantity);
 
-		// =========================
-		// 儲存
-		// =========================
-
 		item = cartItemRepository.save(item);
 
 		return toResponse(item);
 	}
-
 	// =========================================================
 	// 修改 SKU + 數量
 	// =========================================================
@@ -576,6 +651,7 @@ public class CartService {
 		return new CartItemResponse(
 				cartItem.getCartItemId(),
 				sku.getSkuId(),
+				product.getProductId(),
 				product.getProductName(),
 				sku.getPrice(),
 				cartItem.getQuantity(),

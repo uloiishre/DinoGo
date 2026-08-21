@@ -28,7 +28,7 @@ const stockErrorItems = ref([])
 // ========================================
 
 const checkoutItems = ref([])
-
+const checkoutSellerId = ref(null)
 // ========================================
 // 收件地址
 // ========================================
@@ -45,9 +45,25 @@ const shippingMethod = ref('HOME_DELIVERY')
 // ========================================
 // 付款方式
 // ========================================
-
 const paymentMethod = ref('CASH_ON_DELIVERY')
 const paymentSimulationEnabled = ref(false)
+
+const loadPaymentCapabilities = async () => {
+  try {
+    const response = await getPaymentCapabilities()
+
+    const data = response.data
+
+    console.log('付款能力：', data)
+
+    paymentSimulationEnabled.value = data?.simulationEnabled === true || data?.enabled === true
+  } catch (error) {
+    logSafeError('取得付款能力失敗：', error)
+
+    paymentSimulationEnabled.value = false
+  }
+}
+
 // ========================================
 // 訂單備註
 // ========================================
@@ -83,11 +99,11 @@ const selectedAddress = computed(() => {
 
 const selectedCoupon = computed(() => {
   return coupons.value.find(
-    (coupon) => coupon.memberCouponId === selectedMemberCouponId.value,
+    (coupon) => Number(coupon.memberCouponId) === Number(selectedMemberCouponId.value),
   )
 })
 
-const onlinePaymentAvailable = computed(() => paymentSimulationEnabled.value)
+const onlinePaymentAvailable = computed(() => true)
 
 // ========================================
 // 金額格式
@@ -194,6 +210,12 @@ const loadCheckoutItems = () => {
 
     checkoutItems.value = parsedData.items
 
+    // 記住這次結帳的賣家
+    checkoutSellerId.value = Number(parsedData.sellerId)
+
+    console.log('Checkout 商品：', checkoutItems.value)
+    console.log('Checkout Seller ID：', checkoutSellerId.value)
+
     // ========================================
     // 成功
     // ========================================
@@ -245,7 +267,6 @@ const loadCoupons = async () => {
     const response = await api.get('/member/coupons')
 
     coupons.value = (response.data || []).filter((coupon) => coupon.status === 'AVAILABLE')
-
   } catch (error) {
     logSafeError('取得優惠券失敗：', error)
 
@@ -256,21 +277,43 @@ const loadCoupons = async () => {
     couponLoading.value = false
   }
 }
-
-const loadPaymentCapabilities = async () => {
-  try {
-    const response = await getPaymentCapabilities()
-    paymentSimulationEnabled.value = response.data?.simulationEnabled === true
-  } catch (error) {
-    logSafeError('取得付款能力失敗：', error)
-    paymentSimulationEnabled.value = false
+const getCouponUnavailableReason = (coupon) => {
+  // 不同賣家
+  if (Number(coupon.sellerId) !== Number(checkoutSellerId.value)) {
+    return '此優惠券不適用於目前商品'
   }
 
-  if (!paymentSimulationEnabled.value && paymentMethod.value !== 'CASH_ON_DELIVERY') {
-    paymentMethod.value = 'CASH_ON_DELIVERY'
+  // 最低消費
+  const minPurchaseAmount = Number(coupon.minPurchaseAmount ?? 0)
+  const currentSubtotal = Number(subtotal.value ?? 0)
+
+  if (currentSubtotal < minPurchaseAmount) {
+    return `未滿 NT$ ${formatPrice(minPurchaseAmount)}，不可使用`
   }
+
+  return ''
 }
+//判斷是否該賣家的優惠券
+const isCouponAvailable = (coupon) => {
+  const sameSeller = Number(coupon.sellerId) === Number(checkoutSellerId.value)
 
+  const minPurchaseAmount = Number(coupon.minPurchaseAmount ?? 0)
+  const currentSubtotal = Number(subtotal.value ?? 0)
+
+  // console.log('優惠券判斷：', {
+  //   couponName: coupon.couponName,
+  //   sellerId: coupon.sellerId,
+  //   checkoutSellerId: checkoutSellerId.value,
+  //   minPurchaseAmount,
+  //   currentSubtotal,
+  //   result: sameSeller && currentSubtotal >= minPurchaseAmount,
+  // })
+
+  return sameSeller && currentSubtotal >= minPurchaseAmount
+}
+const getCouponSellerName = (coupon) => {
+  return coupon.sellerName || `賣家 #${coupon.sellerId}`
+}
 // ========================================
 // 建立 Checkout Preview Request
 // ========================================
@@ -308,26 +351,38 @@ const loadCheckoutPreview = async () => {
 
     const request = buildPreviewRequest()
 
+    console.log('================================')
+    console.log('Checkout Preview Request')
+    console.log(request)
+    console.log('memberCouponId: ', request.memberCouponId)
+    console.log('================================')
+
     const response = await api.post('/checkout/preview', request)
 
     const data = response.data
 
-    subtotal.value = Number(data.subtotal || 0)
+    console.log('================================')
+    console.log('Checkout Preview Response')
+    console.log(data)
+    console.log('subtotal：', data.subtotal)
+    console.log('shippingFee：', data.shippingFee)
+    console.log('discount：', data.discount)
+    console.log('totalAmount：', data.totalAmount)
+    console.log('================================')
 
-    shippingFee.value = Number(data.shippingFee || 0)
-
-    discount.value = Number(data.discount || 0)
-
-    totalAmount.value = Number(data.totalAmount || 0)
-
+    subtotal.value = Number(data.subtotal ?? 0)
+    shippingFee.value = Number(data.shippingFee ?? 0)
+    discount.value = Number(data.discount ?? 0)
+    totalAmount.value = Number(data.totalAmount ?? 0)
   } catch (error) {
     logSafeError('取得結帳金額失敗：', error)
 
     errorMessage.value = error.response?.data?.message || '無法取得訂單金額'
 
-    // 如果優惠券無效
-    if (selectedMemberCouponId.value) {
+    // 優惠券無效才清除優惠券
+    if (selectedMemberCouponId.value !== null) {
       selectedMemberCouponId.value = null
+      discount.value = 0
     }
   } finally {
     loading.value = false
@@ -361,9 +416,23 @@ const changePaymentMethod = async () => {
 // ========================================
 // 優惠券改變
 // ========================================
-
 const changeCoupon = async () => {
   couponErrorMessage.value = ''
+  errorMessage.value = ''
+
+  const coupon = selectedCoupon.value
+
+  // 防止其他賣家的優惠券被套用
+  if (coupon && !isCouponAvailable(coupon)) {
+    selectedMemberCouponId.value = null
+
+    console.warn('此優惠券不屬於目前結帳賣家')
+
+    return
+  }
+
+  console.log('選擇優惠券 ID：', selectedMemberCouponId.value)
+  console.log('選擇優惠券：', selectedCoupon.value)
 
   await loadCheckoutPreview()
 }
@@ -462,7 +531,7 @@ const submitOrder = async () => {
   const submittedPaymentMethod = paymentMethod.value
   let createdOrderId = null
 
-  if (submittedPaymentMethod !== 'CASH_ON_DELIVERY' && !onlinePaymentAvailable.value) {
+  if (submittedPaymentMethod !== 'CASH_ON_DELIVERY' && !paymentSimulationEnabled.value) {
     errorMessage.value = '目前環境未啟用線上付款，請選擇貨到付款。'
     return
   }
@@ -976,7 +1045,6 @@ onMounted(() => {
                   <span>使用 LINE Pay 線上付款</span>
                 </span>
               </label>
-
             </div>
           </section>
 
@@ -1063,45 +1131,80 @@ onMounted(() => {
                 :key="coupon.memberCouponId"
                 class="coupon-card"
                 :class="{
-                  selected: selectedMemberCouponId === coupon.memberCouponId,
+                  selected:
+                    selectedMemberCouponId === Number(coupon.memberCouponId) &&
+                    isCouponAvailable(coupon),
+
+                  disabled: !isCouponAvailable(coupon),
                 }"
               >
                 <input
                   v-model="selectedMemberCouponId"
                   type="radio"
                   name="coupon"
-                  :value="coupon.memberCouponId"
+                  :value="Number(coupon.memberCouponId)"
+                  :disabled="!isCouponAvailable(coupon)"
                   @change="changeCoupon"
                 />
 
                 <span class="coupon-radio"></span>
 
                 <span class="coupon-content">
+                  <!-- 優惠券名稱 -->
                   <strong>
                     {{ coupon.couponName || coupon.name || '優惠券' }}
                   </strong>
 
+                  <!-- 優惠券代碼 -->
                   <span v-if="coupon.couponCode" class="coupon-code">
                     {{ coupon.couponCode }}
                   </span>
 
+                  <!-- 所屬賣家 -->
+                  <span class="coupon-seller">
+                    <i class="bi bi-shop"></i>
+                    {{ getCouponSellerName(coupon) }}
+                  </span>
+
+                  <!-- 折扣 -->
                   <span>
                     {{ getCouponDiscountText(coupon) }}
                   </span>
 
-                  <span v-if="coupon.minOrderAmount != null">
+                  <!-- 最低消費 -->
+                  <span v-if="coupon.minPurchaseAmount != null">
                     滿 NT$
-                    {{ formatPrice(coupon.minOrderAmount) }} 使用
+                    {{ formatPrice(coupon.minPurchaseAmount) }}
+                    使用
                   </span>
 
+                  <!-- 有效期限 -->
                   <span v-if="coupon.expireDate">
                     有效期限：
                     {{ coupon.expireDate }}
                   </span>
+
+                  <!-- 是否適用 -->
+                  <span
+                    class="coupon-availability"
+                    :class="{
+                      available: isCouponAvailable(coupon),
+                      unavailable: !isCouponAvailable(coupon),
+                    }"
+                  >
+                    <template v-if="isCouponAvailable(coupon)"> ✓ 可用於本次訂單 </template>
+
+                    <template v-else>
+                      {{ getCouponUnavailableReason(coupon) }}
+                    </template>
+                  </span>
                 </span>
 
                 <span
-                  v-if="selectedMemberCouponId === coupon.memberCouponId"
+                  v-if="
+                    selectedMemberCouponId === Number(coupon.memberCouponId) &&
+                    isCouponAvailable(coupon)
+                  "
                   class="coupon-selected-badge"
                 >
                   已選
@@ -2395,5 +2498,67 @@ onMounted(() => {
   color: var(--color-text-subtle);
 
   font-size: var(--font-size-xs);
+}
+/* ========================================
+   優惠券所屬賣家
+======================================== */
+
+.coupon-seller {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  color: var(--color-text-subtle) !important;
+
+  font-size: var(--font-size-xs);
+}
+
+.coupon-seller i {
+  font-size: 12px;
+}
+
+/* ========================================
+   優惠券可用狀態
+======================================== */
+
+.coupon-availability {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+}
+
+.coupon-availability.available {
+  color: var(--color-success) !important;
+}
+
+.coupon-availability.unavailable {
+  color: var(--color-text-subtle) !important;
+}
+
+/* ========================================
+   其他賣家優惠券
+======================================== */
+
+.coupon-card.disabled {
+  background: var(--color-surface-soft);
+
+  border-color: var(--color-border);
+
+  opacity: 0.5;
+
+  cursor: not-allowed;
+}
+
+.coupon-card.disabled:hover {
+  background: var(--color-surface-soft);
+
+  border-color: var(--color-border);
+}
+
+.coupon-card.disabled .coupon-radio {
+  border-color: var(--color-border);
+}
+
+.coupon-card.disabled .coupon-content strong {
+  color: var(--color-text-muted);
 }
 </style>
