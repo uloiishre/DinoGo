@@ -38,6 +38,7 @@ import com.dinogo.sales.entity.OrderStatus;
 import com.dinogo.sales.entity.Payment;
 import com.dinogo.sales.entity.PaymentStatus;
 import com.dinogo.sales.entity.Shipment;
+import com.dinogo.sales.entity.ShipmentStatus;
 import com.dinogo.sales.exception.InvalidOrderException;
 import com.dinogo.sales.exception.OrderNotFoundException;
 import com.dinogo.sales.repository.OrderRepository;
@@ -49,6 +50,7 @@ import com.dinogo.seller.repository.SellerRepository;
 public class OrderService {
 
     private static final DateTimeFormatter ORDER_NO_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
+    private static final String CASH_ON_DELIVERY = "CASH_ON_DELIVERY";
 
     private final OrderRepository orderRepository;
     private final AddressRepository addressRepository;
@@ -245,9 +247,7 @@ public class OrderService {
                 .findForCancellation(orderId, buyerId)
                 .orElseThrow(() -> new OrderNotFoundException("Order does not exist"));
 
-        validateStatusTransition(
-                order.getStatus(),
-                OrderStatus.CANCELLED);
+        validateBuyerCancellation(order);
 
         restoreStock(order);
         cancelPayments(order);
@@ -264,6 +264,24 @@ public class OrderService {
         order.getPayments().stream()
                 .filter(payment -> payment.getStatus() == PaymentStatus.PENDING)
                 .forEach(payment -> payment.setStatus(PaymentStatus.CANCELLED));
+    }
+
+    private void validateBuyerCancellation(Order order) {
+        if (order.getStatus() == OrderStatus.PENDING_PAYMENT) {
+            return;
+        }
+
+        boolean isUnshippedCashOnDeliveryOrder = order.getStatus() == OrderStatus.PROCESSING
+                && (order.getShipment() == null
+                        || order.getShipment().getStatus() == ShipmentStatus.PREPARING)
+                && order.getPayments().stream().anyMatch(payment ->
+                        payment.getStatus() == PaymentStatus.PENDING
+                                && CASH_ON_DELIVERY.equals(
+                                        payment.getPaymentMethod().getMethodCode()));
+        if (!isUnshippedCashOnDeliveryOrder) {
+            throw new InvalidOrderException(
+                    "Only pending-payment orders or unshipped cash-on-delivery orders can be cancelled");
+        }
     }
 
     private void restoreStock(Order order) {

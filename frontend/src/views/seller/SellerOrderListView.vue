@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { acceptSellerOrder, getSellerOrders } from '@/api/sellerOrderApi'
 
@@ -10,6 +10,10 @@ const activeStatus = ref('ALL')
 const keyword = ref('')
 const acceptingOrderId = ref(null)
 const actionErrors = ref({})
+const fetchingOrders = ref(false)
+const AUTO_REFRESH_INTERVAL_MS = 10_000
+let autoRefreshTimer = null
+let latestLoadRequestId = 0
 
 const statusTabs = [
   { label: '全部', value: 'ALL', statuses: [] },
@@ -34,17 +38,40 @@ const statusLabels = {
   SHIPPED: '待收貨', COMPLETED: '已完成', CANCELLED: '不成立',
 }
 
-async function loadOrders() {
-  loading.value = true
-  errorMessage.value = ''
+async function loadOrders({ silent = false } = {}) {
+  if (fetchingOrders.value) return
+
+  const requestId = ++latestLoadRequestId
+  fetchingOrders.value = true
+  if (!silent) {
+    loading.value = true
+    errorMessage.value = ''
+  }
   try {
     const response = await getSellerOrders()
-    orders.value = Array.isArray(response.data) ? response.data : []
+    if (requestId === latestLoadRequestId) {
+      orders.value = Array.isArray(response.data) ? response.data : []
+    }
   } catch (error) {
-    errorMessage.value = error.response?.data?.message ?? '無法載入賣家訂單。'
+    if (!silent && requestId === latestLoadRequestId) {
+      errorMessage.value = error.response?.data?.message ?? '無法載入賣家訂單。'
+    }
   } finally {
-    loading.value = false
+    if (requestId === latestLoadRequestId) {
+      if (!silent) loading.value = false
+      fetchingOrders.value = false
+    }
   }
+}
+
+function invalidatePendingOrderLoad() {
+  latestLoadRequestId += 1
+  fetchingOrders.value = false
+}
+
+function refreshOrdersSilently() {
+  if (document.hidden) return
+  void loadOrders({ silent: true })
 }
 
 async function acceptOrder(order) {
@@ -54,6 +81,7 @@ async function acceptOrder(order) {
   actionErrors.value = { ...actionErrors.value, [order.orderId]: '' }
   try {
     const response = await acceptSellerOrder(order.orderId)
+    invalidatePendingOrderLoad()
     order.status = response.data.status
   } catch (error) {
     actionErrors.value = {
@@ -88,7 +116,18 @@ const formatDate = (value) => value ? new Intl.DateTimeFormat('zh-TW', {
   dateStyle: 'medium', timeStyle: 'short',
 }).format(new Date(value)) : '—'
 
-onMounted(loadOrders)
+onMounted(() => {
+  void loadOrders()
+  window.addEventListener('focus', refreshOrdersSilently)
+  document.addEventListener('visibilitychange', refreshOrdersSilently)
+  autoRefreshTimer = window.setInterval(refreshOrdersSilently, AUTO_REFRESH_INTERVAL_MS)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('focus', refreshOrdersSilently)
+  document.removeEventListener('visibilitychange', refreshOrdersSilently)
+  if (autoRefreshTimer !== null) window.clearInterval(autoRefreshTimer)
+})
 </script>
 
 <template>
