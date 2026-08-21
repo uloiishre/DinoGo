@@ -39,12 +39,28 @@ const fetchCart = async () => {
     cart.value = {
       ...response.data,
 
-      items: (response.data.items || []).map((item) => ({
-        ...item,
+      items: (response.data.items || [])
+        .map((item) => ({
+          ...item,
 
-        // 只有可購買商品才保留勾選
-        selected: false,
-      })),
+          // 只有可購買商品才保留勾選
+          selected: false,
+        }))
+        .sort((a, b) => {
+          // 第一層：productId 排序
+          const productIdA = Number(a.productId)
+          const productIdB = Number(b.productId)
+
+          if (productIdA !== productIdB) {
+            return productIdA - productIdB
+          }
+
+          // 第二層：同商品按照 skuId 排序
+          const skuIdA = Number(a.skuId)
+          const skuIdB = Number(b.skuId)
+
+          return skuIdA - skuIdB
+        }),
     }
 
     // 重新取得購物車後
@@ -62,7 +78,18 @@ const fetchCart = async () => {
     loading.value = false
   }
 }
+// ================================
+// 前往商品 Detail
+// ================================
 
+const goToProductDetail = (item) => {
+  if (!item.productId) {
+    console.error('找不到商品 ID：', item)
+    return
+  }
+
+  router.push(`/products/${item.productId}`)
+}
 // ================================
 // 依照 sellerId 分組
 // ================================
@@ -330,8 +357,6 @@ const changeSku = async (item, newSkuId) => {
     return
   }
 
-  const oldSkuId = item.skuId
-
   changingSkuId.value = item.cartItemId
 
   try {
@@ -340,17 +365,16 @@ const changeSku = async (item, newSkuId) => {
       quantity: Number(item.quantity),
     })
 
-    // 直接更新目前商品
-    Object.assign(item, response.data)
+    console.log('修改 SKU 成功：', response.data)
+
+    // ⭐ SKU 修改可能會與購物車原本的 SKU 合併
+    // 所以重新取得完整購物車
+    await fetchCart()
   } catch (error) {
     logSafeError('修改商品規格失敗:', error)
 
     alert(error.response?.data?.message || '修改商品規格失敗')
 
-    // 恢復原本 SKU
-    item.skuId = oldSkuId
-
-    // 失敗時才重新取得購物車
     await fetchCart()
   } finally {
     changingSkuId.value = null
@@ -705,7 +729,7 @@ onMounted(() => {
 
               <!-- 商品圖片 -->
 
-              <div class="item-image-wrapper">
+              <div class="item-image-wrapper" @click="goToProductDetail(item)">
                 <img
                   v-if="item.productImage"
                   :src="item.productImage"
@@ -721,7 +745,7 @@ onMounted(() => {
               <!-- 商品資訊 -->
 
               <div class="item-info">
-                <h2 class="item-name">
+                <h2 class="item-name item-name-link" @click="goToProductDetail(item)">
                   {{ item.productName }}
                 </h2>
                 <!-- 商品不可購買提示 -->
@@ -860,7 +884,7 @@ onMounted(() => {
 
               <!-- 商品圖片 -->
 
-              <div class="item-image-wrapper">
+              <div class="item-image-wrapper item-clickable" @click="goToProductDetail(item)">
                 <img
                   v-if="item.productImage"
                   :src="item.productImage"
@@ -2511,5 +2535,31 @@ onMounted(() => {
   font-size: var(--font-size-xs);
 
   font-weight: 600;
+}
+/* ========================================
+   商品點擊
+======================================== */
+
+.item-clickable {
+  cursor: pointer;
+
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.item-clickable:hover {
+  opacity: 0.9;
+  transform: scale(1.02);
+}
+
+.item-name-link {
+  cursor: pointer;
+
+  transition: color 0.15s ease;
+}
+
+.item-name-link:hover {
+  color: var(--color-primary);
 }
 </style>

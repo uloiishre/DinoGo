@@ -18,6 +18,11 @@ const memberLevel = computed(() => {
   return '一般會員'
 })
 
+// 商家申請屬於一般會員的服務入口；商家與管理員分別從其專屬後台操作。
+const canAccessMerchantService = computed(
+  () => authStore.hasRole('buyer') && !authStore.hasRole('seller') && !authStore.hasRole('admin'),
+)
+
 const memberItems = [
   { label: '總覽', to: '/member/overview', icon: 'bi-grid' },
   { label: '訂單', to: '/member/orders', icon: 'bi-box-seam' },
@@ -56,6 +61,15 @@ const isAccountActive = computed(() => accountItems.some((item) => item.routeNam
         >
           <i class="bi" :class="item.icon" aria-hidden="true"></i>
           <span>{{ item.label }}</span>
+        </RouterLink>
+
+        <RouterLink
+          v-if="canAccessMerchantService"
+          to="/member/seller-application"
+          class="dg-member-nav-link"
+        >
+          <i class="bi bi-shop" aria-hidden="true"></i>
+          <span>商家服務</span>
         </RouterLink>
 
         <!-- 帳戶設定使用下拉選單切換會員資料、地址與密碼。 -->

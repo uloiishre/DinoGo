@@ -106,6 +106,7 @@
 | `--color-primary-hover` | `var(--color-primary-600)` | hover |
 | `--color-primary-active` | `var(--color-primary-700)` | pressed、selected、current route |
 | `--color-primary-soft` | `var(--color-primary-100)` | active item、focus surface |
+| `--color-primary-notice` | `#BFC9BB` | review notice、process step badge |
 | `--color-text` | `var(--color-text)` | 主要文字 |
 | `--color-text-muted` | `var(--color-text-muted)` | 次要文字、說明 |
 | `--color-text-subtle` | `var(--color-text-subtle)` | caption、meta |

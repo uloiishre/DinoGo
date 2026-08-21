@@ -6,6 +6,7 @@ import java.util.List;
 public record CartItemResponse(
 		Integer cartItemId,
 		Integer skuId,
+		Integer productId, // ⭐ 新增
 		String productName,
 		BigDecimal price,
 		Integer quantity,
@@ -13,6 +14,6 @@ public record CartItemResponse(
 		Integer sellerId,
 		String storeName,
 		List<SkuOptionResponse> skus,
-		Boolean available,
+		boolean available,
 		String unavailableReason) {
 }
