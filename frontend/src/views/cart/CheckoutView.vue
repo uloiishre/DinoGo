@@ -47,7 +47,8 @@ const shippingMethod = ref('HOME_DELIVERY')
 // ========================================
 const paymentMethod = ref('CASH_ON_DELIVERY')
 const paymentSimulationEnabled = ref(false)
-<<<<<<< HEAD
+const simulatedPaymentStatus = ref('SUCCESS')
+const simulatedPaymentFailureReason = ref('')
 
 const loadPaymentCapabilities = async () => {
   try {
@@ -65,10 +66,6 @@ const loadPaymentCapabilities = async () => {
   }
 }
 
-=======
-const simulatedPaymentStatus = ref('SUCCESS')
-const simulatedPaymentFailureReason = ref('')
->>>>>>> 22ffb7c (test)
 // ========================================
 // 訂單備註
 // ========================================
