@@ -24,6 +24,7 @@ import com.dinogo.member.repository.RoleRepository;
 public class MemberService {
 
     private static final String DEFAULT_ROLE_NAME = "buyer";
+    private static final String SELLER_ROLE_NAME = "seller";
 
     private final MemberRepository memberRepository;
     private final RoleRepository roleRepository;
@@ -114,6 +115,42 @@ public class MemberService {
         member.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         member.setAuthVersion(Math.incrementExact(member.getAuthVersion()));
         memberRepository.saveAndFlush(member);
+    }
+
+    /**
+     * 授予會員商家角色。可重複呼叫，不會重複新增 MemberRole。
+     *
+     * <p>供商家申請核准流程使用；預設 REQUIRED propagation 會加入呼叫端的交易。</p>
+     */
+    @Transactional
+    public void grantSellerRole(Integer memberId) {
+        Member member = findMemberById(memberId);
+        Role sellerRole = roleRepository.findByRoleName(SELLER_ROLE_NAME)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Role 'seller' is not configured"));
+
+        if (memberRoleRepository.existsByMemberMemberIdAndRoleRoleId(
+                memberId, sellerRole.getRoleId())) {
+            return;
+        }
+
+        MemberRole memberRole = new MemberRole();
+        memberRole.setId(new MemberRoleId(memberId, sellerRole.getRoleId()));
+        memberRole.setMember(member);
+        memberRole.setRole(sellerRole);
+        memberRoleRepository.save(memberRole);
+    }
+
+    /**
+     * 遞增 auth version，使目前會員的既有 JWT 在交易提交後失效。
+     *
+     * <p>供商家申請核准流程與其他角色／授權異動流程使用。</p>
+     */
+    @Transactional
+    public void increaseAuthVersion(Integer memberId) {
+        Member member = findMemberById(memberId);
+        member.setAuthVersion(Math.incrementExact(member.getAuthVersion()));
+        memberRepository.save(member);
     }
 
     // 先保留，其他功能若仍需要 email 可以使用

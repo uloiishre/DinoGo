@@ -27,6 +27,7 @@ import com.dinogo.member.dto.RegisterRequest;
 import com.dinogo.member.dto.RegisterResponse;
 import com.dinogo.member.entity.Member;
 import com.dinogo.member.entity.MemberRole;
+import com.dinogo.member.entity.MemberRoleId;
 import com.dinogo.member.entity.Role;
 import com.dinogo.member.repository.MemberRoleRepository;
 import com.dinogo.member.repository.MemberRepository;
@@ -255,10 +256,79 @@ class MemberServiceTest {
         verify(memberRepository, never()).saveAndFlush(any());
     }
 
+    @Test
+    void grantSellerRoleCreatesSellerMemberRole() {
+        Member member = member(1);
+        Role sellerRole = sellerRole();
+        when(memberRepository.findById(1)).thenReturn(Optional.of(member));
+        when(roleRepository.findByRoleName("seller")).thenReturn(Optional.of(sellerRole));
+        when(memberRoleRepository.existsByMemberMemberIdAndRoleRoleId(1, 2)).thenReturn(false);
+
+        memberService.grantSellerRole(1);
+
+        ArgumentCaptor<MemberRole> captor = ArgumentCaptor.forClass(MemberRole.class);
+        verify(memberRoleRepository).save(captor.capture());
+        MemberRole savedMemberRole = captor.getValue();
+        assertThat(savedMemberRole.getId()).isEqualTo(new MemberRoleId(1, 2));
+        assertThat(savedMemberRole.getMember()).isSameAs(member);
+        assertThat(savedMemberRole.getRole()).isSameAs(sellerRole);
+    }
+
+    @Test
+    void grantSellerRoleDoesNotCreateDuplicateMemberRole() {
+        Member member = member(1);
+        Role sellerRole = sellerRole();
+        when(memberRepository.findById(1)).thenReturn(Optional.of(member));
+        when(roleRepository.findByRoleName("seller")).thenReturn(Optional.of(sellerRole));
+        when(memberRoleRepository.existsByMemberMemberIdAndRoleRoleId(1, 2)).thenReturn(true);
+
+        memberService.grantSellerRole(1);
+
+        verify(memberRoleRepository, never()).save(any(MemberRole.class));
+    }
+
+    @Test
+    void grantSellerRoleFailsWhenSellerRoleIsMissing() {
+        Member member = member(1);
+        when(memberRepository.findById(1)).thenReturn(Optional.of(member));
+        when(roleRepository.findByRoleName("seller")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> memberService.grantSellerRole(1))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Role 'seller' is not configured");
+
+        verify(memberRoleRepository, never()).save(any(MemberRole.class));
+    }
+
+    @Test
+    void increaseAuthVersionInvalidatesExistingTokensAfterCommit() {
+        Member member = member(1);
+        member.setAuthVersion(4);
+        when(memberRepository.findById(1)).thenReturn(Optional.of(member));
+
+        memberService.increaseAuthVersion(1);
+
+        assertThat(member.getAuthVersion()).isEqualTo(5);
+        verify(memberRepository).save(member);
+    }
+
+    private Member member(Integer memberId) {
+        Member member = new Member();
+        member.setMemberId(memberId);
+        return member;
+    }
+
     private Role buyerRole() {
         Role role = new Role();
         role.setRoleId(1);
         role.setRoleName("buyer");
+        return role;
+    }
+
+    private Role sellerRole() {
+        Role role = new Role();
+        role.setRoleId(2);
+        role.setRoleName("seller");
         return role;
     }
 }
