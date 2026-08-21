@@ -1,4 +1,4 @@
-# Git每日操作與繳交規範
+# Git Task 操作與交付規範
 
 ---
 
@@ -59,9 +59,9 @@ feature/checkout-page
 
 ---
 
-# 二、每日開始開發前
+# 二、每個 Task 開始或接續前
 
-每天開始寫程式前，都要先同步遠端最新版本。
+每個 Task 開始或因 session 切換而接續前，都要先確認 Git 與遠端最新狀態。一個 Task 可以跨多個 session，不以日期為界。
 
 ## 1. 確認目前所在資料夾
 
@@ -95,7 +95,7 @@ git branch
 
 ---
 
-## 3. 儲存或處理昨天未完成的修改
+## 3. 儲存或處理未完成的 Task 修改
 
 如果 `git status` 顯示還有未提交內容，不要直接 Pull。
 
@@ -273,7 +273,7 @@ new
 
 ---
 
-# 四、每日開發中的 Push 規範
+# 四、Task 開發中的 Push 規範
 
 ## 1. Push 前先確認目前分支
 
@@ -301,14 +301,14 @@ git push
 
 ---
 
-## 3. 每天至少 Push 一次
+## 3. Task 階段完成時 Push
 
-即使功能尚未全部完成，只要程式沒有明顯破壞，也應該在自己的 feature 分支留下進度。
+即使功能尚未全部完成，只要程式沒有明顯破壞，也應該在自己的 feature 分支留下可接續的進度。
 
-建議至少：
+建議時機：
 
 - 中途完成一個階段時 Push
-- 每日結束前 Push
+- Task 暫停或切換 session 前 Push
 - 重大修改前先 Push 備份
 
 ---
@@ -325,9 +325,9 @@ git push origin main
 
 ---
 
-# 五、每日繳交規範
+# 五、Task 完成／暫停交付規範
 
-每天結束前，每位組員都要完成以下事項。
+Task 完成、暫停或準備切換 session 時，依 Task 狀態完成下列適用事項。
 
 ## 1. 確認程式可以啟動
 
@@ -369,7 +369,7 @@ npm run build
 
 ---
 
-## 3. Commit 當日修改
+## 3. Commit 已完成的 Task 修改
 
 ```bash
 git add .
@@ -397,37 +397,26 @@ git push
 
 ---
 
-## 6. 回報每日進度
+## 6. 回報 Task 狀態
 
 建議使用以下格式：
 
 ```
-日期：
-姓名：
+Task：
 負責模組：
 Git 分支：
 
-今日完成：
-1.
-2.
-3.
+已完成：
 
-今日 Commit：
-- feat: ...
-- fix: ...
+目前修改／Commit：
 
-尚未完成：
-1.
+測試：
 
-遇到問題：
-1.
+未完成／Blocker：
 
 需要其他組員協助：
-1.
 
-明日預計：
-1.
-2.
+下一步：
 ```
 
 ---
@@ -726,9 +715,9 @@ API：
 
 ---
 
-# 十二、每日 Git 標準流程
+# 十二、Task Git 標準流程
 
-## 每日開始
+## Task 開始或接續
 
 ```bash
 git status
@@ -749,37 +738,35 @@ git commit -m "feat: 完成的功能"
 git push
 ```
 
-## 每日結束
+## Task 完成、暫停或切換 session
 
 ```bash
 git status
-git add .
-git commit -m "feat: 今日完成內容"
-git push
+# 依 Task 狀態執行必要的 commit / push
 ```
 
-然後到 GitHub 確認最新 Commit 已出現。
+整理 Task handoff：已完成、目前修改、測試、Git 狀態、未完成／blocker 與下一步。若已 push，再到 GitHub 確認最新 Commit 已出現。
 
 ---
 
-# 十三、每日收工檢查表
+# 十三、Task handoff 檢查表
 
-每位組員每日結束前確認：
+每位組員在 Task 完成、暫停或切換 session 前確認：
 
-- [ ]  今天是在自己的 feature 分支開發
-- [ ]  今天開始前有同步 develop
-- [ ]  程式可以正常啟動
-- [ ]  今天的功能有完成基本測試
-- [ ]  已完成 Commit
+- [ ]  Task 是在自己的 feature 分支開發
+- [ ]  Task 開始或接續前已確認遠端狀態
+- [ ]  已完成範圍的程式可以正常啟動
+- [ ]  已完成範圍有基本測試
+- [ ]  已完成範圍已視需要 Commit
 - [ ]  Commit Message 清楚
-- [ ]  已 Push 到 GitHub
-- [ ]  GitHub 可看到最新 Commit
+- [ ]  已視需要 Push 到 GitHub
+- [ ]  已 Push 時，GitHub 可看到最新 Commit
 - [ ]  沒有 Push 到錯誤分支
 - [ ]  沒有上傳帳號、密碼或金鑰
 - [ ]  資料庫修改有附 SQL
 - [ ]  API 修改有通知相關組員
-- [ ]  已回報今日進度
-- [ ]  已寫下明日預計工作
+- [ ]  已回報 Task 狀態
+- [ ]  已寫下下一步
 
 ---
 
