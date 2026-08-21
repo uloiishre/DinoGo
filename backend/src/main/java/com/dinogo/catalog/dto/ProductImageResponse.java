@@ -18,4 +18,6 @@ public class ProductImageResponse {
     private String imageUrl;
 
     private Integer sortOrder;
+
+    private Boolean isMain;
 }
