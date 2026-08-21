@@ -46,13 +46,7 @@ async function submit() {
   try {
     // 登入資料交給 authStore 統一保存，其他元件會同步取得最新狀態。
     await authStore.signIn(form.value)
-    const redirect =
-      typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/')
-        ? route.query.redirect
-        : authStore.isSeller
-          ? '/seller/dashboard'
-          : '/member/overview'
-    await router.push(redirect)
+    await router.push(resolvePostLoginRoute())
   } catch (error) {
     apiError.value = getErrorMessage(error)
   } finally {
@@ -61,13 +55,19 @@ async function submit() {
 }
 
 function redirectAfterLogin() {
+  return router.push(resolvePostLoginRoute())
+}
+
+function resolvePostLoginRoute() {
   const redirect =
     typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/')
       ? route.query.redirect
-      : authStore.isSeller
-        ? '/seller/dashboard'
-        : '/member/overview'
-  return router.push(redirect)
+      : authStore.hasRole('admin')
+        ? '/admin/dashboard'
+        : authStore.isSeller
+          ? '/seller/dashboard'
+          : '/member/overview'
+  return redirect
 }
 
 async function handleGoogleCredential(response) {

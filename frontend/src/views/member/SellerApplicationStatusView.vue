@@ -1,23 +1,53 @@
 <script setup>
+import { computed, onMounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import { getMySellerApplication } from '@/api/sellerApplicationApi'
 
-const application = {
-  storeName: '森野選物所',
-  submittedAt: '2026/08/20 10:24',
-  progress: '等待管理員審核',
+const application = reactive({
+  storeName: '',
+  submittedAt: '',
+  status: 'PENDING',
+  rejectReason: '',
+})
+const apiError = ref('')
+const isLoading = ref(true)
+
+const statusLabel = computed(() => ({ PENDING: '審核中', APPROVED: '已核准', REJECTED: '已駁回' })[application.status] || application.status)
+const statusTitle = computed(() => ({ PENDING: '你的申請正在審核中', APPROVED: '你的商家申請已核准', REJECTED: '你的商家申請未通過' })[application.status] || '商家申請狀態')
+const progress = computed(() => ({ PENDING: '等待管理員審核', APPROVED: '商家資格已啟用，請重新登入', REJECTED: '請依駁回原因修正後重新送件' })[application.status] || '-')
+const nextStep = computed(() => ({ PENDING: '核准後請重新登入，系統才會將商家角色寫入新的登入憑證。', APPROVED: '申請已核准；請重新登入，系統才會將商家角色寫入新的登入憑證。', REJECTED: '請依駁回原因修正公開資訊後，再次提出申請。' })[application.status] || '')
+const formatDate = (value) => (value ? new Date(value).toLocaleString('zh-TW') : '-')
+
+async function loadApplication() {
+  try {
+    const { data } = await getMySellerApplication()
+    application.storeName = data.storeName
+    application.submittedAt = formatDate(data.createdAt)
+    application.status = data.status
+    application.rejectReason = data.rejectReason || ''
+  } catch (error) {
+    apiError.value = error.response?.data?.message || '申請狀態載入失敗，請稍後再試。'
+  } finally {
+    isLoading.value = false
+  }
 }
+
+onMounted(loadApplication)
 </script>
 
 <template>
   <section class="seller-application-status" aria-labelledby="seller-application-status-title">
     <div class="container seller-application-status__container">
       <p class="seller-application-status__eyebrow">商家會員申請</p>
-      <h1 id="seller-application-status-title">你的申請正在審核中</h1>
+      <h1 id="seller-application-status-title">{{ statusTitle }}</h1>
       <p class="seller-application-status__description">
-        平台通常會在 3–5 個工作天內完成審核；結果將透過站內通知告知。
+        {{ application.status === 'PENDING' ? '平台通常會在 3–5 個工作天內完成審核；結果將透過站內通知告知。' : '請確認本次申請結果與後續操作。' }}
       </p>
 
+      <p v-if="isLoading" class="seller-application-status__description" role="status">載入申請狀態中…</p>
+      <p v-else-if="apiError" class="seller-application-status__error" role="alert">{{ apiError }}</p>
       <article
+        v-else
         class="seller-application-status__card dg-card"
         aria-labelledby="application-pending-title"
       >
@@ -26,7 +56,7 @@ const application = {
             <i class="bi bi-clock-history"></i>
           </span>
           <span id="application-pending-title" class="seller-application-status__badge"
-            >審核中</span
+            >{{ statusLabel }}</span
           >
         </header>
 
@@ -41,7 +71,11 @@ const application = {
           </div>
           <div>
             <dt>目前進度</dt>
-            <dd>{{ application.progress }}</dd>
+            <dd>{{ progress }}</dd>
+          </div>
+          <div v-if="application.status === 'REJECTED'">
+            <dt>駁回原因</dt>
+            <dd>{{ application.rejectReason }}</dd>
           </div>
         </dl>
 
@@ -56,7 +90,7 @@ const application = {
             class="seller-application-status__secondary dg-focus-ring"
             to="/member/seller-application"
           >
-            查看申請資料
+            {{ application.status === 'REJECTED' ? '重新提出申請' : '查看申請資料' }}
           </RouterLink>
           <RouterLink
             class="seller-application-status__primary dg-btn-primary dg-focus-ring"
@@ -67,9 +101,9 @@ const application = {
         </footer>
       </article>
 
-      <aside class="seller-application-status__next-step" role="note">
+      <aside v-if="!isLoading && !apiError" class="seller-application-status__next-step" role="note">
         <i class="bi bi-info-circle" aria-hidden="true"></i>
-        <p>核准後請重新登入，系統才會將商家角色寫入新的登入憑證。</p>
+        <p>{{ nextStep }}</p>
       </aside>
     </div>
   </section>
@@ -112,6 +146,12 @@ h1 {
 
 .seller-application-status__description {
   color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.seller-application-status__error {
+  margin: 0;
+  color: var(--color-danger);
   font-size: var(--font-size-sm);
 }
 

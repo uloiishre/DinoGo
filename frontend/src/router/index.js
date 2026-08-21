@@ -181,7 +181,12 @@ const routes = [
     component: AdminLayout,
     meta: { requiresAuth: true, requiresRole: 'admin' },
     children: [
-      { path: '', redirect: '/admin/seller-applications' },
+      { path: '', redirect: '/admin/dashboard' },
+      {
+        path: 'dashboard',
+        name: 'AdminDashboard',
+        component: () => import('@/views/admin/AdminDashboardView.vue'),
+      },
       {
         path: 'seller-applications',
         name: 'AdminSellerApplications',

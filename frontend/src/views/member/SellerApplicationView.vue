@@ -1,18 +1,54 @@
 <script setup>
-import { ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { onMounted, ref } from 'vue'
+import { RouterLink, useRouter } from 'vue-router'
+import { getMySellerApplication, submitSellerApplication } from '@/api/sellerApplicationApi'
 
 const storeName = ref('')
+const storeDescription = ref('')
+const storeLogoUrl = ref('')
 const storeNameError = ref('')
+const apiError = ref('')
+const isSubmitting = ref(false)
+const router = useRouter()
 
 function validateStoreName() {
   storeNameError.value = storeName.value.trim() ? '' : '請輸入店鋪名稱。'
   return !storeNameError.value
 }
 
-function validateApplication() {
-  validateStoreName()
+async function submitApplication() {
+  apiError.value = ''
+  if (!validateStoreName() || isSubmitting.value) return
+
+  isSubmitting.value = true
+  try {
+    await submitSellerApplication({
+      storeName: storeName.value.trim(),
+      storeDescription: storeDescription.value.trim() || null,
+      storeLogoUrl: storeLogoUrl.value.trim() || null,
+    })
+    await router.replace({ name: 'SellerApplicationStatus' })
+  } catch (error) {
+    apiError.value = error.response?.data?.message || '送出申請失敗，請稍後再試。'
+  } finally {
+    isSubmitting.value = false
+  }
 }
+
+async function redirectWhenApplicationIsActive() {
+  try {
+    const { data } = await getMySellerApplication()
+    if (data.status !== 'REJECTED') {
+      await router.replace({ name: 'SellerApplicationStatus' })
+    }
+  } catch (error) {
+    if (error.response?.status !== 404) {
+      apiError.value = error.response?.data?.message || '申請狀態載入失敗，請稍後再試。'
+    }
+  }
+}
+
+onMounted(redirectWhenApplicationIsActive)
 </script>
 
 <template>
@@ -36,7 +72,7 @@ function validateApplication() {
       </div>
 
       <div class="seller-application__content">
-        <form class="seller-application__form dg-card" @submit.prevent="validateApplication">
+        <form class="seller-application__form dg-card" @submit.prevent="submitApplication">
           <header class="seller-application__form-header">
             <h2>店鋪公開資訊</h2>
             <p>核准後會顯示於顧客可瀏覽的店鋪頁面。</p>
@@ -72,9 +108,10 @@ function validateApplication() {
             <span>店鋪介紹</span>
             <textarea
               id="store-description"
+              v-model="storeDescription"
               name="storeDescription"
               rows="4"
-              maxlength="1000"
+              maxlength="500"
               placeholder="介紹你的品牌、商品特色與服務方式"
             ></textarea>
           </label>
@@ -83,6 +120,7 @@ function validateApplication() {
             <span>店鋪 Logo 圖片網址</span>
             <input
               id="store-logo-url"
+              v-model="storeLogoUrl"
               name="storeLogoUrl"
               type="url"
               placeholder="https://example.com/store-logo.png"
@@ -94,10 +132,12 @@ function validateApplication() {
             <span>我已閱讀商家服務條款，並確認以上公開資訊正確。</span>
           </label>
 
+          <p v-if="apiError" class="seller-application__field-error" role="alert">{{ apiError }}</p>
+
           <footer class="seller-application__actions">
             <button class="seller-application__draft dg-focus-ring" type="button">暫存</button>
-            <button class="seller-application__submit dg-btn-primary dg-focus-ring" type="submit">
-              送出申請
+            <button class="seller-application__submit dg-btn-primary dg-focus-ring" type="submit" :disabled="isSubmitting">
+              {{ isSubmitting ? '送出中…' : '送出申請' }}
             </button>
           </footer>
         </form>
