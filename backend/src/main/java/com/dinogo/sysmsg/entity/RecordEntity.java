@@ -346,6 +346,16 @@ public class RecordEntity {
     @Column(name = "order_status", length = 30)
     private String orderStatus;
 
+    /** SQL Server PERSISTED 計算欄位，僅供查詢與回傳使用。 */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "member_inbox", insertable = false, updatable = false)
+    private MemberInbox memberInbox;
+
+    /** SQL Server PERSISTED 計算欄位，僅供查詢與回傳使用。 */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "seller_inbox", insertable = false, updatable = false)
+    private SellerInbox sellerInbox;
+
 
     // ============================================================
     // Record Status
@@ -937,6 +947,14 @@ public class RecordEntity {
 
     public void setOrderStatus(String orderStatus) {
         this.orderStatus = orderStatus;
+    }
+
+    public MemberInbox getMemberInbox() {
+        return memberInbox;
+    }
+
+    public SellerInbox getSellerInbox() {
+        return sellerInbox;
     }
 
 
