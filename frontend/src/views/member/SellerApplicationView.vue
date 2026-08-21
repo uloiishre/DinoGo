@@ -58,7 +58,6 @@ function validateApplication() {
               "
               @blur="validateStoreName"
             />
-            <small id="store-name-help">店鋪名稱必填，且不可與既有店鋪重複。</small>
             <small
               v-if="storeNameError"
               id="store-name-error"
@@ -384,6 +383,7 @@ h2 {
 .seller-application__process-title {
   font-size: var(--font-size-md);
   line-height: normal;
+  padding-bottom: var(--space-3);
 }
 
 .seller-application__process ol {
