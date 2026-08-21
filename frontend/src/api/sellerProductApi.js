@@ -56,3 +56,10 @@ export const createSellerProductSkus = (productId, payload) => {
 export const disableSellerProductSku = (productId, skuId) => {
   return api.patch(`/products/${productId}/skus/${skuId}/disable`)
 }
+
+// 修改商品主圖
+export const updateSellerProductMainImage = (productId, imageId) => {
+  return api.put(`/products/${productId}/images/main`, {
+    imageId,
+  })
+}

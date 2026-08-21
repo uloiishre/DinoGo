@@ -8,6 +8,7 @@ import {
   updateSellerProductSku,
   createSellerProductSkus,
   disableSellerProductSku,
+  updateSellerProductMainImage,
 } from '@/api/sellerProductApi'
 import { getCurrentSellerId } from '@/utils/seller-session'
 import { logSafeError } from '@/utils/safeError'
@@ -24,6 +25,7 @@ const errorMessage = ref('')
 const imageFileInput = ref(null)
 const imagePreviewUrl = ref('')
 const selectedImageName = ref('')
+const selectedMainImageId = ref(null)
 
 const pageTitle = computed(() => (isEditMode.value ? '編輯商品' : '新增商品'))
 const pageDescription = computed(() =>
@@ -50,6 +52,9 @@ const form = reactive({
   skus: [createEmptySku()],
   status: 'ACTIVE',
   imageUrl: '',
+
+  // 商品既有圖片
+  images: [],
 })
 
 // 規格設定
@@ -183,6 +188,30 @@ const handleImageSelect = (event) => {
   imagePreviewUrl.value = URL.createObjectURL(file)
 }
 
+const changeMainImage = async (imageId) => {
+  console.log('changeMainImage 開始：', imageId)
+  try {
+    await updateSellerProductMainImage(productId.value, imageId)
+
+    selectedMainImageId.value = imageId
+
+    // 同步前端目前主圖狀態
+    form.images.forEach((image) => {
+      image.isMain = image.imageId === imageId
+    })
+
+    // 更新上方主圖預覽
+    const mainImage = form.images.find((image) => image.imageId === imageId)
+
+    if (mainImage) {
+      form.imageUrl = mainImage.imageUrl
+    }
+  } catch (error) {
+    logSafeError('Update main image failed:', error)
+    errorMessage.value = '設定主圖失敗。'
+  }
+}
+
 const toFormStatus = (status) => {
   if (status === 1 || status === 'ACTIVE') {
     return 'ACTIVE'
@@ -228,14 +257,27 @@ const buildCreatePayload = () => ({
 
 const fillProductForm = (product) => {
   form.productName = product.productName ?? ''
+
   form.subcategoryId = product.subcategoryId ? String(product.subcategoryId) : ''
+
   form.brandId = product.brandId ? String(product.brandId) : ''
+
   form.basePrice = product.basePrice ?? ''
   form.description = product.description ?? ''
   form.status = toFormStatus(product.status)
-  form.imageUrl = product.images?.[0]?.imageUrl ?? product.imageUrl ?? ''
+
+  // 商品圖片
+  form.images = product.images ?? []
+
+  const mainImage = form.images.find((image) => image.isMain === true) ?? form.images[0] ?? null
+
+  form.imageUrl = mainImage?.imageUrl ?? product.imageUrl ?? ''
+
   imagePreviewUrl.value = ''
 
+  selectedMainImageId.value = mainImage?.imageId ?? null
+
+  // SKU
   const skus = product.skus ?? []
 
   form.skus = skus.length
@@ -280,7 +322,6 @@ const fillProductForm = (product) => {
     spec2Values.value = ['']
   }
 
-  // 依照既有規格值產生所有候選 SKU
   generateSkuList()
 }
 
@@ -349,6 +390,9 @@ const saveProductSkus = async () => {
 
 // 儲存商品
 const handleSubmit = async () => {
+  console.log('！！！！handleSubmit 被執行了！！！！')
+
+  // 原本程式繼續...
   // 商品名稱驗證
   if (!form.productName.trim()) {
     errorMessage.value = '請輸入商品名稱。'
@@ -386,10 +430,10 @@ const handleSubmit = async () => {
     isSubmitting.value = true
 
     if (isEditMode.value) {
-      // 編輯商品基本資料
+      // ① 編輯商品基本資料
       await updateSellerProduct(productId.value, buildProductPayload())
 
-      // 修改 / 新增 / 停用 SKU
+      // ② 修改 / 新增 / 停用 SKU
       await saveProductSkus()
     } else {
       // 新增商品時 Product + SKU 一次建立
@@ -420,7 +464,7 @@ onMounted(loadProduct)
       </div>
     </header>
 
-    <form class="product-form" @submit.prevent="handleSubmit">
+    <div class="product-form" @submit.prevent="handleSubmit" @keydown.enter.prevent>
       <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
       <p v-if="isLoading" class="state-message">商品資料載入中...</p>
 
@@ -613,10 +657,10 @@ onMounted(loadProduct)
 
           <button class="image-upload-button" type="button" @click="openImagePicker">
             <img
-              v-if="imagePreviewUrl"
+              v-if="imagePreviewUrl || form.imageUrl"
               class="image-preview"
-              :src="imagePreviewUrl"
-              :alt="selectedImageName || '點選上傳商品圖片'"
+              :src="imagePreviewUrl || form.imageUrl"
+              :alt="selectedImageName || '商品主圖'"
             />
             <div v-else class="image-placeholder">
               <i class="bi bi-image" aria-hidden="true"></i>
@@ -632,16 +676,51 @@ onMounted(loadProduct)
             accept="image/*"
             @change="handleImageSelect"
           />
+          <!-- 編輯商品：既有商品圖片 -->
+          <div v-if="isEditMode && form.images.length > 0" class="existing-image-list">
+            <p class="image-list-title">目前商品圖片</p>
+
+            <div
+              v-for="image in form.images"
+              :key="image.imageId"
+              class="existing-image-item"
+              :class="{
+                'is-main': selectedMainImageId === image.imageId,
+              }"
+            >
+              <img :src="image.imageUrl" alt="商品圖片" class="existing-image-thumbnail" />
+
+              <div class="main-image-option">
+                <span v-if="selectedMainImageId === image.imageId" class="main-image-label">
+                  目前主圖
+                </span>
+
+                <button
+                  v-else
+                  type="button"
+                  class="set-main-image-button"
+                  @click.stop.prevent="changeMainImage(image.imageId)"
+                >
+                  設為主圖
+                </button>
+              </div>
+            </div>
+          </div>
         </section>
 
         <div class="form-actions side-actions">
           <button type="button">儲存草稿</button>
-          <button class="primary-button" type="submit" :disabled="isSubmitting">
+          <button
+            class="primary-button"
+            type="button"
+            :disabled="isSubmitting"
+            @click="handleSubmit"
+          >
             {{ isSubmitting ? '送出中...' : submitText }}
           </button>
         </div>
       </aside>
-    </form>
+    </div>
   </section>
 </template>
 
@@ -949,6 +1028,62 @@ button {
   height: 14px;
   min-width: 14px;
   margin: 0;
+  cursor: pointer;
+}
+
+.existing-image-list {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.image-list-title {
+  margin: 0;
+  color: var(--color-text-700);
+  font-weight: 700;
+}
+
+.existing-image-item {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+
+  padding: var(--space-2);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.existing-image-item.is-main {
+  border-color: var(--color-primary);
+}
+
+.existing-image-thumbnail {
+  width: 72px;
+  height: 72px;
+
+  border-radius: var(--radius-md);
+
+  object-fit: cover;
+}
+
+.main-image-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+
+  cursor: pointer;
+}
+
+.main-image-label {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.set-main-image-button {
+  min-height: 32px;
+  padding: 0 var(--space-3);
   cursor: pointer;
 }
 

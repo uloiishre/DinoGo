@@ -12,6 +12,8 @@ public record MemberResponse(
         String firstName,
         LocalDate birthDate,
         String phone,
+        boolean emailOrderNotifications,
+        boolean emailMarketingNotifications,
         String status,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
@@ -26,7 +28,7 @@ public record MemberResponse(
             LocalDate birthDate,
             String phone,
             String status) {
-        this(memberId, email, lastName, firstName, birthDate, phone, status, null, null);
+        this(memberId, email, lastName, firstName, birthDate, phone, true, false, status, null, null);
     }
 
     public static MemberResponse from(Member member) {
@@ -37,6 +39,8 @@ public record MemberResponse(
                 member.getFirstName(),
                 member.getBirthDate(),
                 member.getPhone(),
+                member.isEmailOrderNotifications(),
+                member.isEmailMarketingNotifications(),
                 member.getStatus(),
                 member.getCreatedAt(),
                 member.getUpdatedAt()

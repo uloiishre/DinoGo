@@ -52,6 +52,12 @@ public class Member {
     @Column(name = "phone", length = 20)
     private String phone;
 
+    @Column(name = "email_order_notifications", nullable = false)
+    private boolean emailOrderNotifications = true;
+
+    @Column(name = "email_marketing_notifications", nullable = false)
+    private boolean emailMarketingNotifications;
+
     @Column(name = "status", nullable = false, length = 20)
     private String status = "ACTIVE";
 
@@ -136,6 +142,22 @@ public class Member {
 
     public void setPhone(String phone) {
         this.phone = phone;
+    }
+
+    public boolean isEmailOrderNotifications() {
+        return emailOrderNotifications;
+    }
+
+    public void setEmailOrderNotifications(boolean emailOrderNotifications) {
+        this.emailOrderNotifications = emailOrderNotifications;
+    }
+
+    public boolean isEmailMarketingNotifications() {
+        return emailMarketingNotifications;
+    }
+
+    public void setEmailMarketingNotifications(boolean emailMarketingNotifications) {
+        this.emailMarketingNotifications = emailMarketingNotifications;
     }
 
     public String getStatus() {
