@@ -89,7 +89,7 @@ const selectedCoupon = computed(() => {
   )
 })
 
-const onlinePaymentAvailable = computed(() => true)
+const onlinePaymentAvailable = computed(() => paymentSimulationEnabled.value)
 
 // ========================================
 // 金額格式

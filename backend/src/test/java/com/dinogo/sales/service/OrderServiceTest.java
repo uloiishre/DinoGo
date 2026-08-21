@@ -251,11 +251,40 @@ class OrderServiceTest {
         when(orderRepository.findForCancellation(99, 6)).thenReturn(Optional.of(order));
         assertThatThrownBy(() -> orderService.cancelOrder(99, 6, "buyer cancelled"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Invalid order status transition: PAID -> CANCELLED");
+                .hasMessage("Only pending-payment orders or unshipped cash-on-delivery orders can be cancelled");
 
         verify(productSkuRepository, never()).restoreStock(100, 2);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.SUCCESS);
+    }
+
+    @Test
+    void buyerCanCancelUnshippedCashOnDeliveryOrderAndRestoreStock() {
+        Order order = new Order();
+        order.setOrderId(99);
+        order.setBuyerId(6);
+        order.setStatus(OrderStatus.PROCESSING);
+        OrderItem item = new OrderItem();
+        item.setSkuId(100);
+        item.setQuantity(2);
+        order.addOrderItem(item);
+
+        PaymentMethod method = new PaymentMethod();
+        method.setMethodCode("CASH_ON_DELIVERY");
+        Payment payment = new Payment();
+        payment.setOrder(order);
+        payment.setPaymentMethod(method);
+        payment.setStatus(PaymentStatus.PENDING);
+        order.getPayments().add(payment);
+
+        when(orderRepository.findForCancellation(99, 6)).thenReturn(Optional.of(order));
+        when(productSkuRepository.restoreStock(100, 2)).thenReturn(1);
+
+        orderService.cancelOrder(99, 6, "buyer cancelled before shipment");
+
+        verify(productSkuRepository).restoreStock(100, 2);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
     }
 
     @Test

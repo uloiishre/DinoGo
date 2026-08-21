@@ -41,7 +41,7 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
             @Param("sellerId") Integer sellerId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @EntityGraph(attributePaths = "orderItems")
+    @EntityGraph(attributePaths = { "orderItems", "shipment" })
     @Query("""
             SELECT orders
             FROM Order orders
