@@ -1,8 +1,18 @@
 package com.dinogo.catalog.service;
 
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.UUID;
+
+import org.springframework.web.multipart.MultipartFile;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -10,6 +20,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.dinogo.catalog.dto.ProductCreateRequest;
 import com.dinogo.catalog.dto.ProductDetailResponse;
@@ -669,14 +680,19 @@ public class ProductService {
                                 .build();
         }
 
-        // 修改商品排序
+        // 修改商品圖片排序
         @Transactional
         public List<ProductImageResponse> updateImageSort(
                         Integer productId,
                         List<ProductImageSortUpdateRequest> requests) {
 
-                List<ProductImageResponse> responses = new ArrayList<>();
+                if (requests == null || requests.isEmpty()) {
+                        throw new RuntimeException("圖片排序資料不可為空");
+                }
 
+                List<ProductImage> images = new ArrayList<>();
+
+                // ① 先把所有 request 對應的圖片查出來並驗證
                 for (ProductImageSortUpdateRequest request : requests) {
 
                         ProductImage image = productImageRepository
@@ -684,7 +700,7 @@ public class ProductService {
                                         .orElseThrow(() -> new RuntimeException(
                                                         "找不到圖片：" + request.getImageId()));
 
-                        // 確認圖片真的屬於這個商品
+                        // 確認圖片屬於這個商品
                         if (!image.getProduct()
                                         .getProductId()
                                         .equals(productId)) {
@@ -693,6 +709,7 @@ public class ProductService {
                                                 "圖片不屬於商品：" + productId);
                         }
 
+                        // sortOrder 從 1 開始
                         if (request.getSortOrder() == null ||
                                         request.getSortOrder() < 1) {
 
@@ -700,15 +717,173 @@ public class ProductService {
                                                 "圖片排序必須大於等於 1");
                         }
 
-                        image.setSortOrder(request.getSortOrder());
+                        images.add(image);
+                }
 
-                        ProductImage savedImage = productImageRepository.save(image);
+                // ② 第一階段：
+                // 先全部改成暫時、不會與正式排序衝突的值
+                for (int i = 0; i < images.size(); i++) {
+
+                        ProductImage image = images.get(i);
+
+                        // 使用大數字當暫存 sortOrder
+                        image.setSortOrder(10000 + i);
+                }
+
+                productImageRepository.saveAll(images);
+
+                // 強制先寫進 DB
+                productImageRepository.flush();
+
+                // ③ 第二階段：
+                // 再設定真正的 sortOrder
+                for (int i = 0; i < requests.size(); i++) {
+
+                        ProductImageSortUpdateRequest request = requests.get(i);
+                        ProductImage image = images.get(i);
+
+                        image.setSortOrder(request.getSortOrder());
+                }
+
+                productImageRepository.saveAll(images);
+                productImageRepository.flush();
+
+                // ④ 回傳結果
+                return images.stream()
+                                .map(image -> ProductImageResponse.builder()
+                                                .imageId(image.getImageId())
+                                                .imageUrl(image.getImageUrl())
+                                                .sortOrder(image.getSortOrder())
+                                                .isMain(image.getIsMain())
+                                                .build())
+                                .toList();
+        }
+
+        @Transactional
+        public void deleteImage(
+                        Integer productId,
+                        Integer imageId) {
+
+                ProductImage image = productImageRepository.findById(imageId)
+                                .orElseThrow(() -> new RuntimeException("找不到圖片：" + imageId));
+
+                if (!image.getProduct()
+                                .getProductId()
+                                .equals(productId)) {
+
+                        throw new RuntimeException(
+                                        "圖片不屬於商品：" + productId);
+                }
+
+                // 主圖先禁止刪除，避免商品沒有主圖
+                if (Boolean.TRUE.equals(image.getIsMain())) {
+                        throw new RuntimeException(
+                                        "主圖不可直接刪除，請先設定其他圖片為主圖");
+                }
+
+                productImageRepository.delete(image);
+        }
+
+        @Transactional
+        public List<ProductImageResponse> uploadProductImages(
+                        Integer productId,
+                        MultipartFile[] files) {
+
+                Product product = productRepository.findById(productId)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "找不到商品：" + productId));
+
+                if (files == null || files.length == 0) {
+                        throw new RuntimeException("請至少上傳一張圖片");
+                }
+
+                // uploads/products/
+                Path uploadPath = Paths.get(
+                                "uploads",
+                                "products").toAbsolutePath().normalize();
+
+                try {
+                        Files.createDirectories(uploadPath);
+                } catch (IOException e) {
+                        throw new RuntimeException(
+                                        "建立圖片資料夾失敗",
+                                        e);
+                }
+
+                // 找目前最大的 sortOrder
+                List<ProductImage> existingImages = productImageRepository
+                                .findByProductProductId(productId);
+
+                int maxSortOrder = existingImages.stream()
+                                .map(ProductImage::getSortOrder)
+                                .filter(Objects::nonNull)
+                                .max(Integer::compareTo)
+                                .orElse(0);
+
+                List<ProductImageResponse> responses = new ArrayList<>();
+
+                for (MultipartFile file : files) {
+
+                        if (file.isEmpty()) {
+                                continue;
+                        }
+
+                        // 只接受圖片
+                        String contentType = file.getContentType();
+
+                        if (contentType == null ||
+                                        !contentType.startsWith("image/")) {
+
+                                throw new RuntimeException(
+                                                "只能上傳圖片檔案");
+                        }
+
+                        // 取得副檔名
+                        String originalFilename = file.getOriginalFilename();
+
+                        String extension = "";
+
+                        if (originalFilename != null &&
+                                        originalFilename.contains(".")) {
+
+                                extension = originalFilename.substring(
+                                                originalFilename.lastIndexOf("."));
+                        }
+
+                        // UUID 避免檔名重複
+                        String filename = UUID.randomUUID() + extension;
+
+                        Path targetPath = uploadPath.resolve(filename);
+
+                        try {
+                                Files.copy(
+                                                file.getInputStream(),
+                                                targetPath,
+                                                StandardCopyOption.REPLACE_EXISTING);
+                        } catch (IOException e) {
+                                throw new RuntimeException(
+                                                "圖片儲存失敗",
+                                                e);
+                        }
+
+                        maxSortOrder++;
+
+                        ProductImage image = ProductImage.builder()
+                                        .product(product)
+                                        .imageUrl(
+                                                        "/uploads/products/" + filename)
+                                        .sortOrder(maxSortOrder)
+                                        .isMain(false)
+                                        .build();
+
+                        ProductImage saved = productImageRepository.save(image);
 
                         responses.add(
                                         ProductImageResponse.builder()
-                                                        .imageId(savedImage.getImageId())
-                                                        .imageUrl(savedImage.getImageUrl())
-                                                        .sortOrder(savedImage.getSortOrder())
+                                                        .imageId(saved.getImageId())
+                                                        .imageUrl(saved.getImageUrl())
+                                                        .sortOrder(saved.getSortOrder())
+                                                        .isMain(saved.getIsMain())
                                                         .build());
                 }
 
