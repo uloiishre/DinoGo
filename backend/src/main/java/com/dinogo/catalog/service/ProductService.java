@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -62,18 +63,21 @@ public class ProductService {
 
         private ProductResponse toProductResponse(Product product) {
 
-                String imageUrl = product.getImages()
-                                .stream()
-                                .filter(ProductImage::getIsMain)
-                                .findFirst()
-                                .map(ProductImage::getImageUrl)
-                                .orElse(null);
-
-                Integer stock = product.getSkus()
+                BigDecimal minPrice = product.getSkus()
                                 .stream()
                                 .filter(sku -> sku.getStatus() == 1)
-                                .mapToInt(ProductSku::getStock)
-                                .sum();
+                                .filter(sku -> sku.getPrice() != null)
+                                .map(ProductSku::getPrice)
+                                .min(BigDecimal::compareTo)
+                                .orElse(product.getBasePrice());
+
+                BigDecimal maxPrice = product.getSkus()
+                                .stream()
+                                .filter(sku -> sku.getStatus() == 1)
+                                .filter(sku -> sku.getPrice() != null)
+                                .map(ProductSku::getPrice)
+                                .max(BigDecimal::compareTo)
+                                .orElse(product.getBasePrice());
 
                 return new ProductResponse(
                                 product.getProductId(),
@@ -83,8 +87,16 @@ public class ProductService {
                                 product.getProductName(),
                                 product.getDescription(),
                                 product.getBasePrice(),
-                                stock,
-                                imageUrl,
+                                minPrice,
+                                maxPrice,
+                                product.getSkus()
+                                                .stream()
+                                                .filter(sku -> sku.getStatus() == 1)
+                                                .mapToInt(ProductSku::getStock)
+                                                .sum(),
+                                product.getImages().isEmpty()
+                                                ? null
+                                                : product.getImages().get(0).getImageUrl(),
                                 product.getStatus());
         }
 
@@ -303,10 +315,10 @@ public class ProductService {
 
                 Sort sorting = switch (sort == null ? "" : sort) {
                         case "priceAsc" ->
-                                Sort.by(Sort.Direction.ASC, "basePrice");
+                                Sort.by(Sort.Direction.ASC, "minSkuPrice");
 
                         case "priceDesc" ->
-                                Sort.by(Sort.Direction.DESC, "basePrice");
+                                Sort.by(Sort.Direction.DESC, "minSkuPrice");
 
                         case "salesDesc" ->
                                 Sort.by(Sort.Direction.DESC, "soldCount");

@@ -19,7 +19,11 @@ public class ProductResponse {
     private String description;
     private BigDecimal basePrice;
 
+    private BigDecimal minPrice;
+    private BigDecimal maxPrice;
+
     private Integer stock;
     private String imageUrl;
     private Byte status;
+
 }

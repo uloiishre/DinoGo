@@ -26,6 +26,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.Formula;
 
 @Entity
 @Table(name = "Product", schema = "catalog")
@@ -122,4 +123,15 @@ public class Product {
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
+
+    @Formula("""
+            (
+                SELECT COALESCE(MIN(ps.price), base_price)
+                FROM catalog.ProductSku ps
+                WHERE ps.product_id = product_id
+                  AND ps.status = 1
+                  AND ps.price IS NOT NULL
+            )
+            """)
+    private BigDecimal minSkuPrice;
 }
