@@ -74,7 +74,14 @@ docs/design/frontend-task-rules.md
 - `develop` 是整合分支，功能開發使用 `feature/*`；有未提交修改時不可自行 switch、pull、merge 或 rebase。
 - commit / push / PR 前，確認 branch、diff、測試、敏感檔案、無關檔案與 API/DB 影響。完整流程與格式以 `docs/git-workflow.md` 為準。
 
-## 8. 修改前後的工作方式
+## 8. Task / Session 工作方式
+
+- 工作流程以 Task 為單位，不以日期或單一 Codex session 為單位；一個 Task 可以跨多個 session。
+- 開始或接續 Task 時，重新讀取 `AGENTS.md`、存在時的 `AGENTS.local.md`，並確認 branch、working tree、最近 commit、遠端差異、Task 目標與未完成事項。
+- 不可假設前一個 session 的判斷或 working tree 狀態仍然正確；有未提交修改時，不自行 pull、switch、merge 或 rebase。
+- Task 完成、暫停或準備切換 session 時，整理：Task 目標、已完成、目前修改、測試、Git 狀態、未完成／blocker 與下一步。
+
+## 9. 修改前後的工作方式
 
 ### 修改前
 
@@ -104,7 +111,7 @@ docs/design/frontend-task-rules.md
 ### Risks / Notes
 ```
 
-## 9. 首次導入與文件維護
+## 10. 首次導入與文件維護
 
 首次使用本規範時，先確認 repository、branch、working tree、`.gitignore`、正式文件與 teacher reference 是否被追蹤；只做分析，不修改 business logic、commit、push、merge 或 PR。
 
