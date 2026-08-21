@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import AuthLayout from '@/layouts/AuthLayout.vue'
+import AdminLayout from '@/layouts/AdminLayout.vue'
 import DefaultStorefrontLayout from '@/layouts/DefaultStorefrontLayout.vue'
 import MemberLayout from '@/layouts/MemberLayout.vue'
 import SellerLayout from '@/layouts/SellerLayout.vue'
@@ -172,6 +173,19 @@ const routes = [
         path: 'messages',
         name: 'SellerMessages',
         component: () => import('@/views/seller/SellerMessagesView.vue'),
+      },
+    ],
+  },
+  {
+    path: '/admin',
+    component: AdminLayout,
+    meta: { requiresAuth: true, requiresRole: 'admin' },
+    children: [
+      { path: '', redirect: '/admin/seller-applications' },
+      {
+        path: 'seller-applications',
+        name: 'AdminSellerApplications',
+        component: () => import('@/views/admin/AdminSellerApplicationsView.vue'),
       },
     ],
   },
