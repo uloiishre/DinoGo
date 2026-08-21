@@ -1,12 +1,12 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { logSafeError } from '@/utils/safeError'
 import { getImageUrl } from '@/utils/imageUrl'
 
 const route = useRoute()
-
+const router = useRouter()
 const product = ref(null)
 const loading = ref(true)
 const errorMessage = ref('')
@@ -52,7 +52,36 @@ const fetchProductDetail = async () => {
     loading.value = false
   }
 }
+const goToCheckout = async () => {
+  if (!selectedSku.value) {
+    cartMessage.value = '請先選擇商品規格。'
+    return
+  }
 
+  if (selectedSku.value.stock <= 0) {
+    cartMessage.value = '此商品目前沒有庫存。'
+    return
+  }
+
+  try {
+    // 先加入購物車
+    await api.post('/cart/items', {
+      skuId: selectedSku.value.skuId,
+      quantity: quantity.value,
+    })
+
+    // 再前往結帳頁
+    router.push('/checkout')
+  } catch (error) {
+    console.error('立即結帳失敗：', error)
+
+    if (error.response?.status === 401) {
+      cartMessage.value = '請先登入後再結帳。'
+    } else {
+      cartMessage.value = error.response?.data?.message || '結帳失敗，請稍後再試。'
+    }
+  }
+}
 /**
  * 判斷這個商品是不是雙規格商品
  *
@@ -186,6 +215,40 @@ const selectSpec1 = (value) => {
  */
 const selectSpec2 = (value) => {
   selectedSpec2.value = value
+}
+
+const cartMessage = ref('')
+const addingToCart = ref(false)
+
+const addToCart = async () => {
+  cartMessage.value = ''
+
+  // 商品有 SKU，但還沒有選到完整規格
+  if (!selectedSku.value) {
+    cartMessage.value = '請先選擇商品規格。'
+    return
+  }
+
+  try {
+    addingToCart.value = true
+
+    await api.post('/cart/items', {
+      skuId: selectedSku.value.skuId,
+      quantity: quantity.value,
+    })
+
+    cartMessage.value = '已加入購物車！'
+  } catch (error) {
+    console.error('加入購物車失敗：', error)
+
+    if (error.response?.status === 401) {
+      cartMessage.value = '請先登入後再加入購物車。'
+    } else {
+      cartMessage.value = error.response?.data?.message || '加入購物車失敗，請稍後再試。'
+    }
+  } finally {
+    addingToCart.value = false
+  }
 }
 
 /**
@@ -357,6 +420,33 @@ onMounted(() => {
                   </button>
 
                   <span> 剩餘 {{ selectedSku.stock }} 件 </span>
+                </div>
+
+                <!-- 加入購物車 -->
+                <div class="purchase-actions">
+                  <!-- 加入購物車 -->
+                  <button
+                    type="button"
+                    class="add-cart-button"
+                    :disabled="addingToCart || selectedSku.stock <= 0"
+                    @click="addToCart"
+                  >
+                    {{ addingToCart ? '加入中...' : '加入購物車' }}
+                  </button>
+
+                  <!-- 立即結帳 -->
+                  <button
+                    type="button"
+                    class="checkout-button"
+                    :disabled="selectedSku.stock <= 0"
+                    @click="goToCheckout"
+                  >
+                    立即結帳
+                  </button>
+                </div>
+
+                <div v-if="cartMessage" class="cart-message">
+                  {{ cartMessage }}
                 </div>
               </div>
 
@@ -596,5 +686,87 @@ onMounted(() => {
 
 .error-message {
   color: var(--color-danger);
+}
+
+.cart-action {
+  margin-top: var(--space-5);
+}
+
+.add-cart-button {
+  width: 100%;
+  padding: var(--space-3) var(--space-5);
+
+  color: #fff;
+  background: var(--color-primary);
+
+  border: none;
+  border-radius: var(--radius-md);
+
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.add-cart-button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.add-cart-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.cart-message {
+  margin-top: var(--space-3);
+  color: var(--color-primary);
+}
+
+.purchase-actions {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.add-cart-button,
+.checkout-button {
+  flex: 1;
+  padding: var(--space-3) var(--space-5);
+
+  border-radius: var(--radius-md);
+
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* 加入購物車 */
+.add-cart-button {
+  color: #fff;
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+}
+
+.add-cart-button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+/* 立即結帳 */
+.checkout-button {
+  color: var(--color-primary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-primary);
+}
+
+.checkout-button:hover:not(:disabled) {
+  background: var(--color-primary-soft);
+}
+
+.add-cart-button:disabled,
+.checkout-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.cart-message {
+  margin-top: var(--space-3);
+  color: var(--color-primary);
 }
 </style>
