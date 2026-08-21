@@ -57,3 +57,4 @@ frontend/*.local
 
 # Uploaded runtime files
 backend/uploads/
+/.metadata/
