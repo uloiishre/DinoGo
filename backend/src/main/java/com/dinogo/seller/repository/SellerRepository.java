@@ -19,4 +19,10 @@ public interface SellerRepository extends JpaRepository<Seller, Integer> {
 
     boolean existsBySellerIdAndStatus(Integer sellerId, String status);
 
+    // 搜尋 store_name 包含 keyword，且 status 是 ACTIVE 的商家。
+    // 例如搜尋「森日」，可以找到「森日選物測試」。
+    List<Seller> findByStoreNameContainingAndStatus(
+            String keyword,
+            String status);
+
 }

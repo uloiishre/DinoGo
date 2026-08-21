@@ -1,11 +1,47 @@
 <script setup>
-import { getSellerProfile, updateSellerProfile } from '@/api/sellerProfileApi'
+import {
+  getSellerProfile,
+  updateSellerProfile,
+  uploadSellerLogo,
+  resolveSellerLogoUrl,
+} from '@/api/sellerProfileApi'
 import { computed, onMounted, reactive, ref } from 'vue'
 
 const isSaving = ref(false)
 const savedMessage = ref('')
 const logoUrl = ref('')
 const logoLoadFailed = ref(false)
+
+const logoFileInput = ref(null)
+const isUploadingLogo = ref(false)
+
+const openLogoPicker = () => {
+  logoFileInput.value?.click()
+}
+
+const handleLogoSelect = async (event) => {
+  const file = event.target.files?.[0]
+
+  if (!file) {
+    return
+  }
+
+  isUploadingLogo.value = true
+  savedMessage.value = ''
+  logoLoadFailed.value = false
+
+  try {
+    const response = await uploadSellerLogo(file)
+    applyProfileToForm(response.data)
+    savedMessage.value = '店鋪 Logo 已更新。'
+  } catch (error) {
+    console.error('Upload seller logo failed:', error)
+    savedMessage.value = '店鋪 Logo 上傳失敗，請確認檔案格式。'
+  } finally {
+    isUploadingLogo.value = false
+    event.target.value = ''
+  }
+}
 
 const form = reactive({
   storeName: '',
@@ -89,7 +125,6 @@ onMounted(async () => {
     savedMessage.value = '店鋪資料載入失敗，請確認是否已登入賣家帳號。'
   }
 })
-
 </script>
 
 <template>
@@ -121,7 +156,7 @@ onMounted(async () => {
           <img
             v-if="logoUrl && !logoLoadFailed"
             class="store-avatar-image"
-            :src="logoUrl"
+            :src="resolveSellerLogoUrl(logoUrl)"
             :alt="`${form.storeName} Logo`"
             @error="logoLoadFailed = true"
           />
@@ -155,30 +190,42 @@ onMounted(async () => {
         <section class="logo-section full-width" aria-labelledby="store-logo-title">
           <h3 id="store-logo-title">店鋪 Logo</h3>
 
-          <label class="form-field">
-            Logo 圖片網址
-            <input
-              v-model="logoUrl"
-              type="url"
-              placeholder="https://example.com/store-logo.png"
-              @input="logoLoadFailed = false"
+          <button
+            class="logo-upload-button"
+            type="button"
+            :disabled="isUploadingLogo"
+            @click="openLogoPicker"
+          >
+            <img
+              v-if="logoUrl && !logoLoadFailed"
+              class="logo-preview"
+              :src="resolveSellerLogoUrl(logoUrl)"
+              :alt="`${form.storeName} Logo 預覽`"
+              @error="logoLoadFailed = true"
             />
-          </label>
-          <img
-            v-if="logoUrl && !logoLoadFailed"
-            class="logo-preview"
-            :src="logoUrl"
-            :alt="`${form.storeName} Logo 預覽`"
-            @error="logoLoadFailed = true"
+
+            <div v-else class="logo-placeholder">
+              <i class="bi bi-image" aria-hidden="true"></i>
+              <span>{{ isUploadingLogo ? '上傳中...' : '點選上傳' }}</span>
+              <small>建議使用正方形圖片</small>
+            </div>
+          </button>
+
+          <input
+            ref="logoFileInput"
+            class="logo-file-input"
+            type="file"
+            accept="image/*"
+            @change="handleLogoSelect"
           />
-          <p v-else class="logo-help">請輸入可公開存取的圖片網址，儲存後會同步到店鋪頁。</p>
+
+          <p class="logo-help">上傳後會自動同步到前台店鋪頁。</p>
         </section>
 
         <label class="form-field full-width">
           店鋪介紹
           <textarea v-model="form.description"></textarea>
         </label>
-
       </section>
 
       <aside class="profile-side">
@@ -211,7 +258,6 @@ onMounted(async () => {
               </option>
             </select>
           </label>
-
         </section>
       </aside>
 
