@@ -15,6 +15,9 @@ const selectedImage = ref('')
 const selectedSpec1 = ref('')
 const selectedSpec2 = ref('')
 const quantity = ref(1)
+const isFavorite = ref(false)
+const favoriteLoading = ref(false)
+const favoriteMessage = ref('')
 
 /**
  * 取得商品詳情
@@ -50,36 +53,6 @@ const fetchProductDetail = async () => {
     errorMessage.value = '商品資料載入失敗'
   } finally {
     loading.value = false
-  }
-}
-const goToCheckout = async () => {
-  if (!selectedSku.value) {
-    cartMessage.value = '請先選擇商品規格。'
-    return
-  }
-
-  if (selectedSku.value.stock <= 0) {
-    cartMessage.value = '此商品目前沒有庫存。'
-    return
-  }
-
-  try {
-    // 先加入購物車
-    await api.post('/cart/items', {
-      skuId: selectedSku.value.skuId,
-      quantity: quantity.value,
-    })
-
-    // 再前往結帳頁
-    router.push('/checkout')
-  } catch (error) {
-    console.error('立即結帳失敗：', error)
-
-    if (error.response?.status === 401) {
-      cartMessage.value = '請先登入後再結帳。'
-    } else {
-      cartMessage.value = error.response?.data?.message || '結帳失敗，請稍後再試。'
-    }
   }
 }
 /**
@@ -219,13 +192,18 @@ const selectSpec2 = (value) => {
 
 const cartMessage = ref('')
 const addingToCart = ref(false)
+const buyingNow = ref(false)
 
 const addToCart = async () => {
   cartMessage.value = ''
 
-  // 商品有 SKU，但還沒有選到完整規格
   if (!selectedSku.value) {
     cartMessage.value = '請先選擇商品規格。'
+    return
+  }
+
+  if (selectedSku.value.stock <= 0) {
+    cartMessage.value = '此商品目前沒有庫存。'
     return
   }
 
@@ -237,6 +215,7 @@ const addToCart = async () => {
       quantity: quantity.value,
     })
 
+    // 只加入購物車，不跳頁
     cartMessage.value = '已加入購物車！'
   } catch (error) {
     console.error('加入購物車失敗：', error)
@@ -251,6 +230,92 @@ const addToCart = async () => {
   }
 }
 
+const buyNow = async () => {
+  cartMessage.value = ''
+
+  if (!selectedSku.value) {
+    cartMessage.value = '請先選擇商品規格。'
+    return
+  }
+
+  if (selectedSku.value.stock <= 0) {
+    cartMessage.value = '此商品目前沒有庫存。'
+    return
+  }
+
+  try {
+    buyingNow.value = true
+
+    // 先加入購物車
+    await api.post('/cart/items', {
+      skuId: selectedSku.value.skuId,
+      quantity: quantity.value,
+    })
+
+    // 成功後跳到購物車結帳頁
+    router.push('/cart')
+  } catch (error) {
+    console.error('立即結帳失敗：', error)
+
+    if (error.response?.status === 401) {
+      cartMessage.value = '請先登入後再結帳。'
+    } else {
+      cartMessage.value = error.response?.data?.message || '加入購物車失敗，請稍後再試。'
+    }
+  } finally {
+    buyingNow.value = false
+  }
+}
+const fetchFavoriteStatus = async () => {
+  if (!product.value) {
+    return
+  }
+
+  try {
+    const response = await api.get('/favorites')
+
+    isFavorite.value = response.data.some(
+      (favorite) => favorite.productId === product.value.productId,
+    )
+  } catch (error) {
+    console.error('取得收藏狀態失敗：', error)
+  }
+}
+const toggleFavorite = async () => {
+  if (!product.value || favoriteLoading.value) {
+    return
+  }
+
+  favoriteMessage.value = ''
+
+  try {
+    favoriteLoading.value = true
+
+    if (isFavorite.value) {
+      await api.delete(`/favorites/${product.value.productId}`)
+
+      isFavorite.value = false
+      favoriteMessage.value = '已取消收藏'
+    } else {
+      await api.post('/favorites', {
+        productId: product.value.productId,
+      })
+
+      isFavorite.value = true
+      favoriteMessage.value = '已加入收藏'
+    }
+  } catch (error) {
+    console.error('收藏操作失敗：', error)
+
+    if (error.response?.status === 401) {
+      favoriteMessage.value = '請先登入後再收藏商品'
+    } else {
+      favoriteMessage.value = error.response?.data?.message || '收藏操作失敗，請稍後再試'
+    }
+  } finally {
+    favoriteLoading.value = false
+  }
+}
 /**
  * SKU 改變時，數量回到 1
  */
@@ -258,8 +323,9 @@ watch(selectedSku, () => {
   quantity.value = 1
 })
 
-onMounted(() => {
-  fetchProductDetail()
+onMounted(async () => {
+  await fetchProductDetail()
+  await fetchFavoriteStatus()
 })
 </script>
 
@@ -422,13 +488,23 @@ onMounted(() => {
                   <span> 剩餘 {{ selectedSku.stock }} 件 </span>
                 </div>
 
-                <!-- 加入購物車 -->
                 <div class="purchase-actions">
+                  <div class="favorite-action">
+                    <button
+                      type="button"
+                      class="favorite-button"
+                      :class="{ active: isFavorite }"
+                      :disabled="favoriteLoading"
+                      @click="toggleFavorite"
+                    >
+                      {{ favoriteLoading ? '處理中...' : isFavorite ? '♥ 已收藏' : '♡ 收藏商品' }}
+                    </button>
+                  </div>
                   <!-- 加入購物車 -->
                   <button
                     type="button"
                     class="add-cart-button"
-                    :disabled="addingToCart || selectedSku.stock <= 0"
+                    :disabled="addingToCart || buyingNow || selectedSku.stock <= 0"
                     @click="addToCart"
                   >
                     {{ addingToCart ? '加入中...' : '加入購物車' }}
@@ -438,10 +514,10 @@ onMounted(() => {
                   <button
                     type="button"
                     class="checkout-button"
-                    :disabled="selectedSku.stock <= 0"
-                    @click="goToCheckout"
+                    :disabled="addingToCart || buyingNow || selectedSku.stock <= 0"
+                    @click="buyNow"
                   >
-                    立即結帳
+                    {{ buyingNow ? '處理中...' : '立即結帳' }}
                   </button>
                 </div>
 
@@ -766,6 +842,42 @@ onMounted(() => {
 }
 
 .cart-message {
+  margin-top: var(--space-3);
+  color: var(--color-primary);
+}
+.favorite-action {
+  margin-top: var(--space-5);
+}
+
+.favorite-button {
+  padding: var(--space-2) var(--space-4);
+
+  color: var(--color-text);
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+
+  cursor: pointer;
+}
+
+.favorite-button:hover:not(:disabled) {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.favorite-button.active {
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary);
+}
+
+.favorite-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.favorite-message {
   margin-top: var(--space-3);
   color: var(--color-primary);
 }
