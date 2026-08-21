@@ -1,5 +1,10 @@
 import api from './axios.js'
 
+export const submitSellerApplication = (payload) =>
+  api.post('/member/seller-applications', payload)
+
+export const getMySellerApplication = () => api.get('/member/seller-applications/me')
+
 export const listSellerApplications = (status) =>
   api.get('/admin/seller-applications', { params: status ? { status } : {} })
 
