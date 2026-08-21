@@ -32,7 +32,17 @@ defineProps({
         {{ product.productName }}
       </h2>
 
-      <p class="product-price mb-0">NT$ {{ product.basePrice }}</p>
+      <p class="product-price mb-0">
+        <template v-if="product.minPrice != null && product.maxPrice != null">
+          <template v-if="Number(product.minPrice) === Number(product.maxPrice)">
+            NT$ {{ product.minPrice }}
+          </template>
+
+          <template v-else> NT$ {{ product.minPrice }} ~ {{ product.maxPrice }} </template>
+        </template>
+
+        <template v-else> NT$ {{ product.basePrice }} </template>
+      </p>
     </div>
   </RouterLink>
 </template>
