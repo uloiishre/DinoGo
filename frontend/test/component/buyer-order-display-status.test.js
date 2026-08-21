@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 import OrderDetail from '../../src/views/sales/OrderDetail.vue'
 import OrderList from '../../src/views/sales/OrderList.vue'
-import { confirmDelivery, getMemberOrders, getOrder } from '../../src/api/order.js'
+import { cancelOrder, confirmDelivery, getMemberOrders, getOrder } from '../../src/api/order.js'
 
 vi.mock('vue-router', () => ({
   RouterLink: { template: '<a><slot /></a>' },
@@ -162,6 +162,47 @@ describe('buyer order detail aggregate display status', () => {
     expect(wrapper.text()).toContain('黑貓宅急便')
     expect(wrapper.text()).toContain('TRACK-001')
     expect(wrapper.find('button.btn-primary').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  test('shows cancellation for an unshipped cash-on-delivery order being processed', async () => {
+    getOrder.mockResolvedValue({
+      data: orderFixture({
+        status: 'PROCESSING',
+        payment: {
+          status: 'PENDING',
+          paymentMethodCode: 'CASH_ON_DELIVERY',
+          paymentMethodName: '貨到付款',
+        },
+        shipment: { status: 'PREPARING' },
+      }),
+    })
+
+    const wrapper = mount(OrderDetail)
+    await flushPromises()
+
+    expect(wrapper.get('button.cancel-order-button').text()).toBe('取消訂單')
+    wrapper.unmount()
+  })
+
+  test('collects a cancellation reason in a modal before cancelling the order', async () => {
+    const cancellableOrder = orderFixture({ status: 'PENDING_PAYMENT', shipment: null })
+    getOrder.mockResolvedValue({ data: cancellableOrder })
+    cancelOrder.mockResolvedValue({
+      data: orderFixture({ status: 'CANCELLED', shipment: null, cancelReason: '改變心意' }),
+    })
+    const wrapper = mount(OrderDetail)
+    await flushPromises()
+
+    await wrapper.get('button.cancel-order-button').trigger('click')
+    expect(wrapper.get('[role="dialog"]').text()).toContain('取消此筆訂單？')
+    await wrapper.get('#cancellation-reason').setValue('改變心意')
+    await wrapper.get('[role="dialog"]').trigger('submit')
+    await flushPromises()
+
+    expect(cancelOrder).toHaveBeenCalledWith(10, { reason: '改變心意' })
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('此訂單已取消')
     wrapper.unmount()
   })
 

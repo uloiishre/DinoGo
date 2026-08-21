@@ -47,6 +47,8 @@ const shippingMethod = ref('HOME_DELIVERY')
 // ========================================
 const paymentMethod = ref('CASH_ON_DELIVERY')
 const paymentSimulationEnabled = ref(false)
+const simulatedPaymentStatus = ref('SUCCESS')
+const simulatedPaymentFailureReason = ref('')
 
 const loadPaymentCapabilities = async () => {
   try {
@@ -103,7 +105,7 @@ const selectedCoupon = computed(() => {
   )
 })
 
-const onlinePaymentAvailable = computed(() => true)
+const onlinePaymentAvailable = computed(() => paymentSimulationEnabled.value)
 
 // ========================================
 // 金額格式
@@ -529,6 +531,10 @@ const submitOrder = async () => {
   }
 
   const submittedPaymentMethod = paymentMethod.value
+  const submittedSimulationStatus = simulatedPaymentStatus.value
+  const submittedFailureReason = submittedSimulationStatus === 'FAILED'
+    ? simulatedPaymentFailureReason.value.trim() || null
+    : null
   let createdOrderId = null
 
   if (submittedPaymentMethod !== 'CASH_ON_DELIVERY' && !paymentSimulationEnabled.value) {
@@ -569,7 +575,12 @@ const submitOrder = async () => {
       const paymentResponse = await createPayment(createdOrderId, submittedPaymentMethod)
 
       if (submittedPaymentMethod !== 'CASH_ON_DELIVERY' && onlinePaymentAvailable.value) {
-        await simulatePayment(createdOrderId, paymentResponse.data.paymentId)
+        await simulatePayment(
+          createdOrderId,
+          paymentResponse.data.paymentId,
+          submittedSimulationStatus,
+          submittedFailureReason,
+        )
       }
     } catch (paymentError) {
       logSafeError('付款失敗：', paymentError)
@@ -798,6 +809,43 @@ onMounted(() => {
                   </strong>
                 </div>
               </div>
+            </div>
+
+            <div
+              v-if="paymentSimulationEnabled && paymentMethod !== 'CASH_ON_DELIVERY'"
+              class="payment-simulation"
+            >
+              <p class="payment-simulation-title">Demo 付款結果</p>
+              <label>
+                <input
+                  v-model="simulatedPaymentStatus"
+                  type="radio"
+                  value="SUCCESS"
+                  name="simulated-payment-status"
+                  :disabled="submitting"
+                />
+                模擬付款成功
+              </label>
+              <label>
+                <input
+                  v-model="simulatedPaymentStatus"
+                  type="radio"
+                  value="FAILED"
+                  name="simulated-payment-status"
+                  :disabled="submitting"
+                />
+                模擬付款失敗
+              </label>
+              <label v-if="simulatedPaymentStatus === 'FAILED'" class="payment-failure-reason">
+                失敗原因（選填）
+                <input
+                  v-model="simulatedPaymentFailureReason"
+                  type="text"
+                  maxlength="500"
+                  placeholder="例如：銀行授權失敗"
+                  :disabled="submitting"
+                />
+              </label>
             </div>
           </section>
           <!-- ======================================
@@ -1712,6 +1760,58 @@ onMounted(() => {
   font-size: var(--font-size-xs);
 
   line-height: 1.5;
+}
+
+.payment-simulation {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  color: var(--color-text-700);
+  background: var(--color-warning-soft);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+}
+
+.payment-simulation-title {
+  margin: 0;
+  color: var(--color-warning);
+  font-weight: 700;
+}
+
+.payment-simulation label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.payment-simulation input[type='radio'] {
+  position: static;
+  width: auto;
+  height: auto;
+  opacity: 1;
+}
+
+.payment-simulation .payment-failure-reason {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.payment-failure-reason input {
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.payment-failure-reason input:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
 }
 
 .option-phone {

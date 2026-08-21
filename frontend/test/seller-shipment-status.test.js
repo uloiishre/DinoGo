@@ -16,7 +16,6 @@ function setup(orderValue, overrides = {}) {
   const state = useSellerShipmentStatus({
     order,
     updateStatus,
-    confirmAction: overrides.confirmAction ?? (() => true),
   })
   return { calls, order, ...state }
 }
@@ -85,28 +84,6 @@ test('failed shipment update preserves state and exposes the API error', async (
   assert.equal(state.order.value.status, 'PROCESSING')
   assert.deepEqual(state.order.value.shipment, originalShipment)
   assert.equal(state.shipmentActionError.value, '物流狀態衝突')
-  assert.equal(state.updatingShipment.value, false)
-})
-
-test('cancelling the confirmation does not send a request or change state', async () => {
-  let callCount = 0
-  const originalShipment = preparingShipment()
-  const state = setup(
-    { status: 'PROCESSING', shipment: originalShipment },
-    {
-      confirmAction: () => false,
-      updateStatus: async () => {
-        callCount += 1
-        return { shipmentId: 3, status: 'SHIPPED' }
-      },
-    },
-  )
-
-  await state.updateShipmentStatus()
-
-  assert.equal(callCount, 0)
-  assert.equal(state.order.value.status, 'PROCESSING')
-  assert.deepEqual(state.order.value.shipment, originalShipment)
   assert.equal(state.updatingShipment.value, false)
 })
 

@@ -6,6 +6,7 @@ import {
   acceptSellerOrder,
   createSellerShipment,
   getSellerOrder,
+  updateSellerShipmentTrackingInfo,
   updateSellerShipmentStatus,
 } from '../../src/api/sellerOrderApi.js'
 
@@ -20,6 +21,7 @@ vi.mock('../../src/api/sellerOrderApi.js', () => ({
   acceptSellerOrder: vi.fn(),
   createSellerShipment: vi.fn(),
   getSellerOrder: vi.fn(),
+  updateSellerShipmentTrackingInfo: vi.fn(),
   updateSellerShipmentStatus: vi.fn(),
 }))
 
@@ -54,7 +56,6 @@ async function mountView(order = orderFixture()) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.spyOn(window, 'confirm').mockReturnValue(true)
 })
 
 describe('seller shipment operation flow', () => {
@@ -113,9 +114,10 @@ describe('seller shipment operation flow', () => {
     const shipmentButton = wrapper.get('button.shipment-submit')
     expect(shipmentButton.text()).toBe('確認出貨')
     await shipmentButton.trigger('click')
+    expect(wrapper.get('[role="dialog"]').text()).toContain('確認此筆訂單已出貨？')
+    await wrapper.get('[role="dialog"] button.shipment-submit').trigger('click')
     await flushPromises()
 
-    expect(window.confirm).toHaveBeenCalledOnce()
     expect(updateSellerShipmentStatus).toHaveBeenCalledWith(10, 'SHIPPED')
     expect(wrapper.text()).toContain('已出貨')
   })
@@ -239,16 +241,26 @@ describe('seller shipment operation flow', () => {
     expect(wrapper.find('button.accept-button').exists()).toBe(false)
   })
 
-  test('does not update shipment when the confirmation dialog is cancelled', async () => {
-    window.confirm.mockReturnValue(false)
+  test('lets the seller revise tracking information instead of confirming shipment', async () => {
+    updateSellerShipmentTrackingInfo.mockResolvedValue({
+      data: { shipmentId: 3, status: 'PREPARING', carrierName: '新竹物流', trackingNo: 'NEW-001' },
+    })
     const wrapper = await mountView(orderFixture({
       status: 'PROCESSING',
-      shipment: { shipmentId: 3, status: 'PREPARING' },
+      shipment: { shipmentId: 3, status: 'PREPARING', carrierName: '黑貓宅急便', trackingNo: 'OLD-001' },
     }))
 
     await wrapper.get('button.shipment-submit').trigger('click')
+    await wrapper.get('[role="dialog"] button.secondary-button').trigger('click')
+    await wrapper.get('[name="carrierName"]').setValue('新竹物流')
+    await wrapper.get('[name="trackingNo"]').setValue('NEW-001')
+    await wrapper.get('form.shipment-form').trigger('submit')
     await flushPromises()
 
+    expect(updateSellerShipmentTrackingInfo).toHaveBeenCalledWith(10, {
+      carrierName: '新竹物流',
+      trackingNo: 'NEW-001',
+    })
     expect(updateSellerShipmentStatus).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('確認出貨')
   })
