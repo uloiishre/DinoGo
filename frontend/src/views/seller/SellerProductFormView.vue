@@ -9,9 +9,13 @@ import {
   createSellerProductSkus,
   disableSellerProductSku,
   updateSellerProductMainImage,
+  updateSellerProductImageSort,
+  deleteSellerProductImage,
+  uploadSellerProductImages,
 } from '@/api/sellerProductApi'
 import { getCurrentSellerId } from '@/utils/seller-session'
 import { logSafeError } from '@/utils/safeError'
+import { getImageUrl } from '@/utils/imageUrl'
 
 const sellerId = getCurrentSellerId()
 const route = useRoute()
@@ -26,6 +30,12 @@ const imageFileInput = ref(null)
 const imagePreviewUrl = ref('')
 const selectedImageName = ref('')
 const selectedMainImageId = ref(null)
+const selectedImageIndex = ref(null)
+const selectedImageId = ref(null)
+const selectedImageFiles = ref([])
+const newImagePreviews = ref([])
+const selectedNewMainIndex = ref(0)
+const selectedNewImageIndex = ref(0)
 
 const pageTitle = computed(() => (isEditMode.value ? '編輯商品' : '新增商品'))
 const pageDescription = computed(() =>
@@ -178,14 +188,68 @@ const openImagePicker = () => {
 }
 
 const handleImageSelect = (event) => {
-  const file = event.target.files?.[0]
+  const files = Array.from(event.target.files || [])
 
-  if (!file) {
+  if (files.length === 0) {
     return
   }
 
-  selectedImageName.value = file.name
-  imagePreviewUrl.value = URL.createObjectURL(file)
+  // 清除之前建立的預覽 URL
+  newImagePreviews.value.forEach((preview) => {
+    URL.revokeObjectURL(preview.url)
+  })
+
+  selectedImageFiles.value = files
+
+  newImagePreviews.value = files.map((file) => ({
+    file,
+    url: URL.createObjectURL(file),
+  }))
+
+  // 上方大圖先預覽第一張
+  imagePreviewUrl.value = newImagePreviews.value[0]?.url ?? ''
+
+  selectedImageName.value = files.length === 1 ? files[0].name : `已選擇 ${files.length} 張圖片`
+}
+
+const moveNewImage = (index, direction) => {
+  if (index === null) {
+    return
+  }
+
+  const newIndex = index + direction
+
+  if (newIndex < 0 || newIndex >= newImagePreviews.value.length) {
+    return
+  }
+
+  const previews = [...newImagePreviews.value]
+
+  const temp = previews[index]
+  previews[index] = previews[newIndex]
+  previews[newIndex] = temp
+
+  newImagePreviews.value = previews
+
+  // 上傳檔案順序同步
+  selectedImageFiles.value = previews.map((preview) => preview.file)
+
+  // 如果移動的是主圖，主圖 index 跟著圖片移動
+  if (selectedNewMainIndex.value === index) {
+    selectedNewMainIndex.value = newIndex
+  } else if (selectedNewMainIndex.value === newIndex) {
+    selectedNewMainIndex.value = index
+  }
+
+  // 目前選取圖片也跟著移動
+  selectedNewImageIndex.value = newIndex
+}
+const setNewMainImage = () => {
+  if (selectedNewImageIndex.value === null) {
+    return
+  }
+
+  selectedNewMainIndex.value = selectedNewImageIndex.value
 }
 
 const changeMainImage = async (imageId) => {
@@ -210,6 +274,73 @@ const changeMainImage = async (imageId) => {
     logSafeError('Update main image failed:', error)
     errorMessage.value = '設定主圖失敗。'
   }
+}
+
+const selectNewImage = (index) => {
+  selectedNewImageIndex.value = index
+
+  // 上方大圖顯示目前選取的待上傳圖片
+  imagePreviewUrl.value = newImagePreviews.value[index]?.url ?? ''
+}
+
+const setSelectedImageAsMain = async () => {
+  if (selectedImageIndex.value === null) {
+    return
+  }
+
+  const image = form.images[selectedImageIndex.value]
+
+  if (!image) {
+    return
+  }
+
+  // 已經是主圖就不用再送 API
+  if (image.imageId === selectedMainImageId.value) {
+    return
+  }
+
+  await changeMainImage(image.imageId)
+}
+
+const selectImage = (index) => {
+  selectedImageIndex.value = index
+
+  const image = form.images[index]
+
+  selectedImageId.value = image.imageId
+
+  // 上方大圖預覽切成目前選取圖片
+  form.imageUrl = image.imageUrl
+  imagePreviewUrl.value = ''
+}
+
+// 調整商品圖片順序
+const moveImage = (index, direction) => {
+  if (index === null) {
+    return
+  }
+
+  const newIndex = index + direction
+
+  if (newIndex < 0 || newIndex >= form.images.length) {
+    return
+  }
+
+  const images = [...form.images]
+
+  const temp = images[index]
+  images[index] = images[newIndex]
+  images[newIndex] = temp
+
+  // sortOrder 統一從 1 開始
+  images.forEach((image, imageIndex) => {
+    image.sortOrder = imageIndex + 1
+  })
+
+  form.images = images
+
+  // 移動後，選取狀態跟著圖片移動
+  selectedImageIndex.value = newIndex
 }
 
 const toFormStatus = (status) => {
@@ -245,14 +376,7 @@ const buildCreatePayload = () => ({
       stock: Number(sku.stock),
     })),
 
-  images: form.imageUrl
-    ? [
-        {
-          imageUrl: form.imageUrl.trim(),
-          sortOrder: 1,
-        },
-      ]
-    : [],
+  images: [],
 })
 
 const fillProductForm = (product) => {
@@ -267,7 +391,9 @@ const fillProductForm = (product) => {
   form.status = toFormStatus(product.status)
 
   // 商品圖片
-  form.images = product.images ?? []
+  form.images = [...(product.images ?? [])].sort(
+    (a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999),
+  )
 
   const mainImage = form.images.find((image) => image.isMain === true) ?? form.images[0] ?? null
 
@@ -276,6 +402,13 @@ const fillProductForm = (product) => {
   imagePreviewUrl.value = ''
 
   selectedMainImageId.value = mainImage?.imageId ?? null
+
+  selectedImageIndex.value = mainImage
+    ? form.images.findIndex((image) => image.imageId === mainImage.imageId)
+    : form.images.length > 0
+      ? 0
+      : null
+  selectedImageId.value = mainImage?.imageId ?? form.images[0]?.imageId ?? null
 
   // SKU
   const skus = product.skus ?? []
@@ -390,8 +523,6 @@ const saveProductSkus = async () => {
 
 // 儲存商品
 const handleSubmit = async () => {
-  console.log('！！！！handleSubmit 被執行了！！！！')
-
   // 原本程式繼續...
   // 商品名稱驗證
   if (!form.productName.trim()) {
@@ -435,9 +566,54 @@ const handleSubmit = async () => {
 
       // ② 修改 / 新增 / 停用 SKU
       await saveProductSkus()
+
+      // ③ 儲存商品圖片排序
+      if (form.images.length > 0) {
+        await updateSellerProductImageSort(
+          productId.value,
+          form.images.map((image, index) => ({
+            imageId: image.imageId,
+            sortOrder: index + 1,
+          })),
+        )
+      }
+      // 上傳新選擇的商品圖片
+      if (selectedImageFiles.value.length > 0) {
+        await uploadSellerProductImages(productId.value, selectedImageFiles.value)
+        newImagePreviews.value.forEach((preview) => {
+          URL.revokeObjectURL(preview.url)
+        })
+
+        selectedImageFiles.value = []
+        newImagePreviews.value = []
+        imagePreviewUrl.value = ''
+        selectedImageName.value = ''
+      }
     } else {
-      // 新增商品時 Product + SKU 一次建立
-      await createSellerProduct(buildCreatePayload())
+      // ① 先建立商品
+      const response = await createSellerProduct(buildCreatePayload())
+
+      const newProductId = response.data.productId
+
+      // ② 商品建立完成後，再上傳剛才選的多張圖片
+      if (newProductId && selectedImageFiles.value.length > 0) {
+        // 上傳圖片
+        const uploadResponse = await uploadSellerProductImages(
+          newProductId,
+          selectedImageFiles.value,
+        )
+
+        // 取得剛剛上傳完成的圖片
+        const uploadedImages = uploadResponse.data
+
+        // 找出使用者選擇的主圖
+        const mainImage = uploadedImages[selectedNewMainIndex.value]
+
+        // 設定主圖
+        if (mainImage) {
+          await updateSellerProductMainImage(newProductId, mainImage.imageId)
+        }
+      }
     }
 
     router.push('/seller/products')
@@ -450,7 +626,40 @@ const handleSubmit = async () => {
     isSubmitting.value = false
   }
 }
+const removeExistingImage = async () => {
+  if (selectedImageId.value === null) {
+    return
+  }
 
+  const selectedImage = form.images.find((image) => image.imageId === selectedImageId.value)
+
+  if (!selectedImage) {
+    return
+  }
+
+  // 前端先擋主圖
+  if (selectedImage.imageId === selectedMainImageId.value) {
+    errorMessage.value = '主圖不可直接刪除，請先設定其他圖片為主圖。'
+    return
+  }
+
+  try {
+    await deleteSellerProductImage(productId.value, selectedImage.imageId)
+
+    form.images = form.images.filter((image) => image.imageId !== selectedImage.imageId)
+
+    // 重新整理 sortOrder
+    form.images.forEach((image, index) => {
+      image.sortOrder = index + 1
+    })
+
+    selectedImageIndex.value = null
+    selectedImageId.value = null
+  } catch (error) {
+    logSafeError('Delete product image failed:', error)
+    errorMessage.value = '刪除圖片失敗。'
+  }
+}
 onMounted(loadProduct)
 </script>
 
@@ -659,7 +868,7 @@ onMounted(loadProduct)
             <img
               v-if="imagePreviewUrl || form.imageUrl"
               class="image-preview"
-              :src="imagePreviewUrl || form.imageUrl"
+              :src="imagePreviewUrl || getImageUrl(form.imageUrl)"
               :alt="selectedImageName || '商品主圖'"
             />
             <div v-else class="image-placeholder">
@@ -674,36 +883,145 @@ onMounted(loadProduct)
             class="image-file-input"
             type="file"
             accept="image/*"
+            multiple
             @change="handleImageSelect"
           />
-          <!-- 編輯商品：既有商品圖片 -->
-          <div v-if="isEditMode && form.images.length > 0" class="existing-image-list">
-            <p class="image-list-title">目前商品圖片</p>
+          <!-- 新選擇、尚未上傳的圖片 -->
+          <div v-if="newImagePreviews.length > 0" class="new-image-preview-section">
+            <div class="image-list-header">
+              <p class="image-list-title">待上傳圖片（{{ newImagePreviews.length }} 張）</p>
 
-            <div
-              v-for="image in form.images"
-              :key="image.imageId"
-              class="existing-image-item"
-              :class="{
-                'is-main': selectedMainImageId === image.imageId,
-              }"
-            >
-              <img :src="image.imageUrl" alt="商品圖片" class="existing-image-thumbnail" />
+              <small> 點選圖片後可調整順序或設定主圖 </small>
+            </div>
 
-              <div class="main-image-option">
-                <span v-if="selectedMainImageId === image.imageId" class="main-image-label">
-                  目前主圖
+            <div class="image-thumbnail-strip">
+              <button
+                v-for="(preview, index) in newImagePreviews"
+                :key="preview.url"
+                type="button"
+                class="image-thumbnail-button"
+                :class="{
+                  active: selectedNewImageIndex === index,
+                  'is-main': selectedNewMainIndex === index,
+                }"
+                @click="selectNewImage(index)"
+              >
+                <img :src="preview.url" alt="待上傳商品圖片" class="existing-image-thumbnail" />
+
+                <span v-if="selectedNewMainIndex === index" class="thumbnail-main-badge">
+                  主圖
                 </span>
 
-                <button
-                  v-else
-                  type="button"
-                  class="set-main-image-button"
-                  @click.stop.prevent="changeMainImage(image.imageId)"
-                >
-                  設為主圖
-                </button>
-              </div>
+                <span class="thumbnail-order">
+                  {{ index + 1 }}
+                </span>
+              </button>
+            </div>
+
+            <div class="image-order-actions">
+              <button
+                type="button"
+                :disabled="selectedNewImageIndex === null || selectedNewImageIndex === 0"
+                @click="moveNewImage(selectedNewImageIndex, -1)"
+              >
+                ← 往左
+              </button>
+
+              <button
+                type="button"
+                :disabled="
+                  selectedNewImageIndex === null ||
+                  selectedNewImageIndex === newImagePreviews.length - 1
+                "
+                @click="moveNewImage(selectedNewImageIndex, 1)"
+              >
+                往右 →
+              </button>
+
+              <button
+                type="button"
+                :disabled="
+                  selectedNewImageIndex === null || selectedNewImageIndex === selectedNewMainIndex
+                "
+                @click="setNewMainImage"
+              >
+                {{ selectedNewImageIndex === selectedNewMainIndex ? '目前主圖' : '設為主圖' }}
+              </button>
+            </div>
+          </div>
+          <!-- 編輯商品：既有商品圖片 -->
+          <div v-if="isEditMode && form.images.length > 0" class="existing-image-list">
+            <div class="image-list-header">
+              <p class="image-list-title">目前商品圖片</p>
+              <small>點選圖片後可調整順序或設定主圖</small>
+            </div>
+
+            <!-- 橫向縮圖 -->
+            <div class="image-thumbnail-strip">
+              <button
+                v-for="(image, index) in form.images"
+                :key="image.imageId"
+                type="button"
+                class="image-thumbnail-button"
+                :class="{
+                  active: selectedImageIndex === index,
+                  'is-main': selectedMainImageId === image.imageId,
+                }"
+                @click="selectImage(index)"
+              >
+                <img
+                  :src="getImageUrl(image.imageUrl)"
+                  alt="商品圖片"
+                  class="existing-image-thumbnail"
+                />
+
+                <span v-if="selectedMainImageId === image.imageId" class="thumbnail-main-badge">
+                  主圖
+                </span>
+
+                <span class="thumbnail-order">
+                  {{ index + 1 }}
+                </span>
+              </button>
+            </div>
+
+            <!-- 選取圖片後的統一操作區 -->
+            <div v-if="selectedImageIndex !== null" class="image-order-actions">
+              <button
+                type="button"
+                :disabled="selectedImageIndex === 0"
+                @click="moveImage(selectedImageIndex, -1)"
+              >
+                ← 往左
+              </button>
+
+              <button
+                type="button"
+                :disabled="selectedImageIndex === form.images.length - 1"
+                @click="moveImage(selectedImageIndex, 1)"
+              >
+                往右 →
+              </button>
+
+              <button
+                type="button"
+                :disabled="form.images[selectedImageIndex]?.imageId === selectedMainImageId"
+                @click="setSelectedImageAsMain"
+              >
+                {{
+                  form.images[selectedImageIndex]?.imageId === selectedMainImageId
+                    ? '目前主圖'
+                    : '設為主圖'
+                }}
+              </button>
+
+              <button
+                type="button"
+                :disabled="selectedImageId === null || selectedImageId === selectedMainImageId"
+                @click="removeExistingImage"
+              >
+                刪除圖片
+              </button>
             </div>
           </div>
         </section>
@@ -853,7 +1171,8 @@ h2 {
 .image-preview {
   width: 100%;
   height: 230px;
-  object-fit: cover;
+  object-fit: contain;
+  background: var(--color-bg-muted);
 }
 
 .image-placeholder {
@@ -1043,48 +1362,136 @@ button {
   font-weight: 700;
 }
 
-.existing-image-item {
+.image-list-header {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-3);
-
-  padding: var(--space-2);
-
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  gap: 4px;
 }
 
-.existing-image-item.is-main {
+.image-list-header small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* 橫向圖片縮圖列 */
+.image-thumbnail-strip {
+  display: flex;
+  gap: var(--space-2);
+
+  width: 100%;
+  padding-bottom: var(--space-2);
+
+  overflow-x: auto;
+}
+
+/* 每一張縮圖 */
+.image-thumbnail-button {
+  position: relative;
+
+  flex: 0 0 82px;
+
+  width: 82px;
+  height: 82px;
+  min-height: 82px;
+
+  padding: 4px;
+
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+
+  background: var(--color-bg-muted);
+
+  cursor: pointer;
+}
+
+.image-thumbnail-button.active {
   border-color: var(--color-primary);
 }
 
+.image-thumbnail-button.is-main {
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
 .existing-image-thumbnail {
-  width: 72px;
-  height: 72px;
-
-  border-radius: var(--radius-md);
-
-  object-fit: cover;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--color-bg-muted);
 }
 
-.main-image-option {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+/* 主圖標記 */
+.thumbnail-main-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
 
-  cursor: pointer;
-}
+  padding: 2px 5px;
 
-.main-image-label {
-  color: var(--color-primary);
+  border-radius: 4px;
+
+  background: var(--color-primary);
+  color: white;
+
+  font-size: 11px;
   font-weight: 700;
 }
 
-.set-main-image-button {
-  min-height: 32px;
+/* 圖片順序 */
+.thumbnail-order {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+
+  display: grid;
+  place-items: center;
+
+  width: 20px;
+  height: 20px;
+
+  border-radius: 50%;
+
+  background: rgba(0, 0, 0, 0.65);
+  color: white;
+
+  font-size: 11px;
+}
+
+/* 圖片操作按鈕 */
+.image-order-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.image-order-actions button {
+  min-height: 34px;
   padding: 0 var(--space-3);
-  cursor: pointer;
+}
+
+.image-order-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.new-image-preview-section {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.new-image-preview-item {
+  position: relative;
+  flex: 0 0 82px;
+  width: 82px;
+  height: 82px;
+  padding: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-muted);
+}
+
+.new-image-preview-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 @media (max-width: 960px) {

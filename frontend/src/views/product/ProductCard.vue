@@ -1,4 +1,5 @@
 <script setup>
+import { getImageUrl } from '@/utils/imageUrl'
 defineProps({
   product: {
     type: Object,
@@ -18,7 +19,7 @@ defineProps({
     <div class="product-image-wrapper">
       <img
         v-if="product.imageUrl"
-        :src="product.imageUrl"
+        :src="getImageUrl(product.imageUrl)"
         :alt="product.productName"
         class="product-image"
       />

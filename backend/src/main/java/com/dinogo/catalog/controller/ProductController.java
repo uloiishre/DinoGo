@@ -3,6 +3,7 @@ package com.dinogo.catalog.controller;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.dinogo.catalog.dto.ProductCreateRequest;
 import com.dinogo.catalog.dto.ProductDetailResponse;
@@ -139,5 +141,21 @@ public class ProductController {
             @RequestBody List<ProductImageSortUpdateRequest> requests) {
 
         return productService.updateImageSort(productId, requests);
+    }
+
+    @DeleteMapping("/{productId}/images/{imageId}")
+    public void deleteImage(
+            @PathVariable Integer productId,
+            @PathVariable Integer imageId) {
+
+        productService.deleteImage(productId, imageId);
+    }
+
+    @PostMapping("/{productId}/images/upload")
+    public List<ProductImageResponse> uploadProductImages(
+            @PathVariable Integer productId,
+            @RequestParam("files") MultipartFile[] files) {
+
+        return productService.uploadProductImages(productId, files);
     }
 }

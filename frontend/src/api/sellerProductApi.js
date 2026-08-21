@@ -63,3 +63,38 @@ export const updateSellerProductMainImage = (productId, imageId) => {
     imageId,
   })
 }
+
+// 修改商品圖片排序
+export const updateSellerProductImageSort = (
+  productId,
+  images,
+) => {
+  return api.put(
+    `/products/${productId}/images/sort`,
+    images,
+  )
+}
+
+// 刪除商品圖片
+export const deleteSellerProductImage = (
+  productId,
+  imageId,
+) => {
+  return api.delete(
+    `/products/${productId}/images/${imageId}`,
+  )
+}
+
+// 上傳多張商品圖片
+export const uploadSellerProductImages = (productId, files) => {
+  const formData = new FormData()
+
+  files.forEach((file) => {
+    formData.append('files', file)
+  })
+
+  return api.post(
+    `/products/${productId}/images/upload`,
+    formData,
+  )
+}

@@ -1,8 +1,13 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { getSellerProducts, publishSellerProduct, unpublishSellerProduct } from '../../api/sellerProductApi'
+import {
+  getSellerProducts,
+  publishSellerProduct,
+  unpublishSellerProduct,
+} from '../../api/sellerProductApi'
 import { getCurrentSellerId } from '@/utils/seller-session'
+import { getImageUrl } from '@/utils/imageUrl'
 
 const sellerId = getCurrentSellerId()
 // TODO: 等 A/B 模組提供 current seller 商品 API 後，移除 sellerId 假資料。
@@ -59,9 +64,10 @@ const confirmStatusChange = async () => {
     pendingStatusProduct.value = null
     await loadProducts()
   } catch (error) {
-    errorMessage.value = product.status === 'ACTIVE'
-      ? '商品下架失敗，請稍後再試。'
-      : '商品上架失敗，請確認商品資料是否完整。'
+    errorMessage.value =
+      product.status === 'ACTIVE'
+        ? '商品下架失敗，請稍後再試。'
+        : '商品上架失敗，請確認商品資料是否完整。'
   } finally {
     isChangingStatus.value = false
   }
@@ -145,7 +151,11 @@ onMounted(loadProducts)
       <div v-for="product in products" v-else :key="product.productId" class="product-row">
         <div class="product-info">
           <div class="product-thumb" aria-hidden="true">
-            <img v-if="product.imageUrl" :src="product.imageUrl" :alt="product.productName" />
+            <img
+              v-if="product.imageUrl"
+              :src="getImageUrl(product.imageUrl)"
+              :alt="product.productName"
+            />
             <span v-else>{{ product.productName?.slice(0, 1) || '商' }}</span>
           </div>
           <div class="product-name">
@@ -175,8 +185,16 @@ onMounted(loadProducts)
 
     <Teleport to="body">
       <div v-if="pendingStatusProduct" class="modal-backdrop" @click.self="closeStatusDialog">
-        <section class="status-modal" role="dialog" aria-modal="true" aria-labelledby="status-modal-title">
-          <div class="modal-icon" :class="pendingStatusProduct.status === 'ACTIVE' ? 'is-danger' : 'is-primary'">
+        <section
+          class="status-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="status-modal-title"
+        >
+          <div
+            class="modal-icon"
+            :class="pendingStatusProduct.status === 'ACTIVE' ? 'is-danger' : 'is-primary'"
+          >
             <i
               class="bi"
               :class="pendingStatusProduct.status === 'ACTIVE' ? 'bi-eye-slash' : 'bi-shop-window'"
@@ -199,7 +217,12 @@ onMounted(loadProducts)
             >
               {{ isChangingStatus ? '處理中...' : statusActionLabel(pendingStatusProduct.status) }}
             </button>
-            <button class="ghost-action" type="button" :disabled="isChangingStatus" @click="closeStatusDialog">
+            <button
+              class="ghost-action"
+              type="button"
+              :disabled="isChangingStatus"
+              @click="closeStatusDialog"
+            >
               取消
             </button>
           </div>
