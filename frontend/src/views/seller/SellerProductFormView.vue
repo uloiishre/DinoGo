@@ -188,6 +188,30 @@ const handleImageSelect = (event) => {
   imagePreviewUrl.value = URL.createObjectURL(file)
 }
 
+const changeMainImage = async (imageId) => {
+  console.log('changeMainImage 開始：', imageId)
+  try {
+    await updateSellerProductMainImage(productId.value, imageId)
+
+    selectedMainImageId.value = imageId
+
+    // 同步前端目前主圖狀態
+    form.images.forEach((image) => {
+      image.isMain = image.imageId === imageId
+    })
+
+    // 更新上方主圖預覽
+    const mainImage = form.images.find((image) => image.imageId === imageId)
+
+    if (mainImage) {
+      form.imageUrl = mainImage.imageUrl
+    }
+  } catch (error) {
+    logSafeError('Update main image failed:', error)
+    errorMessage.value = '設定主圖失敗。'
+  }
+}
+
 const toFormStatus = (status) => {
   if (status === 1 || status === 'ACTIVE') {
     return 'ACTIVE'
@@ -234,13 +258,9 @@ const buildCreatePayload = () => ({
 const fillProductForm = (product) => {
   form.productName = product.productName ?? ''
 
-  form.subcategoryId = product.subcategoryId
-    ? String(product.subcategoryId)
-    : ''
+  form.subcategoryId = product.subcategoryId ? String(product.subcategoryId) : ''
 
-  form.brandId = product.brandId
-    ? String(product.brandId)
-    : ''
+  form.brandId = product.brandId ? String(product.brandId) : ''
 
   form.basePrice = product.basePrice ?? ''
   form.description = product.description ?? ''
@@ -249,10 +269,7 @@ const fillProductForm = (product) => {
   // 商品圖片
   form.images = product.images ?? []
 
-  const mainImage =
-    form.images.find((image) => image.isMain === true) ??
-    form.images[0] ??
-    null
+  const mainImage = form.images.find((image) => image.isMain === true) ?? form.images[0] ?? null
 
   form.imageUrl = mainImage?.imageUrl ?? product.imageUrl ?? ''
 
@@ -291,30 +308,15 @@ const fillProductForm = (product) => {
   // 還原規格一
   spec1Name.value = skus[0].spec1Name ?? ''
 
-  spec1Values.value = [
-    ...new Set(
-      skus
-        .map((sku) => sku.spec1Value)
-        .filter((value) => value),
-    ),
-  ]
+  spec1Values.value = [...new Set(skus.map((sku) => sku.spec1Value).filter((value) => value))]
 
   // 判斷是否有第二規格
-  hasSpec2.value = skus.some(
-    (sku) => sku.spec2Name && sku.spec2Value,
-  )
+  hasSpec2.value = skus.some((sku) => sku.spec2Name && sku.spec2Value)
 
   if (hasSpec2.value) {
-    spec2Name.value =
-      skus.find((sku) => sku.spec2Name)?.spec2Name ?? ''
+    spec2Name.value = skus.find((sku) => sku.spec2Name)?.spec2Name ?? ''
 
-    spec2Values.value = [
-      ...new Set(
-        skus
-          .map((sku) => sku.spec2Value)
-          .filter((value) => value),
-      ),
-    ]
+    spec2Values.value = [...new Set(skus.map((sku) => sku.spec2Value).filter((value) => value))]
   } else {
     spec2Name.value = ''
     spec2Values.value = ['']
@@ -388,6 +390,9 @@ const saveProductSkus = async () => {
 
 // 儲存商品
 const handleSubmit = async () => {
+  console.log('！！！！handleSubmit 被執行了！！！！')
+
+  // 原本程式繼續...
   // 商品名稱驗證
   if (!form.productName.trim()) {
     errorMessage.value = '請輸入商品名稱。'
@@ -425,23 +430,12 @@ const handleSubmit = async () => {
     isSubmitting.value = true
 
     if (isEditMode.value) {
-  // ① 編輯商品基本資料
-  await updateSellerProduct(
-    productId.value,
-    buildProductPayload(),
-  )
+      // ① 編輯商品基本資料
+      await updateSellerProduct(productId.value, buildProductPayload())
 
-  // ② 修改 / 新增 / 停用 SKU
-  await saveProductSkus()
-
-  // ③ 設定商品主圖
-  if (selectedMainImageId.value) {
-    await updateSellerProductMainImage(
-      productId.value,
-      selectedMainImageId.value,
-    )
-  }
-} else {
+      // ② 修改 / 新增 / 停用 SKU
+      await saveProductSkus()
+    } else {
       // 新增商品時 Product + SKU 一次建立
       await createSellerProduct(buildCreatePayload())
     }
@@ -470,7 +464,7 @@ onMounted(loadProduct)
       </div>
     </header>
 
-    <form class="product-form" @submit.prevent="handleSubmit">
+    <div class="product-form" @submit.prevent="handleSubmit" @keydown.enter.prevent>
       <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
       <p v-if="isLoading" class="state-message">商品資料載入中...</p>
 
@@ -663,11 +657,11 @@ onMounted(loadProduct)
 
           <button class="image-upload-button" type="button" @click="openImagePicker">
             <img
-  v-if="imagePreviewUrl || form.imageUrl"
-  class="image-preview"
-  :src="imagePreviewUrl || form.imageUrl"
-  :alt="selectedImageName || '商品主圖'"
-/>
+              v-if="imagePreviewUrl || form.imageUrl"
+              class="image-preview"
+              :src="imagePreviewUrl || form.imageUrl"
+              :alt="selectedImageName || '商品主圖'"
+            />
             <div v-else class="image-placeholder">
               <i class="bi bi-image" aria-hidden="true"></i>
               <span>點選上傳</span>
@@ -683,54 +677,50 @@ onMounted(loadProduct)
             @change="handleImageSelect"
           />
           <!-- 編輯商品：既有商品圖片 -->
-<div
-  v-if="isEditMode && form.images.length > 0"
-  class="existing-image-list"
->
-  <p class="image-list-title">目前商品圖片</p>
+          <div v-if="isEditMode && form.images.length > 0" class="existing-image-list">
+            <p class="image-list-title">目前商品圖片</p>
 
-  <div
-    v-for="image in form.images"
-    :key="image.imageId"
-    class="existing-image-item"
-    :class="{
-      'is-main': selectedMainImageId === image.imageId,
-    }"
-  >
-    <img
-      :src="image.imageUrl"
-      alt="商品圖片"
-      class="existing-image-thumbnail"
-    />
+            <div
+              v-for="image in form.images"
+              :key="image.imageId"
+              class="existing-image-item"
+              :class="{
+                'is-main': selectedMainImageId === image.imageId,
+              }"
+            >
+              <img :src="image.imageUrl" alt="商品圖片" class="existing-image-thumbnail" />
 
-    <label class="main-image-option">
-      <input
-        v-model="selectedMainImageId"
-        type="radio"
-        name="mainImage"
-        :value="image.imageId"
-      />
+              <div class="main-image-option">
+                <span v-if="selectedMainImageId === image.imageId" class="main-image-label">
+                  目前主圖
+                </span>
 
-      <span>
-        {{
-          selectedMainImageId === image.imageId
-            ? '目前主圖'
-            : '設為主圖'
-        }}
-      </span>
-    </label>
-  </div>
-</div>
+                <button
+                  v-else
+                  type="button"
+                  class="set-main-image-button"
+                  @click.stop.prevent="changeMainImage(image.imageId)"
+                >
+                  設為主圖
+                </button>
+              </div>
+            </div>
+          </div>
         </section>
 
         <div class="form-actions side-actions">
           <button type="button">儲存草稿</button>
-          <button class="primary-button" type="submit" :disabled="isSubmitting">
+          <button
+            class="primary-button"
+            type="button"
+            :disabled="isSubmitting"
+            @click="handleSubmit"
+          >
             {{ isSubmitting ? '送出中...' : submitText }}
           </button>
         </div>
       </aside>
-    </form>
+    </div>
   </section>
 </template>
 
@@ -1086,13 +1076,14 @@ button {
   cursor: pointer;
 }
 
-.main-image-option input[type='radio'] {
-  width: 16px;
-  height: 16px;
-  min-width: 16px;
+.main-image-label {
+  color: var(--color-primary);
+  font-weight: 700;
+}
 
-  margin: 0;
-
+.set-main-image-button {
+  min-height: 32px;
+  padding: 0 var(--space-3);
   cursor: pointer;
 }
 

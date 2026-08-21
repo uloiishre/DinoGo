@@ -634,26 +634,38 @@ public class ProductService {
                 ProductImage targetImage = productImageRepository.findById(imageId)
                                 .orElseThrow(() -> new RuntimeException("找不到圖片：" + imageId));
 
-                if (!targetImage.getProduct().getProductId().equals(productId)) {
-                        throw new RuntimeException("此圖片不屬於指定商品");
+                // 確認圖片屬於指定商品
+                if (!targetImage.getProduct()
+                                .getProductId()
+                                .equals(productId)) {
+
+                        throw new RuntimeException(
+                                        "此圖片不屬於商品：" + productId);
                 }
 
                 List<ProductImage> images = productImageRepository.findByProductProductId(productId);
 
-                // 先全部取消主圖
+                // 1. 先把目前所有主圖取消
                 for (ProductImage image : images) {
-                        image.setIsMain(false);
+                        if (Boolean.TRUE.equals(image.getIsMain())) {
+                                image.setIsMain(false);
+                        }
                 }
 
-                // 指定新的主圖
+                // 2. 強制先寫入 DB
+                productImageRepository.saveAll(images);
+                productImageRepository.flush();
+
+                // 3. 再把指定圖片設為主圖
                 targetImage.setIsMain(true);
 
-                productImageRepository.saveAll(images);
+                ProductImage savedImage = productImageRepository.saveAndFlush(targetImage);
 
                 return ProductImageResponse.builder()
-                                .imageId(targetImage.getImageId())
-                                .imageUrl(targetImage.getImageUrl())
-                                .sortOrder(targetImage.getSortOrder())
+                                .imageId(savedImage.getImageId())
+                                .imageUrl(savedImage.getImageUrl())
+                                .sortOrder(savedImage.getSortOrder())
+                                .isMain(savedImage.getIsMain())
                                 .build();
         }
 
