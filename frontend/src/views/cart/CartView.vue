@@ -39,12 +39,28 @@ const fetchCart = async () => {
     cart.value = {
       ...response.data,
 
-      items: (response.data.items || []).map((item) => ({
-        ...item,
+      items: (response.data.items || [])
+        .map((item) => ({
+          ...item,
 
-        // 只有可購買商品才保留勾選
-        selected: false,
-      })),
+          // 只有可購買商品才保留勾選
+          selected: false,
+        }))
+        .sort((a, b) => {
+          // 第一層：productId 排序
+          const productIdA = Number(a.productId)
+          const productIdB = Number(b.productId)
+
+          if (productIdA !== productIdB) {
+            return productIdA - productIdB
+          }
+
+          // 第二層：同商品按照 skuId 排序
+          const skuIdA = Number(a.skuId)
+          const skuIdB = Number(b.skuId)
+
+          return skuIdA - skuIdB
+        }),
     }
 
     // 重新取得購物車後
