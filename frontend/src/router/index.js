@@ -71,6 +71,11 @@ const routes = [
         component: () => import('@/views/member/MemberOverviewView.vue'),
       },
       {
+        path: 'seller-application',
+        name: 'SellerApplication',
+        component: () => import('@/views/member/SellerApplicationView.vue'),
+      },
+      {
         path: 'profile',
         name: 'MemberProfile',
         component: () => import('@/views/member/MemberProfileView.vue'),
