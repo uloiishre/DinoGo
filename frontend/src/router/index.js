@@ -76,6 +76,11 @@ const routes = [
         component: () => import('@/views/member/SellerApplicationView.vue'),
       },
       {
+        path: 'seller-application/status',
+        name: 'SellerApplicationStatus',
+        component: () => import('@/views/member/SellerApplicationStatusView.vue'),
+      },
+      {
         path: 'profile',
         name: 'MemberProfile',
         component: () => import('@/views/member/MemberProfileView.vue'),
