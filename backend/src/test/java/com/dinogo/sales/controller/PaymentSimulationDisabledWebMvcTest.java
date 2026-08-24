@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.dinogo.config.SecurityConfig;
 import com.dinogo.member.repository.MemberRepository;
+import com.dinogo.sales.service.PaymentMethodService;
 import com.dinogo.sales.service.PaymentService;
 import com.dinogo.security.AuthenticatedMember;
 import com.dinogo.security.JwtAuthenticationFilter;
@@ -35,6 +36,9 @@ class PaymentSimulationDisabledWebMvcTest {
 
     @MockitoBean
     private PaymentService paymentService;
+
+    @MockitoBean
+    private PaymentMethodService paymentMethodService;
 
     @MockitoBean
     private JwtTokenUtil jwtTokenUtil;
