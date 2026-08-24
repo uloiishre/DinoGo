@@ -22,6 +22,7 @@ import com.dinogo.config.SecurityConfig;
 import com.dinogo.member.service.LoginService;
 import com.dinogo.member.service.GoogleLoginService;
 import com.dinogo.member.service.MemberService;
+import com.dinogo.member.service.PasswordResetService;
 import com.dinogo.member.repository.MemberRepository;
 import com.dinogo.security.JwtAuthenticationFilter;
 import com.dinogo.security.JwtTokenUtil;
@@ -41,6 +42,9 @@ class AuthValidationTest {
 
     @MockitoBean
     private GoogleLoginService googleLoginService;
+
+    @MockitoBean
+    private PasswordResetService passwordResetService;
 
     @MockitoBean
     private JwtTokenUtil jwtTokenUtil;
