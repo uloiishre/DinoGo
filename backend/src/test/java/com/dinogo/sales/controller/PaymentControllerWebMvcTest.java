@@ -28,6 +28,7 @@ import com.dinogo.config.SecurityConfig;
 import com.dinogo.member.repository.MemberRepository;
 import com.dinogo.sales.dto.payment.PaymentResponse;
 import com.dinogo.sales.entity.PaymentStatus;
+import com.dinogo.sales.service.PaymentMethodService;
 import com.dinogo.sales.service.PaymentService;
 import com.dinogo.security.AuthenticatedMember;
 import com.dinogo.security.JwtAuthenticationFilter;
@@ -46,6 +47,9 @@ class PaymentControllerWebMvcTest {
 
     @MockitoBean
     private PaymentService paymentService;
+
+    @MockitoBean
+    private PaymentMethodService paymentMethodService;
 
     @MockitoBean
     private JwtTokenUtil jwtTokenUtil;

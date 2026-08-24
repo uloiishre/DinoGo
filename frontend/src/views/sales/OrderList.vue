@@ -167,8 +167,9 @@ onMounted(loadOrders)
           </div>
 
           <div class="order-copy">
-            <strong>訂單 #{{ order.orderNo }}</strong>
-            <span>{{ itemSummary(order) }}</span>
+            <!-- <strong>訂單 #{{ order.orderNo }}</strong> -->
+            <strong>{{ itemSummary(order) }}</strong>
+            <!-- <span>{{ itemSummary(order) }}</span> -->
             <small>{{ formatDate(order.createdAt) }}</small>
           </div>
 
@@ -226,7 +227,7 @@ onMounted(loadOrders)
   min-height: 42px;
   align-items: stretch;
   gap: var(--space-5);
-  overflow-x: auto;
+  overflow-y: hidden;
   border-bottom: 1px solid var(--color-border);
 }
 

@@ -5,6 +5,7 @@ const {
   apiMock,
   createPaymentMock,
   getPaymentCapabilitiesMock,
+  getPaymentMethodsMock,
   pushMock,
   simulatePaymentMock,
 } = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const {
   },
   createPaymentMock: vi.fn(),
   getPaymentCapabilitiesMock: vi.fn(),
+  getPaymentMethodsMock: vi.fn(),
   pushMock: vi.fn(),
   simulatePaymentMock: vi.fn(),
 }))
@@ -23,6 +25,7 @@ vi.mock('../../src/api/axios.js', () => ({ default: apiMock }))
 vi.mock('../../src/api/order.js', () => ({
   createPayment: createPaymentMock,
   getPaymentCapabilities: getPaymentCapabilitiesMock,
+  getPaymentMethods: getPaymentMethodsMock,
   simulatePayment: simulatePaymentMock,
 }))
 vi.mock('vue-router', () => ({
@@ -86,10 +89,35 @@ beforeEach(() => {
   apiMock.delete.mockResolvedValue({})
   createPaymentMock.mockResolvedValue({ data: { paymentId: 20, status: 'PENDING' } })
   getPaymentCapabilitiesMock.mockResolvedValue({ data: { simulationEnabled: false } })
+  getPaymentMethodsMock.mockResolvedValue({
+    data: [
+      { paymentMethodCode: 'CASH_ON_DELIVERY', paymentMethodName: '貨到付款' },
+      { paymentMethodCode: 'CREDIT_CARD', paymentMethodName: '信用卡' },
+      { paymentMethodCode: 'LINE_PAY', paymentMethodName: 'LINE Pay' },
+    ],
+  })
   simulatePaymentMock.mockResolvedValue({ data: { paymentId: 20, status: 'SUCCESS' } })
 })
 
 describe('checkout payment flow', () => {
+  test('loads payment methods from the shared API', async () => {
+    const wrapper = mount(CheckoutView)
+    await flushPromises()
+
+    expect(getPaymentMethodsMock).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('input[value="CASH_ON_DELIVERY"]').exists()).toBe(true)
+    expect(wrapper.find('input[value="CREDIT_CARD"]').exists()).toBe(false)
+  })
+
+  test('falls back to the built-in payment options when loading methods fails', async () => {
+    getPaymentMethodsMock.mockRejectedValue(new Error('Payment methods are unavailable'))
+    const wrapper = mount(CheckoutView)
+    await flushPromises()
+
+    expect(wrapper.get('input[value="CASH_ON_DELIVERY"]').exists()).toBe(true)
+    expect(wrapper.find('input[value="CREDIT_CARD"]').exists()).toBe(false)
+  })
+
   test('creates and simulates an online payment', async () => {
     getPaymentCapabilitiesMock.mockResolvedValue({ data: { simulationEnabled: true } })
     const wrapper = mount(CheckoutView)
