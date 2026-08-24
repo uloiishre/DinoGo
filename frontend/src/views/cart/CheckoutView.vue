@@ -105,7 +105,7 @@ const selectedCoupon = computed(() => {
   )
 })
 
-const onlinePaymentAvailable = computed(() => paymentSimulationEnabled.value)
+const onlinePaymentAvailable = computed(() => true)
 
 // ========================================
 // 金額格式
@@ -532,9 +532,10 @@ const submitOrder = async () => {
 
   const submittedPaymentMethod = paymentMethod.value
   const submittedSimulationStatus = simulatedPaymentStatus.value
-  const submittedFailureReason = submittedSimulationStatus === 'FAILED'
-    ? simulatedPaymentFailureReason.value.trim() || null
-    : null
+  const submittedFailureReason =
+    submittedSimulationStatus === 'FAILED'
+      ? simulatedPaymentFailureReason.value.trim() || null
+      : null
   let createdOrderId = null
 
   if (submittedPaymentMethod !== 'CASH_ON_DELIVERY' && !paymentSimulationEnabled.value) {

@@ -30,7 +30,6 @@ const isSkuAvailable = (sku) => {
 // ================================
 // 取得購物車
 // ================================
-
 const fetchCart = async () => {
   loading.value = true
   errorMessage.value = ''
@@ -65,8 +64,21 @@ const fetchCart = async () => {
         }),
     }
 
-    // 重新取得購物車後
+    // ==========================================
+    // 立即結帳帶進來的 cartItemId
+    // ==========================================
+    const selectedCartItemId = route.query.selectedCartItemId
+
+    if (selectedCartItemId) {
+      selectedCartItemIds.value = [Number(selectedCartItemId)]
+    } else {
+      // 沒有 query 就清空選取
+      selectedCartItemIds.value = []
+    }
+
+    // ==========================================
     // 只保留「仍存在且可購買」的商品
+    // ==========================================
     selectedCartItemIds.value = selectedCartItemIds.value.filter((id) => {
       const item = cart.value.items.find((item) => item.cartItemId === id)
 
@@ -80,13 +92,7 @@ const fetchCart = async () => {
     loading.value = false
   }
 }
-const selectedCartItemId = route.query.selectedCartItemId
 
-if (selectedCartItemId) {
-  selectedCartItemIds.value = [Number(selectedCartItemId)]
-} else {
-  selectedCartItemIds.value = []
-}
 // ================================
 // 前往商品 Detail
 // ================================
