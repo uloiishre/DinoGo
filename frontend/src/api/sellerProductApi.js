@@ -31,12 +31,13 @@ export const getProductDetail = (productId) => {
   return api.get(`/seller/products/${productId}`)
 }
 
-// 建立新商品，串接 B 模組商品新增 API
+//建立新商品
+///TODO: 等待B模組Product create API完成後再整合
 export const createSellerProduct = (payload) => {
   return api.post('/products', payload)
 }
 
-// 修改商品基本資料，串接 B 模組商品修改 API
+// TODO: 等 B 模組提供正式商品修改 API 後，確認 method 與欄位格式。
 export const updateSellerProduct = (productId, payload) => {
   return api.put(`/products/${productId}`, payload)
 }
