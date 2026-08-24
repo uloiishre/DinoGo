@@ -43,6 +43,7 @@ const fetchProductDetail = async () => {
     const response = await api.get(`/products/${productId}`)
 
     product.value = response.data
+    console.log('商品圖片：', product.value.images)
 
     if (product.value.images?.length) {
       product.value.images.sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999))
@@ -260,14 +261,26 @@ const buyNow = async () => {
   try {
     buyingNow.value = true
 
-    // 先加入購物車
-    await api.post('/cart/items', {
+    const response = await api.post('/cart/items', {
       skuId: selectedSku.value.skuId,
       quantity: quantity.value,
     })
 
-    // 成功後跳到購物車結帳頁
-    router.push('/cart')
+    // 取得剛加入購物車的 cartItemId
+    const cartItemId = response.data?.cartItemId
+
+    if (cartItemId) {
+      // 帶著要勾選的 cartItemId 前往購物車
+      router.push({
+        path: '/cart',
+        query: {
+          selectedCartItemId: cartItemId,
+        },
+      })
+    } else {
+      // 後端沒有回傳 cartItemId
+      router.push('/cart')
+    }
   } catch (error) {
     console.error('立即結帳失敗：', error)
 
@@ -492,10 +505,14 @@ onUnmounted(() => {
             <!-- 品牌 -->
             <div class="product-brand mb-3">品牌：{{ product.brandName }}</div>
 
-            <!-- 價格 -->
-            <div class="product-price mb-4">
-              NT$
-              {{ selectedSku ? selectedSku.price : product.basePrice }}
+            <!-- 價格&銷售量 -->
+            <div class="product-price-area mb-4">
+              <div class="product-price">
+                NT$
+                {{ selectedSku ? selectedSku.price : product.basePrice }}
+              </div>
+
+              <div class="product-sold-count">已售出 {{ product.soldCount ?? 0 }} 件</div>
             </div>
 
             <!-- //review-start，總共10次修改，第5次// -->
@@ -1365,4 +1382,20 @@ onUnmounted(() => {
   }
 }
 /* //review-end，總共10次修改，第10次// */
+.product-price-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.product-price {
+  margin: 0;
+  line-height: 1;
+}
+
+.product-sold-count {
+  margin: 0;
+  line-height: 1;
+  transform: translateY(2px);
+}
 </style>

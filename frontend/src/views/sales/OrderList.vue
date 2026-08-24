@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { getMemberOrders } from '@/api/order'
 import { getOrderDisplayStatus, isOrderInDisplayGroup } from '@/utils/orderDisplayStatus'
+import { getImageUrl } from '@/utils/imageUrl'
 
 const orders = ref([])
 const loading = ref(true)
@@ -33,7 +34,7 @@ const visibleOrders = computed(() => {
       const searchableText = [
         order.orderNo,
         order.sellerName,
-        ...((order.items ?? []).flatMap((item) => [item.productName, item.skuSpec])),
+        ...(order.items ?? []).flatMap((item) => [item.productName, item.skuSpec]),
       ]
         .filter(Boolean)
         .join(' ')
@@ -225,7 +226,7 @@ onMounted(loadOrders)
   min-height: 42px;
   align-items: stretch;
   gap: var(--space-5);
-  overflow-x: auto;
+  overflow-y: hidden;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -347,7 +348,10 @@ onMounted(loadOrders)
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 .order-card:hover {

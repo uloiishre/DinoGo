@@ -1,5 +1,6 @@
 package com.dinogo.cart.service;
 
+import java.util.Comparator;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -595,12 +596,13 @@ public class CartService {
 		// 商品主圖
 		// =====================================================
 
-		String productImage = product
-				.getImages()
-				.stream()
-				.filter(ProductImage::getIsMain)
-				.map(ProductImage::getImageUrl)
+		String productImage = product.getImages().stream()
+				.filter(image -> Boolean.TRUE.equals(image.getIsMain()))
 				.findFirst()
+				.or(() -> product.getImages().stream()
+						.filter(image -> image.getSortOrder() != null)
+						.min(Comparator.comparing(ProductImage::getSortOrder)))
+				.map(ProductImage::getImageUrl)
 				.orElse(null);
 
 		// =====================================================
@@ -656,6 +658,7 @@ public class CartService {
 				product.getProductName(),
 				sku.getPrice(),
 				cartItem.getQuantity(),
+				sku.getStock(), // ⭐ 新增
 				productImage,
 				product.getSeller().getSellerId(),
 				product.getSeller().getStoreName(),

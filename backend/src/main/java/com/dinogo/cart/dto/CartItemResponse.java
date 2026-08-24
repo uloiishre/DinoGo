@@ -10,6 +10,7 @@ public record CartItemResponse(
 		String productName,
 		BigDecimal price,
 		Integer quantity,
+		Integer stock, // ⭐ 新增
 		String productImage,
 		Integer sellerId,
 		String storeName,

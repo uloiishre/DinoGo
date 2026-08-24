@@ -6,6 +6,7 @@ import { cancelOrder, confirmDelivery, getOrder } from '@/api/order'
 import { getOrderStars } from '@/api/review'
 //review-end，總共6次修改，第1次//
 import { getOrderDisplayStatus } from '@/utils/orderDisplayStatus'
+import { getImageUrl } from '@/utils/imageUrl'
 
 const route = useRoute()
 const order = ref(null)
@@ -52,7 +53,10 @@ const shipmentStatusLabels = {
 }
 
 const progressSteps = [
-  { label: '訂單成立', statuses: ['PENDING_PAYMENT', 'PAID', 'PROCESSING', 'SHIPPED', 'COMPLETED'] },
+  {
+    label: '訂單成立',
+    statuses: ['PENDING_PAYMENT', 'PAID', 'PROCESSING', 'SHIPPED', 'COMPLETED'],
+  },
   { label: '賣家處理', statuses: ['PAID', 'PROCESSING', 'SHIPPED', 'COMPLETED'] },
   { label: '商品出貨', statuses: ['SHIPPED', 'COMPLETED'] },
   { label: '完成訂單', statuses: ['COMPLETED'] },
@@ -179,8 +183,7 @@ async function handleCancelOrder() {
     applyOrderResponse((await cancelOrder(orderId.value, { reason })).data)
     showCancellationModal.value = false
   } catch (error) {
-    cancellationErrorMessage.value =
-      error.response?.data?.message ?? '取消訂單失敗，請稍後再試'
+    cancellationErrorMessage.value = error.response?.data?.message ?? '取消訂單失敗，請稍後再試'
   } finally {
     cancellingOrder.value = false
   }
@@ -249,9 +252,7 @@ onUnmounted(() => {
       <header class="page-header">
         <div>
           <h1>訂單詳情</h1>
-          <p v-if="order">
-            訂單 #{{ order.orderNo }}・建立於 {{ formatDate(order.createdAt) }}
-          </p>
+          <p v-if="order">訂單 #{{ order.orderNo }}・建立於 {{ formatDate(order.createdAt) }}</p>
           <p v-else>查看訂單商品、配送與付款資訊</p>
         </div>
 
@@ -265,9 +266,7 @@ onUnmounted(() => {
           >
             {{ cancellingOrder ? '取消中...' : '取消訂單' }}
           </button>
-          <RouterLink class="back-button" :to="{ name: 'MemberOrders' }">
-            返回訂單列表
-          </RouterLink>
+          <RouterLink class="back-button" :to="{ name: 'MemberOrders' }"> 返回訂單列表 </RouterLink>
         </div>
       </header>
 
@@ -303,7 +302,11 @@ onUnmounted(() => {
               ></i>
             </span>
             <strong>{{ step.label }}</strong>
-            <span v-if="index < progressSteps.length - 1" class="step-line" aria-hidden="true"></span>
+            <span
+              v-if="index < progressSteps.length - 1"
+              class="step-line"
+              aria-hidden="true"
+            ></span>
           </div>
         </section>
 
@@ -328,7 +331,7 @@ onUnmounted(() => {
               <div class="product-image">
                 <img
                   v-if="item.productImageUrl"
-                  :src="item.productImageUrl"
+                  :src="getImageUrl(item.productImageUrl)"
                   :alt="item.productName"
                 />
                 <i v-else class="bi bi-image" aria-hidden="true"></i>

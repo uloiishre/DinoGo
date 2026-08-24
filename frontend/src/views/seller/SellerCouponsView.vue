@@ -9,7 +9,7 @@ import {
 } from '@/api/sellerCouponApi'
 import { getCurrentSellerId } from '@/utils/seller-session'
 
-const sellerId = getCurrentSellerId()
+const sellerId = computed(() => getCurrentSellerId())
 
 const coupons = ref([])
 const isLoading = ref(false)
@@ -221,7 +221,7 @@ const resetForm = () => {
 }
 
 const openCreateForm = () => {
-  if (!sellerId) {
+  if (!sellerId.value) {
     errorMessage.value = sellerRequiredMessage
     successMessage.value = ''
     return
@@ -237,18 +237,17 @@ const closeForm = () => {
 }
 
 const loadCoupons = async () => {
-  errorMessage.value = ''
-
-  if (!sellerId) {
+  if (!sellerId.value) {
     coupons.value = []
     errorMessage.value = sellerRequiredMessage
     return
   }
 
   isLoading.value = true
+  errorMessage.value = ''
 
   try {
-    const response = await getSellerCoupons(sellerId)
+    const response = await getSellerCoupons(sellerId.value)
     coupons.value = response.data
   } catch (error) {
     errorMessage.value = '優惠券資料載入失敗，請確認後端 API 是否已啟動。'
@@ -258,7 +257,7 @@ const loadCoupons = async () => {
 }
 
 const editCoupon = (coupon) => {
-  if (!sellerId) {
+  if (!sellerId.value) {
     errorMessage.value = sellerRequiredMessage
     successMessage.value = ''
     return
@@ -284,7 +283,7 @@ const editCoupon = (coupon) => {
 }
 
 const submitCoupon = async () => {
-  if (!sellerId) {
+  if (!sellerId.value) {
     errorMessage.value = sellerRequiredMessage
     successMessage.value = ''
     return
@@ -305,10 +304,10 @@ const submitCoupon = async () => {
     isSubmitting.value = true
     errorMessage.value = ''
     if (isEditMode.value) {
-      await updateSellerCoupon(sellerId, editingCouponId.value, updatePayload)
+      await updateSellerCoupon(sellerId.value, editingCouponId.value, updatePayload)
       successMessage.value = '優惠券已更新。'
     } else {
-      await createSellerCoupon(sellerId, payload)
+      await createSellerCoupon(sellerId.value, payload)
       successMessage.value = '優惠券已建立為草稿。'
     }
     await loadCoupons()
@@ -322,7 +321,7 @@ const submitCoupon = async () => {
 }
 
 const setCouponActive = async (coupon) => {
-  if (!sellerId) {
+  if (!sellerId.value) {
     errorMessage.value = sellerRequiredMessage
     successMessage.value = ''
     return
@@ -330,7 +329,7 @@ const setCouponActive = async (coupon) => {
 
   try {
     errorMessage.value = ''
-    await activateSellerCoupon(sellerId, coupon.couponId)
+    await activateSellerCoupon(sellerId.value, coupon.couponId)
     successMessage.value = `${coupon.couponName} 已啟用。`
     await loadCoupons()
   } catch (error) {
@@ -339,7 +338,7 @@ const setCouponActive = async (coupon) => {
 }
 
 const setCouponDisabled = async (coupon) => {
-  if (!sellerId) {
+  if (!sellerId.value) {
     errorMessage.value = sellerRequiredMessage
     successMessage.value = ''
     return
@@ -347,7 +346,7 @@ const setCouponDisabled = async (coupon) => {
 
   try {
     errorMessage.value = ''
-    await disableSellerCoupon(sellerId, coupon.couponId)
+    await disableSellerCoupon(sellerId.value, coupon.couponId)
     successMessage.value = `${coupon.couponName} 已停用。`
     await loadCoupons()
   } catch (error) {

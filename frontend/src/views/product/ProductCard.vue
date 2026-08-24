@@ -32,17 +32,17 @@ defineProps({
         {{ product.productName }}
       </h2>
 
-      <p class="product-price mb-0">
-        <template v-if="product.minPrice != null && product.maxPrice != null">
-          <template v-if="Number(product.minPrice) === Number(product.maxPrice)">
+      <div class="product-meta">
+        <p class="product-price mb-0">
+          <template v-if="product.minPrice === product.maxPrice">
             NT$ {{ product.minPrice }}
           </template>
 
           <template v-else> NT$ {{ product.minPrice }} ~ {{ product.maxPrice }} </template>
-        </template>
+        </p>
 
-        <template v-else> NT$ {{ product.basePrice }} </template>
-      </p>
+        <span class="product-sold-count"> 已售出 {{ product.soldCount ?? 0 }} 件 </span>
+      </div>
     </div>
   </RouterLink>
 </template>
@@ -108,5 +108,18 @@ defineProps({
   color: var(--color-primary);
   font-size: var(--font-size-md);
   font-weight: 700;
+}
+.product-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.product-sold-count {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1;
 }
 </style>

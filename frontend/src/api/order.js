@@ -23,6 +23,10 @@ export function getPaymentCapabilities() {
   return api.get('/payments/capabilities')
 }
 
+export function getPaymentMethods() {
+  return api.get('/payments/methods')
+}
+
 export function simulatePayment(orderId, paymentId, status = 'SUCCESS', failureReason = null) {
   return api.post(`/orders/${orderId}/payments/${paymentId}/simulate`, {
     status,
