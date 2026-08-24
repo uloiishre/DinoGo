@@ -61,7 +61,7 @@ public class StarEntity {
     @JsonIgnore
     private HistoryEntity history;
 
-    // 以下商品欄位由 Order API 建立快照，避免商品日後變更影響歷史訂單。
+    // 以下商品欄位由單體內 Order Provider 建立快照，避免商品日後變更影響歷史訂單。
     @Setter
     @Column(name = "order_item_id", nullable = false)
     private Integer orderItemId;
@@ -71,16 +71,22 @@ public class StarEntity {
     private Integer productId;
 
     @Setter
-    @Column(name = "product_name", nullable = false, length = 50)
+    //review-start，總共1次修改，第1次//
+    // 對齊訂單模組 OrderItem.productName 的 100 字快照上限。
+    @Column(name = "product_name", nullable = false, length = 100)
     private String productName;
 
     @Setter
-    @Column(name = "image_url", nullable = false, length = 255)
+    // 對齊訂單模組 OrderItem.productImageUrl 的 500 字上限。
+    // 訂單商品可能沒有圖片；review 保存快照時允許 image_url 為 NULL。
+    @Column(name = "image_url", nullable = true, length = 500)
     private String imageUrl;
 
     @Setter
-    @Column(name = "base_price", nullable = false, precision = 10, scale = 2)
+    // 對齊訂單模組 OrderItem.unitPrice 的 decimal(12,2)。
+    @Column(name = "base_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal basePrice;
+    //review-end，總共1次修改，第1次//
 
     // SQL Server VARBINARY(MAX) 對應 Java byte[]；JSON DTO 使用 Base64。
     @Setter
