@@ -42,6 +42,7 @@ const pageDescription = computed(() =>
   isEditMode.value ? '編輯既有商品資料與庫存' : '建立新的商品假資料',
 )
 const submitText = computed(() => (isEditMode.value ? '儲存變更' : '送出商品'))
+const sellerRequiredMessage = '尚未取得賣家身分，請重新登入賣家帳號後再操作。'
 
 const createEmptySku = () => ({
   spec1Name: '',
@@ -523,6 +524,11 @@ const saveProductSkus = async () => {
 
 // 儲存商品
 const handleSubmit = async () => {
+  if (!sellerId) {
+    errorMessage.value = sellerRequiredMessage
+    return
+  }
+
   // 原本程式繼續...
   // 商品名稱驗證
   if (!form.productName.trim()) {
