@@ -2,6 +2,7 @@ package com.dinogo.member.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mail.MailException;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -25,10 +26,15 @@ import com.dinogo.member.service.PasswordResetRateLimitException;
 
 import jakarta.validation.Valid;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Validated
 @RestController
 @RequestMapping("/api/auth")
 public class LoginController {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(LoginController.class);
 
     private final LoginService loginService;
     private final GoogleLoginService googleLoginService;
@@ -87,19 +93,21 @@ public class LoginController {
             HttpServletRequest httpRequest) {
         try {
             passwordResetService.requestPasswordReset(request, httpRequest.getRemoteAddr());
-            return ResponseEntity.accepted().body(java.util.Map.of(
-                    "message", "若此 Email 已註冊，重設密碼說明已寄出。"));
+            return passwordResetAccepted();
         } catch (PasswordResetRateLimitException exception) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .body(MemberApiErrorResponse.from(
                             HttpStatus.TOO_MANY_REQUESTS,
                             "請稍後再申請重設密碼。"));
-        } catch (org.springframework.mail.MailException exception) {
-            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .body(MemberApiErrorResponse.from(
-                            HttpStatus.SERVICE_UNAVAILABLE,
-                            "目前無法寄送重設信，請稍後再試。"));
+        } catch (MailException exception) {
+            LOGGER.warn("Password reset email delivery failed: {}", exception.getClass().getSimpleName());
+            return passwordResetAccepted();
         }
+    }
+
+    private ResponseEntity<java.util.Map<String, String>> passwordResetAccepted() {
+        return ResponseEntity.accepted().body(java.util.Map.of(
+                "message", "若此 Email 已註冊，重設密碼說明已寄出。"));
     }
 
     @PostMapping("/password-resets")

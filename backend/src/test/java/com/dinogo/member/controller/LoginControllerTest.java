@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mail.MailSendException;
 import org.springframework.mock.web.MockHttpServletRequest;
 
 import com.dinogo.member.dto.LoginRequest;
@@ -99,5 +100,20 @@ class LoginControllerTest {
         assertThat(result.getBody()).isEqualTo(MemberApiErrorResponse.from(
                 HttpStatus.TOO_MANY_REQUESTS,
                 "請稍後再申請重設密碼。"));
+    }
+
+    @Test
+    void passwordResetRequestKeepsGenericResponseWhenEmailDeliveryFails() {
+        PasswordResetRequest request = new PasswordResetRequest("user@example.com");
+        MockHttpServletRequest httpRequest = new MockHttpServletRequest();
+        httpRequest.setRemoteAddr("127.0.0.1");
+        doThrow(new MailSendException("mail unavailable"))
+                .when(passwordResetService).requestPasswordReset(request, "127.0.0.1");
+
+        ResponseEntity<?> result = loginController.requestPasswordReset(request, httpRequest);
+
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(result.getBody()).isEqualTo(java.util.Map.of(
+                "message", "若此 Email 已註冊，重設密碼說明已寄出。"));
     }
 }
