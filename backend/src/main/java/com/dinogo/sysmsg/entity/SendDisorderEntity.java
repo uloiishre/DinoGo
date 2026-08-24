@@ -70,7 +70,8 @@ public class SendDisorderEntity extends SendEntity {
      * 付款方式 ID。
      */
     @Column(
-        name = "payment_method_id"
+        name = "payment_method_id",
+        nullable = false
     )
     private Integer paymentMethodId;
 
@@ -80,7 +81,8 @@ public class SendDisorderEntity extends SendEntity {
     @Nationalized
     @Column(
         name = "method_name",
-        length = 50
+        length = 50,
+        nullable = false
     )
     private String methodName;
 

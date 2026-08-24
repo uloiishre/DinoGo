@@ -71,7 +71,8 @@ public class SendOrderEntity extends SendEntity {
      *     order 模組 API
      */
     @Column(
-        name = "payment_method_id"
+        name = "payment_method_id",
+        nullable = false
     )
     private Integer paymentMethodId;
 
@@ -84,7 +85,8 @@ public class SendOrderEntity extends SendEntity {
     @Nationalized
     @Column(
         name = "method_name",
-        length = 50
+        length = 50,
+        nullable = false
     )
     private String methodName;
 

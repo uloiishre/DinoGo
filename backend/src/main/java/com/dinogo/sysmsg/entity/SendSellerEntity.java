@@ -32,13 +32,6 @@ import jakarta.persistence.Table;
 )
 public class SendSellerEntity extends SendEntity {
 
-    /**
-     * SC 實際發送時保存 order 模組提供的訂單編號快照。
-     * SAVE 範本尚未選擇訂單，因此維持 NULL。
-     */
-    @Nationalized
-    @Column(name = "order_no", length = 30)
-    private String orderNo;
 
     @Lob
     @Column(
@@ -85,7 +78,6 @@ public class SendSellerEntity extends SendEntity {
         String sendTitle,
         String sendContent,
         SendStatus sendStatus,
-        String orderNo,
         byte[] imgOne,
         byte[] imgTwo,
         byte[] imgThree,
@@ -101,7 +93,6 @@ public class SendSellerEntity extends SendEntity {
             sendStatus
         );
 
-        this.orderNo = orderNo;
         this.imgOne = imgOne;
         this.imgTwo = imgTwo;
         this.imgThree = imgThree;
@@ -119,14 +110,6 @@ public class SendSellerEntity extends SendEntity {
      *     @Getter
      *     @Setter
      */
-
-    public String getOrderNo() {
-        return orderNo;
-    }
-
-    public void setOrderNo(String orderNo) {
-        this.orderNo = orderNo;
-    }
 
     public byte[] getImgOne() {
         return imgOne;
