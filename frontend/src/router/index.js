@@ -170,6 +170,11 @@ const routes = [
         component: () => import('@/views/seller/SellerCouponsView.vue'),
       },
       {
+        path: 'wallet',
+        name: 'SellerWallet',
+        component: () => import('@/views/seller/SellerWalletView.vue'),
+      },
+      {
         path: 'profile',
         name: 'SellerProfile',
         component: () => import('@/views/seller/SellerProfileView.vue'),

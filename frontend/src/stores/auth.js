@@ -8,6 +8,7 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref('')
   const member = ref(null)
   const roles = ref([])
+  const sellerId = ref(null)
 
   // Components use this getter instead of reading localStorage directly.
   const isAuthenticated = computed(() => Boolean(token.value))
@@ -20,6 +21,7 @@ export const useAuthStore = defineStore('auth', () => {
     Boolean(role) && normalizedRoles.value.includes(String(role).toLowerCase())
 
   const isSeller = computed(() => hasRole('seller'))
+  const hasSellerSession = computed(() => isSeller.value && sellerId.value !== null)
 
   const memberName = computed(() => {
     if (!member.value) return ''
@@ -29,10 +31,11 @@ export const useAuthStore = defineStore('auth', () => {
     return fullName || member.value.email || ''
   })
 
-  function setSession(sessionToken, sessionMember, sessionRoles = []) {
+  function setSession(sessionToken, sessionMember, sessionRoles = [], sessionSellerId = null) {
     token.value = sessionToken || ''
     member.value = sessionMember || null
     roles.value = Array.isArray(sessionRoles) ? [...sessionRoles] : []
+    sellerId.value = sessionSellerId ?? null
     if (!sessionToken) {
       clearPersistedAuth()
     }
@@ -41,19 +44,19 @@ export const useAuthStore = defineStore('auth', () => {
   async function signIn(credentials) {
     // Keep API and persistence logic in the store; the view handles UI only.
     const { data } = await login(credentials)
-    setSession(data.token, data.member, data.roles)
+    setSession(data.token, data.member, data.roles, data.sellerId)
     return data
   }
 
   async function signInWithGoogle(credential) {
     const { data } = await googleLogin({ credential })
-    setSession(data.token, data.member, data.roles)
+    setSession(data.token, data.member, data.roles, data.sellerId)
     return data
   }
 
   async function linkGoogleSignIn(credential, password) {
     const { data } = await linkGoogleAccount({ credential, password })
-    setSession(data.token, data.member, data.roles)
+    setSession(data.token, data.member, data.roles, data.sellerId)
     return data
   }
 
@@ -63,7 +66,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function signOut() {
-    setSession('', null, [])
+    setSession('', null, [], null)
     clearPersistedAuth()
   }
 
@@ -71,8 +74,10 @@ export const useAuthStore = defineStore('auth', () => {
     token,
     member,
     roles,
+    sellerId,
     isAuthenticated,
     isSeller,
+    hasSellerSession,
     memberName,
     hasRole,
     signIn,
@@ -86,6 +91,6 @@ export const useAuthStore = defineStore('auth', () => {
   persist: {
     key: AUTH_STORAGE_KEY,
     storage: sessionStorage,
-    pick: ['token', 'member', 'roles'],
+    pick: ['token', 'member', 'roles', 'sellerId'],
   },
 })
