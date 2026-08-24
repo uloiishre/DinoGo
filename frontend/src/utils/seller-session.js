@@ -1,22 +1,12 @@
-import { AUTH_STORAGE_KEY } from '@/utils/auth-session'
+import { pinia } from '@/stores'
+import { useAuthStore } from '@/stores/auth'
 
 export const getCurrentSellerId = () => {
-  // sessionStorage.getItem(AUTH_STORAGE_KEY)讀登入後存在瀏覽器的資料
-  const persistedAuth = sessionStorage.getItem(AUTH_STORAGE_KEY)
+  const authStore = useAuthStore(pinia)
+  return authStore.sellerId ?? null
+}
 
-  if (!persistedAuth) {
-    return null
-  }
-
-  try {
-    const auth = JSON.parse(persistedAuth)
-    const sellerId = auth?.member?.sellerId ?? auth?.sellerId ?? null
-
-    // 優先從會員資料內找 sellerId
-    return sellerId ? Number(sellerId) : null
-  } catch (error) {
-    console.error('Read seller session failed:', error)
-    // 找不到就回傳 null
-    return null
-  }
+export const hasCurrentSellerSession = () => {
+  const authStore = useAuthStore(pinia)
+  return authStore.isSeller && authStore.sellerId !== null
 }

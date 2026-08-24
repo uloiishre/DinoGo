@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import {
   getSellerProducts,
@@ -10,8 +10,7 @@ import {
 import { getCurrentSellerId } from '@/utils/seller-session'
 import { getImageUrl } from '@/utils/imageUrl'
 
-const sellerId = getCurrentSellerId()
-// TODO: 等 A/B 模組提供 current seller 商品 API 後，移除 sellerId 假資料。
+const sellerId = computed(() => getCurrentSellerId())
 const products = ref([])
 
 const isLoading = ref(false)
@@ -24,18 +23,17 @@ const isDeleting = ref(false)
 const sellerRequiredMessage = '尚未取得賣家身分，請重新登入賣家帳號後再操作。'
 
 const loadProducts = async () => {
-  errorMessage.value = ''
-
-  if (!sellerId) {
+  if (!sellerId.value) {
     products.value = []
     errorMessage.value = sellerRequiredMessage
     return
   }
 
   isLoading.value = true
+  errorMessage.value = ''
 
   try {
-    const response = await getSellerProducts(sellerId)
+    const response = await getSellerProducts(sellerId.value)
 
     products.value = response.data
   } catch (error) {
@@ -62,7 +60,7 @@ const confirmStatusChange = async () => {
     return
   }
 
-  if (!sellerId) {
+  if (!sellerId.value) {
     errorMessage.value = sellerRequiredMessage
     pendingStatusProduct.value = null
     return
