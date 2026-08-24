@@ -2,6 +2,8 @@ package com.dinogo.member.service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.TreeSet;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +20,8 @@ import com.dinogo.seller.repository.SellerRepository;
 public class MemberSysmsgProviderService {
 
     private static final String DEFAULT_ROLE = "MEMBER";
+    private static final int BUYER_ROLE_ID = 1;
+    private static final int SELLER_ROLE_ID = 2;
 
     private final MemberRepository memberRepository;
     private final SellerRepository sellerRepository;
@@ -91,6 +95,7 @@ public class MemberSysmsgProviderService {
                 .map(memberRole -> memberRole.getRole().getRoleName())
                 .findFirst()
                 .orElse(DEFAULT_ROLE);
+        List<Integer> roleIds = resolveRoleIds(member);
 
         return new MemberSysmsgResponse(
                 member.getMemberId(),
@@ -98,7 +103,19 @@ public class MemberSysmsgProviderService {
                 authenticated,
                 member.getEmail(),
                 role,
+                roleIds,
                 member.isEmailOrderNotifications(),
                 member.isEmailMarketingNotifications());
+    }
+
+    private List<Integer> resolveRoleIds(Member member) {
+        TreeSet<Integer> roleIds = member.getMemberRoles().stream()
+                .map(memberRole -> memberRole.getRole().getRoleId())
+                .filter(Objects::nonNull)
+                .collect(java.util.stream.Collectors.toCollection(TreeSet::new));
+        if (roleIds.contains(SELLER_ROLE_ID)) {
+            roleIds.add(BUYER_ROLE_ID);
+        }
+        return List.copyOf(roleIds);
     }
 }
