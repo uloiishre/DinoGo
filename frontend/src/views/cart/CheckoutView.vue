@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { createPayment, getPaymentCapabilities, simulatePayment } from '@/api/order'
 import { logSafeError } from '@/utils/safeError'
+import { getImageUrl } from '@/utils/imageUrl'
 
 const pageTitle = '結帳'
 const router = useRouter()
@@ -765,7 +766,7 @@ onMounted(() => {
                 <div class="item-image-wrapper">
                   <img
                     v-if="item.productImage"
-                    :src="item.productImage"
+                    :src="getImageUrl(item.productImage)"
                     :alt="item.productName"
                     class="item-image"
                   />

@@ -11,6 +11,9 @@ public record HistoryResponse(
         Integer sellerId,
         Integer memberId,
         Integer orderId,
+        //review-start，總共1次修改，第1次//
+        String orderNo,
+        //review-end，總共1次修改，第1次//
         List<StarResponse> stars) {
 
     /** 將 History 與已查出的 Star 清單轉成 API DTO。 */
@@ -23,6 +26,7 @@ public record HistoryResponse(
                 history.getSellerId(),
                 history.getMemberId(),
                 history.getOrderId(),
+                history.getOrderNo(),
                 stars.stream().map(StarResponse::fromEntity).toList());
     }
 }

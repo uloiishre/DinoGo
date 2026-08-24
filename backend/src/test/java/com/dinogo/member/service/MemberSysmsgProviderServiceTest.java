@@ -37,7 +37,7 @@ class MemberSysmsgProviderServiceTest {
 
     @Test
     void getProfileReturnsActiveMemberDataForAuthenticatedCaller() {
-        Member member = activeMember(1, "buyer@example.com", "buyer");
+        Member member = activeMember(1, "buyer@example.com", 1, "buyer");
         member.setEmailOrderNotifications(false);
         member.setEmailMarketingNotifications(true);
         Seller seller = new Seller();
@@ -52,13 +52,14 @@ class MemberSysmsgProviderServiceTest {
         assertThat(response.authenticated()).isTrue();
         assertThat(response.email()).isEqualTo("buyer@example.com");
         assertThat(response.role()).isEqualTo("buyer");
+        assertThat(response.roleIds()).containsExactly(1);
         assertThat(response.emailOrderNotifications()).isFalse();
         assertThat(response.emailMarketingNotifications()).isTrue();
     }
 
     @Test
     void getMemberRejectsInactiveMember() {
-        Member member = activeMember(2, "inactive@example.com", "buyer");
+        Member member = activeMember(2, "inactive@example.com", 1, "buyer");
         member.setStatus("INACTIVE");
         when(memberRepository.findById(2)).thenReturn(Optional.of(member));
 
@@ -69,8 +70,8 @@ class MemberSysmsgProviderServiceTest {
 
     @Test
     void getAllMembersReturnsOnlyActiveMembers() {
-        Member activeMember = activeMember(1, "active@example.com", "buyer");
-        Member inactiveMember = activeMember(2, "inactive@example.com", "buyer");
+        Member activeMember = activeMember(1, "active@example.com", 1, "buyer");
+        Member inactiveMember = activeMember(2, "inactive@example.com", 1, "buyer");
         inactiveMember.setStatus("SUSPENDED");
         when(memberRepository.findAllByStatusIgnoreCase("ACTIVE")).thenReturn(List.of(activeMember));
         when(sellerRepository.findByMember_MemberIdIn(List.of(1))).thenReturn(List.of());
@@ -84,8 +85,31 @@ class MemberSysmsgProviderServiceTest {
         verify(sellerRepository, never()).findByMember_MemberId(1);
     }
 
-    private Member activeMember(Integer memberId, String email, String roleName) {
+    @Test
+    void getMemberAddsBuyerRoleForSeller() {
+        Member member = activeMember(3, "seller@example.com", 2, "seller");
+        when(memberRepository.findById(3)).thenReturn(Optional.of(member));
+        when(sellerRepository.findByMember_MemberId(3)).thenReturn(Optional.empty());
+
+        MemberSysmsgResponse response = providerService.getMember(3);
+
+        assertThat(response.roleIds()).containsExactly(1, 2);
+    }
+
+    @Test
+    void getMemberReturnsAdminRoleId() {
+        Member member = activeMember(4, "admin@example.com", 3, "admin");
+        when(memberRepository.findById(4)).thenReturn(Optional.of(member));
+        when(sellerRepository.findByMember_MemberId(4)).thenReturn(Optional.empty());
+
+        MemberSysmsgResponse response = providerService.getMember(4);
+
+        assertThat(response.roleIds()).containsExactly(3);
+    }
+
+    private Member activeMember(Integer memberId, String email, Integer roleId, String roleName) {
         Role role = new Role();
+        role.setRoleId(roleId);
         role.setRoleName(roleName);
         MemberRole memberRole = new MemberRole();
         memberRole.setRole(role);

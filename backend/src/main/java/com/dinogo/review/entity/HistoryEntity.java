@@ -51,6 +51,13 @@ public class HistoryEntity {
     @Column(name = "order_id", nullable = false)
     private Integer orderId;
 
+    //review-start，總共1次修改，第1次//
+    // 完成訂單建立 History 時保存顯示用訂單編號快照。
+    @Setter
+    @Column(name = "order_no", nullable = false, length = 30)
+    private String orderNo;
+    //review-end，總共1次修改，第1次//
+
     // Spring Boot 只在建立 History 時 cascade persist Star。
     // 刪除 History 時由 SQL Server ON DELETE CASCADE 刪除 Star。
     @OneToMany(

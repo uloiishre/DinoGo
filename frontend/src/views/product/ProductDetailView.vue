@@ -29,6 +29,7 @@ const fetchProductDetail = async () => {
     const response = await api.get(`/products/${productId}`)
 
     product.value = response.data
+    console.log('商品圖片：', product.value.images)
 
     if (product.value.images?.length) {
       product.value.images.sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999))

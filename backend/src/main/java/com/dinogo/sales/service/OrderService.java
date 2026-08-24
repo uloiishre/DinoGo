@@ -354,10 +354,12 @@ public class OrderService {
     }
 
     private String findMainImageUrl(Product product) {
+
         return product.getImages().stream()
                 .filter(image -> Boolean.TRUE.equals(image.getIsMain()))
                 .findFirst()
-                .or(() -> product.getImages().stream().findFirst())
+                .or(() -> product.getImages().stream()
+                        .min(Comparator.comparing(ProductImage::getSortOrder)))
                 .map(ProductImage::getImageUrl)
                 .orElse(null);
     }
