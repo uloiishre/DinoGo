@@ -263,6 +263,26 @@ Request：
 
 以下 API 都需要 `Authorization: Bearer <token>`。
 
+### 註銷目前帳號
+
+`POST /api/member/account/deactivate`
+
+```json
+{ "currentPassword": "current-password" }
+```
+
+成功回傳 `204 No Content`，帳號狀態改為 `DEACTIVATED`，並立即使所有 JWT 失效。商家會員或有 `PENDING_PAYMENT`、`PAID`、`PROCESSING`、`SHIPPED` 買家訂單時回傳 `400`，不得自行註銷。
+
+## 管理員會員 API
+
+以下 API 需 `admin` 角色。
+
+- `GET /api/admin/members?status=ACTIVE|SUSPENDED|DEACTIVATED&keyword=`：會員清單。
+- `POST /api/admin/members/{memberId}/suspend`：body `{ "reason": "..." }`，停權帳號並使其既有 JWT 失效。
+- `POST /api/admin/members/{memberId}/restore`：恢復已停權帳號。
+
+帳號狀態僅接受 `ACTIVE`、`SUSPENDED`、`DEACTIVATED`。管理員不可停權或恢復自己的帳號；`DEACTIVATED` 帳號不可由此 API 恢復。
+
 ### 取得目前會員資料
 
 `GET /api/member/profile`

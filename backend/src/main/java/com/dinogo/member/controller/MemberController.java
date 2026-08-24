@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,9 +15,11 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.NoSuchElementException;
 
 import com.dinogo.member.dto.ChangePasswordRequest;
+import com.dinogo.member.dto.DeactivateAccountRequest;
 import com.dinogo.member.dto.MemberApiErrorResponse;
 import com.dinogo.member.dto.MemberUpdateRequest;
 import com.dinogo.member.service.MemberService;
+import com.dinogo.member.service.MemberAccountService;
 import com.dinogo.security.AuthenticatedMember;
 
 import jakarta.validation.Valid;
@@ -27,9 +30,11 @@ import jakarta.validation.Valid;
 public class MemberController {
 
     private final MemberService memberService;
+    private final MemberAccountService memberAccountService;
 
-    public MemberController(MemberService memberService) {
+    public MemberController(MemberService memberService, MemberAccountService memberAccountService) {
         this.memberService = memberService;
+        this.memberAccountService = memberAccountService;
     }
 
     @GetMapping("/profile")
@@ -74,6 +79,17 @@ public class MemberController {
         } catch (IllegalArgumentException exception) {
             return ResponseEntity.badRequest()
                     .body(MemberApiErrorResponse.from(HttpStatus.BAD_REQUEST, exception.getMessage()));
+        }
+    }
+
+    @PostMapping("/account/deactivate")
+    public ResponseEntity<?> deactivateAccount(@AuthenticationPrincipal AuthenticatedMember member,
+            @Valid @RequestBody DeactivateAccountRequest request) {
+        try {
+            memberAccountService.deactivate(member.memberId(), request.currentPassword());
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException exception) {
+            return ResponseEntity.badRequest().body(MemberApiErrorResponse.from(HttpStatus.BAD_REQUEST, exception.getMessage()));
         }
     }
 }
