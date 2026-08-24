@@ -98,3 +98,8 @@ export const uploadSellerProductImages = (productId, files) => {
     formData,
   )
 }
+
+// 軟刪除商品
+export const deleteSellerProduct = (productId) => {
+  return api.delete(`/products/${productId}`)
+}

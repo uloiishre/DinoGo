@@ -16,4 +16,8 @@ public interface ProductRepository extends JpaRepository<Product, Integer>,
                         Integer sellerId,
                         Integer productId);
 
+        List<Product> findBySeller_SellerIdAndStatusNotOrderByProductIdDesc(
+                        Integer sellerId,
+                        Byte status);
+
 }

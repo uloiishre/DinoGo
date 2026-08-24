@@ -5,6 +5,7 @@ import {
   getSellerProducts,
   publishSellerProduct,
   unpublishSellerProduct,
+  deleteSellerProduct,
 } from '../../api/sellerProductApi'
 import { getCurrentSellerId } from '@/utils/seller-session'
 import { getImageUrl } from '@/utils/imageUrl'
@@ -17,6 +18,8 @@ const isLoading = ref(false)
 const isChangingStatus = ref(false)
 const errorMessage = ref('')
 const pendingStatusProduct = ref(null)
+const pendingDeleteProduct = ref(null)
+const isDeleting = ref(false)
 
 const loadProducts = async () => {
   isLoading.value = true
@@ -114,6 +117,42 @@ const statusClass = (status) => {
   return 'is-warning'
 }
 
+const openDeleteDialog = (product) => {
+  pendingDeleteProduct.value = product
+}
+
+const closeDeleteDialog = () => {
+  if (isDeleting.value) {
+    return
+  }
+
+  pendingDeleteProduct.value = null
+}
+
+// 刪除商品
+const confirmDelete = async () => {
+  if (!pendingDeleteProduct.value) {
+    return
+  }
+
+  const product = pendingDeleteProduct.value
+
+  isDeleting.value = true
+  errorMessage.value = ''
+
+  try {
+    await deleteSellerProduct(product.productId)
+
+    pendingDeleteProduct.value = null
+
+    await loadProducts()
+  } catch (error) {
+    errorMessage.value = '商品刪除失敗，請稍後再試。'
+  } finally {
+    isDeleting.value = false
+  }
+}
+
 onMounted(loadProducts)
 </script>
 
@@ -179,49 +218,47 @@ onMounted(loadProducts)
           >
             {{ statusActionLabel(product.status) }}
           </button>
+
+          <button class="delete-action" type="button" @click="openDeleteDialog(product)">
+            刪除
+          </button>
         </div>
       </div>
     </section>
 
     <Teleport to="body">
-      <div v-if="pendingStatusProduct" class="modal-backdrop" @click.self="closeStatusDialog">
+      <div v-if="pendingDeleteProduct" class="modal-backdrop" @click.self="closeDeleteDialog">
         <section
           class="status-modal"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="status-modal-title"
+          aria-labelledby="delete-modal-title"
         >
-          <div
-            class="modal-icon"
-            :class="pendingStatusProduct.status === 'ACTIVE' ? 'is-danger' : 'is-primary'"
-          >
-            <i
-              class="bi"
-              :class="pendingStatusProduct.status === 'ACTIVE' ? 'bi-eye-slash' : 'bi-shop-window'"
-              aria-hidden="true"
-            ></i>
+          <div class="modal-icon is-danger">
+            <i class="bi bi-trash" aria-hidden="true"></i>
           </div>
 
           <div class="modal-copy">
-            <h2 id="status-modal-title">{{ statusDialogTitle(pendingStatusProduct) }}</h2>
-            <p>{{ statusDialogDescription(pendingStatusProduct) }}</p>
+            <h2 id="delete-modal-title">確認刪除商品</h2>
+
+            <p>確定要刪除「{{ pendingDeleteProduct.productName }}」嗎？ 刪除後將無法復原。</p>
           </div>
 
           <div class="modal-actions">
             <button
-              class="confirm-action"
+              class="confirm-action is-danger"
               type="button"
-              :class="pendingStatusProduct.status === 'ACTIVE' ? 'is-danger' : 'is-primary'"
-              :disabled="isChangingStatus"
-              @click="confirmStatusChange"
+              :disabled="isDeleting"
+              @click="confirmDelete"
             >
-              {{ isChangingStatus ? '處理中...' : statusActionLabel(pendingStatusProduct.status) }}
+              {{ isDeleting ? '刪除中...' : '確認刪除' }}
             </button>
+
             <button
               class="ghost-action"
               type="button"
-              :disabled="isChangingStatus"
-              @click="closeStatusDialog"
+              :disabled="isDeleting"
+              @click="closeDeleteDialog"
             >
               取消
             </button>
@@ -529,6 +566,28 @@ h1 {
 .confirm-action:disabled {
   cursor: wait;
   opacity: 0.72;
+}
+
+.delete-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  background: var(--color-surface);
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.delete-action:hover {
+  background: var(--color-danger-soft);
+}
+
+.delete-action:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
 }
 
 @media (max-width: 900px) {
