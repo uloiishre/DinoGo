@@ -640,7 +640,8 @@ public class CartService {
 					return new SkuOptionResponse(
 							item.getSkuId(),
 							skuName.toString(),
-							item.getPrice());
+							item.getPrice(),
+							item.getStatus());
 				})
 				.toList();
 

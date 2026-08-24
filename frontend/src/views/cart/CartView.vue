@@ -24,7 +24,9 @@ const selectedCartItemIds = ref([])
 const isItemAvailable = (item) => {
   return item.available !== false
 }
-
+const isSkuAvailable = (sku) => {
+  return Number(sku.status) === 1
+}
 // ================================
 // 取得購物車
 // ================================
@@ -357,6 +359,15 @@ const changeSku = async (item, newSkuId) => {
     return
   }
 
+  // 找到使用者選擇的 SKU
+  const newSku = item.skus?.find((sku) => Number(sku.skuId) === Number(newSkuId))
+
+  // SKU 不存在或已停用，不允許切換
+  if (!newSku || Number(newSku.status) !== 1) {
+    alert('此規格目前已停用，無法選擇')
+    return
+  }
+
   changingSkuId.value = item.cartItemId
 
   try {
@@ -367,8 +378,6 @@ const changeSku = async (item, newSkuId) => {
 
     console.log('修改 SKU 成功：', response.data)
 
-    // ⭐ SKU 修改可能會與購物車原本的 SKU 合併
-    // 所以重新取得完整購物車
     await fetchCart()
   } catch (error) {
     logSafeError('修改商品規格失敗:', error)
@@ -766,8 +775,13 @@ onMounted(() => {
                     :disabled="!isItemAvailable(item) || changingSkuId === item.cartItemId"
                     @change="changeSku(item, Number($event.target.value))"
                   >
-                    <option v-for="sku in item.skus" :key="sku.skuId" :value="sku.skuId">
-                      {{ sku.skuName }}
+                    <option
+                      v-for="sku in item.skus"
+                      :key="sku.skuId"
+                      :value="sku.skuId"
+                      :disabled="!isSkuAvailable(sku) && Number(sku.skuId) !== Number(item.skuId)"
+                    >
+                      {{ sku.skuName }}{{ !isSkuAvailable(sku) ? '（停用）' : '' }}
                     </option>
                   </select>
 
