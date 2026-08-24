@@ -658,6 +658,7 @@ public class CartService {
 				product.getProductName(),
 				sku.getPrice(),
 				cartItem.getQuantity(),
+				sku.getStock(), // ⭐ 新增
 				productImage,
 				product.getSeller().getSellerId(),
 				product.getSeller().getStoreName(),
