@@ -1,9 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { getMemberOrders } from '@/api/order'
-//review-start，總共6次修改，第1次//
-import { getOrderStars } from '@/api/review'
-//review-end，總共6次修改，第1次//
 import { getOrderDisplayStatus, isOrderInDisplayGroup } from '@/utils/orderDisplayStatus'
 
 const orders = ref([])
@@ -12,9 +9,6 @@ const errorMessage = ref('')
 const activeStatus = ref('ALL')
 const keyword = ref('')
 const sortOrder = ref('NEWEST')
-//review-start，總共6次修改，第2次//
-const starsByOrderItemId = ref({})
-//review-end，總共6次修改，第2次//
 
 const filters = [
   { value: 'ALL', label: '全部' },
@@ -59,19 +53,6 @@ async function loadOrders() {
   try {
     const response = await getMemberOrders()
     orders.value = Array.isArray(response.data) ? response.data : []
-    //review-start，總共6次修改，第3次//
-    const completedOrders = orders.value.filter((order) => order.status === 'COMPLETED')
-    const starResponses = await Promise.allSettled(
-      completedOrders.map((order) => getOrderStars(order.orderId)),
-    )
-    starsByOrderItemId.value = starResponses.reduce((result, response) => {
-      if (response.status !== 'fulfilled' || !Array.isArray(response.value.data)) return result
-      response.value.data.forEach((star) => {
-        result[star.orderItemId] = star
-      })
-      return result
-    }, {})
-    //review-end，總共6次修改，第3次//
   } catch (error) {
     errorMessage.value = error.response?.data?.message ?? '訂單載入失敗，請稍後再試。'
   } finally {
@@ -108,25 +89,6 @@ function formatDate(value) {
     day: '2-digit',
   }).format(new Date(value))
 }
-
-//review-start，總共6次修改，第4次//
-function reviewFor(item) {
-  return starsByOrderItemId.value[item.orderItemId] ?? null
-}
-
-function isReviewed(item) {
-  return Number(reviewFor(item)?.fiveStar ?? 0) > 0
-}
-
-function reviewRoute(order, item) {
-  const star = reviewFor(item)
-  return {
-    name: 'MemberOrderItemReview',
-    params: { orderId: order.orderId, orderItemId: item.orderItemId },
-    query: star?.starId ? { starId: star.starId } : undefined,
-  }
-}
-//review-end，總共6次修改，第4次//
 
 onMounted(loadOrders)
 </script>
@@ -187,58 +149,37 @@ onMounted(loadOrders)
       </div>
 
       <div v-else class="order-list">
-        <article
+        <RouterLink
           v-for="order in visibleOrders"
           :key="order.orderId"
           class="order-card"
+          :to="{ name: 'MemberOrderDetail', params: { id: order.orderId } }"
+          :aria-label="`查看訂單 ${order.orderNo}`"
         >
-          <div class="order-card__heading">
-            <RouterLink
-              class="order-copy"
-              :to="{ name: 'MemberOrderDetail', params: { id: order.orderId } }"
-            >
-              <strong>訂單 #{{ order.orderNo }}</strong>
-              <span>{{ itemSummary(order) }}</span>
-              <small>{{ formatDate(order.createdAt) }}</small>
-            </RouterLink>
-
-            <span
-              class="status-badge"
-              :class="`status-${getOrderDisplayStatus(order).key.toLowerCase()}`"
-            >
-              {{ getOrderDisplayStatus(order).label }}
-            </span>
-
-            <strong class="order-total">{{ formatCurrency(order.totalAmount) }}</strong>
+          <div class="product-image">
+            <img
+              v-if="firstItem(order)?.productImageUrl"
+              :src="firstItem(order).productImageUrl"
+              :alt="firstItem(order).productName"
+            />
+            <i v-else class="bi bi-image" aria-hidden="true"></i>
           </div>
 
-          <!-- //review-start，總共6次修改，第5次// -->
-          <div v-if="order.status === 'COMPLETED'" class="completed-items">
-            <div v-for="item in order.items" :key="item.orderItemId" class="completed-item">
-              <div class="product-image">
-                <img v-if="item.productImageUrl" :src="item.productImageUrl" :alt="item.productName" />
-                <i v-else class="bi bi-image" aria-hidden="true"></i>
-              </div>
-              <div class="completed-item__copy">
-                <strong>{{ item.productName }}</strong>
-                <span>{{ item.skuSpec || '單一規格' }}・數量 {{ item.quantity }}</span>
-              </div>
-              <RouterLink
-                :to="reviewRoute(order, item)"
-                class="review-endcap"
-                :class="isReviewed(item) ? 'review-endcap--reviewed' : 'review-endcap--pending'"
-                :aria-label="isReviewed(item) ? `修改 ${item.productName} 的評價` : `評價 ${item.productName}`"
-                :title="isReviewed(item) ? '已評價' : '未評價'"
-              >
-                <!-- //review-未評價// -->
-                <i v-if="!isReviewed(item)" class="bi bi-star" aria-hidden="true"></i>
-                <!-- //review-已評價// -->
-                <i v-else class="bi bi-star-fill" aria-hidden="true"></i>
-              </RouterLink>
-            </div>
+          <div class="order-copy">
+            <strong>訂單 #{{ order.orderNo }}</strong>
+            <span>{{ itemSummary(order) }}</span>
+            <small>{{ formatDate(order.createdAt) }}</small>
           </div>
-          <!-- //review-end，總共6次修改，第5次// -->
-        </article>
+
+          <span
+            class="status-badge"
+            :class="`status-${getOrderDisplayStatus(order).key.toLowerCase()}`"
+          >
+            {{ getOrderDisplayStatus(order).label }}
+          </span>
+
+          <strong class="order-total">{{ formatCurrency(order.totalAmount) }}</strong>
+        </RouterLink>
       </div>
     </div>
   </section>
@@ -395,21 +336,18 @@ onMounted(loadOrders)
 }
 
 .order-card {
-  min-height: calc(var(--space-8) * 2);
-  padding: var(--space-4);
+  display: grid;
+  min-height: 126px;
+  grid-template-columns: 82px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 18px;
   color: var(--color-text);
   text-decoration: none;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
-}
-
-.order-card__heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: var(--space-4);
 }
 
 .order-card:hover {
@@ -441,92 +379,7 @@ onMounted(loadOrders)
   min-width: 0;
   flex-direction: column;
   gap: 5px;
-  color: var(--color-text);
-  text-decoration: none;
 }
-
-/* //review-start，總共6次修改，第6次// */
-.completed-items {
-  display: grid;
-  gap: var(--space-3);
-  margin-top: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--color-border);
-}
-
-.completed-item {
-  display: grid;
-  min-height: calc(var(--space-8) + var(--space-5));
-  grid-template-columns: var(--space-8) minmax(0, 1fr) calc(var(--space-8) + var(--space-2));
-  align-items: stretch;
-  overflow: hidden;
-  background: var(--color-bg-muted);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
-.completed-item .product-image {
-  width: var(--space-8);
-  height: 100%;
-  min-height: calc(var(--space-8) + var(--space-4));
-  border-radius: 0;
-}
-
-.completed-item__copy {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  justify-content: center;
-  gap: 5px;
-  padding: var(--space-3);
-}
-
-.completed-item__copy strong,
-.completed-item__copy span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.completed-item__copy span {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-}
-
-.review-endcap {
-  display: grid;
-  min-width: calc(var(--space-8) + var(--space-2));
-  place-items: center;
-  color: var(--color-surface);
-  font-size: var(--font-size-lg);
-  text-decoration: none;
-  border-left: 1px solid transparent;
-  transition: filter 160ms ease, transform 160ms ease;
-}
-
-.review-endcap--pending {
-  color: var(--color-text-muted);
-  background: var(--color-disabled-bg);
-  border-left-color: var(--color-border-strong);
-}
-
-.review-endcap--reviewed {
-  color: var(--color-surface);
-  background: var(--color-warning);
-  border-left-color: var(--color-warning);
-}
-
-.review-endcap:hover,
-.review-endcap:focus-visible {
-  color: inherit;
-  filter: brightness(0.92);
-}
-
-.review-endcap:focus-visible {
-  outline: none;
-  box-shadow: var(--shadow-focus);
-}
-/* //review-end，總共6次修改，第6次// */
 
 .order-copy strong {
   overflow: hidden;
@@ -639,11 +492,8 @@ onMounted(loadOrders)
   }
 
   .order-card {
+    grid-template-columns: 64px minmax(0, 1fr) auto;
     padding: var(--space-4);
-  }
-
-  .order-card__heading {
-    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .product-image {
@@ -656,7 +506,7 @@ onMounted(loadOrders)
   }
 
   .order-total {
-    grid-column: 1 / -1;
+    grid-column: 2 / -1;
     min-width: 0;
     text-align: left;
   }
@@ -668,7 +518,7 @@ onMounted(loadOrders)
   }
 
   .order-card {
-    padding: var(--space-3);
+    grid-template-columns: 56px minmax(0, 1fr);
   }
 
   .product-image {
@@ -678,16 +528,8 @@ onMounted(loadOrders)
 
   .status-badge,
   .order-total {
-    grid-column: 1;
+    grid-column: 2;
     justify-self: start;
-  }
-
-  .completed-item {
-    grid-template-columns: var(--space-7) minmax(0, 1fr) var(--space-8);
-  }
-
-  .completed-item .product-image {
-    width: var(--space-7);
   }
 }
 </style>

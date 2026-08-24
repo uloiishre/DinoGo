@@ -2,10 +2,17 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { cancelOrder, confirmDelivery, getOrder } from '@/api/order'
+//review-start，總共6次修改，第1次//
+import { getOrderStars } from '@/api/review'
+//review-end，總共6次修改，第1次//
 import { getOrderDisplayStatus } from '@/utils/orderDisplayStatus'
 
 const route = useRoute()
 const order = ref(null)
+//review-start，總共6次修改，第2次//
+// 商品明細依後端 fiveStar 衍生的 reviewed 變數顯示評價狀態。
+const reviewByOrderItemId = ref({})
+//review-end，總共6次修改，第2次//
 const loading = ref(true)
 const errorMessage = ref('')
 const confirmingDelivery = ref(false)
@@ -84,7 +91,24 @@ async function loadOrder({ silent = false, force = false } = {}) {
 
   try {
     const response = await getOrder(orderId.value)
-    if (requestId === latestLoadRequestId) order.value = response.data
+    //review-start，總共6次修改，第3次//
+    let nextReviews = {}
+    if (response.data?.status === 'COMPLETED') {
+      try {
+        const starsResponse = await getOrderStars(orderId.value)
+        nextReviews = (starsResponse.data ?? []).reduce((result, review) => {
+          result[review.orderItemId] = review
+          return result
+        }, {})
+      } catch {
+        // 評價資料尚未提供時，商品仍以未評價的強調樣式顯示。
+      }
+    }
+    if (requestId === latestLoadRequestId) {
+      order.value = response.data
+      reviewByOrderItemId.value = nextReviews
+    }
+    //review-end，總共6次修改，第3次//
   } catch (error) {
     if (!silent && requestId === latestLoadRequestId) {
       errorMessage.value = error.response?.data?.message ?? '訂單詳情載入失敗，請稍後再試。'
@@ -185,6 +209,25 @@ function formatDate(value) {
     hour12: false,
   }).format(new Date(value))
 }
+
+//review-start，總共6次修改，第4次//
+function itemReview(item) {
+  return reviewByOrderItemId.value[item.orderItemId] ?? null
+}
+
+function isItemReviewed(item) {
+  const review = itemReview(item)
+  return review?.reviewed === true || Number(review?.fiveStar ?? 0) > 0
+}
+
+function itemReviewRoute(item) {
+  return {
+    name: 'MemberOrderItemReview',
+    params: { orderId: orderId.value, orderItemId: item.orderItemId },
+    query: itemReview(item)?.starId ? { starId: itemReview(item).starId } : undefined,
+  }
+}
+//review-end，總共6次修改，第4次//
 
 onMounted(() => {
   void loadOrder()
@@ -298,6 +341,22 @@ onUnmounted(() => {
               </div>
 
               <strong class="product-subtotal">{{ formatCurrency(item.subtotal) }}</strong>
+
+              <!-- //review-start，總共6次修改，第5次// -->
+              <RouterLink
+                v-if="order.status === 'COMPLETED'"
+                :to="itemReviewRoute(item)"
+                class="review-endcap"
+                :class="isItemReviewed(item) ? 'review-endcap--reviewed' : 'review-endcap--pending'"
+                :aria-label="isItemReviewed(item) ? `修改 ${item.productName} 的評價` : `評價 ${item.productName}`"
+                :title="isItemReviewed(item) ? '已評價' : '未評價'"
+              >
+                <!-- //review-未評價// -->
+                <i v-if="!isItemReviewed(item)" class="bi bi-star-fill" aria-hidden="true"></i>
+                <!-- //review-已評價// -->
+                <i v-else class="bi bi-star" aria-hidden="true"></i>
+              </RouterLink>
+              <!-- //review-end，總共6次修改，第5次// -->
             </article>
 
             <div class="remark-row">
@@ -731,7 +790,7 @@ onUnmounted(() => {
 .product-row {
   display: grid;
   min-height: 96px;
-  grid-template-columns: 82px minmax(0, 1fr) auto;
+  grid-template-columns: 82px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 14px;
   padding: var(--space-3) 0;
@@ -779,6 +838,44 @@ onUnmounted(() => {
   font-size: 13px;
   white-space: nowrap;
 }
+
+/* //review-start，總共6次修改，第6次// */
+.review-endcap {
+  display: grid;
+  min-width: calc(var(--space-7) + var(--space-2));
+  align-self: stretch;
+  place-items: center;
+  margin-block: calc(var(--space-3) * -1);
+  font-size: var(--font-size-lg);
+  text-decoration: none;
+  border-left: 1px solid var(--color-border);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.review-endcap--pending {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.review-endcap--reviewed {
+  color: var(--color-text-subtle);
+  background: var(--color-surface-soft);
+}
+
+.review-endcap:hover {
+  color: var(--color-primary-hover);
+  background: var(--color-primary-soft);
+}
+
+.review-endcap:active {
+  color: var(--color-primary-active);
+}
+
+.review-endcap:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+/* //review-end，總共6次修改，第6次// */
 
 .remark-row {
   display: flex;
@@ -971,7 +1068,7 @@ onUnmounted(() => {
   }
 
   .product-row {
-    grid-template-columns: 64px minmax(0, 1fr);
+    grid-template-columns: 64px minmax(0, 1fr) auto;
   }
 
   .product-image {
@@ -981,6 +1078,11 @@ onUnmounted(() => {
 
   .product-subtotal {
     grid-column: 2;
+  }
+
+  .review-endcap {
+    grid-column: 3;
+    grid-row: 1 / span 2;
   }
 }
 </style>

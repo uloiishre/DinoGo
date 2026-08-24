@@ -57,7 +57,19 @@ async function loadReview() {
     star.value = (starsResponse.data ?? []).find(
       (candidate) => candidate.orderItemId === orderItemId.value,
     ) ?? null
-    if (!item.value || !star.value) throw new Error('REVIEW_ITEM_NOT_FOUND')
+    if (!item.value) throw new Error('REVIEW_ITEM_NOT_FOUND')
+    if (!star.value) {
+      // 無後端資料階段建立前端草稿，讓每個完成訂單 item 都能預覽評價頁。
+      star.value = {
+        starId: Number(route.query.starId ?? orderItemId.value),
+        orderItemId: orderItemId.value,
+        productId: item.value.productId,
+        productName: item.value.productName,
+        imageUrl: item.value.productImageUrl,
+        fiveStar: 0,
+        reviewed: false,
+      }
+    }
     hydrateForm(star.value)
   } catch (error) {
     errorMessage.value = error.response?.data?.message
@@ -146,7 +158,7 @@ async function handleSubmit() {
 }
 
 function closeWithoutChanges() {
-  router.push({ name: 'MemberOrders', query: { status: 'COMPLETED' } })
+  router.push({ name: 'MemberOrderDetail', params: { id: orderId.value } })
 }
 
 onMounted(loadReview)
@@ -262,5 +274,3 @@ button:focus-visible, textarea:focus-visible, .upload-button:focus-within { outl
 @media (max-width: 575.98px) { .review-page { padding: 0; }.review-panel { border-inline: 0; border-radius: 0; }.product-summary { grid-template-columns: calc(var(--space-8) + var(--space-3)) minmax(0, 1fr); }.product-photo { width: calc(var(--space-8) + var(--space-3)); height: calc(var(--space-8) + var(--space-3)); }.form-actions { display: grid; grid-template-columns: 1fr 1fr; }.form-actions button { width: 100%; } }
 /* //review-end，總共3次修改，第3次// */
 </style>
-
-

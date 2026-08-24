@@ -370,7 +370,7 @@ async function loadReviews({ append = false } = {}) {
     reviewsNextCursor.value = page.nextCursor ?? null
     reviewsLoaded.value = true
   } catch (error) {
-    reviewsError.value = error.response?.data?.message ?? '用戶評價載入失敗，請稍後再試。'
+    reviewsError.value = error.response?.data?.message ?? '商品評價載入失敗，請稍後再試。'
   } finally {
     reviewsLoading.value = false
   }
@@ -646,7 +646,7 @@ onUnmounted(() => {
               :class="{ active: activeDetailTab === 'reviews' }"
               @click="selectDetailTab('reviews')"
             >
-              用戶評價
+              商品評價
             </button>
           </div>
 
@@ -660,7 +660,7 @@ onUnmounted(() => {
             class="detail-panel reviews-panel"
             role="tabpanel"
             tabindex="0"
-            aria-label="用戶評價，可向下捲動載入更多"
+            aria-label="商品評價，可向下捲動載入更多"
             @scroll.passive="handleReviewScroll"
           >
             <div v-if="reviewsError && reviews.length === 0" class="review-state review-state--error" role="alert">
@@ -668,7 +668,7 @@ onUnmounted(() => {
               <button type="button" @click="loadReviews()">重新載入</button>
             </div>
             <div v-else-if="reviewsLoaded && reviews.length === 0" class="review-state">
-              此商品目前尚無用戶評價。
+              此商品目前尚無商品評價。
             </div>
             <div v-else class="review-list">
               <button
@@ -714,7 +714,7 @@ onUnmounted(() => {
             <button type="button" class="review-dialog__close" aria-label="關閉評價詳閱" @click="closeReview">×</button>
             <header>
               <p>{{ maskMemberId(selectedReview.memberId) }}</p>
-              <h2 id="review-dialog-title">用戶評價</h2>
+              <h2 id="review-dialog-title">商品評價</h2>
               <span class="review-stars" :aria-label="`${selectedReview.fiveStar} 顆星`">
                 <i
                   v-for="value in 5"
@@ -1092,7 +1092,7 @@ onUnmounted(() => {
 /* //review-start，總共10次修改，第10次// */
 .product-detail-tabs {
   width: min(100%, calc(100% * 2 / 3));
-  margin: var(--space-7) auto 0;
+  margin: var(--space-7) 0 0;
 }
 
 .detail-tab-list {
@@ -1147,7 +1147,11 @@ onUnmounted(() => {
 }
 
 .detail-panel {
-  min-height: calc((var(--space-8) + var(--space-5)) * 6);
+  min-height: calc(
+    (var(--space-8) + var(--space-5)) * 6
+    + var(--space-3) * 5
+    + var(--space-5) * 2
+  );
   padding: var(--space-5);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -1168,7 +1172,11 @@ onUnmounted(() => {
 }
 
 .reviews-panel {
-  max-height: calc((var(--space-8) + var(--space-5)) * 6);
+  height: calc(
+    (var(--space-8) + var(--space-5)) * 6
+    + var(--space-3) * 5
+    + var(--space-5) * 2
+  );
   overflow-y: auto;
   scrollbar-gutter: stable;
 }
