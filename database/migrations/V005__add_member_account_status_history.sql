@@ -4,6 +4,11 @@ SET XACT_ABORT ON;
 BEGIN TRY
     BEGIN TRANSACTION;
 
+    -- 舊版停用帳號統一納入可由管理員恢復的 SUSPENDED 狀態，再加入新約束。
+    UPDATE member.Member
+    SET status = 'SUSPENDED', updated_at = SYSDATETIME()
+    WHERE status = 'INACTIVE';
+
     IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'ck_member_status')
         ALTER TABLE member.Member
         ADD CONSTRAINT ck_member_status CHECK (status IN ('ACTIVE', 'SUSPENDED', 'DEACTIVATED'));
