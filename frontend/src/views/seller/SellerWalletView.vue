@@ -14,76 +14,41 @@ const wallet = ref({
 const transactions = ref([])
 const isLoading = ref(false)
 const errorMessage = ref('')
-const showBankModal = ref(false)
-const currentDate = new Date()
 
 const filters = reactive({
-  year: currentDate.getFullYear(),
-  month: currentDate.getMonth() + 1,
-  status: 'all',
+  range: '2026/08/01 - 2026/08/31',
+  direction: 'all',
   keyword: '',
+  types: ['ORDER_INCOME', 'ADJUSTMENT', 'WALLET_PAY', 'REFUND', 'WITHDRAW'],
 })
 
-const transactionStatuses = [
-  { label: '全部', value: 'all' },
-  { label: '待入帳', value: 'PENDING' },
-  { label: '已入帳', value: 'AVAILABLE' },
+const transactionTypes = [
+  { label: '訂單收入', value: 'ORDER_INCOME' },
+  { label: '帳款調整', value: 'ADJUSTMENT' },
+  { label: '錢包支付', value: 'WALLET_PAY' },
+  { label: '未購買成功的退款', value: 'REFUND' },
+  { label: '已提領金額', value: 'WITHDRAW' },
 ]
 
-const monthOptions = Array.from({ length: 12 }, (_, index) => ({
-  label: `${index + 1} 月`,
-  value: index + 1,
-}))
-
-const yearOptions = computed(() => {
-  const years = new Set([currentDate.getFullYear()])
-
-  transactions.value.forEach((item) => {
-    if (item.year) {
-      years.add(item.year)
-    }
-  })
-
-  return Array.from(years).sort((a, b) => b - a)
-})
-
-const monthlyTransactions = computed(() => {
-  return transactions.value.filter((item) => {
-    return item.year === Number(filters.year) && item.month === Number(filters.month)
-  })
-})
-
 const filteredTransactions = computed(() => {
-  return monthlyTransactions.value.filter((item) => {
-    const matchesStatus = filters.status === 'all' || item.statusValue === filters.status
+  return transactions.value.filter((item) => {
+    const matchesDirection = filters.direction === 'all' || item.direction === filters.direction
+    const matchesType = filters.types.includes(item.typeValue)
     const keyword = filters.keyword.trim().toLowerCase()
     const matchesKeyword =
       !keyword ||
       item.orderNo.toLowerCase().includes(keyword) ||
       item.id.toLowerCase().includes(keyword)
 
-    return matchesStatus && matchesKeyword
+    return matchesDirection && matchesType && matchesKeyword
   })
 })
 
 const hasTransactions = computed(() => filteredTransactions.value.length > 0)
 
-const transactionSummary = computed(() => {
-  const availableCount = monthlyTransactions.value.filter((item) => item.statusValue === 'AVAILABLE').length
-  const pendingCount = monthlyTransactions.value.filter((item) => item.statusValue === 'PENDING').length
-
-  return {
-    totalCount: monthlyTransactions.value.length,
-    availableCount,
-    pendingCount,
-  }
-})
-
 const bankInitial = computed(() => {
   return wallet.value.bankName?.slice(0, 1) || '銀'
 })
-
-const hasWithdrawableBalance = computed(() => Number(wallet.value.availableBalance || 0) > 0)
 
 function formatCurrency(value) {
   const amount = Number(value || 0)
@@ -120,16 +85,10 @@ function mapTransactionType(type) {
   return typeMap[type] || type
 }
 
-function handleWithdrawClick() {
-  // TODO: 提款不是目前 MVP，先保留可 Demo 的按鈕外觀；等提款 API 與金流規則確認後再接實際功能。
-}
-
-function getStatusClass(status) {
-  return {
-    'status-pill': true,
-    available: status === 'AVAILABLE',
-    pending: status === 'PENDING',
-  }
+function resetFilters() {
+  filters.direction = 'all'
+  filters.keyword = ''
+  filters.types = transactionTypes.map((item) => item.value)
 }
 
 async function loadWallet() {
@@ -153,16 +112,12 @@ async function loadWallet() {
     transactions.value = transactionResponse.data.map((item) => ({
       id: `ORDER-${item.orderId}`,
       orderNo: item.orderNo,
-      occurredAt: item.occurredAt,
-      year: item.occurredAt ? Number(item.occurredAt.slice(0, 4)) : null,
-      month: item.occurredAt ? Number(item.occurredAt.slice(5, 7)) : null,
       date: formatDate(item.occurredAt),
       type: mapTransactionType(item.transactionType),
       typeValue: item.transactionType,
       direction: item.direction,
       amount: item.amount,
       status: mapTransactionStatus(item.status),
-      statusValue: item.status,
     }))
   } catch (error) {
     errorMessage.value =
@@ -195,32 +150,15 @@ onMounted(loadWallet)
           <span>可提領金額</span>
           <div class="balance-value">
             <strong>NT${{ formatAmount(wallet.availableBalance) }}</strong>
-            <button
-              class="withdraw-button"
-              type="button"
-              :class="{ inactive: !hasWithdrawableBalance }"
-              @click="handleWithdrawClick"
-            >
-              提款
-            </button>
+            <button class="withdraw-button" type="button" disabled>提款</button>
           </div>
           <p>待入帳金額 NT${{ formatAmount(wallet.pendingBalance) }}</p>
-          <div class="balance-breakdown">
-            <span>
-              <b>已提領</b>
-              NT${{ formatAmount(wallet.withdrawnBalance) }}
-            </span>
-            <span>
-              <b>待入帳</b>
-              NT${{ formatAmount(wallet.pendingBalance) }}
-            </span>
-          </div>
         </div>
 
         <div class="bank-panel">
           <div class="bank-heading">
             <h3>我的銀行帳號</h3>
-            <button class="link-button" type="button" @click="showBankModal = true">
+            <button class="link-button" type="button">
               更多 <i class="bi bi-chevron-right"></i>
             </button>
           </div>
@@ -244,61 +182,57 @@ onMounted(loadWallet)
     </section>
 
     <section class="wallet-block transaction-block">
-      <div class="section-title-row">
-        <div>
-          <h2>最近的交易</h2>
-          <p>由訂單狀態同步產生，完成訂單會列入可提領金額。</p>
-        </div>
-        <button class="secondary-button" type="button" @click="loadWallet">
-          重新整理
-        </button>
-      </div>
-
-      <div class="transaction-summary">
-        <article>
-          <span>全部交易</span>
-          <strong>{{ transactionSummary.totalCount }}</strong>
-        </article>
-        <article>
-          <span>待入帳</span>
-          <strong>{{ transactionSummary.pendingCount }}</strong>
-        </article>
-        <article>
-          <span>已入帳</span>
-          <strong>{{ transactionSummary.availableCount }}</strong>
-        </article>
-      </div>
+      <h2>最近的交易</h2>
 
       <div class="filter-panel">
-        <div class="filter-field date-filter">
+        <label class="filter-field date-filter">
           <span>交易日期</span>
-          <div class="date-select-row">
-            <select v-model.number="filters.year">
-              <option v-for="year in yearOptions" :key="year" :value="year">
-                {{ year }} 年
-              </option>
-            </select>
-            <select v-model.number="filters.month">
-              <option v-for="month in monthOptions" :key="month.value" :value="month.value">
-                {{ month.label }}
-              </option>
-            </select>
+          <select v-model="filters.range">
+            <option value="2026/08/01 - 2026/08/24">在本月：2026/08/01 - 2026/08/24</option>
+            <option value="2026/07/01 - 2026/07/31">上個月：2026/07/01 - 2026/07/31</option>
+          </select>
+        </label>
+
+        <div class="filter-field segmented-row" aria-label="進帳與支出">
+          <span>進帳/支出</span>
+          <div class="segmented-control">
+            <button
+              type="button"
+              :class="{ active: filters.direction === 'all' }"
+              @click="filters.direction = 'all'"
+            >
+              全部
+            </button>
+            <button
+              type="button"
+              :class="{ active: filters.direction === 'income' }"
+              @click="filters.direction = 'income'"
+            >
+              進帳
+            </button>
+            <button
+              type="button"
+              :class="{ active: filters.direction === 'expense' }"
+              @click="filters.direction = 'expense'"
+            >
+              支出
+            </button>
           </div>
         </div>
 
-        <div class="filter-field segmented-row" aria-label="入帳狀態">
-          <span>入帳狀態</span>
-          <div class="segmented-control">
-            <button
-              v-for="item in transactionStatuses"
-              :key="item.value"
-              type="button"
-              :class="{ active: filters.status === item.value }"
-              @click="filters.status = item.value"
-            >
+        <div class="filter-field type-filter">
+          <span>交易類型</span>
+          <div class="check-list">
+            <label v-for="item in transactionTypes" :key="item.value">
+              <input v-model="filters.types" type="checkbox" :value="item.value" />
               {{ item.label }}
-            </button>
+            </label>
           </div>
+        </div>
+
+        <div class="filter-actions">
+          <button class="secondary-button" type="button" @click="resetFilters">重置</button>
+          <button class="outline-button" type="button">搜尋</button>
         </div>
       </div>
 
@@ -307,6 +241,10 @@ onMounted(loadWallet)
           <i class="bi bi-search" aria-hidden="true"></i>
           <input v-model="filters.keyword" type="search" placeholder="搜尋訂單編號" />
         </label>
+        <button class="secondary-button" type="button">匯出報表</button>
+        <button class="icon-button" type="button" aria-label="切換列表檢視">
+          <i class="bi bi-list-ul" aria-hidden="true"></i>
+        </button>
       </div>
 
       <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
@@ -329,7 +267,7 @@ onMounted(loadWallet)
           <span>{{ item.date }}</span>
           <strong>{{ item.orderNo }}</strong>
           <span>{{ item.type }}</span>
-          <span :class="getStatusClass(item.statusValue)">{{ item.status }}</span>
+          <span>{{ item.status }}</span>
           <strong :class="item.direction === 'income' ? 'income' : 'expense'">
             {{ formatCurrency(item.amount) }}
           </strong>
@@ -341,37 +279,6 @@ onMounted(loadWallet)
         <p>無交易紀錄</p>
       </div>
     </section>
-
-    <div v-if="showBankModal" class="modal-backdrop" @click.self="showBankModal = false">
-      <section class="wallet-modal bank-modal" role="dialog" aria-modal="true" aria-labelledby="bankTitle">
-        <button class="modal-close" type="button" aria-label="關閉" @click="showBankModal = false">
-          <i class="bi bi-x-lg" aria-hidden="true"></i>
-        </button>
-
-        <p class="section-kicker">Bank Account</p>
-        <h2 id="bankTitle">銀行帳號</h2>
-
-        <div v-if="wallet.bankName" class="bank-detail-card">
-          <div class="bank-logo">{{ bankInitial }}</div>
-          <div>
-            <strong>{{ wallet.bankName }}</strong>
-            <p>
-              <span v-if="wallet.bankVerified">已驗證</span>
-              預設提款帳號 · **** {{ wallet.bankAccountLast4 }}
-            </p>
-          </div>
-        </div>
-
-        <div v-else class="bank-empty large">
-          <i class="bi bi-bank" aria-hidden="true"></i>
-          <span>尚未設定提領銀行帳號</span>
-        </div>
-
-        <button class="secondary-button full-button" type="button" disabled>
-          新增或變更銀行帳號
-        </button>
-      </section>
-    </div>
   </section>
 </template>
 
@@ -394,8 +301,6 @@ onMounted(loadWallet)
 .page-description,
 .balance-main span,
 .balance-main p,
-.section-title-row p,
-.transaction-summary span,
 .filter-panel span,
 .bank-account p,
 .table-head,
@@ -442,7 +347,6 @@ h3 {
 
 .page-description,
 .balance-main p,
-.section-title-row p,
 .bank-account p,
 .empty-state p {
   margin-bottom: 0;
@@ -485,41 +389,19 @@ h3 {
   line-height: 1;
 }
 
-.balance-breakdown {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-}
-
-.balance-breakdown span {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 32px;
-  border-radius: var(--radius-sm);
-  padding: 0 var(--space-3);
-  background: var(--color-bg-muted);
-  color: var(--color-text-700);
-}
-
-.balance-breakdown b {
-  color: var(--color-text-muted);
-}
-
 .withdraw-button {
   min-height: 40px;
   border: 0;
   border-radius: var(--radius-md);
   padding: 0 var(--space-5);
-  background: #ef604f;
+  background: #ef9a91;
   color: var(--color-surface);
   font-weight: 800;
 }
 
-.withdraw-button.inactive {
-  background: #ef604f;
-  opacity: 0.82;
+.withdraw-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .bank-panel {
@@ -534,6 +416,7 @@ h3 {
 .bank-heading,
 .bank-account,
 .bank-empty,
+.filter-actions,
 .transaction-tools,
 .search-box {
   display: flex;
@@ -594,6 +477,8 @@ h3 {
 
 .link-button,
 .secondary-button,
+.outline-button,
+.icon-button,
 .segmented-control button {
   min-height: 36px;
   border-radius: var(--radius-sm);
@@ -617,40 +502,6 @@ h3 {
   gap: var(--space-4);
 }
 
-.section-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-
-.section-title-row h2 {
-  margin-bottom: var(--space-1);
-}
-
-.transaction-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3);
-}
-
-.transaction-summary article {
-  display: grid;
-  gap: var(--space-1);
-  min-height: 86px;
-  align-content: center;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-4);
-  background: var(--color-bg-muted);
-}
-
-.transaction-summary strong {
-  color: var(--color-text-900);
-  font-size: 28px;
-  line-height: 1;
-}
-
 .filter-panel {
   display: grid;
   grid-template-columns: minmax(280px, 420px) minmax(240px, 1fr);
@@ -665,12 +516,6 @@ h3 {
 .filter-field {
   display: grid;
   gap: var(--space-2);
-}
-
-.date-select-row {
-  display: grid;
-  grid-template-columns: minmax(120px, 1fr) minmax(100px, 0.8fr);
-  gap: var(--space-3);
 }
 
 .date-filter select {
@@ -708,8 +553,44 @@ h3 {
   color: var(--color-surface);
 }
 
-.secondary-button {
+.type-filter {
+  grid-column: 1 / -1;
+}
+
+.check-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.check-list label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-700);
+  font-size: var(--font-size-sm);
+}
+
+.check-list input {
+  width: 16px;
+  height: 16px;
+  accent-color: #ef604f;
+}
+
+.filter-actions {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
+.secondary-button,
+.icon-button {
   border: 1px solid var(--color-border-strong);
+}
+
+.outline-button {
+  border: 1px solid #ef604f;
+  color: #ef604f;
 }
 
 .transaction-tools {
@@ -733,6 +614,13 @@ h3 {
   outline: 0;
   color: var(--color-text);
   font: inherit;
+}
+
+.icon-button {
+  display: grid;
+  width: 38px;
+  padding: 0;
+  place-items: center;
 }
 
 .transaction-table {
@@ -773,26 +661,6 @@ h3 {
   color: #b6473d;
 }
 
-.status-pill {
-  display: inline-flex;
-  width: fit-content;
-  min-height: 28px;
-  align-items: center;
-  border-radius: 999px;
-  padding: 0 var(--space-3);
-  font-weight: 800;
-}
-
-.status-pill.available {
-  background: var(--color-primary-soft);
-  color: var(--color-primary-active);
-}
-
-.status-pill.pending {
-  background: #fbf3df;
-  color: #9a6a1d;
-}
-
 .empty-state {
   display: grid;
   min-height: 240px;
@@ -816,78 +684,6 @@ h3 {
   opacity: 0.4;
 }
 
-.modal-backdrop {
-  position: fixed;
-  z-index: 40;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: var(--space-5);
-  background: rgba(15, 23, 42, 0.42);
-}
-
-.wallet-modal {
-  position: relative;
-  display: grid;
-  gap: var(--space-4);
-  width: min(460px, 100%);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-5);
-  background: var(--color-surface);
-  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.24);
-}
-
-.wallet-modal h2 {
-  margin-bottom: 0;
-}
-
-.modal-close {
-  position: absolute;
-  top: var(--space-4);
-  right: var(--space-4);
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-text-700);
-}
-
-.bank-detail-card {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-4);
-  background: var(--color-bg-muted);
-}
-
-.bank-detail-card p {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.bank-detail-card {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.bank-detail-card strong {
-  color: var(--color-primary-active);
-}
-
-.bank-empty.large {
-  min-height: 120px;
-  justify-content: center;
-}
-
-.full-button {
-  width: 100%;
-}
-
 @media (max-width: 980px) {
   .balance-card,
   .filter-panel {
@@ -899,6 +695,10 @@ h3 {
     padding-left: 0;
     border-top: 1px solid var(--color-border);
     border-left: 0;
+  }
+
+  .type-filter {
+    grid-column: 1 / -1;
   }
 
   .transaction-tools {
@@ -920,17 +720,14 @@ h3 {
 
   .balance-value,
   .bank-heading,
-  .section-title-row {
+  .filter-actions {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .transaction-summary {
-    grid-template-columns: 1fr;
-  }
-
   .withdraw-button,
-  .secondary-button {
+  .secondary-button,
+  .outline-button {
     width: 100%;
   }
 
