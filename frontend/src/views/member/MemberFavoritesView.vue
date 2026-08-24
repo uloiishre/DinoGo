@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import api from '@/api/axios'
 import { logSafeError } from '@/utils/safeError'
+import { getImageUrl } from '@/utils/imageUrl'
 
 // ================================
 // 收藏商品
@@ -34,7 +35,6 @@ const loadFavorites = async () => {
     const response = await api.get('/favorites')
 
     favorites.value = response.data || []
-
   } catch (error) {
     logSafeError('取得收藏失敗：', error)
 
@@ -305,7 +305,11 @@ onMounted(() => {
             class="product-link"
           >
             <div class="product-image">
-              <img v-if="favorite.imageUrl" :src="favorite.imageUrl" :alt="favorite.productName" />
+              <img
+                v-if="favorite.imageUrl"
+                :src="getImageUrl(favorite.imageUrl)"
+                :alt="favorite.productName"
+              />
 
               <div v-else class="image-placeholder" aria-label="沒有商品圖片">
                 <i class="bi bi-image"></i>
@@ -325,7 +329,11 @@ onMounted(() => {
 
           <div v-else class="product-link product-link-disabled">
             <div class="product-image">
-              <img v-if="favorite.imageUrl" :src="favorite.imageUrl" :alt="favorite.productName" />
+              <img
+                v-if="favorite.imageUrl"
+                :src="getImageUrl(favorite.imageUrl)"
+                :alt="favorite.productName"
+              />
 
               <div v-else class="image-placeholder" aria-label="沒有商品圖片">
                 <i class="bi bi-image"></i>
