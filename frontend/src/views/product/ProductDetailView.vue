@@ -29,6 +29,7 @@ const fetchProductDetail = async () => {
     const response = await api.get(`/products/${productId}`)
 
     product.value = response.data
+    console.log('商品圖片：', product.value.images)
 
     if (product.value.images?.length) {
       product.value.images.sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999))
@@ -246,14 +247,26 @@ const buyNow = async () => {
   try {
     buyingNow.value = true
 
-    // 先加入購物車
-    await api.post('/cart/items', {
+    const response = await api.post('/cart/items', {
       skuId: selectedSku.value.skuId,
       quantity: quantity.value,
     })
 
-    // 成功後跳到購物車結帳頁
-    router.push('/cart')
+    // 取得剛加入購物車的 cartItemId
+    const cartItemId = response.data?.cartItemId
+
+    if (cartItemId) {
+      // 帶著要勾選的 cartItemId 前往購物車
+      router.push({
+        path: '/cart',
+        query: {
+          selectedCartItemId: cartItemId,
+        },
+      })
+    } else {
+      // 後端沒有回傳 cartItemId
+      router.push('/cart')
+    }
   } catch (error) {
     console.error('立即結帳失敗：', error)
 

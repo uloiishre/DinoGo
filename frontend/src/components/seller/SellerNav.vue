@@ -3,7 +3,8 @@ import { RouterLink, useRoute } from 'vue-router'
 import { computed } from 'vue'
 import { getCurrentSellerId } from '@/utils/seller-session'
 
-const sellerId = computed(() => getCurrentSellerId() || 1)
+// 沒有 sellerId 時，不要自動變成 1
+const sellerId = computed(() => getCurrentSellerId())
 
 const route = useRoute()
 

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { createPayment, getPaymentCapabilities, getPaymentMethods, simulatePayment } from '@/api/order'
 import { logSafeError } from '@/utils/safeError'
+import { getImageUrl } from '@/utils/imageUrl'
 
 const pageTitle = '結帳'
 const router = useRouter()
@@ -120,7 +121,7 @@ const selectedCoupon = computed(() => {
   )
 })
 
-const onlinePaymentAvailable = computed(() => paymentSimulationEnabled.value)
+const onlinePaymentAvailable = computed(() => true)
 
 const availablePaymentMethods = computed(() =>
   paymentMethods.value.filter((method) =>
@@ -553,9 +554,10 @@ const submitOrder = async () => {
 
   const submittedPaymentMethod = paymentMethod.value
   const submittedSimulationStatus = simulatedPaymentStatus.value
-  const submittedFailureReason = submittedSimulationStatus === 'FAILED'
-    ? simulatedPaymentFailureReason.value.trim() || null
-    : null
+  const submittedFailureReason =
+    submittedSimulationStatus === 'FAILED'
+      ? simulatedPaymentFailureReason.value.trim() || null
+      : null
   let createdOrderId = null
 
   if (submittedPaymentMethod !== 'CASH_ON_DELIVERY' && !paymentSimulationEnabled.value) {
@@ -785,7 +787,7 @@ onMounted(() => {
                 <div class="item-image-wrapper">
                   <img
                     v-if="item.productImage"
-                    :src="item.productImage"
+                    :src="getImageUrl(item.productImage)"
                     :alt="item.productName"
                     class="item-image"
                   />

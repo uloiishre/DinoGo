@@ -20,6 +20,7 @@ const editingCouponId = ref(null)
 const isFormOpen = ref(false)
 const selectedStatus = ref('ALL')
 const searchKeyword = ref('')
+const sellerRequiredMessage = '尚未取得賣家身分，請重新登入賣家帳號後再操作。'
 
 const emptyForm = () => ({
   couponCode: '',
@@ -220,6 +221,12 @@ const resetForm = () => {
 }
 
 const openCreateForm = () => {
+  if (!sellerId) {
+    errorMessage.value = sellerRequiredMessage
+    successMessage.value = ''
+    return
+  }
+
   resetForm()
   isFormOpen.value = true
 }
@@ -230,8 +237,15 @@ const closeForm = () => {
 }
 
 const loadCoupons = async () => {
-  isLoading.value = true
   errorMessage.value = ''
+
+  if (!sellerId) {
+    coupons.value = []
+    errorMessage.value = sellerRequiredMessage
+    return
+  }
+
+  isLoading.value = true
 
   try {
     const response = await getSellerCoupons(sellerId)
@@ -244,6 +258,12 @@ const loadCoupons = async () => {
 }
 
 const editCoupon = (coupon) => {
+  if (!sellerId) {
+    errorMessage.value = sellerRequiredMessage
+    successMessage.value = ''
+    return
+  }
+
   editingCouponId.value = coupon.couponId
   successMessage.value = ''
   errorMessage.value = ''
@@ -264,6 +284,12 @@ const editCoupon = (coupon) => {
 }
 
 const submitCoupon = async () => {
+  if (!sellerId) {
+    errorMessage.value = sellerRequiredMessage
+    successMessage.value = ''
+    return
+  }
+
   const validationMessage = validateForm()
   if (validationMessage) {
     errorMessage.value = validationMessage
@@ -296,6 +322,12 @@ const submitCoupon = async () => {
 }
 
 const setCouponActive = async (coupon) => {
+  if (!sellerId) {
+    errorMessage.value = sellerRequiredMessage
+    successMessage.value = ''
+    return
+  }
+
   try {
     errorMessage.value = ''
     await activateSellerCoupon(sellerId, coupon.couponId)
@@ -307,6 +339,12 @@ const setCouponActive = async (coupon) => {
 }
 
 const setCouponDisabled = async (coupon) => {
+  if (!sellerId) {
+    errorMessage.value = sellerRequiredMessage
+    successMessage.value = ''
+    return
+  }
+
   try {
     errorMessage.value = ''
     await disableSellerCoupon(sellerId, coupon.couponId)
