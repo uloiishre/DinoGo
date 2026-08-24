@@ -21,9 +21,18 @@ const pendingStatusProduct = ref(null)
 const pendingDeleteProduct = ref(null)
 const isDeleting = ref(false)
 
+const sellerRequiredMessage = '尚未取得賣家身分，請重新登入賣家帳號後再操作。'
+
 const loadProducts = async () => {
-  isLoading.value = true
   errorMessage.value = ''
+
+  if (!sellerId) {
+    products.value = []
+    errorMessage.value = sellerRequiredMessage
+    return
+  }
+
+  isLoading.value = true
 
   try {
     const response = await getSellerProducts(sellerId)
@@ -50,6 +59,12 @@ const closeStatusDialog = () => {
 
 const confirmStatusChange = async () => {
   if (!pendingStatusProduct.value) {
+    return
+  }
+
+  if (!sellerId) {
+    errorMessage.value = sellerRequiredMessage
+    pendingStatusProduct.value = null
     return
   }
 
