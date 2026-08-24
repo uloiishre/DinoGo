@@ -251,6 +251,8 @@ public class SendEntity {
         if (isBlank(this.msgLabel)) {
             this.msgLabel = this.sendTitle;
         }
+
+        validateSubtypeConsistency();
     }
 
     /**
@@ -269,6 +271,17 @@ public class SendEntity {
         if (isBlank(this.msgLabel)) {
             this.msgLabel = this.sendTitle;
         }
+
+        validateSubtypeConsistency();
+    }
+
+    /**
+     * Spring Boot 的父子表業務保護。
+     * JOINED 繼承讓一個 Java Entity 只能有一個實際型別，因此單次寫入不可能同時建立兩種子表；
+     * 此處再限制 prefix 與實際型別，既有／手動 SQL 資料則由 SQL 稽核腳本檢查。
+     */
+    private void validateSubtypeConsistency() {
+        SendEntityBusinessValidator.validate(this);
     }
 
     /**
