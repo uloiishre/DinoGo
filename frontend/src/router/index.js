@@ -106,6 +106,13 @@ const routes = [
         name: 'MemberOrderDetail',
         component: () => import('@/views/sales/OrderDetail.vue'),
       },
+      //review-start，總共1次修改，第1次//
+      {
+        path: 'orders/:orderId/items/:orderItemId/review',
+        name: 'MemberOrderItemReview',
+        component: () => import('@/views/review/OrderItemReviewView.vue'),
+      },
+      //review-end，總共1次修改，第1次//
       {
         path: 'favorites',
         name: 'MemberFavorites',
