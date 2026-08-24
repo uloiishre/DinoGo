@@ -45,6 +45,7 @@ import com.dinogo.catalog.repository.ProductSkuRepository;
 import com.dinogo.catalog.repository.SubcategoryRepository;
 import com.dinogo.seller.entity.Seller;
 import com.dinogo.seller.repository.SellerRepository;
+import com.dinogo.seller.service.CurrentSellerService;
 
 import jakarta.persistence.criteria.Predicate;
 import jakarta.transaction.Transactional;
@@ -60,6 +61,7 @@ public class ProductService {
         private final BrandRepository brandRepository;
         private final ProductSkuRepository productSkuRepository;
         private final ProductImageRepository productImageRepository;
+        private final CurrentSellerService currentSellerService;
 
         private ProductResponse toProductResponse(Product product) {
 
@@ -114,12 +116,25 @@ public class ProductService {
                                 sku.getStatus());
         }
 
+        private Product requireSellerProduct(Integer productId, Integer memberId) {
+                Integer sellerId = currentSellerService.requireActiveSellerId(memberId);
+                return productRepository
+                                .findBySeller_SellerIdAndProductId(sellerId, productId)
+                                .orElseThrow(() -> new IllegalArgumentException("找不到此賣家的商品"));
+        }
+
         // 建立商品
         @Transactional
-        public ProductResponse createProduct(ProductCreateRequest request) {
+        public ProductResponse createProduct(ProductCreateRequest request, Integer memberId) {
+                Integer sellerId = currentSellerService.requireMatchingActiveSellerId(
+                                memberId,
+                                request.getSellerId());
+                request.setSellerId(sellerId);
+                return createProduct(request);
+        }
 
-                // 目前先由前端傳 sellerId
-                // 未來登入功能完成後，改成從登入身分取得
+        @Transactional
+        public ProductResponse createProduct(ProductCreateRequest request) {
                 Seller seller = sellerRepository
                                 .findById(request.getSellerId())
                                 .orElseThrow(() -> new RuntimeException("找不到賣家"));
@@ -216,10 +231,16 @@ public class ProductService {
         }
 
         // 上架商品
+        public ProductResponse publishProduct(Integer productId, Integer memberId) {
+                Integer sellerId = currentSellerService.requireActiveSellerId(memberId);
+                return publishProductForSeller(productId, sellerId);
+        }
+
         public ProductResponse publishProduct(Integer productId) {
+                return publishProductForSeller(productId, 1);
+        }
 
-                Integer sellerId = 1; // 暫時寫死，之後改成登入賣家
-
+        private ProductResponse publishProductForSeller(Integer productId, Integer sellerId) {
                 Product product = productRepository
                                 .findBySeller_SellerIdAndProductId(sellerId, productId)
                                 .orElseThrow(() -> new IllegalArgumentException("找不到此賣家的商品"));
@@ -237,10 +258,16 @@ public class ProductService {
         }
 
         // 下架商品
+        public ProductResponse unpublishProduct(Integer productId, Integer memberId) {
+                Integer sellerId = currentSellerService.requireActiveSellerId(memberId);
+                return unpublishProductForSeller(productId, sellerId);
+        }
+
         public ProductResponse unpublishProduct(Integer productId) {
+                return unpublishProductForSeller(productId, 1);
+        }
 
-                Integer sellerId = 1; // 暫時寫死，之後改成登入賣家
-
+        private ProductResponse unpublishProductForSeller(Integer productId, Integer sellerId) {
                 Product product = productRepository
                                 .findBySeller_SellerIdAndProductId(sellerId, productId)
                                 .orElseThrow(() -> new IllegalArgumentException("找不到此賣家的商品"));
@@ -394,6 +421,11 @@ public class ProductService {
 
         // 賣家讀取商品詳情
         // 包含已停用的 SKU，供編輯商品使用
+        public ProductDetailResponse getSellerProductDetail(Integer productId, Integer memberId) {
+                requireSellerProduct(productId, memberId);
+                return getSellerProductDetail(productId);
+        }
+
         public ProductDetailResponse getSellerProductDetail(Integer productId) {
 
                 Product product = productRepository.findById(productId)
@@ -451,6 +483,15 @@ public class ProductService {
         // 修改商品
         public ProductResponse updateProduct(
                         Integer productId,
+                        ProductUpdateRequest request,
+                        Integer memberId) {
+
+                requireSellerProduct(productId, memberId);
+                return updateProduct(productId, request);
+        }
+
+        public ProductResponse updateProduct(
+                        Integer productId,
                         ProductUpdateRequest request) {
 
                 Product product = productRepository.findById(productId)
@@ -500,6 +541,16 @@ public class ProductService {
         public ProductSkuResponse updateSku(
                         Integer productId,
                         Integer skuId,
+                        ProductSkuUpdateRequest request,
+                        Integer memberId) {
+
+                requireSellerProduct(productId, memberId);
+                return updateSku(productId, skuId, request);
+        }
+
+        public ProductSkuResponse updateSku(
+                        Integer productId,
+                        Integer skuId,
                         ProductSkuUpdateRequest request) {
 
                 ProductSku sku = productSkuRepository.findById(skuId)
@@ -544,6 +595,16 @@ public class ProductService {
         }
 
         // 批次新增商品 SKU
+        @Transactional
+        public List<ProductSkuResponse> createSkus(
+                        Integer productId,
+                        List<ProductSkuCreateRequest> requests,
+                        Integer memberId) {
+
+                requireSellerProduct(productId, memberId);
+                return createSkus(productId, requests);
+        }
+
         @Transactional
         public List<ProductSkuResponse> createSkus(
                         Integer productId,
@@ -632,6 +693,15 @@ public class ProductService {
 
         public ProductSkuResponse disableSku(
                         Integer productId,
+                        Integer skuId,
+                        Integer memberId) {
+
+                requireSellerProduct(productId, memberId);
+                return disableSku(productId, skuId);
+        }
+
+        public ProductSkuResponse disableSku(
+                        Integer productId,
                         Integer skuId) {
 
                 ProductSku sku = productSkuRepository.findById(skuId)
@@ -649,6 +719,16 @@ public class ProductService {
         }
 
         // 修改商品主圖
+        @Transactional
+        public ProductImageResponse updateMainImage(
+                        Integer productId,
+                        Integer imageId,
+                        Integer memberId) {
+
+                requireSellerProduct(productId, memberId);
+                return updateMainImage(productId, imageId);
+        }
+
         @Transactional
         public ProductImageResponse updateMainImage(
                         Integer productId,
@@ -693,6 +773,16 @@ public class ProductService {
         }
 
         // 修改商品圖片排序
+        @Transactional
+        public List<ProductImageResponse> updateImageSort(
+                        Integer productId,
+                        List<ProductImageSortUpdateRequest> requests,
+                        Integer memberId) {
+
+                requireSellerProduct(productId, memberId);
+                return updateImageSort(productId, requests);
+        }
+
         @Transactional
         public List<ProductImageResponse> updateImageSort(
                         Integer productId,
@@ -774,6 +864,16 @@ public class ProductService {
         @Transactional
         public void deleteImage(
                         Integer productId,
+                        Integer imageId,
+                        Integer memberId) {
+
+                requireSellerProduct(productId, memberId);
+                deleteImage(productId, imageId);
+        }
+
+        @Transactional
+        public void deleteImage(
+                        Integer productId,
                         Integer imageId) {
 
                 ProductImage image = productImageRepository.findById(imageId)
@@ -794,6 +894,16 @@ public class ProductService {
                 }
 
                 productImageRepository.delete(image);
+        }
+
+        @Transactional
+        public List<ProductImageResponse> uploadProductImages(
+                        Integer productId,
+                        MultipartFile[] files,
+                        Integer memberId) {
+
+                requireSellerProduct(productId, memberId);
+                return uploadProductImages(productId, files);
         }
 
         @Transactional
@@ -901,13 +1011,10 @@ public class ProductService {
 
                 return responses;
         }
-
         // 商品軟刪除
         @Transactional
-        public void deleteProduct(Integer productId) {
-
-                Product product = productRepository.findById(productId)
-                                .orElseThrow(() -> new RuntimeException("找不到商品：" + productId));
+        public void deleteProduct(Integer productId, Integer memberId) {
+                Product product = requireSellerProduct(productId, memberId);
 
                 if (product.getStatus() == 3) {
                         throw new RuntimeException("商品已刪除");
