@@ -11,6 +11,7 @@
 | Source of Truth | [git-workflow.md](git-workflow.md) | 分支、commit、push、PR、衝突與交付流程。 |
 | 工作規範 | [teacher-code-style.md](teacher-code-style.md) | 老師教材中可重複使用的 coding pattern。 |
 | 模組 API | [member-api.md](member-api.md) | A 會員、認證與地址 API 的 request、response、錯誤格式與 JWT 規則。 |
+| 測試指南 | [password-reset-team-guide.md](password-reset-team-guide.md) | 忘記密碼功能的本機設定、Postman API 與手動測試流程。 |
 | 模組 API | [payment-api.md](payment-api.md) | D 付款建立、MVP 模擬結果、狀態與 JWT 規則。 |
 | 跨模組 contract | [order-cross-module-contracts.md](order-cross-module-contracts.md) | D 與 B、E 的訂單整合需求。 |
 | 跨模組 contract | [member-sysmsg-cross-module-contract.md](member-sysmsg-cross-module-contract.md) | A 提供給 F 的會員查詢、通知偏好與 Email 收件篩選規則。 |
