@@ -17,12 +17,14 @@ import AdminNav from '@/components/admin/AdminNav.vue'
   display: grid;
   min-height: 100vh;
   grid-template-columns: 264px minmax(0, 1fr);
+  overflow-x: clip;
   background: var(--color-bg);
 }
 
 .admin-layout__main {
   min-width: 0;
-  padding: 36px 44px;
+  width: 100%;
+  padding: var(--space-6) 36px;
 }
 
 @media (max-width: 760px) {
