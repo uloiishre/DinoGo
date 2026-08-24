@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
   approveSellerApplication,
   getSellerApplication,
@@ -8,6 +8,7 @@ import {
 } from '@/api/sellerApplicationApi'
 
 const route = useRoute()
+const router = useRouter()
 const decision = ref('approve')
 const rejectionReason = ref('')
 const isConfirmed = ref(false)
@@ -22,11 +23,19 @@ const application = reactive({
   logoUrl: '',
   submittedAt: '',
   status: 'PENDING',
+  rejectReason: '',
+  reviewedBy: null,
+  reviewedAt: null,
 })
 
+const isPending = computed(() => application.status === 'PENDING')
 const canConfirm = computed(
-  () => isConfirmed.value && (decision.value === 'approve' || rejectionReason.value.trim()),
+  () => isPending.value && isConfirmed.value && (decision.value === 'approve' || rejectionReason.value.trim()),
 )
+const confirmationText = computed(() => decision.value === 'approve'
+  ? '我已確認申請資料，並知悉核准會授予商家角色。'
+  : '我已確認申請資料，並確認駁回原因將通知申請會員。')
+const reviewResult = computed(() => ({ APPROVED: '已核准', REJECTED: '已駁回' })[application.status] || '')
 
 const formatDate = (value) => (value ? new Date(value).toLocaleString('zh-TW') : '-')
 
@@ -40,6 +49,9 @@ const loadApplication = async () => {
     application.logoUrl = data.storeLogoUrl || '-'
     application.submittedAt = formatDate(data.createdAt)
     application.status = data.status
+    application.rejectReason = data.rejectReason || ''
+    application.reviewedBy = data.reviewedBy
+    application.reviewedAt = data.reviewedAt
   } catch (error) {
     feedback.value = error.response?.data?.message || '申請資料載入失敗。'
   }
@@ -54,18 +66,22 @@ async function confirmDecision() {
   try {
     if (decision.value === 'approve') {
       await approveSellerApplication(application.id)
-      application.status = 'APPROVED'
-      feedback.value = '申請已核准，已建立賣家資料並更新會員權限。'
+      await router.push({ name: 'AdminSellerApplications', query: { status: 'APPROVED' } })
     } else {
       await rejectSellerApplication(application.id, rejectionReason.value.trim())
-      application.status = 'REJECTED'
-      feedback.value = '申請已駁回。'
+      await router.push({ name: 'AdminSellerApplications', query: { status: 'REJECTED' } })
     }
   } catch (error) {
     feedback.value = error.response?.data?.message || '審核操作失敗，請稍後再試。'
   } finally {
     isSubmitting.value = false
   }
+}
+
+function selectDecision(nextDecision) {
+  if (!isPending.value) return
+  decision.value = nextDecision
+  isConfirmed.value = false
 }
 
 onMounted(loadApplication)
@@ -115,16 +131,18 @@ onMounted(loadApplication)
             <button
               type="button"
               :class="{ 'is-active': decision === 'approve' }"
-              @click="decision = 'approve'"
+              :disabled="!isPending"
+              @click="selectDecision('approve')"
             >核准</button>
             <button
               type="button"
               :class="{ 'is-active': decision === 'reject' }"
-              @click="decision = 'reject'"
+              :disabled="!isPending"
+              @click="selectDecision('reject')"
             >駁回</button>
           </div>
 
-          <label class="admin-application-detail__reason">
+          <label v-if="decision === 'reject' && isPending" class="admin-application-detail__reason">
             <span>駁回原因（選擇駁回時必填）</span>
             <textarea
               v-model="rejectionReason"
@@ -133,14 +151,14 @@ onMounted(loadApplication)
             ></textarea>
           </label>
 
-          <label class="admin-application-detail__confirmation">
+          <label v-if="isPending" class="admin-application-detail__confirmation">
             <input v-model="isConfirmed" type="checkbox" />
-            <span>我已確認申請資料，並知悉核准會授予商家角色。</span>
+            <span>{{ confirmationText }}</span>
           </label>
 
           <p v-if="feedback" class="admin-application-detail__feedback" role="status">{{ feedback }}</p>
 
-          <div class="admin-application-detail__actions">
+          <div v-if="isPending" class="admin-application-detail__actions">
             <RouterLink class="admin-application-detail__back dg-focus-ring" to="/admin/seller-applications">
               返回清單
             </RouterLink>
@@ -152,7 +170,13 @@ onMounted(loadApplication)
 
         <article class="admin-application-detail__audit">
           <h2>系統紀錄</h2>
-          <p>應記錄審核者、結果、駁回原因與審核時間，供後續查詢。</p>
+          <p v-if="isPending">尚無審核紀錄。</p>
+          <dl v-else class="admin-application-detail__audit-list">
+            <div><dt>審核結果</dt><dd>{{ reviewResult }}</dd></div>
+            <div><dt>審核者</dt><dd>會員 #{{ application.reviewedBy ?? '-' }}</dd></div>
+            <div><dt>審核時間</dt><dd>{{ formatDate(application.reviewedAt) }}</dd></div>
+            <div v-if="application.status === 'REJECTED'"><dt>駁回原因</dt><dd>{{ application.rejectReason || '-' }}</dd></div>
+          </dl>
         </article>
       </aside>
     </div>
@@ -181,6 +205,7 @@ dt { color: var(--color-text-muted); } dd { margin: 0; color: var(--color-text);
 .admin-application-detail__choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .admin-application-detail__choices button { min-height: 42px; border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text-muted); background: var(--color-surface); font: inherit; font-size: var(--font-size-sm); font-weight: 700; }
 .admin-application-detail__choices button.is-active { border-color: var(--color-primary-active); color: var(--color-surface); background: var(--color-primary-active); }
+.admin-application-detail__choices button:disabled { cursor: not-allowed; opacity: .55; }
 .admin-application-detail__reason { display: grid; gap: var(--space-2); color: var(--color-text); font-size: var(--font-size-sm); font-weight: 700; }
 textarea { width: 100%; min-height: 112px; resize: vertical; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 14px; color: var(--color-text); background: var(--color-surface); font: 400 13px/var(--line-height-base) var(--font-body); }
 textarea::placeholder { color: var(--color-text-muted); opacity: 1; }
@@ -195,6 +220,7 @@ textarea::placeholder { color: var(--color-text-muted); opacity: 1; }
 .admin-application-detail button:focus-visible, textarea:focus-visible, .admin-application-detail__back:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
 .admin-application-detail__audit { display: grid; gap: var(--space-2); border-radius: var(--radius-lg); padding: 20px; background: var(--color-bg); }
 .admin-application-detail__audit h2 { font-size: 15px; }.admin-application-detail__audit p { color: var(--color-text-muted); font-size: 13px; }
+.admin-application-detail__audit-list > div { min-height: 0; grid-template-columns: 86px minmax(0, 1fr); padding: 9px 0; font-size: 13px; }
 @media (max-width: 1160px) { .admin-application-detail__columns { grid-template-columns: 1fr; } .admin-application-detail__decision-panel { grid-template-columns: minmax(0, 1fr) 300px; } }
 @media (max-width: 760px) { .admin-application-detail__header { align-items: start; flex-direction: column; } .admin-application-detail__decision-panel { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { dl > div { grid-template-columns: 1fr; align-items: start; gap: var(--space-1); } .admin-application-detail__actions { flex-direction: column-reverse; }.admin-application-detail__actions > * { width: 100%; } }

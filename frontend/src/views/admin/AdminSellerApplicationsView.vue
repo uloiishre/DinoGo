@@ -1,27 +1,56 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { listSellerApplications } from '@/api/sellerApplicationApi'
 
+const route = useRoute()
+const router = useRouter()
+const statuses = [
+  { value: 'PENDING', label: '待審核' },
+  { value: 'APPROVED', label: '已核准' },
+  { value: 'REJECTED', label: '已駁回' },
+]
+const allowedStatuses = new Set(statuses.map((status) => status.value))
+const activeStatus = ref(allowedStatuses.has(route.query.status) ? route.query.status : 'PENDING')
 const searchQuery = ref('')
 const feedback = ref('')
-
-const applications = ref([])
+const isLoading = ref(false)
+const applicationsByStatus = reactive({ PENDING: [], APPROVED: [], REJECTED: [] })
 
 const formatDate = (value) => (value ? new Date(value).toLocaleString('zh-TW') : '-')
+const statusLabel = (status) => statuses.find((item) => item.value === status)?.label || status
+const mapApplication = (application) => ({
+  id: application.applicationId,
+  applicant: `會員 #${application.memberId}`,
+  email: '-',
+  storeName: application.storeName,
+  submittedAt: formatDate(application.createdAt),
+  status: application.status,
+})
+const applications = computed(() => applicationsByStatus[activeStatus.value])
+const statusCounts = computed(() => Object.fromEntries(
+  statuses.map(({ value }) => [value, applicationsByStatus[value].length]),
+))
 
-const loadApplications = async () => {
+async function loadApplications() {
+  isLoading.value = true
+  feedback.value = ''
   try {
-    const response = await listSellerApplications('PENDING')
-    applications.value = response.data.map((application) => ({
-      id: application.applicationId,
-      applicant: `會員 #${application.memberId}`,
-      email: '-',
-      storeName: application.storeName,
-      submittedAt: formatDate(application.createdAt),
-    }))
+    const responses = await Promise.all(statuses.map(({ value }) => listSellerApplications(value)))
+    statuses.forEach(({ value }, index) => {
+      applicationsByStatus[value] = responses[index].data.map(mapApplication)
+    })
   } catch (error) {
     feedback.value = error.response?.data?.message || '申請列表載入失敗。'
+  } finally {
+    isLoading.value = false
   }
+}
+
+function selectStatus(status) {
+  activeStatus.value = status
+  searchQuery.value = ''
+  router.replace({ query: status === 'PENDING' ? {} : { status } })
 }
 
 onMounted(loadApplications)
@@ -46,13 +75,19 @@ const filteredApplications = computed(() => {
         <h1 id="admin-seller-applications-title">商家申請審核</h1>
         <p>依申請資料與會員資訊完成核准或駁回。</p>
       </div>
-      <strong>待處理 {{ applications.length }} 件</strong>
+      <strong>待處理 {{ statusCounts.PENDING }} 件</strong>
     </header>
 
     <div class="admin-seller-applications__tabs" role="tablist" aria-label="申請狀態">
-      <button class="is-active" type="button" role="tab" aria-selected="true">待審核（12）</button>
-      <button type="button" role="tab" aria-selected="false">已核准</button>
-      <button type="button" role="tab" aria-selected="false">已駁回</button>
+      <button
+        v-for="status in statuses"
+        :key="status.value"
+        :class="{ 'is-active': activeStatus === status.value }"
+        type="button"
+        role="tab"
+        :aria-selected="activeStatus === status.value"
+        @click="selectStatus(status.value)"
+      >{{ status.label }}（{{ statusCounts[status.value] }}）</button>
     </div>
 
     <div class="admin-seller-applications__filters">
@@ -62,12 +97,12 @@ const filteredApplications = computed(() => {
           id="seller-application-search"
           v-model="searchQuery"
           type="search"
-          placeholder="搜尋店鋪名稱、會員姓名或 Email"
+          placeholder="搜尋店鋪名稱或會員編號"
         />
       </label>
       <div class="admin-seller-applications__filter-actions">
-        <button type="button">依送出時間排序</button>
-        <button type="button">匯出清單</button>
+        <button type="button" disabled>依送出時間排序</button>
+        <button type="button" disabled>匯出清單</button>
       </div>
     </div>
 
@@ -95,28 +130,26 @@ const filteredApplications = computed(() => {
         </div>
         <span role="cell">{{ application.storeName }}</span>
         <span role="cell">{{ application.submittedAt }}</span>
-        <span role="cell"><b>待審核</b></span>
+        <span role="cell"><b>{{ statusLabel(application.status) }}</b></span>
         <span class="admin-seller-applications__review" role="cell">
           <RouterLink
             class="admin-seller-applications__review-link dg-btn-primary dg-focus-ring"
             :to="{ name: 'AdminSellerApplicationDetail', params: { id: application.id } }"
           >
-            審核申請
+            {{ application.status === 'PENDING' ? '審核申請' : '查看詳情' }}
           </RouterLink>
         </span>
       </div>
 
       <p v-if="feedback" class="admin-seller-applications__empty" role="status">{{ feedback }}</p>
+      <p v-else-if="isLoading" class="admin-seller-applications__empty" role="status">申請列表載入中。</p>
       <p v-else-if="!filteredApplications.length" class="admin-seller-applications__empty" role="status">
-        找不到符合條件的申請。
+        {{ searchQuery ? '找不到符合條件的申請。' : `目前沒有${statusLabel(activeStatus)}申請。` }}
       </p>
     </div>
 
     <footer class="admin-seller-applications__footer">
-      <p>顯示 {{ filteredApplications.length }} 筆，共 {{ applications.length }} 筆待審核申請</p>
-      <span aria-label="分頁"
-        >‹&nbsp;&nbsp;1&nbsp;&nbsp;2&nbsp;&nbsp;3&nbsp;&nbsp;4&nbsp;&nbsp;›</span
-      >
+      <p>顯示 {{ filteredApplications.length }} 筆，共 {{ applications.length }} 筆{{ statusLabel(activeStatus) }}申請</p>
     </footer>
   </section>
 </template>
@@ -201,8 +234,8 @@ h1 {
   font-weight: 600;
 }
 
-.admin-seller-applications button:hover,
-.admin-seller-applications button:focus-visible {
+.admin-seller-applications button:not(:disabled):hover,
+.admin-seller-applications button:not(:disabled):focus-visible {
   border-color: var(--color-primary);
 }
 
@@ -364,7 +397,7 @@ h1 {
   }
 
   .admin-seller-applications__tabs button,
-  .admin-seller-applications__filter-actions button {
+.admin-seller-applications__filter-actions button {
     flex: 0 0 auto;
   }
 
@@ -372,5 +405,10 @@ h1 {
     align-items: start;
     flex-direction: column;
   }
+}
+
+.admin-seller-applications__filter-actions button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
 }
 </style>
