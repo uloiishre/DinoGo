@@ -36,7 +36,7 @@ const fetchCart = async () => {
 
   try {
     const response = await api.get('/cart')
-
+    console.log('購物車資料：', response.data)
     cart.value = {
       ...response.data,
 
@@ -341,23 +341,26 @@ const updateQuantity = async (item, quantity) => {
     return
   }
 
+  const oldQuantity = item.quantity
+
   try {
     const response = await api.put(`/cart/items/${item.cartItemId}`, {
       skuId: item.skuId,
       quantity: Number(quantity),
     })
 
-    // 直接更新目前畫面的商品
     Object.assign(item, response.data)
   } catch (error) {
     logSafeError('修改數量失敗:', error)
 
-    alert(error.response?.data?.message || '修改商品數量失敗')
-
-    // 失敗時才重新取得購物車
-    await fetchCart()
+    // 失敗就維持原本數量
+    item.quantity = oldQuantity
   }
 }
+
+// ================================
+// 修改商品規格 SKU
+// ================================
 
 // ================================
 // 修改商品規格 SKU
@@ -368,15 +371,24 @@ const changeSku = async (item, newSkuId) => {
     return
   }
 
-  if (!newSkuId || Number(newSkuId) === Number(item.skuId)) {
+  const oldSkuId = Number(item.skuId)
+  const targetSkuId = Number(newSkuId)
+
+  // 沒有改規格
+  if (!targetSkuId || targetSkuId === oldSkuId) {
     return
   }
 
-  // 找到使用者選擇的 SKU
-  const newSku = item.skus?.find((sku) => Number(sku.skuId) === Number(newSkuId))
+  // 找新的 SKU
+  const newSku = item.skus?.find((sku) => Number(sku.skuId) === targetSkuId)
 
-  // SKU 不存在或已停用，不允許切換
-  if (!newSku || Number(newSku.status) !== 1) {
+  if (!newSku) {
+    alert('找不到此規格，無法更換')
+    return
+  }
+
+  // 規格停用
+  if (Number(newSku.status) !== 1) {
     alert('此規格目前已停用，無法選擇')
     return
   }
@@ -384,18 +396,33 @@ const changeSku = async (item, newSkuId) => {
   changingSkuId.value = item.cartItemId
 
   try {
+    console.log('========== 更換 SKU ==========')
+    console.log('cartItemId:', item.cartItemId)
+    console.log('原本 skuId:', oldSkuId)
+    console.log('新的 skuId:', targetSkuId)
+    console.log('新的 sku stock:', newSku.stock)
+    console.log('送出的 quantity:', 1)
+
     const response = await api.put(`/cart/items/${item.cartItemId}`, {
-      skuId: Number(newSkuId),
-      quantity: Number(item.quantity),
+      skuId: targetSkuId,
+      quantity: 1,
     })
 
     console.log('修改 SKU 成功：', response.data)
 
+    // 後端成功後重新抓購物車
     await fetchCart()
   } catch (error) {
     logSafeError('修改商品規格失敗:', error)
 
-    alert(error.response?.data?.message || '修改商品規格失敗')
+    console.log('========== 更換 SKU 失敗 ==========')
+    console.log('HTTP Status:', error.response?.status)
+    console.log('Response:', error.response?.data)
+
+    const message =
+      error.response?.data?.message || error.response?.data?.error || '修改商品規格失敗，請稍後再試'
+
+    alert(message)
 
     await fetchCart()
   } finally {
@@ -406,12 +433,25 @@ const changeSku = async (item, newSkuId) => {
 // 增加數量
 // ================================
 
+// ================================
+// 增加數量
+// ================================
+
 const increaseQuantity = (item) => {
   if (!isItemAvailable(item)) {
     return
   }
 
-  updateQuantity(item, Number(item.quantity) + 1)
+  const quantity = Number(item.quantity)
+  const stock = Number(item.stock)
+
+  // 已達到庫存上限
+  if (!isNaN(stock) && quantity >= stock) {
+    alert(`此商品最多購買 ${stock} 件`)
+    return
+  }
+
+  updateQuantity(item, quantity + 1)
 }
 
 // ================================
@@ -792,9 +832,14 @@ onMounted(() => {
                       v-for="sku in item.skus"
                       :key="sku.skuId"
                       :value="sku.skuId"
-                      :disabled="!isSkuAvailable(sku) && Number(sku.skuId) !== Number(item.skuId)"
+                      :disabled="
+                        Number(sku.skuId) !== Number(item.skuId) &&
+                        (!isSkuAvailable(sku) || Number(sku.stock) <= 0)
+                      "
                     >
-                      {{ sku.skuName }}{{ !isSkuAvailable(sku) ? '（停用）' : '' }}
+                      {{ sku.skuName }}
+                      <template v-if="!isSkuAvailable(sku)"> （停用） </template>
+                      <template v-else-if="Number(sku.stock) <= 0"> （缺貨） </template>
                     </option>
                   </select>
 
@@ -808,34 +853,49 @@ onMounted(() => {
 
               <!-- 數量 -->
 
-              <div class="item-quantity">
-                <span class="quantity-label"> 數量 </span>
+              <div class="quantity-control">
+                <button
+                  type="button"
+                  class="quantity-button"
+                  :disabled="!isItemAvailable(item) || item.quantity <= 1"
+                  @click="decreaseQuantity(item)"
+                >
+                  <i class="bi bi-dash"></i>
+                </button>
 
-                <div class="quantity-control">
-                  <button
-                    type="button"
-                    class="quantity-button"
-                    :disabled="!isItemAvailable(item) || item.quantity <= 1"
-                    @click="decreaseQuantity(item)"
-                  >
-                    <i class="bi bi-dash"></i>
-                  </button>
+                <span class="quantity-value">
+                  {{ item.quantity }}
+                </span>
 
-                  <span class="quantity-value">
-                    {{ item.quantity }}
-                  </span>
-
-                  <button
-                    type="button"
-                    class="quantity-button"
-                    :disabled="!isItemAvailable(item)"
-                    @click="increaseQuantity(item)"
-                  >
-                    <i class="bi bi-plus"></i>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  class="quantity-button"
+                  :disabled="
+                    !isItemAvailable(item) ||
+                    (item.stock !== null &&
+                      item.stock !== undefined &&
+                      Number(item.quantity) >= Number(item.stock))
+                  "
+                  @click="increaseQuantity(item)"
+                >
+                  <i class="bi bi-plus"></i>
+                </button>
               </div>
 
+              <!-- 庫存上限提示 -->
+              <span
+                v-if="isItemAvailable(item) && item.stock !== null && item.stock !== undefined"
+                class="quantity-stock-info"
+                :class="{
+                  'is-limit': Number(item.quantity) >= Number(item.stock),
+                }"
+              >
+                {{
+                  Number(item.quantity) >= Number(item.stock)
+                    ? `已達上限，最多 ${item.stock} 件`
+                    : `最多購買 ${item.stock} 件`
+                }}
+              </span>
               <!-- 小計 -->
 
               <div class="item-total">
@@ -2588,5 +2648,20 @@ onMounted(() => {
 
 .item-name-link:hover {
   color: var(--color-primary);
+}
+.quantity-stock-info {
+  margin-top: 4px;
+
+  color: var(--color-text-subtle);
+
+  font-family: var(--font-body);
+  font-size: 11px;
+
+  white-space: nowrap;
+}
+
+.quantity-stock-info.is-limit {
+  color: var(--color-danger);
+  font-weight: 600;
 }
 </style>
