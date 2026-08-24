@@ -1,8 +1,8 @@
 package com.dinogo.member.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -68,33 +68,35 @@ class PasswordResetServiceTest {
 
     @Test
     void resetChangesPasswordAndInvalidatesExistingTokens() {
-        Member member = member(1, 4);
         ResetPasswordRequest request = new ResetPasswordRequest("reset-token", "new-password", "new-password");
         when(passwordResetTokenService.parse("reset-token"))
                 .thenReturn(new PasswordResetToken(1, "user@example.com", 4));
-        when(memberRepository.findById(1)).thenReturn(Optional.of(member));
         when(passwordEncoder.encode("new-password")).thenReturn("new-hash");
+        when(memberRepository.resetPasswordIfTokenIsValid(
+                1, "user@example.com", 4, "new-hash"))
+                .thenReturn(1);
 
         passwordResetService.resetPassword(request);
 
-        assertThat(member.getPasswordHash()).isEqualTo("new-hash");
-        assertThat(member.getAuthVersion()).isEqualTo(5);
-        verify(memberRepository).saveAndFlush(member);
+        verify(memberRepository).resetPasswordIfTokenIsValid(
+                1, "user@example.com", 4, "new-hash");
     }
 
     @Test
-    void resetRejectsTokenIssuedBeforeAnotherPasswordChange() {
-        Member member = member(1, 5);
+    void resetRejectsTokenAlreadyUsedByAnotherRequest() {
         when(passwordResetTokenService.parse("reset-token"))
                 .thenReturn(new PasswordResetToken(1, "user@example.com", 4));
-        when(memberRepository.findById(1)).thenReturn(Optional.of(member));
+        when(passwordEncoder.encode("new-password")).thenReturn("new-hash");
+        when(memberRepository.resetPasswordIfTokenIsValid(
+                eq(1), eq("user@example.com"), eq(4), eq("new-hash")))
+                .thenReturn(0);
 
         assertThatThrownBy(() -> passwordResetService.resetPassword(
                 new ResetPasswordRequest("reset-token", "new-password", "new-password")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("重設連結無效或已過期");
-        verify(passwordEncoder, never()).encode(any());
-        verify(memberRepository, never()).saveAndFlush(any());
+        verify(memberRepository).resetPasswordIfTokenIsValid(
+                1, "user@example.com", 4, "new-hash");
     }
 
     private Member member(int memberId, int authVersion) {

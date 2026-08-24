@@ -8,7 +8,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.dinogo.member.dto.PasswordResetRequest;
 import com.dinogo.member.dto.ResetPasswordRequest;
-import com.dinogo.member.entity.Member;
 import com.dinogo.member.repository.MemberRepository;
 import com.dinogo.security.PasswordResetToken;
 import com.dinogo.security.PasswordResetTokenService;
@@ -52,17 +51,14 @@ public class PasswordResetService {
         }
 
         PasswordResetToken token = passwordResetTokenService.parse(request.token());
-        Member member = memberRepository.findById(token.memberId())
-                .orElseThrow(this::invalidToken);
-        if (!"ACTIVE".equals(member.getStatus())
-                || !member.getEmail().equalsIgnoreCase(token.email())
-                || member.getAuthVersion() != token.authVersion()) {
+        int updatedRows = memberRepository.resetPasswordIfTokenIsValid(
+                token.memberId(),
+                token.email(),
+                token.authVersion(),
+                passwordEncoder.encode(request.newPassword()));
+        if (updatedRows != 1) {
             throw invalidToken();
         }
-
-        member.setPasswordHash(passwordEncoder.encode(request.newPassword()));
-        member.setAuthVersion(Math.incrementExact(member.getAuthVersion()));
-        memberRepository.saveAndFlush(member);
     }
 
     private IllegalArgumentException invalidToken() {
