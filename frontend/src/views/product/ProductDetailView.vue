@@ -271,6 +271,14 @@ const fetchFavoriteStatus = async () => {
     return
   }
 
+  // 未登入就不查收藏
+  const token = localStorage.getItem('token')
+
+  if (!token) {
+    isFavorite.value = false
+    return
+  }
+
   try {
     const response = await api.get('/favorites')
 
@@ -281,6 +289,7 @@ const fetchFavoriteStatus = async () => {
     console.error('取得收藏狀態失敗：', error)
   }
 }
+
 const toggleFavorite = async () => {
   if (!product.value || favoriteLoading.value) {
     return

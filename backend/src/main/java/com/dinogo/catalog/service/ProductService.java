@@ -901,4 +901,20 @@ public class ProductService {
 
                 return responses;
         }
+
+        // 商品軟刪除
+        @Transactional
+        public void deleteProduct(Integer productId) {
+
+                Product product = productRepository.findById(productId)
+                                .orElseThrow(() -> new RuntimeException("找不到商品：" + productId));
+
+                if (product.getStatus() == 3) {
+                        throw new RuntimeException("商品已刪除");
+                }
+
+                product.setStatus((byte) 3);
+
+                productRepository.save(product);
+        }
 }

@@ -34,7 +34,10 @@ public class SellerProductService {
     public List<SellerProductResponse> getProducts(Integer sellerId) {
         validateActiveSeller(sellerId);
 
-        return productRepository.findBySeller_SellerIdOrderByProductIdDesc(sellerId)
+        return productRepository
+                .findBySeller_SellerIdAndStatusNotOrderByProductIdDesc(
+                        sellerId,
+                        (byte) 3)
                 .stream()
                 .map(SellerProductResponse::from)
                 .toList();

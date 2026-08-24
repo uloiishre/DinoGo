@@ -3,6 +3,7 @@ package com.dinogo.catalog.controller;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -143,6 +144,7 @@ public class ProductController {
         return productService.updateImageSort(productId, requests);
     }
 
+    // 刪除商品圖片
     @DeleteMapping("/{productId}/images/{imageId}")
     public void deleteImage(
             @PathVariable Integer productId,
@@ -157,5 +159,15 @@ public class ProductController {
             @RequestParam("files") MultipartFile[] files) {
 
         return productService.uploadProductImages(productId, files);
+    }
+
+    // 商品軟刪除
+    @DeleteMapping("/{productId}")
+    public ResponseEntity<Void> deleteProduct(
+            @PathVariable Integer productId) {
+
+        productService.deleteProduct(productId);
+
+        return ResponseEntity.noContent().build();
     }
 }
