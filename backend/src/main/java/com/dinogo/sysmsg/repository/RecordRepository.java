@@ -7,6 +7,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import java.time.LocalDateTime;
 
 import com.dinogo.sysmsg.entity.RecordEntity;
 import com.dinogo.sysmsg.entity.RecordStatus;
@@ -15,6 +18,10 @@ import com.dinogo.sysmsg.entity.SellerInbox;
 
 public interface RecordRepository
         extends JpaRepository<RecordEntity, Integer> {
+
+    /** Email dispatcher 需在同一次查詢取得 Record 與訊息母件。 */
+    @EntityGraph(attributePaths = "send")
+    Optional<RecordEntity> findWithSendByRecordId(Integer recordId);
 
     // ============================================================
     // 會員收件匣
@@ -27,8 +34,34 @@ public interface RecordRepository
     );
 
     @EntityGraph(attributePaths = "send")
-    List<RecordEntity> findByMsgtoMemberIdAndMemberInboxAndRecordStatusNotOrderByRecordCreatedAtDescRecordIdDesc(
-            Integer msgtoMemberId, MemberInbox memberInbox, RecordStatus recordStatus);
+    @Query("""
+            select r from RecordEntity r
+            where r.msgtoMemberId = :recipientId and r.memberInbox = :inbox
+              and r.recordStatus <> :excludedStatus
+              and (:cursorTime is null or r.recordCreatedAt < :cursorTime
+                   or (r.recordCreatedAt = :cursorTime and r.recordId < :cursorId))
+            order by r.recordCreatedAt desc, r.recordId desc
+            """)
+    List<RecordEntity> findMemberInboxNewest(
+            @Param("recipientId") Integer recipientId, @Param("inbox") MemberInbox inbox,
+            @Param("excludedStatus") RecordStatus excludedStatus,
+            @Param("cursorTime") LocalDateTime cursorTime, @Param("cursorId") Integer cursorId,
+            Pageable pageable);
+
+    @EntityGraph(attributePaths = "send")
+    @Query("""
+            select r from RecordEntity r
+            where r.msgtoMemberId = :recipientId and r.memberInbox = :inbox
+              and r.recordStatus <> :excludedStatus
+              and (:cursorTime is null or r.recordCreatedAt > :cursorTime
+                   or (r.recordCreatedAt = :cursorTime and r.recordId > :cursorId))
+            order by r.recordCreatedAt asc, r.recordId asc
+            """)
+    List<RecordEntity> findMemberInboxOldest(
+            @Param("recipientId") Integer recipientId, @Param("inbox") MemberInbox inbox,
+            @Param("excludedStatus") RecordStatus excludedStatus,
+            @Param("cursorTime") LocalDateTime cursorTime, @Param("cursorId") Integer cursorId,
+            Pageable pageable);
 
     //msg-首頁通知未讀// 首頁通知紅色圓點使用的會員未讀訊息總數。
     long countByMsgtoMemberIdAndRecordStatus(Integer msgtoMemberId, RecordStatus recordStatus);
@@ -72,8 +105,34 @@ public interface RecordRepository
     );
 
     @EntityGraph(attributePaths = "send")
-    List<RecordEntity> findByMsgtoSellerIdAndSellerInboxAndRecordStatusNotOrderByRecordCreatedAtDescRecordIdDesc(
-            Integer msgtoSellerId, SellerInbox sellerInbox, RecordStatus recordStatus);
+    @Query("""
+            select r from RecordEntity r
+            where r.msgtoSellerId = :recipientId and r.sellerInbox = :inbox
+              and r.recordStatus <> :excludedStatus
+              and (:cursorTime is null or r.recordCreatedAt < :cursorTime
+                   or (r.recordCreatedAt = :cursorTime and r.recordId < :cursorId))
+            order by r.recordCreatedAt desc, r.recordId desc
+            """)
+    List<RecordEntity> findSellerInboxNewest(
+            @Param("recipientId") Integer recipientId, @Param("inbox") SellerInbox inbox,
+            @Param("excludedStatus") RecordStatus excludedStatus,
+            @Param("cursorTime") LocalDateTime cursorTime, @Param("cursorId") Integer cursorId,
+            Pageable pageable);
+
+    @EntityGraph(attributePaths = "send")
+    @Query("""
+            select r from RecordEntity r
+            where r.msgtoSellerId = :recipientId and r.sellerInbox = :inbox
+              and r.recordStatus <> :excludedStatus
+              and (:cursorTime is null or r.recordCreatedAt > :cursorTime
+                   or (r.recordCreatedAt = :cursorTime and r.recordId > :cursorId))
+            order by r.recordCreatedAt asc, r.recordId asc
+            """)
+    List<RecordEntity> findSellerInboxOldest(
+            @Param("recipientId") Integer recipientId, @Param("inbox") SellerInbox inbox,
+            @Param("excludedStatus") RecordStatus excludedStatus,
+            @Param("cursorTime") LocalDateTime cursorTime, @Param("cursorId") Integer cursorId,
+            Pageable pageable);
 
     Page<RecordEntity>
     findByMsgtoSellerIdAndRecordStatusOrderByRecordCreatedAtDescRecordIdDesc(
