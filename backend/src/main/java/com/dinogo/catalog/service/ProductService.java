@@ -99,7 +99,8 @@ public class ProductService {
                                 product.getImages().isEmpty()
                                                 ? null
                                                 : product.getImages().get(0).getImageUrl(),
-                                product.getStatus());
+                                product.getStatus(),
+                                product.getSoldCount());
         }
 
         private ProductSkuResponse toProductSkuResponse(ProductSku sku) {

@@ -7,11 +7,14 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.dinogo.catalog.entity.Product;
+import com.dinogo.catalog.repository.ProductRepository;
 import com.dinogo.sales.dto.shipment.CreateShipmentRequest;
 import com.dinogo.sales.dto.shipment.ShipmentResponse;
 import com.dinogo.sales.dto.shipment.UpdateShipmentStatusRequest;
 import com.dinogo.sales.dto.shipment.UpdateShipmentTrackingInfoRequest;
 import com.dinogo.sales.entity.Order;
+import com.dinogo.sales.entity.OrderItem;
 import com.dinogo.sales.entity.OrderStatus;
 import com.dinogo.sales.entity.PaymentStatus;
 import com.dinogo.sales.entity.Shipment;
@@ -28,8 +31,7 @@ import com.dinogo.seller.repository.SellerRepository;
 public class ShipmentService {
 
     private static final String CASH_ON_DELIVERY = "CASH_ON_DELIVERY";
-    private static final Set<OrderStatus> SHIPMENT_CREATION_STATUSES =
-            Set.of(OrderStatus.PAID, OrderStatus.PROCESSING);
+    private static final Set<OrderStatus> SHIPMENT_CREATION_STATUSES = Set.of(OrderStatus.PAID, OrderStatus.PROCESSING);
     private static final Map<ShipmentStatus, Set<ShipmentStatus>> ALLOWED_TRANSITIONS = Map.of(
             ShipmentStatus.PREPARING, Set.of(ShipmentStatus.SHIPPED),
             ShipmentStatus.SHIPPED, Set.of(ShipmentStatus.AVAILABLE_FOR_PICKUP));
@@ -38,16 +40,20 @@ public class ShipmentService {
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final SellerRepository sellerRepository;
+    private final ProductRepository productRepository;
 
     public ShipmentService(
             ShipmentRepository shipmentRepository,
             OrderRepository orderRepository,
             PaymentRepository paymentRepository,
-            SellerRepository sellerRepository) {
+            SellerRepository sellerRepository,
+            ProductRepository productRepository) {
+
         this.shipmentRepository = shipmentRepository;
         this.orderRepository = orderRepository;
         this.paymentRepository = paymentRepository;
         this.sellerRepository = sellerRepository;
+        this.productRepository = productRepository;
     }
 
     @Transactional
@@ -187,10 +193,16 @@ public class ShipmentService {
         }
 
         LocalDateTime now = LocalDateTime.now();
+
         shipment.setStatus(ShipmentStatus.DELIVERED);
         shipment.setDeliveredAt(now);
+
         order.setStatus(OrderStatus.COMPLETED);
         order.setCompletedAt(now);
+
+        // 訂單真正完成後，增加商品銷量
+        increaseSoldCount(order);
+
         completeCashOnDeliveryPayment(orderId, now);
 
         return toResponse(shipmentRepository.save(shipment));
@@ -240,5 +252,25 @@ public class ShipmentService {
                 shipment.getDeliveryPhotoUrl(),
                 shipment.getCreatedAt(),
                 shipment.getUpdatedAt());
+    }
+
+    // 完成訂單後商品soldCount + 1
+    private void increaseSoldCount(Order order) {
+
+        for (OrderItem item : order.getOrderItems()) {
+
+            Product product = productRepository.findById(item.getProductId())
+                    .orElseThrow(() -> new InvalidOrderException(
+                            "Product does not exist: " + item.getProductId()));
+
+            int currentSoldCount = product.getSoldCount() == null
+                    ? 0
+                    : product.getSoldCount();
+
+            product.setSoldCount(
+                    currentSoldCount + item.getQuantity());
+
+            productRepository.save(product);
+        }
     }
 }

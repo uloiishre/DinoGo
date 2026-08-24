@@ -26,4 +26,6 @@ public class ProductResponse {
     private String imageUrl;
     private Byte status;
 
+    private Integer soldCount;
+
 }

@@ -1,5 +1,8 @@
 <script setup>
+import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import api from '@/api/axios'
+import { getImageUrl } from '@/utils/imageUrl'
 
 const categories = [
   { name: '包袋', icon: 'bi-handbag' },
@@ -9,19 +12,39 @@ const categories = [
   { name: '旅行用品', icon: 'bi-luggage' },
 ]
 
-const products = [
-  { name: '日常機能托特包', price: 'NT$ 1,280' },
-  { name: '雙層植鞣短夾', price: 'NT$ 1,280' },
-  { name: '輕量後背包', price: 'NT$ 1,280' },
-  { name: '帆布肩背包', price: 'NT$ 1,280' },
-  { name: '旅行收納包', price: 'NT$ 1,280' },
-]
+const products = ref([])
+const productLoading = ref(false)
+
+const loadHotProducts = async () => {
+  try {
+    productLoading.value = true
+
+    const response = await api.get('/products', {
+      params: {
+        page: 0,
+        size: 5,
+        sort: 'salesDesc',
+      },
+    })
+
+    products.value = response.data.content ?? []
+  } catch (error) {
+    console.error('取得熱門商品失敗：', error)
+    products.value = []
+  } finally {
+    productLoading.value = false
+  }
+}
 
 const trustItems = [
   { label: '平台保障交易', icon: 'bi-shield-check' },
   { label: '清楚配送進度', icon: 'bi-truck' },
   { label: '客服協助', icon: 'bi-headset' },
 ]
+
+onMounted(() => {
+  loadHotProducts()
+})
 </script>
 
 <template>
@@ -62,20 +85,52 @@ const trustItems = [
       <section class="home-section" aria-labelledby="product-title">
         <div class="home-section__heading">
           <h2 id="product-title">新品與熱門</h2>
-          <RouterLink class="home-section__link dg-focus-ring" to="/products"
+          <RouterLink
+            class="home-section__link dg-focus-ring"
+            :to="{
+              name: 'ProductList',
+              query: { sort: 'salesDesc' },
+            }"
             >更多商品 <span aria-hidden="true">→</span></RouterLink
           >
         </div>
-        <div class="product-grid">
+        <div v-if="productLoading">熱門商品載入中...</div>
+
+        <div v-else class="product-grid">
           <RouterLink
             v-for="product in products"
-            :key="product.name"
+            :key="product.productId"
             class="product-card dg-focus-ring"
-            to="/products"
+            :to="{
+              name: 'ProductDetail',
+              params: { id: product.productId },
+            }"
           >
-            <div class="product-image" aria-hidden="true"></div>
-            <span class="product-card__name">{{ product.name }}</span
-            ><span class="product-card__price">{{ product.price }}</span>
+            <div class="product-image">
+              <img
+                v-if="product.imageUrl"
+                :src="getImageUrl(product.imageUrl)"
+                :alt="product.productName"
+              />
+
+              <div v-else class="product-image-placeholder">暫無圖片</div>
+            </div>
+
+            <span class="product-card__name">
+              {{ product.productName }}
+            </span>
+
+            <div class="product-card__meta">
+              <span class="product-card__price">
+                <template v-if="product.minPrice === product.maxPrice">
+                  NT$ {{ product.minPrice }}
+                </template>
+
+                <template v-else> NT$ {{ product.minPrice }} ~ {{ product.maxPrice }} </template>
+              </span>
+
+              <span class="product-card__sold"> 已售出 {{ product.soldCount ?? 0 }} 件 </span>
+            </div>
           </RouterLink>
         </div>
       </section>
@@ -230,7 +285,6 @@ const trustItems = [
 .product-card {
   display: flex;
   min-width: 0;
-  height: 176px;
   flex-direction: column;
   gap: 7px;
   padding: 9px;
@@ -248,8 +302,9 @@ const trustItems = [
 }
 .product-image {
   display: grid;
-  height: 92px;
-  flex: 0 0 92px;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
   place-items: center;
   border-radius: var(--radius-sm);
   background: var(--color-bg-muted);
@@ -272,6 +327,36 @@ const trustItems = [
 .trust-card {
   min-height: 74px;
   gap: 10px;
+}
+
+.product-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.product-image-placeholder {
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+}
+
+.product-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.product-card__price {
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.product-card__sold {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: 10px;
 }
 @media (max-width: 767.98px) {
   .home-page {
