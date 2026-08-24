@@ -284,22 +284,18 @@ const fetchFavoriteStatus = async () => {
     return
   }
 
-  // 未登入就不查收藏
-  const token = localStorage.getItem('token')
-
-  if (!token) {
-    isFavorite.value = false
-    return
-  }
-
   try {
     const response = await api.get('/favorites')
 
     isFavorite.value = response.data.some(
-      (favorite) => favorite.productId === product.value.productId,
+      (favorite) => Number(favorite.productId) === Number(product.value.productId),
     )
   } catch (error) {
     console.error('取得收藏狀態失敗：', error)
+
+    if (error.response?.status === 401) {
+      isFavorite.value = false
+    }
   }
 }
 
