@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { getMemberOrders } from '@/api/order'
 import { getOrderDisplayStatus, isOrderInDisplayGroup } from '@/utils/orderDisplayStatus'
+import { getImageUrl } from '@/utils/imageUrl'
 
 const orders = ref([])
 const loading = ref(true)
@@ -33,7 +34,7 @@ const visibleOrders = computed(() => {
       const searchableText = [
         order.orderNo,
         order.sellerName,
-        ...((order.items ?? []).flatMap((item) => [item.productName, item.skuSpec])),
+        ...(order.items ?? []).flatMap((item) => [item.productName, item.skuSpec]),
       ]
         .filter(Boolean)
         .join(' ')
@@ -159,7 +160,7 @@ onMounted(loadOrders)
           <div class="product-image">
             <img
               v-if="firstItem(order)?.productImageUrl"
-              :src="firstItem(order).productImageUrl"
+              :src="getImageUrl(firstItem(order).productImageUrl)"
               :alt="firstItem(order).productName"
             />
             <i v-else class="bi bi-image" aria-hidden="true"></i>
@@ -347,7 +348,10 @@ onMounted(loadOrders)
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 .order-card:hover {

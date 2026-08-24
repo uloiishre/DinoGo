@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import api from '@/api/axios'
 import { logSafeError } from '@/utils/safeError'
+import { getImageUrl } from '@/utils/imageUrl'
 
 const pageTitle = '購物車'
 const router = useRouter()
@@ -754,7 +755,7 @@ onMounted(() => {
               <div class="item-image-wrapper" @click="goToProductDetail(item)">
                 <img
                   v-if="item.productImage"
-                  :src="item.productImage"
+                  :src="getImageUrl(item.productImage)"
                   :alt="item.productName"
                   class="cart-image"
                 />
@@ -914,7 +915,7 @@ onMounted(() => {
               <div class="item-image-wrapper item-clickable" @click="goToProductDetail(item)">
                 <img
                   v-if="item.productImage"
-                  :src="item.productImage"
+                  :src="getImageUrl(item.productImage)"
                   :alt="item.productName"
                   class="cart-image"
                 />
