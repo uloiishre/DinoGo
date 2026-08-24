@@ -5,13 +5,8 @@ import java.util.List;
 public record LoginResponse(
         String token,
         MemberResponse member,
-        List<String> roles,
-        Integer sellerId
+        List<String> roles
 ) {
-
-    public LoginResponse(String token, MemberResponse member, List<String> roles) {
-        this(token, member, roles, null);
-    }
 
     public LoginResponse {
         roles = List.copyOf(roles);

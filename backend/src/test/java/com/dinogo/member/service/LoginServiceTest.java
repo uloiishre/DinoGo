@@ -25,8 +25,6 @@ import com.dinogo.member.entity.Role;
 import com.dinogo.member.repository.MemberRoleRepository;
 import com.dinogo.member.repository.MemberRepository;
 import com.dinogo.security.JwtTokenUtil;
-import com.dinogo.seller.entity.Seller;
-import com.dinogo.seller.repository.SellerRepository;
 
 @ExtendWith(MockitoExtension.class)
 class LoginServiceTest {
@@ -36,9 +34,6 @@ class LoginServiceTest {
 
     @Mock
     private MemberRoleRepository memberRoleRepository;
-
-    @Mock
-    private SellerRepository sellerRepository;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -58,8 +53,6 @@ class LoginServiceTest {
         when(passwordEncoder.matches(request.password(), member.getPasswordHash())).thenReturn(true);
         when(memberRoleRepository.findByMemberMemberId(member.getMemberId()))
                 .thenReturn(List.of(memberRole("seller"), memberRole("buyer")));
-        when(sellerRepository.findByMember_MemberId(member.getMemberId()))
-                .thenReturn(Optional.of(seller(42)));
         when(jwtTokenUtil.generateToken(member.getEmail(), member.getMemberId(), roles, 0))
                 .thenReturn("jwt-token");
 
@@ -68,7 +61,6 @@ class LoginServiceTest {
         assertThat(response.token()).isEqualTo("jwt-token");
         assertThat(response.member().email()).isEqualTo(request.email());
         assertThat(response.roles()).containsExactlyElementsOf(roles);
-        assertThat(response.sellerId()).isEqualTo(42);
         verify(jwtTokenUtil).generateToken(member.getEmail(), member.getMemberId(), roles, 0);
     }
 
@@ -122,11 +114,5 @@ class LoginServiceTest {
         MemberRole memberRole = new MemberRole();
         memberRole.setRole(role);
         return memberRole;
-    }
-
-    private Seller seller(Integer sellerId) {
-        Seller seller = new Seller();
-        seller.setSellerId(sellerId);
-        return seller;
     }
 }
