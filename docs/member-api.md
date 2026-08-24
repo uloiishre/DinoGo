@@ -215,6 +215,50 @@ Request：
 
 成功時同樣回傳 `LoginResponse`。失敗時為 401（帳密或憑證不正確）或 409（Google 帳號已綁定其他會員）。ID Token 僅可用於本次驗證，不得存入前端 storage、資料庫或日誌。
 
+### 忘記密碼與重設密碼
+
+這兩個 API 都是公開 API。密碼重設信屬帳戶安全通知，不受訂單／行銷 Email 偏好設定影響。
+
+`POST /api/auth/password-reset-requests`
+
+```json
+{
+  "email": "member@example.com"
+}
+```
+
+`email` 必填、須符合 Email 格式且最長 100 字。成功一律回傳 `202 Accepted` 與下列訊息，不論帳號是否存在或是否可重設，避免透過 API 探測帳號：
+
+```json
+{
+  "message": "若此 Email 已註冊，重設密碼說明已寄出。"
+}
+```
+
+重設連結有效期限預設為 15 分鐘，由 `PASSWORD_RESET_EXPIRATION_MS` 覆寫；`PASSWORD_RESET_SECRET` 必須為與 JWT secret 分離、至少 32 bytes 的部署密鑰。不得將連結 token 寫入 log、前端 storage 或資料庫。
+
+每個 IP 與正規化 Email 預設每 60 秒只能申請一次，可用 `PASSWORD_RESET_RATE_LIMIT_WINDOW_MS` 覆寫；記憶體中的限流 key 預設上限為 10,000，可用 `PASSWORD_RESET_RATE_LIMIT_MAX_KEYS` 覆寫。超限時回傳 `429 Too Many Requests`。
+
+`POST /api/auth/password-resets`
+
+```json
+{
+  "token": "<password-reset-token>",
+  "newPassword": "new-password",
+  "confirmNewPassword": "new-password"
+}
+```
+
+| 欄位 | 必填 | 規則 |
+| --- | --- | --- |
+| `token` | 是 | Email 重設連結提供的 token。 |
+| `newPassword` | 是 | 8～72 字。 |
+| `confirmNewPassword` | 是 | 8～72 字，且必須與 `newPassword` 相同。 |
+
+成功：`204 No Content`。成功後該會員所有既有 JWT 及所有先前重設連結均立即失效。
+
+失敗：`400`；密碼不一致時訊息為 `新密碼與確認密碼不一致`，token 無效、過期、帳號已停用或已因其他密碼變更失效時統一回傳 `重設連結無效或已過期`。
+
 ## 會員資料 API
 
 以下 API 都需要 `Authorization: Bearer <token>`。

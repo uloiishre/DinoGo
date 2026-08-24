@@ -202,6 +202,10 @@ onMounted(async () => {
         </button>
       </form>
 
+      <p class="mt-3 mb-0 text-end">
+        <RouterLink to="/forgot-password" class="auth-link">忘記密碼？</RouterLink>
+      </p>
+
       <div class="login-divider" aria-hidden="true"><span>或</span></div>
 
       <div ref="googleButton" class="google-button" :aria-busy="!isGoogleReady"></div>
