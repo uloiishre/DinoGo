@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.dinogo.config.SecurityConfig;
 import com.dinogo.member.repository.MemberRepository;
+import com.dinogo.sales.service.PaymentMethodService;
 import com.dinogo.sales.service.PaymentService;
 import com.dinogo.security.AuthenticatedMember;
 import com.dinogo.security.JwtAuthenticationFilter;
@@ -28,7 +29,7 @@ import com.dinogo.security.JwtTokenUtil;
 
 @WebMvcTest(controllers = { PaymentController.class, PaymentCapabilityController.class })
 @Import({ SecurityConfig.class, JwtAuthenticationFilter.class })
-class PaymentSimulationDisabledWebMvcTest {
+class PaymentSimulationEnabledByDefaultWebMvcTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -37,28 +38,31 @@ class PaymentSimulationDisabledWebMvcTest {
     private PaymentService paymentService;
 
     @MockitoBean
+    private PaymentMethodService paymentMethodService;
+
+    @MockitoBean
     private JwtTokenUtil jwtTokenUtil;
 
     @MockitoBean
     private MemberRepository memberRepository;
 
     @Test
-    void simulationIsDisabledByDefault() throws Exception {
+    void simulationIsEnabledByDefault() throws Exception {
         mockMvc.perform(post("/api/orders/10/payments/20/simulate")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"SUCCESS\"}")
                         .with(authentication(buyerAuthentication())))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk());
 
         verifyNoInteractions(paymentService);
     }
 
     @Test
-    void buyerCanReadDisabledPaymentCapabilities() throws Exception {
+    void buyerCanReadEnabledPaymentCapabilities() throws Exception {
         mockMvc.perform(get("/api/payments/capabilities")
                         .with(authentication(buyerAuthentication())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.simulationEnabled").value(false));
+                .andExpect(jsonPath("$.simulationEnabled").value(true));
     }
 
     @Test

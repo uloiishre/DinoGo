@@ -44,12 +44,15 @@ public class MessageService {
 所有方法回傳 `com.dinogo.member.dto.MemberSysmsgResponse`：
 
 ```java
+import java.util.List;
+
 public record MemberSysmsgResponse(
         Integer memberId,
         Integer sellerId,
         boolean authenticated,
         String email,
         String role,
+        List<Integer> roleIds,
         Boolean emailOrderNotifications,
         Boolean emailMarketingNotifications) {
 }
@@ -61,8 +64,9 @@ public record MemberSysmsgResponse(
 | `sellerId` | 該會員對應的賣家 ID；非賣家時為 `null`。 |
 | `authenticated` | 僅 `getProfile` 回傳 `true`；其餘查詢為 `false`。不可把此欄當作 Spring Security 授權依據。 |
 | `email` | 用於寄送 Email 的會員信箱。 |
-| `role` | 目前會員的角色名稱；僅供顯示或訊息路由參考，F 的實際授權仍應使用 Spring Security。 |
-| `emailOrderNotifications` | 訂單 Email 偏好。 |
+| `role` | 目前會員的角色名稱；僅供顯示或訊息路由參考。 |
+| `roleIds` | 完整角色 ID 清單：`1` 一般會員、`2` 商家會員、`3` 管理員。含 `2` 時必定也含 `1`，因商家同時是一般會員。授權或收件匣分流應以此欄位判斷，不可依固定會員／商家 ID 判斷。 |
+| `emailOrderNotifications` | 訂單 Email 偏好；`true` 寄送、`false` 不寄送、`null` 視為未驗證且預設寄送。 |
 | `emailMarketingNotifications` | 行銷 Email 偏好。 |
 
 ## Provider 方法
@@ -81,7 +85,7 @@ F 在建立 Email 寄送工作前，必須套用下列規則：
 
 | Email 類型 | 必要條件 |
 | --- | --- |
-| 訂單成立、付款、出貨、配送等訂單通知 | `emailOrderNotifications == true` |
+| 訂單成立、付款、出貨、配送等訂單通知 | `emailOrderNotifications != false` |
 | 優惠活動、新品、推薦商品等行銷通知 | `emailMarketingNotifications == true` |
 
 - `emailMarketingNotifications` 預設為 `false`；只有明確為 `true` 才可寄送行銷 Email。

@@ -6,6 +6,23 @@
 
 ## 付款能力
 
+## Payment methods
+
+```http
+GET /api/payments/methods
+```
+
+Returns the shared payment methods stored in `sales.PaymentMethod`, ordered by payment-method ID.
+
+```json
+[
+  {
+    "paymentMethodCode": "CASH_ON_DELIVERY",
+    "paymentMethodName": "貨到付款"
+  }
+]
+```
+
 ```http
 GET /api/payments/capabilities
 ```
@@ -14,7 +31,7 @@ GET /api/payments/capabilities
 
 ```json
 {
-  "simulationEnabled": false
+  "simulationEnabled": true
 }
 ```
 
@@ -41,16 +58,18 @@ Content-Type: application/json
 
 ## MVP 模擬付款結果
 
-此 endpoint 預設關閉，只能在 Demo 環境明確啟用：
+此 endpoint 預設開啟，不需要 Demo profile 或額外環境變數：
 
 ```text
-SPRING_PROFILES_ACTIVE=demo
+# Enabled by default; no additional profile is required.
 ```
 
-或設定：
+The simulation endpoint is enabled by default. Set the environment variable below to `false` only when it must be disabled.
+
+如需在正式環境或串接真實金流時關閉，可設定：
 
 ```text
-PAYMENT_SIMULATION_ENABLED=true
+PAYMENT_SIMULATION_ENABLED=false
 ```
 
 未啟用時回傳 `404 Not Found`，且不會更新付款或訂單。

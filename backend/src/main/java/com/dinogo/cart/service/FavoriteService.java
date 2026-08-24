@@ -1,5 +1,6 @@
 package com.dinogo.cart.service;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -139,7 +140,11 @@ public class FavoriteService {
 
 		String imageUrl = product.getImages()
 				.stream()
+				.filter(image -> Boolean.TRUE.equals(image.getIsMain()))
 				.findFirst()
+				.or(() -> product.getImages().stream()
+						.filter(image -> image.getSortOrder() != null)
+						.min(Comparator.comparing(ProductImage::getSortOrder)))
 				.map(ProductImage::getImageUrl)
 				.orElse(null);
 

@@ -28,8 +28,8 @@ const navItems = [
   },
   {
     label: '熱門推薦',
-    to: { name: 'ProductList', query: { sort: 'popular' } },
-    activeKey: 'popular',
+    to: { name: 'ProductList', query: { sort: 'salesDesc' } },
+    activeKey: 'salesDesc',
   },
   {
     label: '品牌與商家',
@@ -187,8 +187,8 @@ const isActive = (item) => {
     return route.query.sort === 'newest'
   }
 
-  if (item.activeKey === 'popular') {
-    return route.query.sort === 'popular'
+  if (item.activeKey === 'salesDesc') {
+    return route.query.sort === 'salesDesc'
   }
 
   return route.query.filter === item.activeKey
