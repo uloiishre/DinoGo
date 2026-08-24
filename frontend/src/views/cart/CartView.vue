@@ -1,12 +1,12 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import api from '@/api/axios'
 import { logSafeError } from '@/utils/safeError'
 
 const pageTitle = '購物車'
 const router = useRouter()
-
+const route = useRoute()
 const cart = ref(null)
 const loading = ref(false)
 const errorMessage = ref('')
@@ -79,6 +79,13 @@ const fetchCart = async () => {
   } finally {
     loading.value = false
   }
+}
+const selectedCartItemId = route.query.selectedCartItemId
+
+if (selectedCartItemId) {
+  selectedCartItemIds.value = [Number(selectedCartItemId)]
+} else {
+  selectedCartItemIds.value = []
 }
 // ================================
 // 前往商品 Detail
