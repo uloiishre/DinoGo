@@ -17,7 +17,7 @@ import { getCurrentSellerId } from '@/utils/seller-session'
 import { logSafeError } from '@/utils/safeError'
 import { getImageUrl } from '@/utils/imageUrl'
 
-const sellerId = getCurrentSellerId()
+const sellerId = computed(() => getCurrentSellerId())
 const route = useRoute()
 const router = useRouter()
 
@@ -39,7 +39,7 @@ const selectedNewImageIndex = ref(0)
 
 const pageTitle = computed(() => (isEditMode.value ? '編輯商品' : '新增商品'))
 const pageDescription = computed(() =>
-  isEditMode.value ? '編輯既有商品資料與庫存' : '建立新的商品假資料',
+  isEditMode.value ? '編輯既有商品資料與庫存' : '建立新的商品資料與庫存',
 )
 const submitText = computed(() => (isEditMode.value ? '儲存變更' : '送出商品'))
 const sellerRequiredMessage = '尚未取得賣家身分，請重新登入賣家帳號後再操作。'
@@ -353,7 +353,7 @@ const toFormStatus = (status) => {
 
 // 商品基本資料
 const buildProductPayload = () => ({
-  sellerId,
+  sellerId: sellerId.value,
   subcategoryId: Number(form.subcategoryId),
   brandId: Number(form.brandId),
   productName: form.productName.trim(),
@@ -463,6 +463,10 @@ const loadProduct = async () => {
   if (!isEditMode.value) {
     return
   }
+  if (!sellerId.value) {
+    errorMessage.value = '找不到賣家身分，請重新登入後再進入賣家中心。'
+    return
+  }
 
   try {
     isLoading.value = true
@@ -524,7 +528,7 @@ const saveProductSkus = async () => {
 
 // 儲存商品
 const handleSubmit = async () => {
-  if (!sellerId) {
+  if (!sellerId.value) {
     errorMessage.value = sellerRequiredMessage
     return
   }

@@ -17,6 +17,7 @@ const navItems = [
   },
   { label: '訂單管理', to: '/seller/orders', icon: 'bi-receipt' },
   { label: '優惠券管理', to: '/seller/coupons', icon: 'bi-ticket-perforated' },
+  { label: '賣家錢包', to: '/seller/wallet', icon: 'bi-wallet2' },
   { label: '訊息中心', to: '/seller/messages', icon: 'bi-chat-left-text' },
   { label: '店鋪資料', to: '/seller/profile', icon: 'bi-shop' },
 ]
