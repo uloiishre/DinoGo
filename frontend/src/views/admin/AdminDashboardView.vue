@@ -1,15 +1,42 @@
 <script setup>
-const overview = [
-  { label: '待審核商家申請', value: '12', detail: '較昨日增加 3 件', icon: 'bi-clipboard-check' },
-  { label: '本月新增商家', value: '28', detail: '較上月增加 12%', icon: 'bi-shop' },
-  { label: '平台會員數', value: '2,486', detail: '本週新增 86 位', icon: 'bi-people' },
-]
+import { computed, onMounted, ref } from 'vue'
+import { listSellerApplications } from '@/api/sellerApplicationApi'
 
-const recentApplications = [
-  { store: '森野選物所', member: '王小明', submittedAt: '2026/08/20 10:24' },
-  { store: '慢日生活商店', member: '陳怡安', submittedAt: '2026/08/20 09:18' },
-  { store: '山居好物', member: '林書妍', submittedAt: '2026/08/19 16:42' },
-]
+const pendingApplications = ref([])
+const recentFeedback = ref('')
+const isRecentLoading = ref(false)
+const formatDate = (value) => (value ? new Date(value).toLocaleString('zh-TW') : '-')
+
+const overview = computed(() => [
+  { label: '待審核商家申請', value: String(pendingApplications.value.length), detail: '目前待處理件數', icon: 'bi-clipboard-check' },
+  { label: '本月新增商家', value: '—', detail: '尚未串接統計 API', icon: 'bi-shop' },
+  { label: '平台會員數', value: '—', detail: '尚未串接統計 API', icon: 'bi-people' },
+])
+
+const recentApplications = computed(() => pendingApplications.value.slice(0, 3))
+
+async function loadPendingApplications() {
+  isRecentLoading.value = true
+  recentFeedback.value = ''
+  try {
+    const response = await listSellerApplications('PENDING')
+    pendingApplications.value = response.data
+      .slice()
+      .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt))
+      .map((application) => ({
+        id: application.applicationId,
+        store: application.storeName,
+        member: `會員 #${application.memberId}`,
+        submittedAt: formatDate(application.createdAt),
+      }))
+  } catch (error) {
+    recentFeedback.value = error.response?.data?.message || '待審核申請載入失敗。'
+  } finally {
+    isRecentLoading.value = false
+  }
+}
+
+onMounted(loadPendingApplications)
 </script>
 
 <template>
@@ -18,7 +45,7 @@ const recentApplications = [
       <div>
         <p>平台總覽</p>
         <h1 id="admin-dashboard-title">管理者 Dashboard</h1>
-        <span>以下數據為介面示範資料，尚未串接統計 API。</span>
+        <span>待審核商家申請已串接；其餘統計資料尚未串接 API。</span>
       </div>
       <RouterLink class="admin-dashboard__action dg-btn-primary dg-focus-ring" to="/admin/seller-applications">
         查看商家申請
@@ -38,7 +65,7 @@ const recentApplications = [
       <header>
         <div>
           <h2 id="admin-dashboard-recent-title">最新待審核申請</h2>
-          <p>示範資料</p>
+          <p>依送出時間由新到舊顯示</p>
         </div>
         <RouterLink to="/admin/seller-applications">查看全部</RouterLink>
       </header>
@@ -46,9 +73,12 @@ const recentApplications = [
         <div class="admin-dashboard__row admin-dashboard__row--header" role="row">
           <span role="columnheader">店鋪名稱</span><span role="columnheader">申請會員</span><span role="columnheader">送出時間</span>
         </div>
-        <div v-for="application in recentApplications" :key="application.store" class="admin-dashboard__row" role="row">
+        <div v-for="application in recentApplications" :key="application.id" class="admin-dashboard__row" role="row">
           <strong role="cell">{{ application.store }}</strong><span role="cell">{{ application.member }}</span><span role="cell">{{ application.submittedAt }}</span>
         </div>
+        <p v-if="recentFeedback" class="admin-dashboard__empty" role="status">{{ recentFeedback }}</p>
+        <p v-else-if="isRecentLoading" class="admin-dashboard__empty" role="status">待審核申請載入中。</p>
+        <p v-else-if="!recentApplications.length" class="admin-dashboard__empty" role="status">目前沒有待審核商家申請。</p>
       </div>
     </article>
   </section>
@@ -63,5 +93,6 @@ const recentApplications = [
 .admin-dashboard__metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }.admin-dashboard__metric { display: grid; gap: var(--space-2); padding: var(--space-5); }.admin-dashboard__metric i { color: var(--color-primary-active); font-size: 22px; }.admin-dashboard__metric p, .admin-dashboard__metric span { color: var(--color-text-muted); font-size: var(--font-size-sm); }.admin-dashboard__metric strong { font-size: 30px; line-height: 1; }
 .admin-dashboard__recent { display: grid; gap: var(--space-4); padding: var(--space-5); }.admin-dashboard__recent header > div { display: grid; gap: var(--space-1); }.admin-dashboard__recent h2 { font-size: var(--font-size-md); }.admin-dashboard__recent header p { color: var(--color-text-muted); font-size: 13px; }.admin-dashboard__recent a { color: var(--color-primary-active); font-size: var(--font-size-sm); font-weight: 700; text-decoration: none; }
 .admin-dashboard__table { overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--radius-md); }.admin-dashboard__row { display: grid; min-height: 58px; grid-template-columns: 1.2fr 1fr 1fr; align-items: center; gap: var(--space-4); border-bottom: 1px solid var(--color-border); padding: 0 var(--space-4); color: var(--color-text-muted); font-size: var(--font-size-sm); }.admin-dashboard__row:last-child { border-bottom: 0; }.admin-dashboard__row--header { min-height: 42px; color: var(--color-text); background: var(--color-bg); font-size: 13px; font-weight: 700; }.admin-dashboard__row strong { color: var(--color-text); }
+.admin-dashboard__empty { padding: var(--space-5); color: var(--color-text-muted); font-size: var(--font-size-sm); text-align: center; }
 @media (max-width: 760px) { .admin-dashboard__header { align-items: start; flex-direction: column; }.admin-dashboard__metrics { grid-template-columns: 1fr; }.admin-dashboard__row { min-width: 580px; }.admin-dashboard__recent { overflow: auto; } }
 </style>
