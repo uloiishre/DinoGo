@@ -408,10 +408,14 @@ onMounted(async () => {
             <!-- 品牌 -->
             <div class="product-brand mb-3">品牌：{{ product.brandName }}</div>
 
-            <!-- 價格 -->
-            <div class="product-price mb-4">
-              NT$
-              {{ selectedSku ? selectedSku.price : product.basePrice }}
+            <!-- 價格&銷售量 -->
+            <div class="product-price-area mb-4">
+              <div class="product-price">
+                NT$
+                {{ selectedSku ? selectedSku.price : product.basePrice }}
+              </div>
+
+              <div class="product-sold-count">已售出 {{ product.soldCount ?? 0 }} 件</div>
             </div>
 
             <!-- 商品描述 -->
@@ -889,5 +893,21 @@ onMounted(async () => {
 .favorite-message {
   margin-top: var(--space-3);
   color: var(--color-primary);
+}
+.product-price-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.product-price {
+  margin: 0;
+  line-height: 1;
+}
+
+.product-sold-count {
+  margin: 0;
+  line-height: 1;
+  transform: translateY(2px);
 }
 </style>
