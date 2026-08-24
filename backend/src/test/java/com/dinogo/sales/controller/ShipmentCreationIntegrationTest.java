@@ -24,6 +24,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.dinogo.config.SecurityConfig;
+import com.dinogo.catalog.repository.ProductRepository;
 import com.dinogo.member.repository.MemberRepository;
 import com.dinogo.sales.entity.Order;
 import com.dinogo.sales.entity.OrderStatus;
@@ -62,6 +63,9 @@ class ShipmentCreationIntegrationTest {
 
     @MockitoBean
     private SellerRepository sellerRepository;
+
+    @MockitoBean
+    private ProductRepository productRepository;
 
     @MockitoBean
     private JwtTokenUtil jwtTokenUtil;
@@ -113,7 +117,8 @@ class ShipmentCreationIntegrationTest {
                 shipmentRepository,
                 orderRepository,
                 paymentRepository,
-                sellerRepository);
+                sellerRepository,
+                productRepository);
     }
 
     private UsernamePasswordAuthenticationToken sellerAuthentication() {

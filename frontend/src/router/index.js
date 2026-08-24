@@ -126,6 +126,7 @@ const routes = [
         name: 'MemberPassword',
         component: () => import('@/views/member/MemberPasswordView.vue'),
       },
+      { path: 'account/deactivate', name: 'MemberDeactivateAccount', component: () => import('@/views/member/MemberDeactivateAccountView.vue') },
     ],
   },
   {
@@ -207,6 +208,7 @@ const routes = [
         name: 'AdminSellerApplicationDetail',
         component: () => import('@/views/admin/AdminSellerApplicationDetailView.vue'),
       },
+      { path: 'members', name: 'AdminMembers', component: () => import('@/views/admin/AdminMembersView.vue') },
     ],
   },
   {

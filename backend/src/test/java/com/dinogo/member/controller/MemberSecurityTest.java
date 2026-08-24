@@ -27,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.dinogo.config.SecurityConfig;
 import com.dinogo.member.dto.MemberResponse;
 import com.dinogo.member.service.MemberService;
+import com.dinogo.member.service.MemberAccountService;
 import com.dinogo.member.repository.MemberRepository;
 import com.dinogo.security.AuthenticatedMember;
 import com.dinogo.security.JwtAuthenticationFilter;
@@ -41,6 +42,9 @@ class MemberSecurityTest {
 
     @MockitoBean
     private MemberService memberService;
+
+    @MockitoBean
+    private MemberAccountService memberAccountService;
 
     @MockitoBean
     private JwtTokenUtil jwtTokenUtil;

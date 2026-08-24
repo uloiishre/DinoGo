@@ -1,6 +1,8 @@
 package com.dinogo.sales.controller;
 
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -54,7 +56,7 @@ class PaymentSimulationEnabledByDefaultWebMvcTest {
                         .with(authentication(buyerAuthentication())))
                 .andExpect(status().isOk());
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService).simulatePaymentResult(eq(10), eq(20), eq(6), any());
     }
 
     @Test

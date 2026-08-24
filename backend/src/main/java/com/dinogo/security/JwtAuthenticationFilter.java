@@ -78,7 +78,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
             Member member = memberRepository.findById(memberId).orElse(null);
-            if (member == null || member.getAuthVersion() != tokenAuthVersion) {
+            if (member == null || !"ACTIVE".equals(member.getStatus())
+                    || member.getAuthVersion() != tokenAuthVersion) {
                 logger.debug("JWT is no longer valid for member " + memberId);
                 SecurityContextHolder.clearContext();
                 filterChain.doFilter(request, response);
