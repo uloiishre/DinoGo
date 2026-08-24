@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -28,6 +29,7 @@ import com.dinogo.catalog.dto.ProductSkuResponse;
 import com.dinogo.catalog.dto.ProductSkuUpdateRequest;
 import com.dinogo.catalog.dto.ProductUpdateRequest;
 import com.dinogo.catalog.service.ProductService;
+import com.dinogo.security.AuthenticatedMember;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -61,24 +63,28 @@ public class ProductController {
 
     // 建立商品
     @PostMapping
-    public ProductResponse createProduct(@RequestBody ProductCreateRequest request) {
-        return productService.createProduct(request);
+    public ProductResponse createProduct(
+            @AuthenticationPrincipal AuthenticatedMember member,
+            @RequestBody ProductCreateRequest request) {
+        return productService.createProduct(request, member.memberId());
     }
 
     // 上架商品
     @PatchMapping("/{productId}/publish")
     public ProductResponse publishProduct(
+            @AuthenticationPrincipal AuthenticatedMember member,
             @PathVariable Integer productId) {
 
-        return productService.publishProduct(productId);
+        return productService.publishProduct(productId, member.memberId());
     }
 
     // 下架商品
     @PatchMapping("/{productId}/unpublish")
     public ProductResponse unpublishProduct(
+            @AuthenticationPrincipal AuthenticatedMember member,
             @PathVariable Integer productId) {
 
-        return productService.unpublishProduct(productId);
+        return productService.unpublishProduct(productId, member.memberId());
     }
 
     // 商品詳情
@@ -92,81 +98,91 @@ public class ProductController {
     // 修改商品詳情
     @PutMapping("/{productId}")
     public ProductResponse updateProduct(
+            @AuthenticationPrincipal AuthenticatedMember member,
             @PathVariable Integer productId,
             @RequestBody ProductUpdateRequest request) {
 
-        return productService.updateProduct(productId, request);
+        return productService.updateProduct(productId, request, member.memberId());
     }
 
     // 修改商品SKU
     @PutMapping("/{productId}/skus/{skuId}")
     public ProductSkuResponse updateSku(
+            @AuthenticationPrincipal AuthenticatedMember member,
             @PathVariable Integer productId,
             @PathVariable Integer skuId,
             @Valid @RequestBody ProductSkuUpdateRequest request) {
 
-        return productService.updateSku(productId, skuId, request);
+        return productService.updateSku(productId, skuId, request, member.memberId());
     }
 
     @PostMapping("/{productId}/skus/batch")
     public List<ProductSkuResponse> createSkus(
+            @AuthenticationPrincipal AuthenticatedMember member,
             @PathVariable Integer productId,
             @Valid @RequestBody List<ProductSkuCreateRequest> requests) {
 
-        return productService.createSkus(productId, requests);
+        return productService.createSkus(productId, requests, member.memberId());
     }
 
     @PatchMapping("/{productId}/skus/{skuId}/disable")
     public ProductSkuResponse disableSku(
+            @AuthenticationPrincipal AuthenticatedMember member,
             @PathVariable Integer productId,
             @PathVariable Integer skuId) {
 
-        return productService.disableSku(productId, skuId);
+        return productService.disableSku(productId, skuId, member.memberId());
     }
 
     // 修改商品主圖
     @PutMapping("/{productId}/images/main")
     public ProductImageResponse updateMainImage(
+            @AuthenticationPrincipal AuthenticatedMember member,
             @PathVariable Integer productId,
             @RequestBody ProductMainImageUpdateRequest request) {
 
         return productService.updateMainImage(
                 productId,
-                request.getImageId());
+                request.getImageId(),
+                member.memberId());
     }
 
     // 修改商品排序
     @PutMapping("/{productId}/images/sort")
     public List<ProductImageResponse> updateImageSort(
+            @AuthenticationPrincipal AuthenticatedMember member,
             @PathVariable Integer productId,
             @RequestBody List<ProductImageSortUpdateRequest> requests) {
 
-        return productService.updateImageSort(productId, requests);
+        return productService.updateImageSort(productId, requests, member.memberId());
     }
 
     // 刪除商品圖片
     @DeleteMapping("/{productId}/images/{imageId}")
     public void deleteImage(
+            @AuthenticationPrincipal AuthenticatedMember member,
             @PathVariable Integer productId,
             @PathVariable Integer imageId) {
 
-        productService.deleteImage(productId, imageId);
+        productService.deleteImage(productId, imageId, member.memberId());
     }
 
     @PostMapping("/{productId}/images/upload")
     public List<ProductImageResponse> uploadProductImages(
+            @AuthenticationPrincipal AuthenticatedMember member,
             @PathVariable Integer productId,
             @RequestParam("files") MultipartFile[] files) {
 
-        return productService.uploadProductImages(productId, files);
+        return productService.uploadProductImages(productId, files, member.memberId());
     }
 
     // 商品軟刪除
     @DeleteMapping("/{productId}")
     public ResponseEntity<Void> deleteProduct(
+            @AuthenticationPrincipal AuthenticatedMember member,
             @PathVariable Integer productId) {
 
-        productService.deleteProduct(productId);
+        productService.deleteProduct(productId, member.memberId());
 
         return ResponseEntity.noContent().build();
     }
