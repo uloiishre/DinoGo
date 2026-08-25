@@ -418,6 +418,7 @@ public class OrderService {
                 order.getBuyerId(),
                 order.getStatus(),
                 order.getTotalAmount(),
+                order.getDiscountAmount(),
                 order.getCreatedAt(),
                 items);
     }
