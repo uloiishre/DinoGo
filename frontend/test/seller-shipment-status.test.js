@@ -20,10 +20,10 @@ function setup(orderValue, overrides = {}) {
   return { calls, order, ...state }
 }
 
-test('paid order does not expose the confirm shipment action', () => {
+test('paid order with a preparing shipment exposes confirm shipment for legacy orders', () => {
   const state = setup({ status: 'PAID', shipment: preparingShipment() })
 
-  assert.equal(state.shipmentAction.value, null)
+  assert.equal(state.shipmentAction.value?.status, 'SHIPPED')
 })
 
 test('processing order with preparing shipment exposes confirm shipment', () => {

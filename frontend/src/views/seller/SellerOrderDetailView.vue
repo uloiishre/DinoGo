@@ -2,7 +2,6 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import {
-  acceptSellerOrder,
   createSellerShipment,
   getSellerOrder,
   updateSellerShipmentTrackingInfo,
@@ -14,8 +13,6 @@ const route = useRoute()
 const order = ref(null)
 const loading = ref(true)
 const errorMessage = ref('')
-const acceptingOrder = ref(false)
-const actionError = ref('')
 const shipmentForm = ref({ carrierName: '', trackingNo: '' })
 const creatingShipment = ref(false)
 const shipmentFormError = ref('')
@@ -140,11 +137,6 @@ function invalidatePendingOrderLoad() {
   fetchingOrder.value = false
 }
 
-function applyOrderResponse(nextOrder) {
-  invalidatePendingOrderLoad()
-  order.value = nextOrder
-}
-
 function shouldAutoRefresh() {
   return order.value && !['COMPLETED', 'CANCELLED'].includes(order.value.status)
 }
@@ -152,20 +144,6 @@ function shouldAutoRefresh() {
 function refreshOrderSilently() {
   if (document.hidden || !shouldAutoRefresh()) return
   void loadOrder({ silent: true })
-}
-
-async function acceptOrder() {
-  if (order.value?.status !== 'PAID' || acceptingOrder.value) return
-
-  acceptingOrder.value = true
-  actionError.value = ''
-  try {
-    applyOrderResponse((await acceptSellerOrder(orderId.value)).data)
-  } catch (error) {
-    actionError.value = error.response?.data?.message ?? '接收訂單失敗，請稍後再試。'
-  } finally {
-    acceptingOrder.value = false
-  }
 }
 
 async function submitShipment() {
@@ -284,16 +262,6 @@ onUnmounted(() => {
           <p class="section-label">訂單 {{ order.orderNo }}</p>
           <strong>{{ orderStatusLabels[order.status] ?? order.status }}</strong>
           <small>{{ formatDate(order.createdAt) }}</small>
-          <button
-            v-if="order.status === 'PAID'"
-            class="accept-button"
-            type="button"
-            :disabled="acceptingOrder"
-            @click="acceptOrder"
-          >
-            {{ acceptingOrder ? '接收中…' : '接收訂單' }}
-          </button>
-          <small v-if="actionError" class="action-error" role="alert">{{ actionError }}</small>
         </div>
         <div class="order-progress" aria-label="訂單進度">
           <div
@@ -417,12 +385,6 @@ onUnmounted(() => {
               <p class="section-label">送達時間</p>
               <strong>{{ formatDate(order.shipment.deliveredAt) }}</strong>
             </div>
-            <p
-              v-if="order.shipment.status === 'PREPARING' && order.status === 'PAID'"
-              class="shipment-hint"
-            >
-              請先接收訂單，再確認商品出貨。
-            </p>
             <p v-if="shipmentActionError" class="form-error" role="alert">
               {{ shipmentActionError }}
             </p>
@@ -789,12 +751,6 @@ h2 {
   color: var(--color-danger) !important;
   font-size: var(--font-size-sm);
 }
-.shipment-hint {
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
-  background: var(--color-warning-soft);
-  color: var(--color-warning) !important;
-}
 .shipment-submit {
   border: 1px solid var(--color-primary-700);
   background: var(--color-primary-700);
@@ -824,30 +780,10 @@ button {
   background: var(--color-surface);
   color: var(--color-text-700);
 }
-.accept-button {
-  width: fit-content;
-  margin-top: var(--space-2);
-  border: 1px solid var(--color-primary-700);
-  background: var(--color-primary-700);
-  color: var(--color-surface);
-}
-.accept-button:hover:not(:disabled) {
-  background: var(--color-primary-800);
-}
-.accept-button:focus-visible,
 .secondary-button:focus-visible,
 .back-button:focus-visible {
   outline: none;
   box-shadow: var(--shadow-focus);
-}
-.accept-button:disabled {
-  border-color: var(--color-disabled);
-  background: var(--color-disabled-bg);
-  color: var(--color-text-subtle);
-  cursor: not-allowed;
-}
-.action-error {
-  color: var(--color-danger);
 }
 @media (max-width: 1000px) {
   .detail-layout {

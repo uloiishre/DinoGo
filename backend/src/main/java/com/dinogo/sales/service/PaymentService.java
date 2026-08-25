@@ -158,7 +158,7 @@ public class PaymentService {
             payment.setTransactionNo(generateTransactionNo());
             payment.setFailureReason(null);
             payment.setPaidAt(paidAt);
-            order.setStatus(OrderStatus.PAID);
+            order.setStatus(OrderStatus.PROCESSING);
         } else {
             payment.setStatus(PaymentStatus.FAILED);
             payment.setFailureReason(normalizeFailureReason(request.failureReason()));

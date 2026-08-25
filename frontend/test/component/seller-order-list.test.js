@@ -9,7 +9,6 @@ vi.mock('vue-router', () => ({
 }))
 
 vi.mock('../../src/api/sellerOrderApi.js', () => ({
-  acceptSellerOrder: vi.fn(),
   getSellerOrders: vi.fn(),
 }))
 

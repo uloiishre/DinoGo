@@ -8,13 +8,6 @@ export const getSellerOrder = (orderId) => {
   return api.get(`/seller/orders/${orderId}`)
 }
 
-export const acceptSellerOrder = (orderId) => {
-  return api.patch(`/orders/${orderId}/status`, {
-    status: 'PROCESSING',
-    reason: null,
-  })
-}
-
 export const createSellerShipment = (orderId, shipment) => {
   return api.post(`/orders/${orderId}/shipment`, shipment)
 }
