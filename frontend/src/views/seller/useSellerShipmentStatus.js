@@ -15,13 +15,6 @@ export function useSellerShipmentStatus({ order, updateStatus }) {
         pendingLabel: '出貨確認中…',
       }
     }
-    if (order.value?.shipment?.status === 'SHIPPED') {
-      return {
-        status: 'AVAILABLE_FOR_PICKUP',
-        label: '標記可取貨',
-        pendingLabel: '更新中…',
-      }
-    }
     return null
   })
 

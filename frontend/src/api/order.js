@@ -52,3 +52,7 @@ export function simulatePayment(orderId, paymentId, status = 'SUCCESS', failureR
 export function confirmDelivery(orderId) {
   return api.patch(`/orders/${orderId}/shipment/confirm-delivery`)
 }
+
+export function getShipmentEvents(orderId) {
+  return api.get(`/orders/${orderId}/shipment/events`)
+}

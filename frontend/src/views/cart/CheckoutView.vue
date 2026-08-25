@@ -460,6 +460,8 @@ const buildOrderRequest = () => {
   return {
     addressId: selectedAddressId.value,
 
+    shippingMethod: shippingMethod.value,
+
     buyerRemark: buyerRemark.value.trim(),
     // 會員已領取的優惠券
     memberCouponId: selectedMemberCouponId.value,
@@ -985,17 +987,14 @@ onMounted(() => {
               <!-- 超商 -->
 
               <label
-                class="option-card"
-                :class="{
-                  selected: shippingMethod === 'CONVENIENCE_STORE',
-                }"
+                class="option-card disabled"
+                aria-disabled="true"
               >
                 <input
-                  v-model="shippingMethod"
                   type="radio"
                   value="CONVENIENCE_STORE"
                   name="shipping"
-                  @change="changeShippingMethod"
+                  disabled
                 />
 
                 <span class="radio-dot"></span>
@@ -1003,7 +1002,7 @@ onMounted(() => {
                 <span class="option-content">
                   <strong> 超商取貨 </strong>
 
-                  <span> 取貨時付款 </span>
+                  <span> 即將開放 </span>
                 </span>
               </label>
             </div>
@@ -1698,6 +1697,18 @@ onMounted(() => {
   background: var(--color-primary-soft);
 
   border-color: var(--color-primary);
+}
+
+.option-card.disabled {
+  background: var(--color-surface-soft);
+  border-color: var(--color-border);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.option-card.disabled:hover {
+  background: var(--color-surface-soft);
+  border-color: var(--color-border);
 }
 
 .option-card input {

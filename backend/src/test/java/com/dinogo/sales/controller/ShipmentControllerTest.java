@@ -10,8 +10,12 @@ import org.springframework.http.HttpStatus;
 
 import com.dinogo.sales.dto.shipment.CreateShipmentRequest;
 import com.dinogo.sales.dto.shipment.ShipmentResponse;
+import com.dinogo.sales.dto.shipment.ShipmentEventResponse;
+import com.dinogo.sales.dto.shipment.SimulateTcatEventRequest;
+import java.util.List;
 import com.dinogo.sales.dto.shipment.UpdateShipmentStatusRequest;
 import com.dinogo.sales.dto.shipment.UpdateShipmentTrackingInfoRequest;
+import com.dinogo.sales.entity.ShipmentEventType;
 import com.dinogo.sales.entity.ShipmentStatus;
 import com.dinogo.sales.service.ShipmentService;
 import com.dinogo.security.AuthenticatedMember;
@@ -49,6 +53,36 @@ class ShipmentControllerTest {
         assertThat(actual.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(actual.getBody()).isSameAs(serviceResponse);
         verify(shipmentService).getShipment(10, 6);
+    }
+
+    @Test
+    void getShipmentEventsUsesAuthenticatedMember() {
+        ShipmentService shipmentService = mock(ShipmentService.class);
+        AuthenticatedMember member = new AuthenticatedMember(6, "buyer@example.com");
+        List<ShipmentEventResponse> events = List.of();
+        when(shipmentService.getShipmentEvents(10, 6)).thenReturn(events);
+
+        var actual = new ShipmentController(shipmentService).getShipmentEvents(10, member);
+
+        assertThat(actual.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(actual.getBody()).isSameAs(events);
+        verify(shipmentService).getShipmentEvents(10, 6);
+    }
+
+    @Test
+    void simulateTcatEventUsesAuthenticatedSeller() {
+        ShipmentService shipmentService = mock(ShipmentService.class);
+        AuthenticatedMember member = new AuthenticatedMember(8, "seller@example.com");
+        SimulateTcatEventRequest request = new SimulateTcatEventRequest(ShipmentEventType.IN_TRANSIT);
+        ShipmentResponse serviceResponse = response();
+        when(shipmentService.simulateTcatEvent(10, 8, request)).thenReturn(serviceResponse);
+
+        var actual = new ShipmentController(shipmentService)
+                .simulateTcatEvent(10, member, request);
+
+        assertThat(actual.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(actual.getBody()).isSameAs(serviceResponse);
+        verify(shipmentService).simulateTcatEvent(10, 8, request);
     }
 
     @Test

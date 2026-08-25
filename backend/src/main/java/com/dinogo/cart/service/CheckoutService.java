@@ -26,6 +26,8 @@ import com.dinogo.member.repository.AddressRepository;
 @Transactional(readOnly = true)
 public class CheckoutService {
 
+        private static final String HOME_DELIVERY = "HOME_DELIVERY";
+
         private final ProductSkuRepository productSkuRepository;
         private final AddressRepository addressRepository;
         private final CouponRepository couponRepository;
@@ -50,6 +52,10 @@ public class CheckoutService {
         public CheckoutPreviewResponse preview(
                         CheckoutPreviewRequest request,
                         Integer memberId) {
+
+                if (!HOME_DELIVERY.equals(request.shippingMethod())) {
+                        throw new IllegalArgumentException("目前僅支援宅配");
+                }
 
                 // =====================================================
                 // 1. 驗證地址

@@ -19,6 +19,7 @@ const navItems = [
     icon: 'bi-box-seam',
   },
   { label: '訂單管理', to: '/seller/orders', icon: 'bi-receipt' },
+  { label: '批次出貨', to: '/seller/orders/batch-shipment', icon: 'bi-truck' },
   { label: '優惠券管理', to: '/seller/coupons', icon: 'bi-ticket-perforated' },
   { label: '賣家錢包', to: '/seller/wallet', icon: 'bi-wallet2' },
   { label: '訊息中心', to: '/seller/messages', icon: 'bi-chat-left-text' },
@@ -30,6 +31,10 @@ const plannedItems = [{ label: '銷售分析', icon: 'bi-graph-up-arrow' }]
 const isItemActive = (item) => {
   if (item.to === '/seller/products') {
     return route.path.startsWith('/seller/products')
+  }
+
+  if (item.to === '/seller/orders') {
+    return route.path === item.to
   }
 
   return route.path === item.to

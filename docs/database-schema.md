@@ -676,6 +676,23 @@ Table sales.Shipment {
   '''
 }
 
+// ------------------------------------------------------
+// 物流事件軌跡
+// ------------------------------------------------------
+Table sales.ShipmentEvent {
+  shipment_event_id int [pk, increment]
+  shipment_id int [not null, ref: > sales.Shipment.shipment_id]
+  event_type varchar(30) [not null, note: 'LABEL_CREATED、HANDED_OVER、IN_TRANSIT、OUT_FOR_DELIVERY、AVAILABLE_FOR_PICKUP、DELIVERED']
+  source varchar(20) [not null, note: 'SELLER、CARRIER、SYSTEM、BUYER']
+  remark nvarchar(500)
+  occurred_at datetime2 [not null]
+  created_at datetime2 [not null, default: `SYSDATETIME()`]
+
+  indexes {
+    (shipment_id, occurred_at) [name: 'ix_shipment_event_shipment_occurred']
+  }
+}
+
 // F：評價模組
 Table review.ProductRecord {
   product_record_id int [pk, increment]
@@ -1413,6 +1430,19 @@ CREATE TABLE sales.Shipment (
     updated_at datetime2 NOT NULL CONSTRAINT df_shipment_updated_at DEFAULT SYSDATETIME()
 );
 
+CREATE TABLE sales.ShipmentEvent (
+    shipment_event_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_shipment_event PRIMARY KEY,
+    shipment_id int NOT NULL,
+    event_type varchar(30) NOT NULL,
+    source varchar(20) NOT NULL,
+    remark nvarchar(500) NULL,
+    occurred_at datetime2 NOT NULL,
+    created_at datetime2 NOT NULL CONSTRAINT df_shipment_event_created_at DEFAULT SYSDATETIME(),
+    CONSTRAINT fk_shipment_event_shipment FOREIGN KEY (shipment_id) REFERENCES sales.Shipment(shipment_id),
+    CONSTRAINT ck_shipment_event_type CHECK (event_type IN ('LABEL_CREATED', 'HANDED_OVER', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'AVAILABLE_FOR_PICKUP', 'DELIVERED')),
+    CONSTRAINT ck_shipment_event_source CHECK (source IN ('SELLER', 'CARRIER', 'SYSTEM', 'BUYER'))
+);
+
 CREATE TABLE review.ProductRecord (
     product_record_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_product_record PRIMARY KEY,
     order_item_id int NOT NULL,
@@ -1613,6 +1643,7 @@ CREATE INDEX ix_payment_status ON sales.Payment(status);
 CREATE INDEX ix_payment_order_status ON sales.Payment(order_id, status);
 CREATE INDEX ix_shipment_status ON sales.Shipment(status);
 CREATE INDEX ix_shipment_tracking_no ON sales.Shipment(tracking_no);
+CREATE INDEX ix_shipment_event_shipment_occurred ON sales.ShipmentEvent(shipment_id, occurred_at);
 CREATE INDEX ix_product_record_reviewer_id ON review.ProductRecord(reviewer_id);
 CREATE INDEX ix_member_record_order_id ON review.MemberRecord(order_id);
 CREATE INDEX ix_member_record_reviewer_id ON review.MemberRecord(reviewer_id);
