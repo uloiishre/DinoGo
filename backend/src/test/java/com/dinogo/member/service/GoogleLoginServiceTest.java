@@ -142,6 +142,6 @@ class GoogleLoginServiceTest {
     }
 
     private LoginResponse response(Member member) {
-        return new LoginResponse("jwt", MemberResponse.from(member), List.of("buyer"));
+        return new LoginResponse("jwt", MemberResponse.from(member), List.of("buyer"), null);
     }
 }

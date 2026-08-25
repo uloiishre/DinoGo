@@ -49,7 +49,8 @@ class LoginControllerTest {
         LoginResponse response = new LoginResponse(
                 "jwt-token",
                 new MemberResponse(1, "user@example.com", "王", "小明", null, null, "ACTIVE"),
-                List.of("buyer"));
+                List.of("buyer"),
+                null);
         when(loginService.login(request)).thenReturn(response);
 
         ResponseEntity<?> result = loginController.login(request);
