@@ -38,6 +38,10 @@ public class SecurityConfig {
                                                                 "/api/subcategories/**",
                                                                 "/api/brands/**",
                                                                 "/api/search/**").permitAll()
+                                                // 商品與商家評價摘要是公開內容；其他 Review 操作須登入。
+                                                .requestMatchers(HttpMethod.GET,
+                                                                "/api/reviews/products/**",
+                                                                "/api/reviews/sellers/**").permitAll()
                                                 .requestMatchers("/api/seller/**").hasRole("SELLER")
                                                 .requestMatchers(HttpMethod.POST, "/api/products/**").hasRole("SELLER")
                                                 .requestMatchers(HttpMethod.PATCH, "/api/products/**").hasRole("SELLER")
@@ -65,6 +69,12 @@ public class SecurityConfig {
                                                                 // 收件地址包含個資，只允許已登入會員存取。
                                                 "/api/addresses/**",
                                                                 "/api/member/**")
+                                                .authenticated()
+                                                // 評論資格與資料歸屬由 Review 模組以 JWT principal 驗證；
+                                                // 缺少有效 JWT 時由 Security 層統一回傳 401。
+                                                .requestMatchers(
+                                                                "/api/reviews/orders/**",
+                                                                "/api/reviews/stars/**")
                                                 .authenticated()
                                                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                                                 .anyRequest().permitAll())
