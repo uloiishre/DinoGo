@@ -1,6 +1,7 @@
 package com.dinogo.coupon.service;
 
 import com.dinogo.coupon.dto.CouponCreateRequest;
+import com.dinogo.coupon.dto.PublicCouponResponse;
 import com.dinogo.coupon.dto.CouponResponse;
 import com.dinogo.coupon.dto.CouponUpdateRequest;
 import com.dinogo.coupon.entity.Coupon;
@@ -37,7 +38,7 @@ public class CouponService {
     }
 
     @Transactional(readOnly = true)
-    public List<CouponResponse> getAvailableCoupons() {
+    public List<PublicCouponResponse> getAvailableCoupons() {
         LocalDateTime now = LocalDateTime.now();
 
         return couponRepository.findByStatusOrderByCouponIdDesc("ACTIVE")
@@ -46,7 +47,7 @@ public class CouponService {
                 .filter(coupon -> !coupon.getEndAt().isBefore(now))
                 .filter(coupon -> coupon.getLimitCount() == null
                         || coupon.getUsedCount() < coupon.getLimitCount())
-                .map(this::toResponse)
+                .map(this::toPublicResponse)
                 .toList();
     }
 
@@ -130,6 +131,13 @@ public class CouponService {
                 .map(seller -> seller.getStoreName())
                 .orElse("未知賣家");
         return CouponResponse.from(coupon, sellerName);
+    }
+
+    private PublicCouponResponse toPublicResponse(Coupon coupon) {
+        String sellerName = sellerRepository.findById(coupon.getSellerId())
+                .map(seller -> seller.getStoreName())
+                .orElse("未知賣家");
+        return PublicCouponResponse.from(coupon, sellerName);
     }
 
     private void validateTimeRange(java.time.LocalDateTime startAt, java.time.LocalDateTime endAt) {

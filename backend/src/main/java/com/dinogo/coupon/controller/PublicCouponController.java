@@ -1,6 +1,6 @@
 package com.dinogo.coupon.controller;
 
-import com.dinogo.coupon.dto.CouponResponse;
+import com.dinogo.coupon.dto.PublicCouponResponse;
 import com.dinogo.coupon.service.CouponService;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,7 +18,7 @@ public class PublicCouponController {
     }
 
     @GetMapping("/available")
-    public List<CouponResponse> getAvailableCoupons() {
+    public List<PublicCouponResponse> getAvailableCoupons() {
         return couponService.getAvailableCoupons();
     }
 }

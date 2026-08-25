@@ -96,8 +96,7 @@ onMounted(loadCoupons)
       <article v-for="coupon in coupons" :key="coupon.couponId" class="coupon-ticket">
         <div class="coupon-ticket__value">{{ discountText(coupon) }}</div>
         <div class="coupon-ticket__body">
-          <span class="coupon-code">{{ coupon.couponCode }}</span>
-          <span class="coupon-seller">{{ coupon.sellerName || `賣家 #${coupon.sellerId}` }}</span>
+          <span class="coupon-code">{{ coupon.sellerName || 'DINO-GO 合作商家' }}</span>
           <h2>{{ coupon.couponName }}</h2>
           <p>{{ requirementText(coupon) }}</p>
           <small>有效期限至 {{ expiryText(coupon.endAt) }}</small>
