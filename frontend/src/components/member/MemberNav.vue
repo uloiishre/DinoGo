@@ -36,6 +36,7 @@ const accountItems = [
   { label: '個人資料', routeName: 'MemberProfile', icon: 'bi-person-vcard' },
   { label: '地址管理', routeName: 'MemberAddresses', icon: 'bi-geo-alt' },
   { label: '修改密碼', routeName: 'MemberPassword', icon: 'bi-key' },
+  { label: '註銷帳號', routeName: 'MemberDeactivateAccount', icon: 'bi-person-x' },
 ]
 const isAccountActive = computed(() => accountItems.some((item) => item.routeName === route.name))
 </script>

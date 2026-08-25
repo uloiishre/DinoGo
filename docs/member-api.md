@@ -153,6 +153,7 @@ Request：
 {
   "token": "<jwt>",
   "roles": ["buyer"],
+  "sellerId": null,
   "member": {
     "memberId": 1,
     "email": "member@example.com",
@@ -177,7 +178,7 @@ Request：
 | 400 | `請求內容格式錯誤` | JSON 格式錯誤 |
 | 401 | `Email 或密碼錯誤` | Email 不存在、密碼錯誤或帳號不是 `ACTIVE` |
 
-登入成功後，將 `token` 儲存並加到後續請求的 `Authorization` header；`roles` 可供前端導覽與路由判斷使用，但後端授權仍只信任 JWT claim。不要把密碼或完整 token 寫入 log。
+登入成功後，將 `token` 儲存並加到後續請求的 `Authorization` header；`roles` 可供前端導覽與路由判斷使用，但後端授權仍只信任 JWT claim。`sellerId` 僅在目前會員有 `ACTIVE` 商家資料時回傳其 ID，否則為 `null`；它可用於賣家中心流程，但後端仍必須由 JWT principal 驗證商家身分與資料 ownership。不要把密碼或完整 token 寫入 log。
 
 ### Google 登入與帳號綁定
 
@@ -262,6 +263,26 @@ Request：
 ## 會員資料 API
 
 以下 API 都需要 `Authorization: Bearer <token>`。
+
+### 註銷目前帳號
+
+`POST /api/member/account/deactivate`
+
+```json
+{ "currentPassword": "current-password" }
+```
+
+成功回傳 `204 No Content`，帳號狀態改為 `DEACTIVATED`，並立即使所有 JWT 失效。商家會員或有 `PENDING_PAYMENT`、`PAID`、`PROCESSING`、`SHIPPED` 買家訂單時回傳 `400`，不得自行註銷。
+
+## 管理員會員 API
+
+以下 API 需 `admin` 角色。
+
+- `GET /api/admin/members?status=ACTIVE|SUSPENDED|DEACTIVATED&keyword=`：會員清單。
+- `POST /api/admin/members/{memberId}/suspend`：body `{ "reason": "..." }`，停權帳號並使其既有 JWT 失效。
+- `POST /api/admin/members/{memberId}/restore`：恢復已停權帳號。
+
+帳號狀態僅接受 `ACTIVE`、`SUSPENDED`、`DEACTIVATED`。管理員不可停權或恢復自己的帳號；`DEACTIVATED` 帳號不可由此 API 恢復。
 
 ### 取得目前會員資料
 

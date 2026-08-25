@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -38,6 +39,7 @@ import com.dinogo.security.AuthenticatedMember;
 import com.dinogo.security.JwtAuthenticationFilter;
 import com.dinogo.security.JwtTokenUtil;
 import com.dinogo.seller.controller.SellerProductController;
+import com.dinogo.seller.service.CurrentSellerService;
 import com.dinogo.seller.service.SellerProductService;
 
 @WebMvcTest({
@@ -58,6 +60,9 @@ class RoleAuthorizationSecurityTest {
 
     @MockitoBean
     private CouponService couponService;
+
+    @MockitoBean
+    private CurrentSellerService currentSellerService;
 
     @MockitoBean
     private ProductService productService;
@@ -84,6 +89,12 @@ class RoleAuthorizationSecurityTest {
                         .content("{}"))
                 .andExpect(status().isUnauthorized());
 
+        mockMvc.perform(delete("/api/products/1"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(delete("/api/products/1/images/2"))
+                .andExpect(status().isUnauthorized());
+
         mockMvc.perform(patch("/api/orders/1/status")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"PROCESSING\"}"))
@@ -102,6 +113,14 @@ class RoleAuthorizationSecurityTest {
         mockMvc.perform(post("/api/products")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}")
+                        .with(authentication(authenticationForRole("BUYER"))))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(delete("/api/products/1")
+                        .with(authentication(authenticationForRole("BUYER"))))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(delete("/api/products/1/images/2")
                         .with(authentication(authenticationForRole("BUYER"))))
                 .andExpect(status().isForbidden());
 
@@ -204,6 +223,7 @@ class RoleAuthorizationSecurityTest {
     void sellerCanReachSellerEndpointsAndOrderStatusUpdate() throws Exception {
         when(sellerProductService.getProducts(1)).thenReturn(List.of());
         when(couponService.getCoupons(1)).thenReturn(List.of());
+        when(currentSellerService.requireMatchingActiveSellerId(1, 1)).thenReturn(1);
 
         mockMvc.perform(get("/api/seller/products")
                         .param("sellerId", "1")
@@ -221,6 +241,14 @@ class RoleAuthorizationSecurityTest {
                         .with(authentication(authenticationForRole("SELLER"))))
                 .andExpect(status().isOk());
 
+        mockMvc.perform(delete("/api/products/1")
+                        .with(authentication(authenticationForRole("SELLER"))))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(delete("/api/products/1/images/2")
+                        .with(authentication(authenticationForRole("SELLER"))))
+                .andExpect(status().isOk());
+
         mockMvc.perform(patch("/api/orders/1/status")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"PROCESSING\"}")
@@ -229,7 +257,9 @@ class RoleAuthorizationSecurityTest {
 
         verify(sellerProductService).getProducts(1);
         verify(couponService).getCoupons(1);
-        verify(productService).createProduct(any());
+        verify(productService).createProduct(any(), eq(1));
+        verify(productService).deleteProduct(1, 1);
+        verify(productService).deleteImage(1, 2, 1);
         verify(orderService).updateStatusBySeller(1, 1, OrderStatus.PROCESSING, null);
     }
 

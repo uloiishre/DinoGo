@@ -11,3 +11,7 @@ export function updateMemberProfile(request) {
 export function changePassword(request) {
   return api.put('/member/password', request)
 }
+
+export function deactivateMemberAccount(request) {
+  return api.post('/member/account/deactivate', request)
+}

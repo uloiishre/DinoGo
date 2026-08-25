@@ -44,4 +44,7 @@ public interface MemberRepository extends JpaRepository<Member, Integer> {
 
     @EntityGraph(attributePaths = { "memberRoles", "memberRoles.role" })
     public List<Member> findAllByStatusIgnoreCase(String status);
+
+    @EntityGraph(attributePaths = { "memberRoles", "memberRoles.role" })
+    List<Member> findAllByOrderByCreatedAtDesc();
 }

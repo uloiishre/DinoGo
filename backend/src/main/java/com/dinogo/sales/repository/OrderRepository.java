@@ -1,6 +1,7 @@
 package com.dinogo.sales.repository;
 
 import java.util.List;
+import java.util.Collection;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -54,6 +55,8 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
 
     @EntityGraph(attributePaths = "orderItems")
     List<Order> findBySellerIdOrderByCreatedAtDesc(Integer sellerId);
+
+    boolean existsByBuyerIdAndStatusIn(Integer buyerId, Collection<com.dinogo.sales.entity.OrderStatus> statuses);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @EntityGraph(attributePaths = "payments")

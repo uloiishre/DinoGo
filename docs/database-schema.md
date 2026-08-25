@@ -113,6 +113,19 @@ Table member.MemberOAuthAccount {
   }
 }
 
+// A：會員帳號狀態異動稽核
+Table member.MemberAccountStatusHistory {
+  history_id int [pk, increment]
+  member_id int [not null, ref: > member.Member.member_id]
+  previous_status varchar(20) [not null]
+  new_status varchar(20) [not null]
+  reason nvarchar(500)
+  changed_by int [ref: > member.Member.member_id]
+  changed_at datetime2 [not null, default: `SYSDATETIME()`]
+
+  indexes { (member_id, changed_at) }
+}
+
 // E：賣家中心模組 - 商家資料
 Table seller.Seller {
   seller_id int [pk, increment]
@@ -1187,7 +1200,8 @@ CREATE TABLE member.Member (
     email_marketing_notifications bit NOT NULL CONSTRAINT df_member_email_marketing_notifications DEFAULT 0,
     status varchar(20) NOT NULL CONSTRAINT df_member_status DEFAULT 'ACTIVE',
     created_at datetime2 NOT NULL CONSTRAINT df_member_created_at DEFAULT SYSDATETIME(),
-    updated_at datetime2 NOT NULL CONSTRAINT df_member_updated_at DEFAULT SYSDATETIME()
+    updated_at datetime2 NOT NULL CONSTRAINT df_member_updated_at DEFAULT SYSDATETIME(),
+    CONSTRAINT ck_member_status CHECK (status IN ('ACTIVE', 'SUSPENDED', 'DEACTIVATED'))
 );
 
 CREATE TABLE member.Address (
@@ -1227,6 +1241,16 @@ CREATE TABLE member.MemberOAuthAccount (
     updated_at datetime2 NOT NULL CONSTRAINT df_member_oauth_account_updated_at DEFAULT SYSDATETIME(),
     CONSTRAINT uq_member_oauth_provider_user UNIQUE (provider, provider_user_id),
     CONSTRAINT uq_member_oauth_member_provider UNIQUE (member_id, provider)
+);
+
+CREATE TABLE member.MemberAccountStatusHistory (
+    history_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_member_account_status_history PRIMARY KEY,
+    member_id int NOT NULL CONSTRAINT fk_member_account_status_history_member FOREIGN KEY REFERENCES member.Member(member_id),
+    previous_status varchar(20) NOT NULL,
+    new_status varchar(20) NOT NULL,
+    reason nvarchar(500) NULL,
+    changed_by int NULL CONSTRAINT fk_member_account_status_history_changed_by FOREIGN KEY REFERENCES member.Member(member_id),
+    changed_at datetime2 NOT NULL CONSTRAINT df_member_account_status_history_changed_at DEFAULT SYSDATETIME()
 );
 
 CREATE TABLE seller.Seller (
