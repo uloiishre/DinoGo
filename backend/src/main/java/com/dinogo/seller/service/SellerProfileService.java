@@ -55,7 +55,7 @@ public class SellerProfileService {
 
     @Transactional(readOnly = true)
     public SellerProfileResponse getPublicStore(Integer sellerId) {
-        Seller seller = sellerRepository.findBySellerId(sellerId)
+        Seller seller = sellerRepository.findBySellerIdAndStatusIgnoreCase(sellerId, "ACTIVE")
                 .orElseThrow(() -> new IllegalArgumentException("Store not found."));
 
         return SellerProfileResponse.from(seller);
@@ -67,7 +67,7 @@ public class SellerProfileService {
         String safeKeyword = keyword == null ? "" : keyword.trim();
 
         return sellerRepository
-                .findByStoreNameContainingAndStatus(safeKeyword, "ACTIVE")
+                .findByStoreNameContainingAndStatusIgnoreCase(safeKeyword, "ACTIVE")
                 .stream()
                 .map(SellerProfileResponse::from)
                 .toList();

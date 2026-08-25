@@ -12,6 +12,7 @@ import com.dinogo.seller.entity.Seller;
 
 public interface SellerRepository extends JpaRepository<Seller, Integer> {
     Optional<Seller> findBySellerId(Integer sellerId);
+    Optional<Seller> findBySellerIdAndStatusIgnoreCase(Integer sellerId, String status);
     Optional<Seller> findByMember_MemberId(Integer memberId);
 
     //sysmsg-start，總共3次修改，第2次//
@@ -29,5 +30,5 @@ public interface SellerRepository extends JpaRepository<Seller, Integer> {
     boolean existsBySellerId(Integer sellerId);
     boolean existsBySellerIdAndStatus(Integer sellerId, String status);
     boolean existsByMember_MemberId(Integer memberId);
-    List<Seller> findByStoreNameContainingAndStatus(String keyword, String status);
+    List<Seller> findByStoreNameContainingAndStatusIgnoreCase(String keyword, String status);
 }
