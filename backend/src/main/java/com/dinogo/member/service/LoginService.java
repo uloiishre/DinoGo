@@ -14,22 +14,27 @@ import com.dinogo.member.entity.MemberRole;
 import com.dinogo.member.repository.MemberRoleRepository;
 import com.dinogo.member.repository.MemberRepository;
 import com.dinogo.security.JwtTokenUtil;
+import com.dinogo.seller.entity.Seller;
+import com.dinogo.seller.repository.SellerRepository;
 
 @Service
 public class LoginService {
 
     private final MemberRepository memberRepository;
     private final MemberRoleRepository memberRoleRepository;
+    private final SellerRepository sellerRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenUtil jwtTokenUtil;
 
     public LoginService(
             MemberRepository memberRepository,
             MemberRoleRepository memberRoleRepository,
+            SellerRepository sellerRepository,
             PasswordEncoder passwordEncoder,
             JwtTokenUtil jwtTokenUtil) {
         this.memberRepository = memberRepository;
         this.memberRoleRepository = memberRoleRepository;
+        this.sellerRepository = sellerRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenUtil = jwtTokenUtil;
     }
@@ -58,6 +63,10 @@ public class LoginService {
 
         String token = jwtTokenUtil.generateToken(
                 member.getEmail(), member.getMemberId(), roles, member.getAuthVersion());
-        return new LoginResponse(token, MemberResponse.from(member), roles);
+        Integer sellerId = sellerRepository.findByMember_MemberId(member.getMemberId())
+                .filter(seller -> "ACTIVE".equals(seller.getStatus()))
+                .map(Seller::getSellerId)
+                .orElse(null);
+        return new LoginResponse(token, MemberResponse.from(member), roles, sellerId);
     }
 }

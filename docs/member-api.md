@@ -153,6 +153,7 @@ Request：
 {
   "token": "<jwt>",
   "roles": ["buyer"],
+  "sellerId": null,
   "member": {
     "memberId": 1,
     "email": "member@example.com",
@@ -177,7 +178,7 @@ Request：
 | 400 | `請求內容格式錯誤` | JSON 格式錯誤 |
 | 401 | `Email 或密碼錯誤` | Email 不存在、密碼錯誤或帳號不是 `ACTIVE` |
 
-登入成功後，將 `token` 儲存並加到後續請求的 `Authorization` header；`roles` 可供前端導覽與路由判斷使用，但後端授權仍只信任 JWT claim。不要把密碼或完整 token 寫入 log。
+登入成功後，將 `token` 儲存並加到後續請求的 `Authorization` header；`roles` 可供前端導覽與路由判斷使用，但後端授權仍只信任 JWT claim。`sellerId` 僅在目前會員有 `ACTIVE` 商家資料時回傳其 ID，否則為 `null`；它可用於賣家中心流程，但後端仍必須由 JWT principal 驗證商家身分與資料 ownership。不要把密碼或完整 token 寫入 log。
 
 ### Google 登入與帳號綁定
 
