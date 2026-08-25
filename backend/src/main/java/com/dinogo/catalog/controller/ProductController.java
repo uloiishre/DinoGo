@@ -47,6 +47,7 @@ public class ProductController {
             @RequestParam(required = false) Integer categoryId,
             @RequestParam(required = false) Integer subcategoryId,
             @RequestParam(required = false) Integer brandId,
+            @RequestParam(required = false) Integer sellerId,
             @RequestParam(defaultValue = "0") Integer page,
             @RequestParam(defaultValue = "12") Integer size,
             @RequestParam(required = false) String sort) {
@@ -56,6 +57,7 @@ public class ProductController {
                 categoryId,
                 subcategoryId,
                 brandId,
+                sellerId,
                 page,
                 size,
                 sort);
