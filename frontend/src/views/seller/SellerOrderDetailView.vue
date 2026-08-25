@@ -385,12 +385,6 @@ onUnmounted(() => {
               <p class="section-label">送達時間</p>
               <strong>{{ formatDate(order.shipment.deliveredAt) }}</strong>
             </div>
-            <p
-              v-if="order.shipment.status === 'PREPARING' && order.status === 'PAID'"
-              class="shipment-hint"
-            >
-              訂單付款完成，等待處理出貨。
-            </p>
             <p v-if="shipmentActionError" class="form-error" role="alert">
               {{ shipmentActionError }}
             </p>
@@ -756,12 +750,6 @@ h2 {
 .form-error {
   color: var(--color-danger) !important;
   font-size: var(--font-size-sm);
-}
-.shipment-hint {
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
-  background: var(--color-warning-soft);
-  color: var(--color-warning) !important;
 }
 .shipment-submit {
   border: 1px solid var(--color-primary-700);
