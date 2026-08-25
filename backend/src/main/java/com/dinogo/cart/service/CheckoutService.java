@@ -191,6 +191,7 @@ public class CheckoutService {
                         // -------------------------------------------------
 
                         BigDecimal itemSubtotal = sku.getPrice()
+                                        .setScale(0, RoundingMode.HALF_UP)
                                         .multiply(
                                                         BigDecimal.valueOf(item.quantity()));
 
@@ -235,10 +236,10 @@ public class CheckoutService {
                 // =====================================================
 
                 return new CheckoutPreviewResponse(
-                                subtotal,
-                                shippingFee,
-                                discount,
-                                totalAmount);
+                                subtotal.setScale(0, RoundingMode.HALF_UP),
+                                shippingFee.setScale(0, RoundingMode.HALF_UP),
+                                discount.setScale(0, RoundingMode.HALF_UP),
+                                totalAmount.setScale(0, RoundingMode.HALF_UP));
         }
 
         // =========================================================

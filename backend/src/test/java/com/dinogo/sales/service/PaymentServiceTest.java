@@ -1,6 +1,7 @@
 package com.dinogo.sales.service;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -30,6 +31,7 @@ import com.dinogo.sales.exception.OrderNotFoundException;
 import com.dinogo.sales.repository.OrderRepository;
 import com.dinogo.sales.repository.PaymentMethodRepository;
 import com.dinogo.sales.repository.PaymentRepository;
+import com.dinogo.sales.service.EcpayPaymentGateway;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceTest {
@@ -40,6 +42,8 @@ class PaymentServiceTest {
     private PaymentMethodRepository paymentMethodRepository;
     @Mock
     private OrderRepository orderRepository;
+    @Mock
+    private EcpayPaymentGateway ecpayPaymentGateway;
 
     private PaymentService paymentService;
 
@@ -49,7 +53,7 @@ class PaymentServiceTest {
                 paymentRepository,
                 paymentMethodRepository,
                 orderRepository,
-                true);
+                true, ecpayPaymentGateway);
     }
 
     @Test
@@ -142,6 +146,8 @@ class PaymentServiceTest {
         assertEquals(new BigDecimal("1000.00"), response.amount());
         assertEquals(PaymentStatus.PENDING, response.status());
         assertEquals("CREDIT_CARD", response.paymentMethodCode());
+        assertEquals(20, response.paymentNo().length());
+        assertTrue(response.paymentNo().matches("PAY\\d{12}[A-Z0-9]{5}"));
     }
 
     @Test
@@ -150,7 +156,7 @@ class PaymentServiceTest {
                 paymentRepository,
                 paymentMethodRepository,
                 orderRepository,
-                false);
+                false, ecpayPaymentGateway);
 
         assertThrows(
                 InvalidOrderException.class,

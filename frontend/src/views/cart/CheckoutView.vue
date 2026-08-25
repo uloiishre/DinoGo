@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/api/axios'
-import { createPayment, getPaymentCapabilities, simulatePayment } from '@/api/order'
+import { createPayment, getPaymentCapabilities, simulatePayment, submitEcpayCheckout } from '@/api/order'
 import { logSafeError } from '@/utils/safeError'
 import { getImageUrl } from '@/utils/imageUrl'
 
@@ -539,7 +539,7 @@ const submitOrder = async () => {
       : null
   let createdOrderId = null
 
-  if (submittedPaymentMethod !== 'CASH_ON_DELIVERY' && !paymentSimulationEnabled.value) {
+  if (submittedPaymentMethod === 'LINE_PAY' && !paymentSimulationEnabled.value) {
     errorMessage.value = '目前環境未啟用線上付款，請選擇貨到付款。'
     return
   }
@@ -575,6 +575,11 @@ const submitOrder = async () => {
 
     try {
       const paymentResponse = await createPayment(createdOrderId, submittedPaymentMethod)
+
+      if (submittedPaymentMethod === 'CREDIT_CARD' && paymentResponse.data.ecpayCheckout) {
+        submitEcpayCheckout(paymentResponse.data.ecpayCheckout)
+        return
+      }
 
       if (submittedPaymentMethod !== 'CASH_ON_DELIVERY' && onlinePaymentAvailable.value) {
         await simulatePayment(

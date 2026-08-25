@@ -1,6 +1,7 @@
 package com.dinogo.sales.service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
@@ -126,8 +127,9 @@ public class OrderService {
                 throw new InvalidOrderException("One order can only contain products from one seller");
             }
 
-            BigDecimal itemSubtotal = sku.getPrice().multiply(BigDecimal.valueOf(itemRequest.quantity()));
-            order.addOrderItem(createOrderItem(sku, itemRequest.quantity(), itemSubtotal));
+            BigDecimal unitPrice = roundToWholeTwd(sku.getPrice());
+            BigDecimal itemSubtotal = unitPrice.multiply(BigDecimal.valueOf(itemRequest.quantity()));
+            order.addOrderItem(createOrderItem(sku, itemRequest.quantity(), unitPrice, itemSubtotal));
             subtotalAmount = subtotalAmount.add(itemSubtotal);
             couponItems.add(new CouponItem(product, itemSubtotal));
             int updated = productSkuRepository.deductStockIfAvailable(
@@ -151,10 +153,13 @@ public class OrderService {
             discountAmount = appliedCoupon.discount();
         }
         order.setSellerId(sellerId);
+        subtotalAmount = roundToWholeTwd(subtotalAmount);
+        shippingFee = roundToWholeTwd(shippingFee);
+        discountAmount = roundToWholeTwd(discountAmount);
         order.setSubtotalAmount(subtotalAmount);
         order.setShippingFee(shippingFee);
         order.setDiscountAmount(discountAmount);
-        order.setTotalAmount(subtotalAmount.add(shippingFee).subtract(discountAmount));
+        order.setTotalAmount(roundToWholeTwd(subtotalAmount.add(shippingFee).subtract(discountAmount)));
 
         Order savedOrder = orderRepository.save(order);
         if (appliedCoupon != null) {
@@ -322,7 +327,7 @@ public class OrderService {
         return order;
     }
 
-    private OrderItem createOrderItem(ProductSku sku, Integer quantity, BigDecimal subtotal) {
+    private OrderItem createOrderItem(ProductSku sku, Integer quantity, BigDecimal unitPrice, BigDecimal subtotal) {
         Product product = sku.getProduct();
         OrderItem item = new OrderItem();
         item.setProductId(product.getProductId());
@@ -330,11 +335,15 @@ public class OrderService {
         item.setProductName(product.getProductName());
         item.setSkuSpec(buildSkuSpec(sku));
         item.setProductImageUrl(findMainImageUrl(product));
-        item.setUnitPrice(sku.getPrice());
+        item.setUnitPrice(unitPrice);
         item.setQuantity(quantity);
         item.setSubtotal(subtotal);
         item.setIsReviewed(false);
         return item;
+    }
+
+    private BigDecimal roundToWholeTwd(BigDecimal amount) {
+        return amount.setScale(0, RoundingMode.HALF_UP);
     }
 
     private String buildSkuSpec(ProductSku sku) {

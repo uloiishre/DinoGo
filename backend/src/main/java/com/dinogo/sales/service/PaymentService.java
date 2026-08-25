@@ -2,6 +2,7 @@ package com.dinogo.sales.service;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.security.SecureRandom;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -10,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 
 import com.dinogo.sales.dto.payment.CreatePaymentRequest;
 import com.dinogo.sales.dto.payment.PaymentResponse;
+import com.dinogo.sales.dto.payment.EcpayCheckout;
 import com.dinogo.sales.dto.payment.SimulatePaymentRequest;
 import com.dinogo.sales.entity.Order;
 import com.dinogo.sales.entity.OrderStatus;
@@ -26,23 +28,27 @@ import com.dinogo.sales.repository.PaymentRepository;
 public class PaymentService {
 
     private static final String CASH_ON_DELIVERY = "CASH_ON_DELIVERY";
-    private static final DateTimeFormatter PAYMENT_NO_FORMAT =
-            DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final String PAYMENT_NO_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    private static final int PAYMENT_NO_RETRY_LIMIT = 5;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final PaymentRepository paymentRepository;
     private final PaymentMethodRepository paymentMethodRepository;
     private final OrderRepository orderRepository;
     private final boolean simulationEnabled;
+    private final EcpayPaymentGateway ecpayPaymentGateway;
 
     public PaymentService(
             PaymentRepository paymentRepository,
             PaymentMethodRepository paymentMethodRepository,
             OrderRepository orderRepository,
-            @Value("${app.payment.simulation-enabled:false}") boolean simulationEnabled) {
+            @Value("${app.payment.simulation-enabled:false}") boolean simulationEnabled,
+            EcpayPaymentGateway ecpayPaymentGateway) {
         this.paymentRepository = paymentRepository;
         this.paymentMethodRepository = paymentMethodRepository;
         this.orderRepository = orderRepository;
         this.simulationEnabled = simulationEnabled;
+        this.ecpayPaymentGateway = ecpayPaymentGateway;
     }
 
     @Transactional
@@ -51,7 +57,8 @@ public class PaymentService {
             Integer buyerId,
             CreatePaymentRequest request) {
 
-        if (!simulationEnabled && !CASH_ON_DELIVERY.equals(request.paymentMethodCode())) {
+        if (!simulationEnabled && !CASH_ON_DELIVERY.equals(request.paymentMethodCode())
+                && !("CREDIT_CARD".equals(request.paymentMethodCode()) && ecpayPaymentGateway.isEnabled())) {
             throw new InvalidOrderException(
                     "Online payment is not available in this environment");
         }
@@ -79,7 +86,7 @@ public class PaymentService {
         if (pendingPayment != null) {
             if (pendingPayment.getPaymentMethod().getMethodCode()
                     .equals(request.paymentMethodCode())) {
-                return toResponse(pendingPayment);
+                return toResponse(pendingPayment, checkoutFor(pendingPayment));
             }
             throw new InvalidOrderException(
                     "A pending payment with a different method already exists for this order");
@@ -106,7 +113,7 @@ public class PaymentService {
         }
 
         Payment savedPayment = paymentRepository.save(payment);
-        return toResponse(savedPayment);
+        return toResponse(savedPayment, checkoutFor(savedPayment));
     }
 
     @Transactional
@@ -161,13 +168,17 @@ public class PaymentService {
     }
 
     private String generatePaymentNo() {
-        return "PAY"
-                + LocalDateTime.now().format(PAYMENT_NO_FORMAT)
-                + UUID.randomUUID()
-                        .toString()
-                        .replace("-", "")
-                        .substring(0, 8)
-                        .toUpperCase();
+        for (int attempt = 0; attempt < PAYMENT_NO_RETRY_LIMIT; attempt++) {
+            StringBuilder paymentNo = new StringBuilder("PAY")
+                    .append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyMMddHHmmss")));
+            for (int index = 0; index < 5; index++) {
+                paymentNo.append(PAYMENT_NO_ALPHABET.charAt(SECURE_RANDOM.nextInt(PAYMENT_NO_ALPHABET.length())));
+            }
+            if (!paymentRepository.existsByPaymentNo(paymentNo.toString())) {
+                return paymentNo.toString();
+            }
+        }
+        throw new InvalidOrderException("Unable to generate a unique payment number");
     }
 
     private String generateTransactionNo() {
@@ -182,7 +193,13 @@ public class PaymentService {
         return normalized.length() <= 255 ? normalized : normalized.substring(0, 255);
     }
 
-    private PaymentResponse toResponse(Payment payment) {
+    private EcpayCheckout checkoutFor(Payment payment) {
+        return "CREDIT_CARD".equals(payment.getPaymentMethod().getMethodCode()) && ecpayPaymentGateway.isEnabled()
+                ? ecpayPaymentGateway.checkout(payment) : null;
+    }
+
+    private PaymentResponse toResponse(Payment payment) { return toResponse(payment, null); }
+    private PaymentResponse toResponse(Payment payment, EcpayCheckout ecpayCheckout) {
         return new PaymentResponse(
                 payment.getPaymentId(),
                 payment.getPaymentNo(),
@@ -193,6 +210,6 @@ public class PaymentService {
                 payment.getTransactionNo(),
                 payment.getFailureReason(),
                 payment.getPaidAt(),
-                payment.getCreatedAt());
+                payment.getCreatedAt(), ecpayCheckout);
     }
 }
