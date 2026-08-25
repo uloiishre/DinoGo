@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/api/axios'
-import { createPayment, getPaymentCapabilities, getPaymentMethods, simulatePayment } from '@/api/order'
+import { createPayment, getPaymentCapabilities, simulatePayment, submitEcpayCheckout } from '@/api/order'
 import { logSafeError } from '@/utils/safeError'
 import { getImageUrl } from '@/utils/imageUrl'
 
@@ -47,7 +47,6 @@ const shippingMethod = ref('HOME_DELIVERY')
 // 付款方式
 // ========================================
 const paymentMethod = ref('CASH_ON_DELIVERY')
-const paymentMethods = ref([])
 const paymentSimulationEnabled = ref(false)
 const simulatedPaymentStatus = ref('SUCCESS')
 const simulatedPaymentFailureReason = ref('')
@@ -65,20 +64,6 @@ const loadPaymentCapabilities = async () => {
     logSafeError('取得付款能力失敗：', error)
 
     paymentSimulationEnabled.value = false
-  }
-}
-
-const loadPaymentMethods = async () => {
-  try {
-    const response = await getPaymentMethods()
-    paymentMethods.value = Array.isArray(response.data) ? response.data : []
-
-    if (!paymentMethods.value.some((method) => method.paymentMethodCode === paymentMethod.value)) {
-      paymentMethod.value = paymentMethods.value[0]?.paymentMethodCode ?? ''
-    }
-  } catch (error) {
-    logSafeError('Failed to load payment methods:', error)
-    paymentMethods.value = []
   }
 }
 
@@ -122,12 +107,6 @@ const selectedCoupon = computed(() => {
 })
 
 const onlinePaymentAvailable = computed(() => true)
-
-const availablePaymentMethods = computed(() =>
-  paymentMethods.value.filter((method) =>
-    method.paymentMethodCode === 'CASH_ON_DELIVERY' || onlinePaymentAvailable.value,
-  ),
-)
 
 // ========================================
 // 金額格式
@@ -560,7 +539,7 @@ const submitOrder = async () => {
       : null
   let createdOrderId = null
 
-  if (submittedPaymentMethod !== 'CASH_ON_DELIVERY' && !paymentSimulationEnabled.value) {
+  if (submittedPaymentMethod === 'LINE_PAY' && !paymentSimulationEnabled.value) {
     errorMessage.value = '目前環境未啟用線上付款，請選擇貨到付款。'
     return
   }
@@ -596,6 +575,11 @@ const submitOrder = async () => {
 
     try {
       const paymentResponse = await createPayment(createdOrderId, submittedPaymentMethod)
+
+      if (submittedPaymentMethod === 'CREDIT_CARD' && paymentResponse.data.ecpayCheckout) {
+        submitEcpayCheckout(paymentResponse.data.ecpayCheckout)
+        return
+      }
 
       if (submittedPaymentMethod !== 'CASH_ON_DELIVERY' && onlinePaymentAvailable.value) {
         await simulatePayment(
@@ -683,7 +667,7 @@ const init = async () => {
   }
 
   // 同時取得地址與優惠券
-  await Promise.all([loadAddresses(), loadCoupons(), loadPaymentCapabilities(), loadPaymentMethods()])
+  await Promise.all([loadAddresses(), loadCoupons(), loadPaymentCapabilities()])
 
   // 有地址才取得結帳金額
   if (selectedAddressId.value) {
@@ -1041,7 +1025,6 @@ onMounted(() => {
               <!-- 貨到付款 -->
 
               <label
-                v-if="paymentMethods.length === 0"
                 class="option-card"
                 :class="{
                   selected: paymentMethod === 'CASH_ON_DELIVERY',
@@ -1067,7 +1050,7 @@ onMounted(() => {
               <!-- 信用卡 -->
 
               <label
-                v-if="paymentMethods.length === 0 && onlinePaymentAvailable"
+                v-if="onlinePaymentAvailable"
                 class="option-card"
                 :class="{
                   selected: paymentMethod === 'CREDIT_CARD',
@@ -1091,32 +1074,10 @@ onMounted(() => {
                 </span>
               </label>
 
-              <label
-                v-for="method in availablePaymentMethods"
-                :key="method.paymentMethodCode"
-                class="option-card"
-                :class="{ selected: paymentMethod === method.paymentMethodCode }"
-              >
-                <input
-                  v-model="paymentMethod"
-                  type="radio"
-                  :value="method.paymentMethodCode"
-                  name="payment"
-                  :disabled="submitting"
-                  @change="changePaymentMethod"
-                />
-
-                <span class="radio-dot"></span>
-
-                <span class="option-content">
-                  <strong>{{ method.paymentMethodName }}</strong>
-                </span>
-              </label>
-
               <!-- LINE Pay -->
 
               <label
-                v-if="paymentMethods.length === 0 && onlinePaymentAvailable"
+                v-if="onlinePaymentAvailable"
                 class="option-card"
                 :class="{
                   selected: paymentMethod === 'LINE_PAY',

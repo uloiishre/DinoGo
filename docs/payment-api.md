@@ -48,6 +48,12 @@ Content-Type: application/json
 }
 ```
 
+When `paymentMethodCode` is `CREDIT_CARD` and ECPay is enabled, the response additionally
+contains `ecpayCheckout`. The browser must create a form from `fields` and POST it to
+`action`; it must never handle card details itself. ECPay posts its server-to-server result
+to `POST /api/ecpay/callback`, which validates `CheckMacValue`, amount, and payment status
+before transitioning the order to `PAID`.
+
 成功回傳 `201 Created` 與 `Location: /api/orders/{orderId}/payments/{paymentId}`。
 
 - 金額由後端訂單總額決定，不接受前端金額。

@@ -19,6 +19,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Integer> {
 
     boolean existsByOrderOrderIdAndStatus(Integer orderId, PaymentStatus status);
 
+    boolean existsByPaymentNo(String paymentNo);
+
     @EntityGraph(attributePaths = "paymentMethod")
     Optional<Payment> findFirstByOrderOrderIdAndStatus(
             Integer orderId,
@@ -43,4 +45,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Integer> {
             @Param("paymentId") Integer paymentId,
             @Param("orderId") Integer orderId,
             @Param("buyerId") Integer buyerId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = { "order", "paymentMethod" })
+    Optional<Payment> findByPaymentNo(String paymentNo);
 }
