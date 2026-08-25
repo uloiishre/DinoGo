@@ -76,7 +76,7 @@ public class EcpayCallbackController {
                 log.error("ECPay callback would create a second successful payment: MerchantTradeNo={}", merchantTradeNo);
                 return ResponseEntity.badRequest().body("Duplicate successful payment");
             }
-            payment.setStatus(PaymentStatus.SUCCESS); payment.setTransactionNo(tradeNo); payment.setPaidAt(LocalDateTime.now()); payment.getOrder().setStatus(OrderStatus.PAID);
+            payment.setStatus(PaymentStatus.SUCCESS); payment.setTransactionNo(tradeNo); payment.setPaidAt(LocalDateTime.now()); payment.getOrder().setStatus(OrderStatus.PROCESSING);
         } else { payment.setStatus(PaymentStatus.FAILED); String message = fields.getOrDefault("RtnMsg", "ECPay payment failed"); payment.setFailureReason(message.substring(0, Math.min(255, message.length()))); }
         paymentRepository.save(payment);
         return ResponseEntity.ok("1|OK");

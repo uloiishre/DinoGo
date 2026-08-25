@@ -71,7 +71,7 @@ class PaymentServiceTest {
                 new SimulatePaymentRequest(PaymentStatus.SUCCESS, null));
 
         assertEquals(PaymentStatus.SUCCESS, response.status());
-        assertEquals(OrderStatus.PAID, payment.getOrder().getStatus());
+        assertEquals(OrderStatus.PROCESSING, payment.getOrder().getStatus());
         assertNotNull(response.transactionNo());
         assertNotNull(response.paidAt());
         verify(paymentRepository).save(payment);

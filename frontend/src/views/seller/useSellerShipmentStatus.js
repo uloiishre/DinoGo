@@ -5,7 +5,10 @@ export function useSellerShipmentStatus({ order, updateStatus }) {
   const shipmentActionError = ref('')
 
   const shipmentAction = computed(() => {
-    if (order.value?.shipment?.status === 'PREPARING' && order.value.status === 'PROCESSING') {
+    if (
+      order.value?.shipment?.status === 'PREPARING' &&
+      ['PAID', 'PROCESSING'].includes(order.value.status)
+    ) {
       return {
         status: 'SHIPPED',
         label: '確認出貨',

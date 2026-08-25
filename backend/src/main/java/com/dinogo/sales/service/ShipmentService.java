@@ -120,9 +120,9 @@ public class ShipmentService {
         LocalDateTime now = LocalDateTime.now();
         Order order = shipment.getOrder();
         if (targetStatus == ShipmentStatus.SHIPPED) {
-            if (order.getStatus() != OrderStatus.PROCESSING) {
+            if (order.getStatus() != OrderStatus.PROCESSING && order.getStatus() != OrderStatus.PAID) {
                 throw new InvalidOrderException(
-                        "Order must be processing before shipment can be shipped");
+                        "Order must be paid or processing before shipment can be shipped");
             }
             shipment.setShippedAt(now);
             order.setStatus(OrderStatus.SHIPPED);

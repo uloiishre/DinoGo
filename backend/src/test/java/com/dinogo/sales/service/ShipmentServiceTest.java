@@ -164,6 +164,22 @@ class ShipmentServiceTest {
         }
 
         @Test
+        void paidOrderCanShipWithoutManualAcceptance() {
+                Shipment shipment = shipment(order(10, 6, 30, OrderStatus.PAID));
+                when(seller.getSellerId()).thenReturn(30);
+                when(seller.getStatus()).thenReturn("ACTIVE");
+                when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
+                when(shipmentRepository.findForStatusUpdate(10, 30)).thenReturn(Optional.of(shipment));
+                when(shipmentRepository.save(shipment)).thenReturn(shipment);
+
+                var response = shipmentService.updateShipmentStatus(
+                                10, 8, new UpdateShipmentStatusRequest(ShipmentStatus.SHIPPED));
+
+                assertEquals(ShipmentStatus.SHIPPED, response.status());
+                assertEquals(OrderStatus.SHIPPED, shipment.getOrder().getStatus());
+        }
+
+        @Test
         void availableForPickupSetsTimestampAndKeepsOrderShipped() {
                 Shipment shipment = shipment(order(10, 6, 30, OrderStatus.SHIPPED));
                 shipment.setStatus(ShipmentStatus.SHIPPED);

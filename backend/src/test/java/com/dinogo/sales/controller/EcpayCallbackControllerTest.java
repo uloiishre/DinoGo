@@ -49,7 +49,7 @@ class EcpayCallbackControllerTest {
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.SUCCESS);
         assertThat(payment.getTransactionNo()).isEqualTo("ECPAY-TRADE-1");
         assertThat(payment.getPaidAt()).isNotNull();
-        assertThat(payment.getOrder().getStatus()).isEqualTo(OrderStatus.PAID);
+        assertThat(payment.getOrder().getStatus()).isEqualTo(OrderStatus.PROCESSING);
         verify(paymentRepository).save(payment);
     }
 
