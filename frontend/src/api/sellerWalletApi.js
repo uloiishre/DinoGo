@@ -7,3 +7,7 @@ export const getSellerWallet = () => {
 export const getSellerWalletTransactions = () => {
   return api.get('/seller/wallet/transactions')
 }
+
+export const createSellerWalletWithdrawal = () => {
+  return api.post('/seller/wallet/withdrawals')
+}

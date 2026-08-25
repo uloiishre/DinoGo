@@ -1,6 +1,10 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { getSellerWallet, getSellerWalletTransactions } from '@/api/sellerWalletApi'
+import {
+  createSellerWalletWithdrawal,
+  getSellerWallet,
+  getSellerWalletTransactions,
+} from '@/api/sellerWalletApi'
 
 const wallet = ref({
   availableBalance: 0,
@@ -13,7 +17,9 @@ const wallet = ref({
 
 const transactions = ref([])
 const isLoading = ref(false)
+const isWithdrawing = ref(false)
 const errorMessage = ref('')
+const successMessage = ref('')
 const showBankModal = ref(false)
 const currentDate = new Date()
 
@@ -120,8 +126,34 @@ function mapTransactionType(type) {
   return typeMap[type] || type
 }
 
-function handleWithdrawClick() {
-  // TODO: 提款不是目前 MVP，先保留可 Demo 的按鈕外觀；等提款 API 與金流規則確認後再接實際功能。
+function getApiErrorMessage(error, fallbackMessage) {
+  const data = error.response?.data
+
+  if (typeof data === 'string') {
+    return data
+  }
+
+  return data?.message || data?.error || fallbackMessage
+}
+
+async function handleWithdrawClick() {
+  if (!hasWithdrawableBalance.value || isWithdrawing.value) {
+    return
+  }
+
+  isWithdrawing.value = true
+  errorMessage.value = ''
+  successMessage.value = ''
+
+  try {
+    const response = await createSellerWalletWithdrawal()
+    wallet.value = response.data.wallet
+    successMessage.value = `已送出提款申請 NT$${formatAmount(response.data.amount)}，平台通知已建立。`
+  } catch (error) {
+    errorMessage.value = getApiErrorMessage(error, '目前無法送出提款申請，請稍後再試。')
+  } finally {
+    isWithdrawing.value = false
+  }
 }
 
 function getStatusClass(status) {
@@ -137,13 +169,14 @@ async function loadWallet() {
   errorMessage.value = ''
 
   try {
+    successMessage.value = ''
     const walletResponse = await getSellerWallet()
     wallet.value = walletResponse.data
   } catch (error) {
-    errorMessage.value =
-      error.response?.data?.message ||
-      error.response?.data ||
-      '目前無法載入錢包總覽，請確認後端已重新啟動並使用賣家帳號登入。'
+    errorMessage.value = getApiErrorMessage(
+      error,
+      '目前無法載入錢包總覽，請確認後端已重新啟動並使用賣家帳號登入。',
+    )
     isLoading.value = false
     return
   }
@@ -165,10 +198,7 @@ async function loadWallet() {
       statusValue: item.status,
     }))
   } catch (error) {
-    errorMessage.value =
-      error.response?.data?.message ||
-      error.response?.data ||
-      '目前無法載入交易紀錄，請稍後再試。'
+    errorMessage.value = getApiErrorMessage(error, '目前無法載入交易紀錄，請稍後再試。')
   } finally {
     isLoading.value = false
   }
@@ -199,9 +229,10 @@ onMounted(loadWallet)
               class="withdraw-button"
               type="button"
               :class="{ inactive: !hasWithdrawableBalance }"
+              :disabled="!hasWithdrawableBalance || isWithdrawing"
               @click="handleWithdrawClick"
             >
-              提款
+              {{ isWithdrawing ? '處理中' : '提款' }}
             </button>
           </div>
           <p>待入帳金額 NT${{ formatAmount(wallet.pendingBalance) }}</p>
@@ -309,6 +340,7 @@ onMounted(loadWallet)
         </label>
       </div>
 
+      <p v-if="successMessage" class="success-message">{{ successMessage }}</p>
       <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
 
       <div v-if="isLoading" class="empty-state">
@@ -520,6 +552,10 @@ h3 {
 .withdraw-button.inactive {
   background: #ef604f;
   opacity: 0.82;
+}
+
+.withdraw-button:disabled {
+  cursor: not-allowed;
 }
 
 .bank-panel {
@@ -802,13 +838,22 @@ h3 {
   color: var(--color-text-muted);
 }
 
+.success-message,
 .error-message {
   margin: 0;
   border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
+  font-weight: 800;
+}
+
+.success-message {
+  background: #edf8f2;
+  color: #227447;
+}
+
+.error-message {
   background: #fff4f1;
   color: #b6473d;
-  font-weight: 800;
 }
 
 .empty-state i {
