@@ -4,6 +4,7 @@ import java.util.List;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
@@ -13,6 +14,9 @@ public record CreateOrderRequest(
         @NotNull(message = "Address ID is required")
         @Positive(message = "Address ID must be positive")
         Integer addressId,
+
+        @NotBlank(message = "Shipping method is required")
+        String shippingMethod,
 
         @Size(max = 500, message = "Buyer remark must not exceed 500 characters")
         String buyerRemark,

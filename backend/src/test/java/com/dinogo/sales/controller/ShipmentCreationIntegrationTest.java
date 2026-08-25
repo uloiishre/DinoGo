@@ -32,6 +32,7 @@ import com.dinogo.sales.entity.Shipment;
 import com.dinogo.sales.repository.OrderRepository;
 import com.dinogo.sales.repository.PaymentRepository;
 import com.dinogo.sales.repository.ShipmentRepository;
+import com.dinogo.sales.repository.ShipmentEventRepository;
 import com.dinogo.sales.service.ShipmentService;
 import com.dinogo.security.AuthenticatedMember;
 import com.dinogo.security.JwtAuthenticationFilter;
@@ -54,6 +55,9 @@ class ShipmentCreationIntegrationTest {
 
     @MockitoBean
     private ShipmentRepository shipmentRepository;
+
+    @MockitoBean
+    private ShipmentEventRepository shipmentEventRepository;
 
     @MockitoBean
     private OrderRepository orderRepository;

@@ -541,7 +541,7 @@ class OrderServiceTest {
     }
 
     private CreateOrderRequest request(List<CreateOrderItemRequest> items) {
-        return new CreateOrderRequest(10, "請小心包裝", null, items);
+        return new CreateOrderRequest(10, "HOME_DELIVERY", "請小心包裝", null, items);
     }
 
     private void mockOwnedAddress(Integer memberId, Integer addressId) {

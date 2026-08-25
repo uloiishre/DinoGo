@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { cancelOrder, confirmDelivery, getOrder } from '@/api/order'
+import { cancelOrder, confirmDelivery, getOrder, getShipmentEvents } from '@/api/order'
 import { getOrderDisplayStatus } from '@/utils/orderDisplayStatus'
 import { getImageUrl } from '@/utils/imageUrl'
 
@@ -11,6 +11,7 @@ const loading = ref(true)
 const errorMessage = ref('')
 const confirmingDelivery = ref(false)
 const deliveryErrorMessage = ref('')
+const shipmentEvents = ref([])
 const cancellingOrder = ref(false)
 const cancellationErrorMessage = ref('')
 const cancellationReason = ref('')
@@ -44,6 +45,11 @@ const shipmentStatusLabels = {
   AVAILABLE_FOR_PICKUP: '可取貨',
   DELIVERED: '已送達',
 }
+const shipmentEventLabels = {
+  LABEL_CREATED: '賣家已建立寄件資料', HANDED_OVER: '賣家已交寄',
+  IN_TRANSIT: '運送中', AVAILABLE_FOR_PICKUP: '包裹已可取貨', DELIVERED: '已送達',
+}
+const shipmentEventSourceLabels = { SELLER: '賣家', CARRIER: '物流商', SYSTEM: '系統', BUYER: '買家' }
 
 const progressSteps = [
   {
@@ -88,7 +94,15 @@ async function loadOrder({ silent = false, force = false } = {}) {
 
   try {
     const response = await getOrder(orderId.value)
-    if (requestId === latestLoadRequestId) order.value = response.data
+    if (requestId === latestLoadRequestId) {
+      order.value = response.data
+      shipmentEvents.value = []
+      if (response.data?.shipment) {
+        try {
+          shipmentEvents.value = (await getShipmentEvents(orderId.value)).data ?? []
+        } catch { shipmentEvents.value = [] }
+      }
+    }
   } catch (error) {
     if (!silent && requestId === latestLoadRequestId) {
       errorMessage.value = error.response?.data?.message ?? '訂單詳情載入失敗，請稍後再試。'
@@ -342,6 +356,13 @@ onUnmounted(() => {
                     ・{{ order.shipment.trackingNo }}
                   </template>
                 </p>
+                <ol v-if="shipmentEvents.length" class="shipment-timeline" aria-label="物流軌跡">
+                  <li v-for="event in shipmentEvents" :key="event.shipmentEventId">
+                    <strong>{{ shipmentEventLabels[event.eventType] ?? event.eventType }}</strong>
+                    <small>{{ formatDate(event.occurredAt) }}・{{ shipmentEventSourceLabels[event.source] ?? event.source }}</small>
+                    <span v-if="event.remark">{{ event.remark }}</span>
+                  </li>
+                </ol>
                 <button
                   v-if="order.shipment.status === 'AVAILABLE_FOR_PICKUP'"
                   class="btn btn-primary mt-2"
@@ -416,6 +437,9 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.shipment-timeline { display: grid; gap: var(--space-3); margin: var(--space-4) 0 0; padding-left: var(--space-4); border-left: 2px solid var(--color-primary-300); }
+.shipment-timeline li { display: grid; gap: var(--space-1); color: var(--color-text-700); font-size: var(--font-size-sm); }
+.shipment-timeline small, .shipment-timeline span { color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .order-detail-page {
   min-height: 620px;
   padding: var(--space-5) 0 var(--space-8);

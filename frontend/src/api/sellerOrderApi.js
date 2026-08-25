@@ -19,3 +19,8 @@ export const updateSellerShipmentStatus = (orderId, status) => {
 export const updateSellerShipmentTrackingInfo = (orderId, shipment) => {
   return api.patch(`/orders/${orderId}/shipment/tracking-info`, shipment)
 }
+
+export const getShipmentEvents = (orderId) => api.get(`/orders/${orderId}/shipment/events`)
+
+export const simulateTcatEvent = (orderId, eventType) =>
+  api.post(`/orders/${orderId}/shipment/simulate-tcat-event`, { eventType })

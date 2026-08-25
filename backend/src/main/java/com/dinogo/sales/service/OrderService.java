@@ -52,6 +52,7 @@ public class OrderService {
 
     private static final DateTimeFormatter ORDER_NO_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
     private static final String CASH_ON_DELIVERY = "CASH_ON_DELIVERY";
+    private static final String HOME_DELIVERY = "HOME_DELIVERY";
 
     private final OrderRepository orderRepository;
     private final AddressRepository addressRepository;
@@ -86,6 +87,7 @@ public class OrderService {
 
     @Transactional
     public CreateOrderResponse createOrder(CreateOrderRequest request, Integer buyerId) {
+        validateShippingMethod(request.shippingMethod());
         Address address = addressRepository.findById(request.addressId())
                 .orElseThrow(() -> new InvalidOrderException(
                         "Address does not exist: " + request.addressId()));
@@ -286,6 +288,12 @@ public class OrderService {
         if (!isUnshippedCashOnDeliveryOrder) {
             throw new InvalidOrderException(
                     "Only pending-payment orders or unshipped cash-on-delivery orders can be cancelled");
+        }
+    }
+
+    private void validateShippingMethod(String shippingMethod) {
+        if (!HOME_DELIVERY.equals(shippingMethod)) {
+            throw new InvalidOrderException("目前僅支援宅配");
         }
     }
 

@@ -161,6 +161,11 @@ const routes = [
         component: () => import('@/views/seller/SellerOrderListView.vue'),
       },
       {
+        path: 'orders/batch-shipment',
+        name: 'SellerBatchShipment',
+        component: () => import('@/views/seller/SellerBatchShipmentView.vue'),
+      },
+      {
         path: 'orders/:id',
         name: 'SellerOrderDetail',
         component: () => import('@/views/seller/SellerOrderDetailView.vue'),
