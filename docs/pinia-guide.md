@@ -229,9 +229,9 @@ backend/src/main/java/com/dinogo/config/SecurityConfig.java
 
 Controller 優先使用 `@AuthenticationPrincipal AuthenticatedMember member`，不要用 request parameter 或 body 的 memberId 決定登入者資料範圍。
 
-新增受保護路徑時，確認 `SecurityConfig` 有 `.requestMatchers("/api/messages/**").authenticated()`。
+新增或調整受保護路徑時，依 [security-rules.md](security-rules.md) 確認 HTTP method、公開性、角色、ownership 與 Security integration test；不可只在前端隱藏按鈕。
 
-目前 authorities 是空集合，尚未完成 role-based authorization。若要加入 seller／admin，必須同時設計 JWT role claim、Filter 的 `GrantedAuthority`、SecurityConfig 的 `hasRole`／`hasAuthority`、前端 route meta 與後端 security tests；不能只在前端隱藏按鈕。
+目前 JWT 的 `roles` claim 已由 Filter 轉成 `ROLE_*` authorities，且 `SecurityConfig` 已使用 `hasRole("SELLER")` 與 `hasRole("ADMIN")`。新增角色或調整既有角色時，仍必須同步檢查 JWT claim、Filter、SecurityConfig、前端 route meta 與後端 security tests。
 
 ---
 

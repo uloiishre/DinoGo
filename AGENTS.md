@@ -31,7 +31,7 @@ DinoGo 是 Java / Spring Boot、Vue 3、MSSQL 的六人 B2B2C 電商專案。
 | Git、commit、push、PR、分支 | `docs/git-workflow.md` |
 | DB、Entity、JPA、Repository、SQL | `docs/database-schema.md`、`docs/teacher-code-style.md` |
 | 功能 ownership、今日計畫、跨模組時程 | `docs/team-plan.md` |
-| Backend、REST、Security、Validation 實作 | `docs/teacher-code-style.md` 與直接相關程式 |
+| Backend、REST、Security、Validation 實作 | `docs/security-rules.md`、`docs/teacher-code-style.md` 與直接相關程式 |
 | API 串接或跨模組 contract | `docs/README.md` 與直接相關 `*-api.md` / `*-cross-module-contracts.md` |
 | Vue、UI、樣式、Router、Layout、Axios、Pinia、前端 build | `docs/design/frontend-task-rules.md`，再依其路由讀取最小文件 |
 

@@ -10,6 +10,7 @@
 | Source of Truth | [team-plan.md](team-plan.md) | 模組分工、每日計畫、時程與驗收。 |
 | Source of Truth | [git-workflow.md](git-workflow.md) | 分支、commit、push、PR、衝突與交付流程。 |
 | 工作規範 | [teacher-code-style.md](teacher-code-style.md) | 老師教材中可重複使用的 coding pattern。 |
+| 工作規範 | [security-rules.md](security-rules.md) | 跨模組 JWT、Spring Security、401／403 與前端認證整合規則。 |
 | 模組 API | [member-api.md](member-api.md) | A 會員、認證與地址 API 的 request、response、錯誤格式與 JWT 規則。 |
 | 測試指南 | [password-reset-team-guide.md](password-reset-team-guide.md) | 忘記密碼功能的本機設定、Postman API 與手動測試流程。 |
 | 模組 API | [payment-api.md](payment-api.md) | D 付款建立、MVP 模擬結果、狀態與 JWT 規則。 |
@@ -25,7 +26,7 @@
 | DB、Entity、JPA、Repository、SQL | `database-schema.md` | `teacher-code-style.md` |
 | 功能分工、今日計畫、驗收 | `team-plan.md` | 直接相關程式與 Git 實際狀態 |
 | Git、commit、push、PR | `git-workflow.md` | `AGENTS.md` 的安全邊界 |
-| Spring REST、Validation、Security、JWT | `teacher-code-style.md` | 模組 API 文件、直接相關程式 |
+| Spring REST、Validation、Security、JWT | `security-rules.md`、`teacher-code-style.md` | 模組 API 文件、直接相關程式 |
 | A 會員／登入／地址串接 | `member-api.md` | `database-schema.md`、直接相關 Controller／DTO |
 | D 付款 API 串接 | `payment-api.md` | `database-schema.md`、直接相關 Controller／DTO |
 | D、B、E 訂單整合 | `order-cross-module-contracts.md` | 相關模組 API／Service |
