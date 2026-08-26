@@ -1,9 +1,10 @@
 <script setup>
-const summaries = [
-  { value: '2', label: '配送中的訂單', hint: '預計 8/11 前送達', icon: 'bi-box-seam' },
-  { value: '3', label: '可使用優惠券', hint: '1 張將於 7 天內到期', icon: 'bi-ticket-perforated' },
-  { value: '1', label: '未讀平台訊息', hint: '商家已更新出貨狀態', icon: 'bi-envelope' },
-]
+defineProps({
+  summaries: {
+    type: Array,
+    required: true,
+  },
+})
 </script>
 
 <template>

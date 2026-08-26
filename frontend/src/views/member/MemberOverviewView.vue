@@ -1,10 +1,208 @@
 <script setup>
+import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import api from '@/api/axios'
+import { getMemberProfile } from '@/api/member'
+import { getMemberOrders } from '@/api/order'
 import MemberOrderProgress from '@/components/member/MemberOrderProgress.vue'
 import MemberQuickActions from '@/components/member/MemberQuickActions.vue'
 import MemberSummaryCards from '@/components/member/MemberSummaryCards.vue'
 
-const overviewDate = '2026 / 08 / 09'
+// D：訂單／物流 API 尚無資料或載入失敗時的視覺 fallback。
+const MOCK_ORDER = {
+  id: null,
+  number: 'DG-20260809-0182',
+  date: '2026 / 08 / 09',
+  status: '配送中',
+  productName: '日常機能托特包 · 苔綠',
+  sellerName: '森日選物',
+  quantity: 1,
+  amount: 'NT$ 1,280',
+  progress: [
+    { label: '訂單成立', time: '08/09 10:06', icon: 'bi-check-lg', complete: true },
+    { label: '商家出貨', time: '08/09 17:42', icon: 'bi-box-seam', complete: true },
+    { label: '配送中', time: '預計 08/11', icon: 'bi-truck', complete: true },
+    { label: '完成取貨', time: '等待完成', icon: 'bi-house', complete: false },
+  ],
+}
+
+const overviewDate = ref(MOCK_ORDER.date)
+const updatedTime = ref('10:24')
+const latestOrder = ref(MOCK_ORDER)
+const summaries = ref([
+  { value: '2', label: '配送中的訂單', hint: '預計 8/11 前送達', icon: 'bi-box-seam' },
+  { value: '3', label: '可使用優惠券', hint: '1 張將於 7 天內到期', icon: 'bi-ticket-perforated' },
+  // F：會員訊息頁與未讀數 API 尚未提供；暫以設計稿 mock，待 F 模組完成 MemberMessagesView 與 API 後替換。
+  { value: '1', label: '未讀平台訊息', hint: '商家已更新出貨狀態', icon: 'bi-envelope' },
+])
+
+function toDate(value) {
+  const date = value ? new Date(value) : null
+  return date && !Number.isNaN(date.getTime()) ? date : null
+}
+
+function formatDate(value) {
+  const date = toDate(value)
+  if (!date) return MOCK_ORDER.date
+  return new Intl.DateTimeFormat('zh-TW', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+    .format(date)
+    .replaceAll('/', ' / ')
+}
+
+function formatTime(value) {
+  const date = toDate(value)
+  if (!date) return '10:24'
+  return new Intl.DateTimeFormat('zh-TW', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date)
+}
+
+function formatJourneyTime(value, fallback) {
+  const date = toDate(value)
+  if (!date) return fallback
+  return new Intl.DateTimeFormat('zh-TW', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+    .format(date)
+    .replace(',', '')
+}
+
+function formatCurrency(value) {
+  return new Intl.NumberFormat('zh-TW', {
+    style: 'currency',
+    currency: 'TWD',
+    maximumFractionDigits: 0,
+  }).format(Number(value ?? 0))
+}
+
+function isShipped(order) {
+  return order.status === 'SHIPPED' || order.status === 'COMPLETED'
+}
+
+function buildProgress(order) {
+  const isDelivered = order.status === 'COMPLETED'
+  const hasShipment = isShipped(order)
+  const shipment = order.shipment ?? {}
+
+  return [
+    {
+      label: '訂單成立',
+      time: formatJourneyTime(order.createdAt, '訂單已建立'),
+      icon: 'bi-check-lg',
+      complete: true,
+    },
+    {
+      label: '商家出貨',
+      time: formatJourneyTime(shipment.shippedAt, hasShipment ? '已出貨' : '等待出貨'),
+      icon: 'bi-box-seam',
+      complete: hasShipment,
+    },
+    {
+      label: '配送中',
+      time: formatJourneyTime(
+        shipment.availablePickupAt,
+        hasShipment ? '配送資訊待更新' : '等待配送',
+      ),
+      icon: 'bi-truck',
+      complete: hasShipment,
+    },
+    {
+      label: '完成取貨',
+      time: formatJourneyTime(shipment.deliveredAt, '等待完成'),
+      icon: 'bi-house',
+      complete: isDelivered,
+    },
+  ]
+}
+
+function buildOrderOverview(order) {
+  const item = order.items?.[0] ?? {}
+  const shipment = order.shipment ?? {}
+  const status = order.status === 'COMPLETED' ? '已完成' : isShipped(order) ? '配送中' : '處理中'
+
+  return {
+    id: order.orderId,
+    number: order.orderNo,
+    date: formatDate(order.createdAt),
+    status,
+    productName: [item.productName, item.skuSpec].filter(Boolean).join(' · ') || '商品資訊待提供',
+    sellerName: `商家 #${order.sellerId ?? '—'}`,
+    quantity: item.quantity ?? 0,
+    amount: formatCurrency(order.totalAmount),
+    progress: buildProgress(order),
+    deliveryHint: shipment.availablePickupAt
+      ? `預計 ${formatDate(shipment.availablePickupAt)} 送達`
+      : '配送資訊待更新',
+  }
+}
+
+function buildCouponHint(coupons) {
+  const sevenDaysLater = Date.now() + 7 * 24 * 60 * 60 * 1000
+  const expiringCount = coupons.filter((coupon) => {
+    const endAt = toDate(coupon.endAt)
+    return endAt && endAt.getTime() <= sevenDaysLater
+  }).length
+  return expiringCount ? `${expiringCount} 張將於 7 天內到期` : '暫無即將到期優惠券'
+}
+
+async function loadOverview() {
+  // A：會員資料 API；updatedAt 是畫面資料更新時間的來源。
+  const [ordersResult, profileResult, couponsResult] = await Promise.allSettled([
+    // D：會員訂單、物流狀態、商品、數量與金額。
+    getMemberOrders(),
+    getMemberProfile(),
+    // E：優惠券模組 API，MemberCouponsView 亦使用同一個 endpoint。
+    api.get('/member/coupons'),
+  ])
+
+  const orders =
+    ordersResult.status === 'fulfilled' && Array.isArray(ordersResult.value.data)
+      ? ordersResult.value.data
+      : []
+  const profile = profileResult.status === 'fulfilled' ? profileResult.value.data : null
+  const coupons =
+    couponsResult.status === 'fulfilled' && Array.isArray(couponsResult.value.data)
+      ? couponsResult.value.data
+      : []
+  const activeOrder = orders.find((order) => isShipped(order)) ?? orders[0]
+
+  if (activeOrder) latestOrder.value = buildOrderOverview(activeOrder)
+
+  const overviewTimestamp = activeOrder?.createdAt ?? profile?.updatedAt
+  overviewDate.value = formatDate(overviewTimestamp)
+  updatedTime.value = formatTime(profile?.updatedAt ?? overviewTimestamp)
+
+  const deliveryOrders = orders.filter(isShipped)
+  const availableCoupons = coupons.filter((coupon) => coupon.status === 'AVAILABLE')
+  summaries.value = [
+    {
+      value: String(deliveryOrders.length),
+      label: '配送中的訂單',
+      hint: latestOrder.value.deliveryHint ?? '目前沒有配送中的訂單',
+      icon: 'bi-box-seam',
+    },
+    {
+      value: String(availableCoupons.length),
+      label: '可使用優惠券',
+      hint: buildCouponHint(availableCoupons),
+      icon: 'bi-ticket-perforated',
+    },
+    // F：API 未完成時保留 mock，避免跨模組頁面失去摘要內容。
+    summaries.value[2],
+  ]
+}
+
+onMounted(loadOverview)
 </script>
 
 <template>
@@ -16,15 +214,15 @@ const overviewDate = '2026 / 08 / 09'
           <h1 id="member-overview-title">今天的會員摘要</h1>
         </div>
         <div class="member-overview__profile-action">
-          <span>資料更新於 10:24</span>
+          <span>資料更新於 {{ updatedTime }}</span>
           <RouterLink :to="{ name: 'MemberProfile' }">編輯個人資料</RouterLink>
         </div>
       </header>
 
-      <MemberSummaryCards />
+      <MemberSummaryCards :summaries="summaries" />
 
       <div class="member-overview__content">
-        <MemberOrderProgress />
+        <MemberOrderProgress :order="latestOrder" />
         <MemberQuickActions />
       </div>
     </div>

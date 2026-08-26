@@ -5,16 +5,7 @@ import { RouterLink } from 'vue-router'
 const props = defineProps({
   order: {
     type: Object,
-    default: () => ({
-      id: null,
-      number: 'DG-20260809-0182',
-      date: '2026 / 08 / 09',
-      status: '配送中',
-      productName: '日常機能托特包 · 苔綠',
-      sellerName: '森日選物',
-      quantity: 1,
-      amount: 'NT$ 1,280',
-    }),
+    required: true,
   },
 })
 
@@ -23,12 +14,6 @@ const orderLink = computed(() =>
     ? { name: 'MemberOrderDetail', params: { id: props.order.id } }
     : { name: 'MemberOrders' },
 )
-const journey = [
-  { label: '訂單成立', time: '08/09 10:06', icon: 'bi-check-lg', complete: true },
-  { label: '商家出貨', time: '08/09 17:42', icon: 'bi-box-seam', complete: true },
-  { label: '配送中', time: '預計 08/11', icon: 'bi-truck', complete: true },
-  { label: '完成取貨', time: '等待完成', icon: 'bi-house', complete: false },
-]
 </script>
 
 <template>
@@ -45,7 +30,7 @@ const journey = [
 
     <ol class="order-progress__journey" aria-label="訂單配送進度">
       <li
-        v-for="(step, index) in journey"
+        v-for="(step, index) in order.progress"
         :key="step.label"
         :class="{ 'is-complete': step.complete }"
       >
@@ -55,7 +40,7 @@ const journey = [
         <strong>{{ step.label }}</strong
         ><small>{{ step.time }}</small>
         <span
-          v-if="index < journey.length - 1"
+          v-if="index < order.progress.length - 1"
           class="order-progress__connector"
           aria-hidden="true"
         ></span>
