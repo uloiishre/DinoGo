@@ -3,11 +3,18 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getOrder } from '@/api/order'
-import { clearStar, getOrderStars, updateStar } from '@/api/review'
+import { getImageUrl } from '@/utils/imageUrl'
 
+const props = defineProps({
+  orderData: { type: Object, default: null },
+  initialOrderItemId: { type: Number, default: null },
+  modal: { type: Boolean, default: false },
+})
+const emit = defineEmits(['close'])
 const route = useRoute()
 const router = useRouter()
-const order = ref(null)
+const order = ref(props.orderData)
+const selectedOrderItemId = ref(Number(props.initialOrderItemId ?? route.params.orderItemId))
 const star = ref(null)
 const rating = ref(0)
 const feedback = ref('')
@@ -18,17 +25,25 @@ const clearing = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 
-const orderId = computed(() => Number(route.params.orderId))
-const orderItemId = computed(() => Number(route.params.orderItemId))
+const orderId = computed(() => Number(props.orderData?.orderId ?? props.orderData?.id ?? route.params.orderId ?? route.params.id))
+const orderItemId = computed(() => selectedOrderItemId.value)
 const item = computed(() =>
   order.value?.items?.find((candidate) => candidate.orderItemId === orderItemId.value) ?? null,
 )
-const productImage = computed(() => star.value?.imageUrl || item.value?.productImageUrl || '')
-const productId = computed(() => star.value?.productId ?? item.value?.productId ?? '—')
+const productImage = computed(() => getImageUrl(star.value?.imageUrl || item.value?.productImageUrl || ''))
 const productName = computed(() => star.value?.productName || item.value?.productName || '商品')
+const productSpec = computed(() => item.value?.skuSpec || '單一規格')
 
 function byteArrayUrl(value) {
-  return value ? `data:image/*;base64,${value}` : ''
+  if (!value) return ''
+  const mimeType = value.startsWith('iVBOR')
+    ? 'image/png'
+    : value.startsWith('R0lGOD')
+      ? 'image/gif'
+      : value.startsWith('UklGR')
+        ? 'image/webp'
+        : 'image/jpeg'
+  return `data:${mimeType};base64,${value}`
 }
 
 function hydrateForm(nextStar) {
@@ -49,15 +64,21 @@ async function loadReview() {
     return
   }
   try {
-    const [orderResponse, starsResponse] = await Promise.all([
-      getOrder(orderId.value),
-      getOrderStars(orderId.value),
-    ])
-    order.value = orderResponse.data
-    star.value = (starsResponse.data ?? []).find(
-      (candidate) => candidate.orderItemId === orderItemId.value,
-    ) ?? null
-    if (!item.value || !star.value) throw new Error('REVIEW_ITEM_NOT_FOUND')
+    if (!props.orderData) order.value = (await getOrder(orderId.value)).data
+    if (!item.value) throw new Error('REVIEW_ITEM_NOT_FOUND')
+    // DinoGo 檢視版不呼叫尚未整合的 Review API。
+    star.value = {
+      starId: Number(route.query.starId ?? orderItemId.value),
+      orderItemId: orderItemId.value,
+      productId: item.value.productId,
+      productName: item.value.productName,
+      imageUrl: item.value.productImageUrl,
+      fiveStar: item.value.isReviewed ? 4 : 0,
+      feedback: item.value.isReviewed ? '商品與描述一致，整體使用體驗不錯。' : '',
+      imgOne: null,
+      imgTwo: null,
+      imgThree: null,
+    }
     hydrateForm(star.value)
   } catch (error) {
     errorMessage.value = error.response?.data?.message
@@ -65,6 +86,24 @@ async function loadReview() {
   } finally {
     loading.value = false
   }
+}
+
+function selectReviewItem() {
+  const nextItem = item.value
+  if (!nextItem) return
+  star.value = {
+    starId: nextItem.orderItemId,
+    orderItemId: nextItem.orderItemId,
+    productId: nextItem.productId,
+    productName: nextItem.productName,
+    imageUrl: nextItem.productImageUrl,
+    fiveStar: Number(nextItem.fiveStar ?? 0) || (nextItem.isReviewed ? 4 : 0),
+    feedback: nextItem.isReviewed ? '商品與描述一致，整體使用體驗不錯。' : '',
+    imgOne: null, imgTwo: null, imgThree: null,
+  }
+  errorMessage.value = ''
+  successMessage.value = ''
+  hydrateForm(star.value)
 }
 
 function fileToBase64(file) {
@@ -108,7 +147,14 @@ async function handleClear() {
   errorMessage.value = ''
   successMessage.value = ''
   try {
-    star.value = (await clearStar(star.value.starId)).data
+    star.value = {
+      ...star.value,
+      fiveStar: 0,
+      feedback: '',
+      imgOne: null,
+      imgTwo: null,
+      imgThree: null,
+    }
     hydrateForm(star.value)
     successMessage.value = '評價內容已清空。'
   } catch (error) {
@@ -129,13 +175,14 @@ async function handleSubmit() {
   successMessage.value = ''
   const imageValues = images.value.map((image) => image.base64)
   try {
-    star.value = (await updateStar(star.value.starId, {
+    star.value = {
+      ...star.value,
       fiveStar: rating.value,
       feedback: feedback.value.trim() || null,
       imgOne: imageValues[0] ?? null,
       imgTwo: imageValues[1] ?? null,
       imgThree: imageValues[2] ?? null,
-    })).data
+    }
     hydrateForm(star.value)
     successMessage.value = '評價已送出。'
   } catch (error) {
@@ -146,6 +193,10 @@ async function handleSubmit() {
 }
 
 function closeWithoutChanges() {
+  if (props.modal) {
+    emit('close')
+    return
+  }
   router.push({ name: 'MemberOrderDetail', params: { id: orderId.value } })
 }
 
@@ -156,15 +207,23 @@ onBeforeUnmount(revokeLocalUrls)
 
 <template>
   <!-- //review-start，總共3次修改，第2次// -->
-  <section class="review-page">
-    <div class="review-panel" role="region" aria-labelledby="review-title">
+  <section class="review-page" :class="{ 'review-page--modal': modal }" @click.self="closeWithoutChanges">
+    <div class="review-panel" role="dialog" :aria-modal="modal ? 'true' : undefined" aria-labelledby="review-title">
       <header class="review-header">
         <div>
-          <p>完成的訂單 · 單項產品</p>
           <h1 id="review-title">商品評價</h1>
         </div>
         <button type="button" class="close-button" aria-label="關閉且不做變更" @click="closeWithoutChanges">×</button>
       </header>
+
+      <label v-if="order?.items?.length" class="review-item-select">
+        <span>變更評價商品</span>
+        <select v-model.number="selectedOrderItemId" @change="selectReviewItem">
+          <option v-for="candidate in order.items" :key="candidate.orderItemId" :value="candidate.orderItemId">
+            {{ candidate.productName }} 
+          </option>
+        </select>
+      </label>
 
       <div v-if="loading" class="review-state">正在載入評價資料...</div>
       <div v-else-if="errorMessage && !star" class="review-state review-state--error" role="alert">{{ errorMessage }}</div>
@@ -176,14 +235,13 @@ onBeforeUnmount(revokeLocalUrls)
             <i v-else class="bi bi-image" aria-hidden="true"></i>
           </div>
           <div>
-            <span>產品編號 {{ productId }}</span>
             <h2>{{ productName }}</h2>
-            <small>訂單商品編號 {{ orderItemId }}</small>
+            <small>{{ productSpec }}</small>
           </div>
         </div>
 
         <fieldset class="rating-field">
-          <legend>5 顆星星評價</legend>
+          <legend>五星評價</legend>
           <div class="star-picker">
             <button
               v-for="value in 5"
@@ -206,7 +264,7 @@ onBeforeUnmount(revokeLocalUrls)
 
         <section class="upload-field">
           <div class="upload-heading">
-            <strong>評價照片</strong>
+            <strong>上傳照片</strong>
             <span>{{ images.length }} / 3</span>
           </div>
           <div class="image-grid">
@@ -242,11 +300,14 @@ onBeforeUnmount(revokeLocalUrls)
 <style scoped>
 /* //review-start，總共3次修改，第3次// */
 .review-page { min-height: calc(var(--space-8) * 10); padding: var(--space-6) var(--space-4); background: var(--color-bg); }
+.review-page--modal { position: fixed; z-index: 1080; inset: 0; display: grid; overflow-y: auto; place-items: center; background: rgb(0 0 0 / 45%); }
+.review-page--modal .review-panel { width: min(calc(100% - var(--space-6)), calc(var(--space-8) * 13)); max-height: calc(100vh - var(--space-6)); overflow-y: auto; }
 .review-panel { max-width: calc(var(--space-8) * 13); margin: 0 auto; overflow: hidden; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
 .review-header { display: flex; align-items: flex-start; justify-content: space-between; padding: var(--space-5); border-bottom: 1px solid var(--color-border); }
 .review-header p, .review-header h1 { margin: 0; }.review-header p { color: var(--color-text-muted); font-size: var(--font-size-xs); }.review-header h1 { margin-top: var(--space-1); font-family: var(--font-heading); font-size: var(--font-size-xl); }
 .close-button { width: calc(var(--space-5) + var(--space-4)); height: calc(var(--space-5) + var(--space-4)); color: var(--color-text-muted); font-size: var(--font-size-xl); line-height: 1; background: transparent; border: 0; border-radius: var(--radius-pill); cursor: pointer; }
 .close-button:hover { color: var(--color-text); background: var(--color-bg-muted); }
+.review-item-select { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-5); background: var(--color-bg-muted); border-bottom: 1px solid var(--color-border); }.review-item-select span { color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: 700; }.review-item-select select { min-width: 0; padding: var(--space-2) var(--space-3); color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); }
 .review-state { padding: var(--space-8); color: var(--color-text-muted); text-align: center; }.review-state--error { color: var(--color-danger); }
 .review-form { display: grid; gap: var(--space-5); padding: var(--space-5); }
 .product-summary { display: grid; grid-template-columns: calc(var(--space-8) + var(--space-6)) minmax(0, 1fr); align-items: center; gap: var(--space-4); }

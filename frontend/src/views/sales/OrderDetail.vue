@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { cancelOrder, confirmDelivery, getOrder, getShipmentEvents } from '@/api/order'
 import { getOrderDisplayStatus } from '@/utils/orderDisplayStatus'
 import { getImageUrl } from '@/utils/imageUrl'
+import OrderItemReviewView from '@/views/review/OrderItemReviewView.vue'
 
 const route = useRoute()
 const order = ref(null)
@@ -16,6 +17,7 @@ const cancellingOrder = ref(false)
 const cancellationErrorMessage = ref('')
 const cancellationReason = ref('')
 const showCancellationModal = ref(false)
+const reviewItemId = ref(null)
 const fetchingOrder = ref(false)
 const AUTO_REFRESH_INTERVAL_MS = 10_000
 let autoRefreshTimer = null
@@ -203,6 +205,18 @@ function formatDate(value) {
   }).format(new Date(value))
 }
 
+function isItemReviewed(item) {
+  return Number(item.fiveStar ?? 0) > 0 || item.isReviewed === true
+}
+
+function openReviewModal(item) {
+  reviewItemId.value = item.orderItemId
+}
+
+function closeReviewModal() {
+  reviewItemId.value = null
+}
+
 onMounted(() => {
   void loadOrder()
   window.addEventListener('focus', refreshOrderSilently)
@@ -315,6 +329,21 @@ onUnmounted(() => {
               </div>
 
               <strong class="product-subtotal">{{ formatCurrency(item.subtotal) }}</strong>
+
+              <button
+                v-if="order.status === 'COMPLETED'"
+                type="button"
+                class="review-endcap"
+                :class="isItemReviewed(item) ? 'review-endcap--reviewed' : 'review-endcap--pending'"
+                :aria-label="isItemReviewed(item) ? `修改 ${item.productName} 的評價` : `評價 ${item.productName}`"
+                :title="isItemReviewed(item) ? '已評價' : '未評價'"
+                @click="openReviewModal(item)"
+              >
+                <!-- //review-未評價// -->
+                <i v-if="!isItemReviewed(item)" class="bi bi-star-fill" aria-hidden="true"></i>
+                <!-- //review-已評價// -->
+                <i v-else class="bi bi-star" aria-hidden="true"></i>
+              </button>
             </article>
 
             <div class="remark-row">
@@ -433,6 +462,14 @@ onUnmounted(() => {
         </form>
       </div>
     </div>
+
+    <OrderItemReviewView
+      v-if="reviewItemId !== null"
+      :order-data="order"
+      :initial-order-item-id="reviewItemId"
+      modal
+      @close="closeReviewModal"
+    />
   </section>
 </template>
 
@@ -758,7 +795,7 @@ onUnmounted(() => {
 .product-row {
   display: grid;
   min-height: 96px;
-  grid-template-columns: 82px minmax(0, 1fr) auto;
+  grid-template-columns: 82px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 14px;
   padding: var(--space-3) 0;
@@ -805,6 +842,45 @@ onUnmounted(() => {
 .product-subtotal {
   font-size: 13px;
   white-space: nowrap;
+}
+
+.review-endcap {
+  display: grid;
+  min-width: calc(var(--space-7) + var(--space-2));
+  align-self: stretch;
+  place-items: center;
+  margin-block: calc(var(--space-3) * -1);
+  font-size: var(--font-size-lg);
+  text-decoration: none;
+  appearance: none;
+  border: 0;
+  border-left: 1px solid var(--color-border);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  box-shadow: none;
+}
+/* 未評價：強烈主視覺綠色 */
+.review-endcap--pending {
+  color: var(--color-surface);
+  background: var(--color-primary);
+}
+/* 已評價：灰暗主視覺綠色 */
+.review-endcap--reviewed {
+  color: var(--color-primary-600);
+  background: var(--color-primary);
+}
+
+.review-endcap:hover {
+  color: var(--color-surface);
+  background: var(--color-primary-hover);
+}
+
+.review-endcap:active {
+  background: var(--color-primary-active);
+}
+
+.review-endcap:focus-visible {
+  
+  box-shadow: none;
 }
 
 .remark-row {

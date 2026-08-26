@@ -107,6 +107,11 @@ const routes = [
         component: () => import('@/views/sales/OrderDetail.vue'),
       },
       {
+        path: 'orders/:orderId/items/:orderItemId/review',
+        name: 'MemberOrderItemReview',
+        component: () => import('@/views/review/OrderItemReviewView.vue'),
+      },
+      {
         path: 'favorites',
         name: 'MemberFavorites',
         component: () => import('@/views/member/MemberFavoritesView.vue'),
