@@ -28,9 +28,12 @@ public class EcpayCallbackController {
     private final EcpayPaymentGateway gateway;
     private final PaymentRepository paymentRepository;
     private final String frontendBaseUrl;
+
     public EcpayCallbackController(EcpayPaymentGateway gateway, PaymentRepository paymentRepository,
             @Value("${app.frontend.base-url:http://localhost:5173}") String frontendBaseUrl) {
-        this.gateway = gateway; this.paymentRepository = paymentRepository; this.frontendBaseUrl = frontendBaseUrl;
+        this.gateway = gateway;
+        this.paymentRepository = paymentRepository;
+        this.frontendBaseUrl = frontendBaseUrl;
     }
 
     @Transactional
@@ -48,36 +51,53 @@ public class EcpayCallbackController {
         }
         Payment payment = paymentRepository.findByPaymentNo(merchantTradeNo).orElse(null);
         if (payment == null) {
-            log.error("ECPay callback has no matching payment: MerchantTradeNo={}, TradeNo={}", merchantTradeNo, tradeNo);
+            log.error("ECPay callback has no matching payment: MerchantTradeNo={}, TradeNo={}", merchantTradeNo,
+                    tradeNo);
             return ResponseEntity.badRequest().body("Unknown MerchantTradeNo");
         }
         BigDecimal tradeAmount;
-        try { tradeAmount = new BigDecimal(fields.get("TradeAmt")); }
-        catch (RuntimeException exception) {
-            log.error("ECPay callback has an invalid TradeAmt: MerchantTradeNo={}, TradeNo={}", merchantTradeNo, tradeNo);
+        try {
+            tradeAmount = new BigDecimal(fields.get("TradeAmt"));
+        } catch (RuntimeException exception) {
+            log.error("ECPay callback has an invalid TradeAmt: MerchantTradeNo={}, TradeNo={}", merchantTradeNo,
+                    tradeNo);
             return ResponseEntity.badRequest().body("Invalid TradeAmt");
         }
-        if (!"CREDIT_CARD".equals(payment.getPaymentMethod().getMethodCode()) || tradeAmount.compareTo(payment.getAmount()) != 0) {
+        if (!"CREDIT_CARD".equals(payment.getPaymentMethod().getMethodCode())
+                || tradeAmount.compareTo(payment.getAmount()) != 0) {
             log.error("ECPay callback payment mismatch: MerchantTradeNo={}, TradeNo={}", merchantTradeNo, tradeNo);
             return ResponseEntity.badRequest().body("Payment mismatch");
         }
         if (payment.getStatus() == PaymentStatus.SUCCESS) {
-            if (tradeNo != null && tradeNo.equals(payment.getTransactionNo())) return ResponseEntity.ok("1|OK");
-            log.error("ECPay callback transaction mismatch for successful payment: MerchantTradeNo={}, TradeNo={}", merchantTradeNo, tradeNo);
+            if (tradeNo != null && tradeNo.equals(payment.getTransactionNo()))
+                return ResponseEntity.ok("1|OK");
+            log.error("ECPay callback transaction mismatch for successful payment: MerchantTradeNo={}, TradeNo={}",
+                    merchantTradeNo, tradeNo);
             return ResponseEntity.badRequest().body("Transaction mismatch");
         }
-        if (payment.getStatus() == PaymentStatus.FAILED) return ResponseEntity.ok("1|OK");
+        if (payment.getStatus() == PaymentStatus.FAILED)
+            return ResponseEntity.ok("1|OK");
         if (payment.getStatus() != PaymentStatus.PENDING) {
-            log.error("ECPay callback has a non-processable payment status: MerchantTradeNo={}, status={}", merchantTradeNo, payment.getStatus());
+            log.error("ECPay callback has a non-processable payment status: MerchantTradeNo={}, status={}",
+                    merchantTradeNo, payment.getStatus());
             return ResponseEntity.badRequest().body("Payment status mismatch");
         }
         if ("1".equals(fields.get("RtnCode"))) {
-            if (paymentRepository.existsByOrderOrderIdAndStatus(payment.getOrder().getOrderId(), PaymentStatus.SUCCESS)) {
-                log.error("ECPay callback would create a second successful payment: MerchantTradeNo={}", merchantTradeNo);
+            if (paymentRepository.existsByOrderOrderIdAndStatus(payment.getOrder().getOrderId(),
+                    PaymentStatus.SUCCESS)) {
+                log.error("ECPay callback would create a second successful payment: MerchantTradeNo={}",
+                        merchantTradeNo);
                 return ResponseEntity.badRequest().body("Duplicate successful payment");
             }
-            payment.setStatus(PaymentStatus.SUCCESS); payment.setTransactionNo(tradeNo); payment.setPaidAt(LocalDateTime.now()); payment.getOrder().setStatus(OrderStatus.PROCESSING);
-        } else { payment.setStatus(PaymentStatus.FAILED); String message = fields.getOrDefault("RtnMsg", "ECPay payment failed"); payment.setFailureReason(message.substring(0, Math.min(255, message.length()))); }
+            payment.setStatus(PaymentStatus.SUCCESS);
+            payment.setTransactionNo(tradeNo);
+            payment.setPaidAt(LocalDateTime.now());
+            payment.getOrder().setStatus(OrderStatus.PROCESSING);
+        } else {
+            payment.setStatus(PaymentStatus.FAILED);
+            String message = fields.getOrDefault("RtnMsg", "ECPay payment failed");
+            payment.setFailureReason(message.substring(0, Math.min(255, message.length())));
+        }
         paymentRepository.save(payment);
         return ResponseEntity.ok("1|OK");
     }
