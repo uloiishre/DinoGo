@@ -852,73 +852,77 @@ onMounted(() => {
                 <p class="item-price">NT$ {{ formatPrice(item.price) }}</p>
               </div>
 
-              <!-- 數量 -->
+              <!-- 數量 + 小計 -->
+              <div class="item-purchase-info">
+                <!-- 數量 -->
+                <div class="item-quantity">
+                  <span class="quantity-label">數量</span>
 
-              <div class="quantity-control">
-                <button
-                  type="button"
-                  class="quantity-button"
-                  :disabled="!isItemAvailable(item) || item.quantity <= 1"
-                  @click="decreaseQuantity(item)"
-                >
-                  <i class="bi bi-dash"></i>
-                </button>
+                  <div class="quantity-control">
+                    <button
+                      type="button"
+                      class="quantity-button"
+                      :disabled="!isItemAvailable(item) || item.quantity <= 1"
+                      @click="decreaseQuantity(item)"
+                    >
+                      <i class="bi bi-dash"></i>
+                    </button>
 
-                <span class="quantity-value">
-                  {{ item.quantity }}
-                </span>
+                    <span class="quantity-value">
+                      {{ item.quantity }}
+                    </span>
 
-                <button
-                  type="button"
-                  class="quantity-button"
-                  :disabled="
-                    !isItemAvailable(item) ||
-                    (item.stock !== null &&
-                      item.stock !== undefined &&
-                      Number(item.quantity) >= Number(item.stock))
-                  "
-                  @click="increaseQuantity(item)"
-                >
-                  <i class="bi bi-plus"></i>
-                </button>
-              </div>
+                    <button
+                      type="button"
+                      class="quantity-button"
+                      :disabled="
+                        !isItemAvailable(item) ||
+                        (item.stock !== null &&
+                          item.stock !== undefined &&
+                          Number(item.quantity) >= Number(item.stock))
+                      "
+                      @click="increaseQuantity(item)"
+                    >
+                      <i class="bi bi-plus"></i>
+                    </button>
+                  </div>
 
-              <!-- 庫存上限提示 -->
-              <span
-                v-if="isItemAvailable(item) && item.stock !== null && item.stock !== undefined"
-                class="quantity-stock-info"
-                :class="{
-                  'is-limit': Number(item.quantity) >= Number(item.stock),
-                }"
-              >
-                {{
-                  Number(item.quantity) >= Number(item.stock)
-                    ? `已達上限，最多 ${item.stock} 件`
-                    : `最多購買 ${item.stock} 件`
-                }}
-              </span>
-              <!-- 小計 -->
+                  <!-- 庫存上限提示 -->
+                  <span
+                    v-if="isItemAvailable(item) && item.stock !== null && item.stock !== undefined"
+                    class="quantity-stock-info"
+                    :class="{
+                      'is-limit': Number(item.quantity) >= Number(item.stock),
+                    }"
+                  >
+                    {{
+                      Number(item.quantity) >= Number(item.stock)
+                        ? `已達上限，最多 ${item.stock} 件`
+                        : `最多購買 ${item.stock} 件`
+                    }}
+                  </span>
+                </div>
 
-              <div class="item-total">
-                <span class="item-total-label"> 小計 </span>
+                <!-- 小計 -->
+                <div class="item-total">
+                  <span class="item-total-label">小計</span>
 
-                <strong>
-                  NT$
-                  {{ formatPrice(getItemSubtotal(item)) }}
-                </strong>
+                  <strong>
+                    {{ formatPrice(getItemSubtotal(item)) }}
+                  </strong>
 
-                <span
-                  v-if="!isItemAvailable(item) && item.stock !== null"
-                  class="stock-info stock-warning"
-                >
-                  目前庫存：{{ item.stock }} 件
-                </span>
+                  <span
+                    v-if="!isItemAvailable(item) && item.stock !== null"
+                    class="stock-info stock-warning"
+                  >
+                    目前庫存：{{ item.stock }} 件
+                  </span>
 
-                <button type="button" class="remove-button" @click="removeItem(item)">
-                  <i class="bi bi-trash3"></i>
-
-                  <span>移除</span>
-                </button>
+                  <button type="button" class="remove-button" @click="removeItem(item)">
+                    <i class="bi bi-trash3"></i>
+                    <span>移除</span>
+                  </button>
+                </div>
               </div>
             </article>
           </div>
@@ -1434,7 +1438,23 @@ onMounted(() => {
 
   gap: var(--space-2);
 }
+.item-purchase-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--space-3);
 
+  min-width: 150px;
+}
+
+.item-purchase-info .item-quantity {
+  align-items: flex-end;
+}
+
+.item-purchase-info .item-total {
+  align-items: flex-end;
+}
 .quantity-label {
   color: var(--color-text-subtle);
 
@@ -1520,28 +1540,22 @@ onMounted(() => {
 
 .item-total {
   display: flex;
-
   flex-direction: column;
-
   align-items: flex-end;
-
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .item-total-label {
   color: var(--color-text-subtle);
-
   font-family: var(--font-body);
   font-size: var(--font-size-xs);
 }
 
 .item-total strong {
   color: var(--color-text);
-
   font-family: var(--font-body);
   font-size: var(--font-size-md);
   font-weight: 700;
-
   white-space: nowrap;
 }
 
