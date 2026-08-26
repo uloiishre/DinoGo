@@ -1,214 +1,36 @@
 <script setup>
-import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import {
-  getSellerMessages,
-  markAllSellerMessagesRead,
-  markSellerMessageRead,
-} from '@/api/sellerMessageApi'
-
-const router = useRouter()
-const categories = [
-  { value: 'ALL', label: '全部訊息' },
-  { value: 'ORDER', label: '訂單通知' },
-  { value: 'PLATFORM', label: '平台公告' },
-  { value: 'PROMOTION', label: '優惠通知' },
-]
-
-const activeCategory = ref('ALL')
-const messages = ref([])
-const totalUnreadCount = ref(0)
-const isLoading = ref(false)
-const isMarkingAll = ref(false)
-const errorMessage = ref('')
-
-const getPayload = (response) => {
-  const payload = response?.data ?? {}
-  return Array.isArray(payload) ? payload : payload.content ?? []
-}
-
-const loadMessages = async () => {
-  isLoading.value = true
-  errorMessage.value = ''
-  try {
-    const response = await getSellerMessages({ category: activeCategory.value })
-    messages.value = getPayload(response)
-    totalUnreadCount.value = response?.data?.unreadCount ?? messages.value.filter((message) => !message.read).length
-  } catch (error) {
-    messages.value = []
-    errorMessage.value = error.response?.data?.message || '訊息暫時無法載入，請稍後再試。'
-  } finally {
-    isLoading.value = false
-  }
-}
-
-const selectCategory = (category) => {
-  if (activeCategory.value === category) return
-  activeCategory.value = category
-  loadMessages()
-}
-
-const openMessage = async (message) => {
-  if (!message.read) {
-    try {
-      await markSellerMessageRead(message.id)
-      message.read = true
-      totalUnreadCount.value = Math.max(0, totalUnreadCount.value - 1)
-    } catch (error) {
-      errorMessage.value = error.response?.data?.message || '無法更新訊息狀態。'
-      return
-    }
-  }
-
-  if (message.targetUrl?.startsWith('/seller/')) {
-    router.push(message.targetUrl)
-  }
-}
-
-const markAllRead = async () => {
-  if (!totalUnreadCount.value || isMarkingAll.value) return
-  isMarkingAll.value = true
-  errorMessage.value = ''
-  try {
-    await markAllSellerMessagesRead()
-    messages.value.forEach((message) => {
-      message.read = true
-    })
-    totalUnreadCount.value = 0
-  } catch (error) {
-    errorMessage.value = error.response?.data?.message || '無法將全部訊息設為已讀。'
-  } finally {
-    isMarkingAll.value = false
-  }
-}
-
-const formatTime = (value) => {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('zh-TW', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(date)
-}
-
-onMounted(loadMessages)
+import { computed, reactive, ref } from 'vue'
+const inboxTabs=[{key:'ALL',label:'全部訊息'},{key:'SYSTEM_NOTICE',label:'平台公告'},{key:'NEW_ORDER',label:'訂單進度'},{key:'CANCELLED_ORDER',label:'取消訂單'}]
+const outboxTabs=[{key:'TEMPLATES',label:'範本管理'},{key:'CREATE',label:'新增訊息'}]
+const categoryTabs=inboxTabs.slice(1)
+const titleMap={SYSTEM_NOTICE:['平台維護公告','商家政策更新','服務功能通知'],NEW_ORDER:['收到新訂單','訂單付款完成','訂單等待出貨'],CANCELLED_ORDER:['買家取消訂單','訂單取消完成','退款處理通知']}
+const messages=reactive(categoryTabs.flatMap((category,categoryIndex)=>Array.from({length:36},(_,index)=>({recordId:categoryIndex*100+index+1,category:category.key,recordStatus:index%4===0?'READ':'UNREAD',sendTitle:titleMap[category.key][index%3],sendContent:`這是第 ${index+1} 則${category.label}內容，點擊可標示為已讀。`,recordCreatedAt:new Date(Date.now()-(categoryIndex*36+index)*3600000).toISOString()}))))
+const activeTab=ref('ALL'),statusFilter=ref('ALL'),pageSize=ref(10),currentPage=ref(1),selectedIds=ref(new Set())
+const canFilter=computed(()=>categoryTabs.some(tab=>tab.key===activeTab.value))
+const sourceMessages=computed(()=>messages.filter(item=>activeTab.value==='ALL'||item.category===activeTab.value).sort((a,b)=>new Date(b.recordCreatedAt)-new Date(a.recordCreatedAt)))
+const filteredMessages=computed(()=>!canFilter.value||statusFilter.value==='ALL'?sourceMessages.value:sourceMessages.value.filter(item=>item.recordStatus===statusFilter.value))
+const pageCount=computed(()=>Math.max(1,Math.ceil(filteredMessages.value.length/pageSize.value)))
+const visibleMessages=computed(()=>filteredMessages.value.slice((currentPage.value-1)*pageSize.value,currentPage.value*pageSize.value))
+const pageButtons=computed(()=>[1,2].filter(page=>page<=pageCount.value))
+const allSelected=computed(()=>visibleMessages.value.length>0&&visibleMessages.value.every(item=>selectedIds.value.has(item.recordId)))
+function hasUnread(category){return messages.some(item=>(category==='ALL'||item.category===category)&&item.recordStatus==='UNREAD')}
+function selectTab(key){activeTab.value=key;statusFilter.value='ALL';resetPage()}
+function resetPage(){currentPage.value=1;selectedIds.value=new Set()}
+function goToPage(page){currentPage.value=Math.min(Math.max(1,page),pageCount.value);selectedIds.value=new Set()}
+function toggleOne(id){const next=new Set(selectedIds.value);next.has(id)?next.delete(id):next.add(id);selectedIds.value=next}
+function toggleAll(){const next=new Set(selectedIds.value);visibleMessages.value.forEach(item=>allSelected.value?next.delete(item.recordId):next.add(item.recordId));selectedIds.value=next}
+function deleteSelected(){for(let index=messages.length-1;index>=0;index-=1)if(selectedIds.value.has(messages[index].recordId))messages.splice(index,1);resetPage()}
+function formatTime(value){return new Intl.DateTimeFormat('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(value))}
 </script>
-
 <template>
-  <section class="seller-page" aria-labelledby="message-page-title">
-    <header class="page-header">
-      <div>
-        <p class="eyebrow">訊息管理</p>
-        <h1 id="message-page-title">訊息中心</h1>
-        <p>查看訂單動態、平台公告與優惠通知。</p>
-      </div>
-      <button
-        class="mark-all-button"
-        type="button"
-        :disabled="!totalUnreadCount || isLoading || isMarkingAll"
-        @click="markAllRead"
-      >
-        {{ isMarkingAll ? '處理中…' : '全部設為已讀' }}
-      </button>
-    </header>
-
-    <div class="message-layout">
-      <nav class="category-panel" aria-label="訊息分類">
-        <button
-          v-for="category in categories"
-          :key="category.value"
-          type="button"
-          :class="{ active: activeCategory === category.value }"
-          :aria-current="activeCategory === category.value ? 'page' : undefined"
-          @click="selectCategory(category.value)"
-        >
-          <span>{{ category.label }}</span>
-          <span v-if="category.value === 'ALL' && totalUnreadCount" class="unread-badge">
-            {{ totalUnreadCount }}
-          </span>
-        </button>
-      </nav>
-
-      <div class="message-panel" aria-live="polite" :aria-busy="isLoading">
-        <div v-if="errorMessage" class="state-panel error-state" role="alert">
-          <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
-          <p>{{ errorMessage }}</p>
-          <button type="button" @click="loadMessages">重新載入</button>
-        </div>
-
-        <div v-else-if="isLoading" class="state-panel">
-          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-          <p>正在載入訊息…</p>
-        </div>
-
-        <div v-else-if="!messages.length" class="state-panel">
-          <i class="bi bi-inbox" aria-hidden="true"></i>
-          <p>目前沒有這個分類的訊息。</p>
-        </div>
-
-        <ul v-else class="message-list">
-          <li v-for="message in messages" :key="message.id">
-            <button
-              type="button"
-              class="message-row"
-              :class="{ unread: !message.read }"
-              @click="openMessage(message)"
-            >
-              <span class="status-dot" :aria-label="message.read ? '已讀' : '未讀'"></span>
-              <span class="message-copy">
-                <strong>{{ message.title }}</strong>
-                <span>{{ message.content }}</span>
-              </span>
-              <time :datetime="message.createdAt">{{ formatTime(message.createdAt) }}</time>
-              <i v-if="message.targetUrl" class="bi bi-chevron-right" aria-hidden="true"></i>
-            </button>
-          </li>
-        </ul>
-      </div>
-    </div>
-  </section>
+<section class="seller-page"><header><p class="eyebrow">訊息管理</p><h1>訊息中心</h1><p>查看平台公告與訂單動態，管理寄件範本。</p></header><div class="message-layout">
+<nav class="category-panel"><p class="category-heading">收件匣</p><button v-for="tab in inboxTabs" :key="tab.key" :class="{active:activeTab===tab.key}" @click="selectTab(tab.key)"><span>{{tab.label}}</span><span v-if="hasUnread(tab.key)" class="category-unread-dot"></span></button><p class="category-heading outbox-heading">寄件匣</p><button v-for="tab in outboxTabs" :key="tab.key" :class="{active:activeTab===tab.key}" @click="selectTab(tab.key)">{{tab.label}}</button></nav>
+<div class="message-panel" :class="{'message-panel--inbox':activeTab!=='TEMPLATES'&&activeTab!=='CREATE'}" :style="{'--seller-page-rows':pageSize}"><div v-if="activeTab==='TEMPLATES'" class="feature-state"><h2>範本管理</h2><p>管理商家訊息範本與套用內容。</p></div><div v-else-if="activeTab==='CREATE'" class="feature-state"><h2>新增訊息</h2><p>建立新的商家訊息。</p></div><template v-else>
+<div class="message-toolbar"><label><input type="checkbox" :checked="allSelected" @change="toggleAll">全選目前頁面</label><label class="page-size-filter">每頁<select v-model.number="pageSize" @change="resetPage"><option :value="10">10筆</option><option :value="30">30筆</option></select></label><label v-if="canFilter" class="status-filter"><select v-model="statusFilter" @change="resetPage"><option value="ALL">全部訊息</option><option value="UNREAD">未讀取</option><option value="READ">已讀取</option></select></label><button class="delete-button" :disabled="!selectedIds.size" @click="deleteSelected">刪除已選（{{selectedIds.size}}）</button></div>
+<div v-if="!visibleMessages.length" class="feature-state">目前沒有符合條件的訊息。</div><div v-else><article v-for="message in visibleMessages" :key="message.recordId" class="message-item" :class="{read:message.recordStatus==='READ'}"><label class="message-check"><input type="checkbox" :checked="selectedIds.has(message.recordId)" @change="toggleOne(message.recordId)"></label><button class="message-row" @click="message.recordStatus='READ'"><span class="status-dot" :class="{read:message.recordStatus==='READ'}"></span><span class="message-copy"><strong>{{message.sendTitle}}</strong><span>{{message.sendContent}}</span></span><time>{{formatTime(message.recordCreatedAt)}}</time></button></article></div>
+<nav class="pagination"><button :disabled="currentPage===1" @click="goToPage(1)">&lt;&lt;</button><button :disabled="currentPage===1" @click="goToPage(currentPage-1)">&lt;</button><button v-for="page in pageButtons" :key="page" :class="{active:currentPage===page}" @click="goToPage(page)">{{page}}</button><span v-if="pageCount>2">…</span><button v-if="pageCount>2" :class="{active:currentPage===pageCount}" @click="goToPage(pageCount)">{{pageCount}}</button><button :disabled="currentPage===pageCount" @click="goToPage(currentPage+1)">&gt;</button><button :disabled="currentPage===pageCount" @click="goToPage(pageCount)">&gt;&gt;</button></nav></template></div></div></section>
 </template>
-
 <style scoped>
-.seller-page { display: grid; gap: var(--space-5); max-width: 1160px; }
-.page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-5); }
-.eyebrow { margin: 0 0 var(--space-1); color: var(--color-text-muted); font-size: var(--font-size-sm); }
-h1 { margin: 0; font-family: var(--font-heading); font-size: var(--font-size-xl); color: var(--color-text); }
-.page-header p:last-child { margin: var(--space-1) 0 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
-.mark-all-button, .state-panel button { min-height: 40px; padding: 0 var(--space-4); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-primary-active); font-weight: 600; }
-.mark-all-button:disabled { border-color: var(--color-disabled); background: var(--color-disabled-bg); color: var(--color-text-subtle); cursor: not-allowed; }
-.message-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: var(--space-5); min-height: 460px; }
-.category-panel,
-.message-panel { border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); }
-.category-panel { align-self: start; display: grid; gap: var(--space-1); padding: var(--space-3); }
-.category-panel button { min-height: 44px; display: flex; justify-content: space-between; align-items: center; border: 0; border-radius: var(--radius-sm); padding: 0 var(--space-3); background: transparent; color: var(--color-text-700); text-align: left; }
-.category-panel button:hover { background: var(--color-surface-soft); }
-.category-panel button.active { background: var(--color-primary-soft); color: var(--color-primary-active); font-weight: 700; }
-.unread-badge { min-width: 24px; padding: 2px var(--space-2); border-radius: var(--radius-pill); background: var(--color-primary-active); color: var(--color-surface); font-size: var(--font-size-xs); text-align: center; }
-.message-panel { min-width: 0; overflow: hidden; }
-.message-list { margin: 0; padding: 0; list-style: none; }
-.message-list li:not(:last-child) { border-bottom: 1px solid var(--color-border); }
-.message-row { width: 100%; min-height: 92px; display: grid; grid-template-columns: 8px minmax(0, 1fr) auto 20px; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); border: 0; background: var(--color-surface-soft); color: var(--color-text); text-align: left; }
-.message-row.unread { background: var(--color-surface); }
-.message-row:hover { background: var(--color-primary-50); }
-.status-dot { width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--color-disabled); }
-.message-row.unread .status-dot { background: var(--color-primary-active); }
-.message-copy { min-width: 0; display: grid; gap: var(--space-1); }
-.message-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-size-sm); font-weight: 500; }
-.message-row.unread strong { font-weight: 700; }
-.message-copy > span { overflow: hidden; color: var(--color-text-muted); font-size: var(--font-size-xs); text-overflow: ellipsis; white-space: nowrap; }
-.message-row time { color: var(--color-text-muted); font-size: var(--font-size-xs); }
-.message-row i { color: var(--color-text-muted); }
-.state-panel { min-height: 320px; display: grid; place-content: center; justify-items: center; gap: var(--space-3); padding: var(--space-6); color: var(--color-text-muted); text-align: center; }
-.state-panel > i { font-size: 44px; color: var(--color-text-muted); }
-.state-panel p { margin: 0; }
-.error-state { color: var(--color-danger); background: var(--color-danger-soft); }
-.error-state > i { color: var(--color-danger); }
-button:focus-visible { outline: none; box-shadow: var(--shadow-focus); position: relative; z-index: 1; }
-@media (max-width: 760px) { .page-header { align-items: flex-start; flex-direction: column; } .message-layout { grid-template-columns: 1fr; } .category-panel { grid-template-columns: repeat(4, minmax(max-content, 1fr)); overflow-x: auto; } .message-row { grid-template-columns: 8px minmax(0, 1fr) 20px; } .message-row time { grid-column: 2; } }
-@media (max-width: 480px) { .category-panel { display: flex; } .category-panel button { flex: 0 0 auto; } .message-row { padding: var(--space-4); } }
+.seller-page{display:grid;gap:var(--space-5);max-width:1160px}header p,h1{margin:0}.eyebrow,header p:last-child{color:var(--color-text-muted);font-size:var(--font-size-sm)}h1{font-family:var(--font-heading);font-size:var(--font-size-xl)}.message-layout{display:grid;grid-template-columns:210px minmax(0,1fr);gap:var(--space-5);min-height:460px}.category-panel,.message-panel{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg)}.category-panel{display:grid;align-self:start;gap:var(--space-1);padding:var(--space-3)}.category-heading{margin:var(--space-1) var(--space-3);color:var(--color-text-muted);font-size:var(--font-size-xs);font-weight:700}.outbox-heading{margin-top:var(--space-4);padding-top:var(--space-3);border-top:1px solid var(--color-border)}.category-panel button{position:relative;min-height:44px;padding:0 var(--space-3);text-align:left;background:transparent;border:0;border-radius:var(--radius-sm)}.category-panel button.active{color:var(--color-primary-active);font-weight:700;background:var(--color-primary-soft)}.category-unread-dot{position:absolute;top:var(--space-2);right:var(--space-2);width:var(--space-2);height:var(--space-2);background:var(--color-primary);border-radius:50%}.message-panel{min-width:0;overflow:hidden}.message-toolbar{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3);background:var(--color-surface-soft);border-bottom:1px solid var(--color-border)}.message-toolbar label{display:flex;align-items:center;gap:var(--space-2);font-size:var(--font-size-sm)}.status-filter{margin-left:auto}.message-toolbar select,.delete-button{min-height:36px;padding-inline:var(--space-3);border:1px solid var(--color-border-strong);border-radius:var(--radius-md)}.delete-button{color:var(--color-danger);background:var(--color-surface);border-color:var(--color-danger)}.message-item{display:grid;grid-template-columns:var(--space-7) minmax(0,1fr);border-bottom:1px solid var(--color-border)}.message-check{display:grid;place-items:center}.message-row{display:grid;width:100%;min-height:68px;grid-template-columns:var(--space-3) minmax(0,1fr) auto;align-items:center;gap:var(--space-3);padding:var(--space-3);text-align:left;background:var(--color-surface);border:0}.status-dot{width:var(--space-2);height:var(--space-2);background:var(--color-primary);border-radius:50%}.status-dot.read{background:var(--color-disabled)}.message-copy{display:grid;min-width:0}.message-copy strong,.message-copy span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.message-copy span,time{color:var(--color-text-muted);font-size:var(--font-size-xs)}.message-item.read strong,.message-item.read .message-copy span,.message-item.read time{color:var(--color-text-subtle)}.pagination{display:flex;justify-content:center;gap:var(--space-2);padding:var(--space-3)}.pagination button{min-width:36px;min-height:36px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md)}.pagination button.active{color:white;background:var(--color-primary)}.feature-state{display:grid;min-height:320px;place-content:center;justify-items:center;color:var(--color-text-muted)}@media(max-width:767px){.message-layout{grid-template-columns:1fr}.category-panel{display:flex;overflow-x:auto}.category-heading{display:none}.message-toolbar{flex-wrap:wrap}.status-filter{margin-left:0}.message-row{grid-template-columns:var(--space-3) minmax(0,1fr)}.message-row time{grid-column:2}.pagination{justify-content:flex-start;overflow-x:auto}}
+.message-toolbar{min-height:48px;padding-block:var(--space-2)}.page-size-filter{margin-left:auto}.status-filter{margin-left:0}.message-item{height:var(--seller-message-row-height);min-height:0;overflow:hidden;grid-template-columns:42px minmax(0,1fr);background:var(--color-surface)}.message-row{height:100%;min-height:0;overflow:hidden;grid-template-columns:var(--space-2) minmax(0,1fr) auto;gap:var(--space-3);padding:var(--space-2) var(--space-4) var(--space-2) 0;background:transparent}.message-copy{gap:0}.message-copy strong,.message-copy span,.message-row time{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.message-panel--inbox{--seller-message-row-height:65px;padding-bottom:calc(3 * var(--seller-message-row-height))}.message-panel--inbox>div:not(.message-toolbar),.message-panel--inbox .feature-state{min-height:calc(var(--seller-page-rows) * var(--seller-message-row-height))}@media(max-width:767px){.message-row{grid-template-columns:var(--space-2) minmax(0,1fr)}.message-row time{grid-column:2}}
 </style>
