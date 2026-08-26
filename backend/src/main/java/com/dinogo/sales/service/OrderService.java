@@ -15,6 +15,10 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.dinogo.cart.entity.Cart;
+import com.dinogo.cart.entity.CartItem;
+import com.dinogo.cart.repository.CartItemRepository;
+import com.dinogo.cart.repository.CartRepository;
 import com.dinogo.catalog.entity.Product;
 import com.dinogo.catalog.entity.ProductImage;
 import com.dinogo.catalog.entity.ProductSku;
@@ -59,6 +63,9 @@ public class OrderService {
     private final ProductSkuRepository productSkuRepository;
     private final SellerRepository sellerRepository;
     private final CouponUsageService couponUsageService;
+
+    private final CartRepository cartRepository;
+    private final CartItemRepository cartItemRepository;
     private static final Map<OrderStatus, Set<OrderStatus>> ALLOWED_TRANSITIONS = Map.of(
             OrderStatus.PENDING_PAYMENT,
             Set.of(OrderStatus.PAID, OrderStatus.CANCELLED),
@@ -77,12 +84,17 @@ public class OrderService {
             AddressRepository addressRepository,
             ProductSkuRepository productSkuRepository,
             SellerRepository sellerRepository,
-            CouponUsageService couponUsageService) {
+            CouponUsageService couponUsageService,
+            CartRepository cartRepository,
+            CartItemRepository cartItemRepository) {
+
         this.orderRepository = orderRepository;
         this.addressRepository = addressRepository;
         this.productSkuRepository = productSkuRepository;
         this.sellerRepository = sellerRepository;
         this.couponUsageService = couponUsageService;
+        this.cartRepository = cartRepository;
+        this.cartItemRepository = cartItemRepository;
     }
 
     @Transactional
@@ -164,10 +176,43 @@ public class OrderService {
         order.setTotalAmount(roundToWholeTwd(subtotalAmount.add(shippingFee).subtract(discountAmount)));
 
         Order savedOrder = orderRepository.save(order);
+
         if (appliedCoupon != null) {
             couponUsageService.consume(appliedCoupon);
         }
+
+        // 建立訂單成功後，移除本次結帳的購物車商品
+        removeOrderedItemsFromCart(
+                buyerId,
+                skuIds);
+
         return toResponse(savedOrder);
+    }
+
+    private void removeOrderedItemsFromCart(
+            Integer buyerId,
+            Set<Integer> skuIds) {
+
+        Cart cart = cartRepository
+                .findByMemberMemberId(buyerId)
+                .orElse(null);
+
+        if (cart == null) {
+            return;
+        }
+
+        List<CartItem> cartItems = cartItemRepository
+                .findByCartCartId(cart.getCartId());
+
+        List<CartItem> itemsToDelete = cartItems.stream()
+                .filter(item -> item.getProductSku() != null
+                        && skuIds.contains(
+                                item.getProductSku().getSkuId()))
+                .toList();
+
+        if (!itemsToDelete.isEmpty()) {
+            cartItemRepository.deleteAll(itemsToDelete);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -281,10 +326,9 @@ public class OrderService {
         boolean isUnshippedCashOnDeliveryOrder = order.getStatus() == OrderStatus.PROCESSING
                 && (order.getShipment() == null
                         || order.getShipment().getStatus() == ShipmentStatus.PREPARING)
-                && order.getPayments().stream().anyMatch(payment ->
-                        payment.getStatus() == PaymentStatus.PENDING
-                                && CASH_ON_DELIVERY.equals(
-                                        payment.getPaymentMethod().getMethodCode()));
+                && order.getPayments().stream().anyMatch(payment -> payment.getStatus() == PaymentStatus.PENDING
+                        && CASH_ON_DELIVERY.equals(
+                                payment.getPaymentMethod().getMethodCode()));
         if (!isUnshippedCashOnDeliveryOrder) {
             throw new InvalidOrderException(
                     "Only pending-payment orders or unshipped cash-on-delivery orders can be cancelled");

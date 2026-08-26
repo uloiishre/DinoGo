@@ -17,7 +17,13 @@ const changingSkuId = ref(null)
 
 // 勾選的商品 cartItemId
 const selectedCartItemIds = ref([])
+// ================================
+// 移除商品確認視窗
+// ================================
 
+const showRemoveModal = ref(false)
+const removingItem = ref(null)
+const removeModalType = ref('single')
 // ================================
 // 商品是否可以購買
 // ================================
@@ -190,12 +196,6 @@ const deleteUnavailableItems = async () => {
     return
   }
 
-  const confirmed = confirm(`確定要刪除全部 ${unavailableItems.value.length} 件失效商品嗎？`)
-
-  if (!confirmed) {
-    return
-  }
-
   try {
     loading.value = true
     errorMessage.value = ''
@@ -212,10 +212,11 @@ const deleteUnavailableItems = async () => {
 
     // 清除這些商品的勾選
     selectedCartItemIds.value = selectedCartItemIds.value.filter((id) => !ids.includes(id))
+
+    closeRemoveModal()
   } catch (error) {
     logSafeError('刪除失效商品失敗:', error)
 
-    // 即使部分刪除成功，也重新取得最新資料
     await fetchCart()
 
     alert(error.response?.data?.message || '刪除失效商品失敗，已重新整理購物車資料。')
@@ -477,12 +478,51 @@ const decreaseQuantity = (item) => {
 // 刪除商品
 // ================================
 
-const removeItem = async (item) => {
-  if (!confirm('確定要移除這個商品嗎？')) {
+// ================================
+// 開啟移除商品確認視窗
+// ================================
+
+const openRemoveModal = (item) => {
+  removingItem.value = item
+  removeModalType.value = 'single'
+  showRemoveModal.value = true
+}
+// ================================
+// 開啟刪除全部失效商品確認視窗
+// ================================
+
+const openDeleteUnavailableModal = () => {
+  if (!unavailableItems.value.length) {
     return
   }
 
+  removeModalType.value = 'unavailable'
+  removingItem.value = null
+  showRemoveModal.value = true
+}
+// ================================
+// 關閉移除商品確認視窗
+// ================================
+
+const closeRemoveModal = () => {
+  showRemoveModal.value = false
+  removingItem.value = null
+}
+
+// ================================
+// 確認移除商品
+// ================================
+
+const confirmRemoveItem = async () => {
+  if (!removingItem.value) {
+    return
+  }
+
+  const item = removingItem.value
+
   try {
+    loading.value = true
+
     await api.delete(`/cart/items/${item.cartItemId}`)
 
     cart.value.items = cart.value.items.filter(
@@ -490,10 +530,14 @@ const removeItem = async (item) => {
     )
 
     selectedCartItemIds.value = selectedCartItemIds.value.filter((id) => id !== item.cartItemId)
+
+    closeRemoveModal()
   } catch (error) {
     logSafeError('刪除商品失敗:', error)
 
     alert(error.response?.data?.message || '刪除商品失敗')
+  } finally {
+    loading.value = false
   }
 }
 
@@ -918,7 +962,7 @@ onMounted(() => {
                     目前庫存：{{ item.stock }} 件
                   </span>
 
-                  <button type="button" class="remove-button" @click="removeItem(item)">
+                  <button type="button" class="remove-button" @click="openRemoveModal(item)">
                     <i class="bi bi-trash3"></i>
                     <span>移除</span>
                   </button>
@@ -952,7 +996,7 @@ onMounted(() => {
                   type="button"
                   class="delete-unavailable-button"
                   :disabled="loading || unavailableItems.length === 0"
-                  @click="deleteUnavailableItems"
+                  @click="openDeleteUnavailableModal"
                 >
                   <i class="bi bi-trash3"></i>
 
@@ -1058,7 +1102,7 @@ onMounted(() => {
                   目前庫存：{{ item.stock }} 件
                 </span>
 
-                <button type="button" class="remove-button" @click="removeItem(item)">
+                <button type="button" class="remove-button" @click="openRemoveModal(item)">
                   <i class="bi bi-trash3"></i>
 
                   <span> 移除 </span>
@@ -1121,6 +1165,58 @@ onMounted(() => {
       </div>
     </div>
   </main>
+  <!-- ================================
+     移除商品確認 Modal
+================================= -->
+
+  <div v-if="showRemoveModal" class="remove-modal-overlay" @click.self="closeRemoveModal">
+    <div class="remove-modal">
+      <!-- Icon -->
+      <div class="remove-modal-icon">
+        <i class="bi bi-trash3"></i>
+      </div>
+
+      <!-- 標題 -->
+      <h2 class="remove-modal-title">
+        {{ removeModalType === 'unavailable' ? '確定要刪除失效商品嗎？' : '確定要移除商品嗎？' }}
+      </h2>
+
+      <p class="remove-modal-message">
+        <template v-if="removeModalType === 'unavailable'">
+          確定要刪除全部
+          <strong>{{ unavailableItems.length }} 件</strong>
+          失效商品嗎？
+        </template>
+
+        <template v-else>
+          確定要將
+          <strong>{{ removingItem?.productName }}</strong>
+          從購物車移除嗎？
+        </template>
+      </p>
+
+      <!-- 按鈕 -->
+      <div class="remove-modal-actions">
+        <button
+          type="button"
+          class="remove-modal-cancel"
+          :disabled="loading"
+          @click="closeRemoveModal"
+        >
+          取消
+        </button>
+
+        <button
+          type="button"
+          class="remove-modal-confirm"
+          :disabled="loading"
+          @click="confirmRemoveItem"
+        >
+          {{ loading ? '移除中...' : '確定移除' }}
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <style scoped>
@@ -2678,5 +2774,217 @@ onMounted(() => {
 .quantity-stock-info.is-limit {
   color: var(--color-danger);
   font-weight: 600;
+}
+/* ========================================
+   Remove Item Modal
+======================================== */
+
+.remove-modal-overlay {
+  position: fixed;
+
+  inset: 0;
+
+  z-index: 9999;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: var(--space-5);
+
+  background: rgba(0, 0, 0, 0.45);
+
+  box-sizing: border-box;
+}
+
+.remove-modal {
+  width: 100%;
+  max-width: 420px;
+
+  padding: var(--space-6);
+
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-border);
+
+  border-radius: var(--radius-lg);
+
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+
+  text-align: center;
+
+  animation: remove-modal-show 0.2s ease-out;
+}
+
+/* Icon */
+
+.remove-modal-icon {
+  width: 56px;
+  height: 56px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  margin: 0 auto var(--space-4);
+
+  color: var(--color-danger);
+
+  background: rgba(200, 80, 80, 0.1);
+
+  border-radius: 50%;
+
+  font-size: 24px;
+}
+
+/* Title */
+
+.remove-modal-title {
+  margin: 0 0 var(--space-3);
+
+  color: var(--color-text);
+
+  font-family: var(--font-heading);
+
+  font-size: var(--font-size-lg);
+
+  font-weight: 700;
+}
+
+/* Message */
+
+.remove-modal-message {
+  margin: 0 auto var(--space-5);
+
+  max-width: 340px;
+
+  color: var(--color-text-muted);
+
+  font-family: var(--font-body);
+
+  font-size: var(--font-size-sm);
+
+  line-height: 1.6;
+}
+
+.remove-modal-message strong {
+  color: var(--color-text);
+
+  font-weight: 600;
+}
+
+/* Buttons */
+
+.remove-modal-actions {
+  display: flex;
+
+  justify-content: center;
+
+  gap: var(--space-3);
+}
+
+.remove-modal-cancel,
+.remove-modal-confirm {
+  min-width: 110px;
+
+  height: 42px;
+
+  padding: 0 var(--space-4);
+
+  border-radius: var(--radius-md);
+
+  font-family: var(--font-body);
+
+  font-size: var(--font-size-sm);
+
+  font-weight: 600;
+
+  cursor: pointer;
+
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+/* 取消 */
+
+.remove-modal-cancel {
+  color: var(--color-text);
+
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-border);
+}
+
+.remove-modal-cancel:hover:not(:disabled) {
+  background: var(--color-surface-soft);
+
+  border-color: var(--color-text-subtle);
+}
+
+/* 確定 */
+
+.remove-modal-confirm {
+  color: #ffffff;
+
+  background: var(--color-danger);
+
+  border: 1px solid var(--color-danger);
+}
+
+.remove-modal-confirm:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.remove-modal-cancel:disabled,
+.remove-modal-confirm:disabled {
+  opacity: 0.5;
+
+  cursor: not-allowed;
+}
+
+/* Modal 動畫 */
+
+@keyframes remove-modal-show {
+  from {
+    opacity: 0;
+
+    transform: scale(0.95) translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ========================================
+   Mobile
+======================================== */
+
+@media (max-width: 480px) {
+  .remove-modal-overlay {
+    padding: var(--space-4);
+  }
+
+  .remove-modal {
+    padding: var(--space-5);
+  }
+
+  .remove-modal-actions {
+    width: 100%;
+  }
+
+  .remove-modal-cancel,
+  .remove-modal-confirm {
+    flex: 1;
+
+    min-width: 0;
+  }
 }
 </style>

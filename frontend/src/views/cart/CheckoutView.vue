@@ -2,7 +2,12 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/api/axios'
-import { createPayment, getPaymentCapabilities, simulatePayment, submitEcpayCheckout } from '@/api/order'
+import {
+  createPayment,
+  getPaymentCapabilities,
+  simulatePayment,
+  submitEcpayCheckout,
+} from '@/api/order'
 import { logSafeError } from '@/utils/safeError'
 import { getImageUrl } from '@/utils/imageUrl'
 
@@ -577,7 +582,11 @@ const submitOrder = async () => {
 
     try {
       const paymentResponse = await createPayment(createdOrderId, submittedPaymentMethod)
-
+      console.log('========== PAYMENT RESPONSE ==========')
+      console.log(paymentResponse)
+      console.log('payment data:', paymentResponse.data)
+      console.log('ecpayCheckout:', paymentResponse.data?.ecpayCheckout)
+      console.log('======================================')
       if (submittedPaymentMethod === 'CREDIT_CARD' && paymentResponse.data.ecpayCheckout) {
         submitEcpayCheckout(paymentResponse.data.ecpayCheckout)
         return
@@ -686,8 +695,8 @@ onMounted(() => {
   <main class="checkout-page">
     <div class="checkout-container">
       <!-- ========================================
-           Header
-      ======================================== -->
+            Header
+        ======================================== -->
 
       <header class="checkout-header">
         <h1>{{ pageTitle }}</h1>
@@ -696,8 +705,8 @@ onMounted(() => {
       </header>
 
       <!-- ========================================
-           Error
-      ======================================== -->
+            Error
+        ======================================== -->
 
       <div v-if="errorMessage" class="error-message" role="alert">
         <i class="bi bi-exclamation-circle"></i>
@@ -706,8 +715,8 @@ onMounted(() => {
       </div>
 
       <!-- ========================================
-           Loading
-      ======================================== -->
+            Loading
+        ======================================== -->
 
       <div v-if="loading && checkoutItems.length === 0" class="loading-state">
         <div class="spinner-border" role="status">
@@ -718,23 +727,23 @@ onMounted(() => {
       </div>
 
       <!-- ========================================
-           Checkout Layout
-      ======================================== -->
+            Checkout Layout
+        ======================================== -->
 
       <div v-else class="checkout-layout">
         <!-- ========================================
-             左側
-        ======================================== -->
+              左側
+          ======================================== -->
 
         <div class="checkout-left">
           <!-- ======================================
-               商品
-          ====================================== -->
+                商品
+            ====================================== -->
 
           <section class="checkout-card">
             <!-- ======================================
-     商品無法購買提示
-====================================== -->
+      商品無法購買提示
+  ====================================== -->
 
             <div v-if="stockErrorMessage" class="stock-error">
               <div class="stock-error-icon">
@@ -819,47 +828,10 @@ onMounted(() => {
                 </div>
               </div>
             </div>
-
-            <div
-              v-if="paymentSimulationEnabled && paymentMethod !== 'CASH_ON_DELIVERY'"
-              class="payment-simulation"
-            >
-              <p class="payment-simulation-title">Demo 付款結果</p>
-              <label>
-                <input
-                  v-model="simulatedPaymentStatus"
-                  type="radio"
-                  value="SUCCESS"
-                  name="simulated-payment-status"
-                  :disabled="submitting"
-                />
-                模擬付款成功
-              </label>
-              <label>
-                <input
-                  v-model="simulatedPaymentStatus"
-                  type="radio"
-                  value="FAILED"
-                  name="simulated-payment-status"
-                  :disabled="submitting"
-                />
-                模擬付款失敗
-              </label>
-              <label v-if="simulatedPaymentStatus === 'FAILED'" class="payment-failure-reason">
-                失敗原因（選填）
-                <input
-                  v-model="simulatedPaymentFailureReason"
-                  type="text"
-                  maxlength="500"
-                  placeholder="例如：銀行授權失敗"
-                  :disabled="submitting"
-                />
-              </label>
-            </div>
           </section>
           <!-- ======================================
-     訂單備註
-====================================== -->
+      訂單備註
+  ====================================== -->
 
           <section class="checkout-card">
             <div class="section-header">
@@ -885,8 +857,8 @@ onMounted(() => {
             </div>
           </section>
           <!-- ======================================
-               收件資料
-          ====================================== -->
+                收件資料
+            ====================================== -->
 
           <section class="checkout-card">
             <div class="section-header">
@@ -947,8 +919,8 @@ onMounted(() => {
           </section>
 
           <!-- ======================================
-               配送方式
-          ====================================== -->
+                配送方式
+            ====================================== -->
 
           <section class="checkout-card">
             <div class="section-header">
@@ -986,16 +958,8 @@ onMounted(() => {
 
               <!-- 超商 -->
 
-              <label
-                class="option-card disabled"
-                aria-disabled="true"
-              >
-                <input
-                  type="radio"
-                  value="CONVENIENCE_STORE"
-                  name="shipping"
-                  disabled
-                />
+              <label class="option-card disabled" aria-disabled="true">
+                <input type="radio" value="CONVENIENCE_STORE" name="shipping" disabled />
 
                 <span class="radio-dot"></span>
 
@@ -1009,8 +973,8 @@ onMounted(() => {
           </section>
 
           <!-- ======================================
-               付款方式
-          ====================================== -->
+                付款方式
+            ====================================== -->
 
           <section class="checkout-card">
             <div class="section-header">
@@ -1072,39 +1036,12 @@ onMounted(() => {
                   <span> 信用卡付款 </span>
                 </span>
               </label>
-
-              <!-- LINE Pay -->
-
-              <label
-                v-if="onlinePaymentAvailable"
-                class="option-card"
-                :class="{
-                  selected: paymentMethod === 'LINE_PAY',
-                }"
-              >
-                <input
-                  v-model="paymentMethod"
-                  type="radio"
-                  value="LINE_PAY"
-                  name="payment"
-                  :disabled="submitting"
-                  @change="changePaymentMethod"
-                />
-
-                <span class="radio-dot"></span>
-
-                <span class="option-content">
-                  <strong>LINE Pay</strong>
-
-                  <span>使用 LINE Pay 線上付款</span>
-                </span>
-              </label>
             </div>
           </section>
 
           <!-- ======================================
-               優惠券
-          ====================================== -->
+                優惠券
+            ====================================== -->
 
           <section class="checkout-card">
             <div class="section-header">
@@ -1269,8 +1206,8 @@ onMounted(() => {
         </div>
 
         <!-- ========================================
-             右側：訂單摘要
-        ======================================== -->
+              右側：訂單摘要
+          ======================================== -->
 
         <aside class="summary-card">
           <div class="section-header">
@@ -1387,8 +1324,8 @@ onMounted(() => {
 
 <style scoped>
 /* ========================================
-   Page
-======================================== */
+    Page
+  ======================================== */
 
 .checkout-page {
   min-height: 100vh;
@@ -1405,8 +1342,8 @@ onMounted(() => {
 }
 
 /* ========================================
-   Header
-======================================== */
+    Header
+  ======================================== */
 
 .checkout-header {
   margin-bottom: var(--space-6);
@@ -1430,8 +1367,8 @@ onMounted(() => {
 }
 
 /* ========================================
-   Layout
-======================================== */
+    Layout
+  ======================================== */
 
 .checkout-layout {
   display: grid;
@@ -1446,8 +1383,8 @@ onMounted(() => {
 }
 
 /* ========================================
-   Left
-======================================== */
+    Left
+  ======================================== */
 
 .checkout-left {
   display: flex;
@@ -1459,8 +1396,8 @@ onMounted(() => {
 }
 
 /* ========================================
-   Card
-======================================== */
+    Card
+  ======================================== */
 
 .checkout-card,
 .summary-card {
@@ -1484,8 +1421,8 @@ onMounted(() => {
 }
 
 /* ========================================
-   Section Header
-======================================== */
+    Section Header
+  ======================================== */
 
 .section-header {
   display: flex;
@@ -1523,8 +1460,8 @@ onMounted(() => {
 }
 
 /* ========================================
-   Checkout Items
-======================================== */
+    Checkout Items
+  ======================================== */
 
 .checkout-items {
   display: flex;
@@ -1647,8 +1584,8 @@ onMounted(() => {
 }
 
 /* ========================================
-   Option List
-======================================== */
+    Option List
+  ======================================== */
 
 .option-list {
   display: flex;
@@ -1852,8 +1789,8 @@ onMounted(() => {
 }
 
 /* ========================================
-   優惠券
-======================================== */
+    優惠券
+  ======================================== */
 
 .coupon-list {
   display: flex;
@@ -2070,8 +2007,8 @@ onMounted(() => {
 }
 
 /* ========================================
-   Empty Address
-======================================== */
+    Empty Address
+  ======================================== */
 
 .empty-address {
   display: flex;
@@ -2107,8 +2044,8 @@ onMounted(() => {
 }
 
 /* ========================================
-   Summary
-======================================== */
+    Summary
+  ======================================== */
 
 .summary-card {
   display: flex;
@@ -2184,8 +2121,8 @@ onMounted(() => {
 }
 
 /* ========================================
-   Loading
-======================================== */
+    Loading
+  ======================================== */
 
 .loading-state {
   display: flex;
@@ -2229,8 +2166,8 @@ onMounted(() => {
 }
 
 /* ========================================
-   Error
-======================================== */
+    Error
+  ======================================== */
 
 .error-message {
   display: flex;
@@ -2279,8 +2216,8 @@ onMounted(() => {
 }
 
 /* ========================================
-   Submit Button
-======================================== */
+    Submit Button
+  ======================================== */
 
 .submit-button {
   width: 100%;
@@ -2339,8 +2276,8 @@ onMounted(() => {
 }
 
 /* ========================================
-   RWD - 1024px
-======================================== */
+    RWD - 1024px
+  ======================================== */
 
 @media (max-width: 1024px) {
   .checkout-container {
@@ -2357,8 +2294,8 @@ onMounted(() => {
 }
 
 /* ========================================
-   RWD - 768px
-======================================== */
+    RWD - 768px
+  ======================================== */
 
 @media (max-width: 768px) {
   .checkout-container {
@@ -2398,8 +2335,8 @@ onMounted(() => {
 }
 
 /* ========================================
-   RWD - 480px
-======================================== */
+    RWD - 480px
+  ======================================== */
 
 @media (max-width: 480px) {
   .checkout-container {
@@ -2475,8 +2412,8 @@ onMounted(() => {
   font-weight: 500;
 }
 /* ========================================
-   商品無法購買提示
-======================================== */
+    商品無法購買提示
+  ======================================== */
 
 .stock-error {
   display: flex;
@@ -2547,8 +2484,8 @@ onMounted(() => {
 }
 
 /* ========================================
-   庫存錯誤後的按鈕
-======================================== */
+    庫存錯誤後的按鈕
+  ======================================== */
 
 .stock-error-button {
   background: var(--color-danger);
@@ -2560,8 +2497,8 @@ onMounted(() => {
   transform: translateY(-1px);
 }
 /* ========================================
-   訂單備註
-======================================== */
+    訂單備註
+  ======================================== */
 
 .remark-wrapper {
   display: flex;
@@ -2618,8 +2555,8 @@ onMounted(() => {
   font-size: var(--font-size-xs);
 }
 /* ========================================
-   優惠券所屬賣家
-======================================== */
+    優惠券所屬賣家
+  ======================================== */
 
 .coupon-seller {
   display: flex;
@@ -2636,8 +2573,8 @@ onMounted(() => {
 }
 
 /* ========================================
-   優惠券可用狀態
-======================================== */
+    優惠券可用狀態
+  ======================================== */
 
 .coupon-availability {
   font-size: var(--font-size-xs);
@@ -2653,8 +2590,8 @@ onMounted(() => {
 }
 
 /* ========================================
-   其他賣家優惠券
-======================================== */
+    其他賣家優惠券
+  ======================================== */
 
 .coupon-card.disabled {
   background: var(--color-surface-soft);
