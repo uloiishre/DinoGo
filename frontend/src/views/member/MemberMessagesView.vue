@@ -23,13 +23,13 @@ const inboxes = reactive(Object.fromEntries(tabs.map((tab, tabIndex) => [tab.key
 ])))
 const activeTab = ref('SYSTEM_INBOX')
 const statusFilter = ref('ALL')
-const pageSize = ref(10)
+const pageSize = 12
 const currentPage = ref(1)
 const selectedIds = ref(new Set())
 const selectedMessage = ref(null)
 const filteredItems = computed(() => inboxes[activeTab.value].filter((message) => statusFilter.value === 'ALL' || message.recordStatus === statusFilter.value))
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredItems.value.length / pageSize.value)))
-const visibleMessages = computed(() => filteredItems.value.slice((currentPage.value - 1) * pageSize.value, currentPage.value * pageSize.value))
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredItems.value.length / pageSize)))
+const visibleMessages = computed(() => filteredItems.value.slice((currentPage.value - 1) * pageSize, currentPage.value * pageSize))
 const pageButtons = computed(() => [1, 2].filter((page) => page <= totalPages.value))
 const allVisibleSelected = computed(() => visibleMessages.value.length > 0 && visibleMessages.value.every((message) => selectedIds.value.has(message.recordId)))
 
@@ -42,12 +42,13 @@ function deleteSelected() {
   selectedIds.value = new Set()
   currentPage.value = Math.min(currentPage.value, totalPages.value)
 }
+function markAllFilteredRead() { filteredItems.value.forEach((message) => { message.recordStatus = 'READ' }); currentPage.value = 1 }
 function openMessage(message) { message.recordStatus = 'READ'; selectedMessage.value = message; document.body.style.overflow = 'hidden' }
 function closeMessage() { selectedMessage.value = null; document.body.style.overflow = '' }
 function senderLabel(message) { return message.msgfromSellerId != null ? `seller_id：${message.msgfromSellerId}` : '系統自動訊息' }
-function goToPage(page) { currentPage.value = Math.min(Math.max(1, page), totalPages.value); selectedIds.value = new Set() }
+function goToPage(page) { currentPage.value = Math.min(Math.max(1, page), totalPages.value); selectedIds.value = new Set(); requestAnimationFrame(() => document.querySelector('.inbox-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }
 function formatDate(value) { return new Intl.DateTimeFormat('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value)) }
-watch([statusFilter, pageSize], () => { currentPage.value = 1; selectedIds.value = new Set() })
+watch(statusFilter, () => { currentPage.value = 1; selectedIds.value = new Set() })
 </script>
 
 <template>
@@ -56,18 +57,18 @@ watch([statusFilter, pageSize], () => { currentPage.value = 1; selectedIds.value
     <nav class="inbox-tabs" role="tablist" aria-label="收件匣分類">
       <button v-for="tab in tabs" :key="tab.key" type="button" role="tab" :aria-selected="activeTab === tab.key" :class="{ active: activeTab === tab.key }" @click="selectTab(tab.key)">{{ tab.label }}</button>
     </nav>
-    <section class="inbox-card" :style="{ '--inbox-page-rows': pageSize }">
+    <section class="inbox-card">
       <div class="inbox-toolbar">
-        <label><input type="checkbox" :checked="allVisibleSelected" @change="toggleAllVisible" />全選目前結果</label>
-        <label class="page-size"><span>每頁</span><select v-model.number="pageSize"><option :value="10">10筆</option><option :value="30">30筆</option></select></label>
-        <label><span class="visually-hidden">訊息讀取狀態</span><select v-model="statusFilter"><option value="ALL">全部訊息</option><option value="UNREAD">未讀取</option><option value="READ">已讀取</option></select></label>
+        <label><input type="checkbox" :checked="allVisibleSelected" @change="toggleAllVisible" />全選</label>
+        <label class="status-filter"><span class="visually-hidden">訊息讀取狀態</span><select v-model="statusFilter"><option value="ALL">全部訊息</option><option value="UNREAD">未讀取</option><option value="READ">已讀取</option></select></label>
+        <button type="button" class="read-all-button" :disabled="!filteredItems.some((message) => message.recordStatus === 'UNREAD')" @click="markAllFilteredRead">全部設為已讀</button>
         <button type="button" class="delete-button" :disabled="selectedIds.size === 0" @click="deleteSelected">刪除已選（{{ selectedIds.size }}）</button>
       </div>
       <div class="message-list">
         <div v-if="visibleMessages.length === 0" class="inbox-state">目前沒有符合篩選條件的訊息。</div>
         <article v-for="message in visibleMessages" :key="message.recordId" class="message-row" :class="{ 'message-row--read': message.recordStatus === 'READ' }">
           <label class="message-check"><input type="checkbox" :checked="selectedIds.has(message.recordId)" :aria-label="`選取 ${message.sendTitle}`" @change="toggleMessage(message.recordId)" /></label>
-          <button type="button" class="message-open" @click="openMessage(message)"><span class="message-dot" :class="{ read: message.recordStatus === 'READ' }"></span><span class="message-copy"><strong>{{ message.sendTitle }}</strong><small>{{ message.sendContent }}</small></span></button>
+          <button type="button" class="message-open" @click="openMessage(message)"><span class="message-dot" :class="{ read: message.recordStatus === 'READ' }"></span><span class="message-copy"><strong>{{ message.sendTitle }}</strong><small>{{ message.sendContent }}</small></span><time :datetime="message.recordCreatedAt">{{ formatDate(message.recordCreatedAt) }}</time></button>
         </article>
       </div>
       <nav class="inbox-pagination" aria-label="會員收件匣頁籤">
@@ -93,8 +94,9 @@ watch([statusFilter, pageSize], () => { currentPage.value = 1; selectedIds.value
 .message-list { min-height: 420px; }.message-row { display: grid; height: var(--inbox-message-row-height); overflow: hidden; grid-template-columns: var(--space-7) minmax(0, 1fr); border-bottom: 1px solid var(--color-border); }.message-check { display: grid; place-items: center; }.message-open { display: grid; width: 100%; min-width: 0; grid-template-columns: var(--space-3) minmax(0, 1fr); align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-4); color: var(--color-text); text-align: left; background: transparent; border: 0; }.message-row:hover { background: var(--color-primary-soft); }.message-dot { width: var(--space-2); height: var(--space-2); background: var(--color-primary); border-radius: var(--radius-pill); }.message-dot.read { background: var(--color-disabled); }.message-copy { display: grid; min-width: 0; gap: 0; }.message-copy strong, .message-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.message-copy small, .message-dialog time { color: var(--color-text-muted); font-size: var(--font-size-xs); }.message-row--read .message-copy strong, .message-row--read .message-copy small { color: var(--color-text-subtle); }.inbox-state { display: grid; min-height: 420px; place-items: center; color: var(--color-text-muted); }
 .message-overlay { position: fixed; z-index: 1050; inset: 0; display: grid; place-items: center; padding: var(--space-5); background: color-mix(in srgb, var(--color-text) 65%, transparent); }.message-dialog { position: relative; width: min(100%, 720px); max-height: calc(100vh - (2 * var(--space-5))); overflow-y: auto; padding: var(--space-6); background: var(--color-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }.message-dialog__close { position: absolute; top: var(--space-3); right: var(--space-3); width: var(--space-7); height: var(--space-7); color: var(--color-text-muted); font-size: var(--font-size-xl); background: transparent; border: 0; }.message-dialog header { padding-right: var(--space-7); }.message-dialog header p, .message-dialog h2 { margin: 0; }.message-dialog h2 { margin-block: var(--space-1); }.message-dialog__content { margin-top: var(--space-5); padding-top: var(--space-5); white-space: pre-wrap; border-top: 1px solid var(--color-border); }
 .inbox-pagination { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-3); border-top: 1px solid var(--color-border); }.inbox-pagination button { min-width: calc(var(--space-6) + var(--space-1)); min-height: calc(var(--space-6) + var(--space-1)); color: var(--color-text-muted); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); }.inbox-pagination button.active { color: var(--color-surface); background: var(--color-primary); border-color: var(--color-primary); }.pagination-ellipsis { color: var(--color-text-muted); }
-.inbox-card { --inbox-message-row-height: calc(var(--space-8) + var(--space-3)); min-height: 0; margin-top: 0; padding-bottom: calc(3 * var(--inbox-message-row-height)); border-top: 0; border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
-.message-list { min-height: calc(var(--inbox-page-rows) * var(--inbox-message-row-height)); }
+.inbox-card { --inbox-message-row-height: 65px; min-height: 0; margin-top: 0; padding-bottom: calc(3 * var(--inbox-message-row-height)); border-top: 0; border-radius: 0 0 var(--radius-lg) var(--radius-lg); scroll-margin-top: var(--space-5); }
+.message-list { min-height: 0; }
 button:focus-visible, select:focus-visible, input:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
-@media (max-width: 767.98px) { .inbox-toolbar { align-items: stretch; flex-wrap: wrap; }.page-size { margin-left: 0; }.delete-button { margin-left: auto; }.inbox-pagination { justify-content: flex-start; overflow-x: auto; } }
+@media (max-width: 767.98px) { .inbox-toolbar { align-items: stretch; flex-wrap: wrap; }.delete-button { margin-left: auto; }.inbox-pagination { justify-content: flex-start; overflow-x: auto; } }
+.message-open { grid-template-columns: var(--space-3) minmax(0, 1fr) auto; }.message-open time { overflow: hidden; color: var(--color-text-muted); font-size: var(--font-size-xs); text-overflow: ellipsis; white-space: nowrap; }.status-filter { margin-left: auto; }.read-all-button { min-height: calc(var(--space-6) + var(--space-1)); padding-inline: var(--space-3); color: var(--color-primary-active); background: var(--color-surface); border: 1px solid var(--color-primary); border-radius: var(--radius-md); }.read-all-button:disabled { color: var(--color-text-subtle); background: var(--color-disabled-bg); border-color: var(--color-disabled); }
 </style>
