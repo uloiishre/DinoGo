@@ -203,6 +203,17 @@ function formatDate(value) {
   }).format(new Date(value))
 }
 
+function isItemReviewed(item) {
+  return Number(item.fiveStar ?? 0) > 0 || item.isReviewed === true
+}
+
+function itemReviewRoute(item) {
+  return {
+    name: 'MemberOrderItemReview',
+    params: { orderId: orderId.value, orderItemId: item.orderItemId },
+  }
+}
+
 onMounted(() => {
   void loadOrder()
   window.addEventListener('focus', refreshOrderSilently)
@@ -315,6 +326,20 @@ onUnmounted(() => {
               </div>
 
               <strong class="product-subtotal">{{ formatCurrency(item.subtotal) }}</strong>
+
+              <RouterLink
+                v-if="order.status === 'COMPLETED'"
+                :to="itemReviewRoute(item)"
+                class="review-endcap"
+                :class="isItemReviewed(item) ? 'review-endcap--reviewed' : 'review-endcap--pending'"
+                :aria-label="isItemReviewed(item) ? `修改 ${item.productName} 的評價` : `評價 ${item.productName}`"
+                :title="isItemReviewed(item) ? '已評價' : '未評價'"
+              >
+                <!-- //review-未評價// -->
+                <i v-if="!isItemReviewed(item)" class="bi bi-star-fill" aria-hidden="true"></i>
+                <!-- //review-已評價// -->
+                <i v-else class="bi bi-star" aria-hidden="true"></i>
+              </RouterLink>
             </article>
 
             <div class="remark-row">
@@ -758,7 +783,7 @@ onUnmounted(() => {
 .product-row {
   display: grid;
   min-height: 96px;
-  grid-template-columns: 82px minmax(0, 1fr) auto;
+  grid-template-columns: 82px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 14px;
   padding: var(--space-3) 0;
@@ -805,6 +830,42 @@ onUnmounted(() => {
 .product-subtotal {
   font-size: 13px;
   white-space: nowrap;
+}
+
+.review-endcap {
+  display: grid;
+  min-width: calc(var(--space-7) + var(--space-2));
+  align-self: stretch;
+  place-items: center;
+  margin-block: calc(var(--space-3) * -1);
+  font-size: var(--font-size-lg);
+  text-decoration: none;
+  border-left: 1px solid var(--color-border);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.review-endcap--pending {
+  color: var(--color-surface);
+  background: var(--color-primary);
+}
+
+.review-endcap--reviewed {
+  color: var(--color-primary-600);
+  background: var(--color-primary-100);
+}
+
+.review-endcap:hover {
+  color: var(--color-surface);
+  background: var(--color-primary-hover);
+}
+
+.review-endcap:active {
+  background: var(--color-primary-active);
+}
+
+.review-endcap:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
 }
 
 .remark-row {

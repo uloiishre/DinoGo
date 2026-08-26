@@ -3,7 +3,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getOrder } from '@/api/order'
-import { clearStar, getOrderStars, updateStar } from '@/api/review'
+import { getImageUrl } from '@/utils/imageUrl'
 
 const route = useRoute()
 const router = useRouter()
@@ -23,12 +23,20 @@ const orderItemId = computed(() => Number(route.params.orderItemId))
 const item = computed(() =>
   order.value?.items?.find((candidate) => candidate.orderItemId === orderItemId.value) ?? null,
 )
-const productImage = computed(() => star.value?.imageUrl || item.value?.productImageUrl || '')
+const productImage = computed(() => getImageUrl(star.value?.imageUrl || item.value?.productImageUrl || ''))
 const productId = computed(() => star.value?.productId ?? item.value?.productId ?? '—')
 const productName = computed(() => star.value?.productName || item.value?.productName || '商品')
 
 function byteArrayUrl(value) {
-  return value ? `data:image/*;base64,${value}` : ''
+  if (!value) return ''
+  const mimeType = value.startsWith('iVBOR')
+    ? 'image/png'
+    : value.startsWith('R0lGOD')
+      ? 'image/gif'
+      : value.startsWith('UklGR')
+        ? 'image/webp'
+        : 'image/jpeg'
+  return `data:${mimeType};base64,${value}`
 }
 
 function hydrateForm(nextStar) {
@@ -49,15 +57,22 @@ async function loadReview() {
     return
   }
   try {
-    const [orderResponse, starsResponse] = await Promise.all([
-      getOrder(orderId.value),
-      getOrderStars(orderId.value),
-    ])
+    const orderResponse = await getOrder(orderId.value)
     order.value = orderResponse.data
-    star.value = (starsResponse.data ?? []).find(
-      (candidate) => candidate.orderItemId === orderItemId.value,
-    ) ?? null
-    if (!item.value || !star.value) throw new Error('REVIEW_ITEM_NOT_FOUND')
+    if (!item.value) throw new Error('REVIEW_ITEM_NOT_FOUND')
+    // DinoGo 檢視版不呼叫尚未整合的 Review API。
+    star.value = {
+      starId: Number(route.query.starId ?? orderItemId.value),
+      orderItemId: orderItemId.value,
+      productId: item.value.productId,
+      productName: item.value.productName,
+      imageUrl: item.value.productImageUrl,
+      fiveStar: item.value.isReviewed ? 4 : 0,
+      feedback: item.value.isReviewed ? '商品與描述一致，整體使用體驗不錯。' : '',
+      imgOne: null,
+      imgTwo: null,
+      imgThree: null,
+    }
     hydrateForm(star.value)
   } catch (error) {
     errorMessage.value = error.response?.data?.message
@@ -108,7 +123,14 @@ async function handleClear() {
   errorMessage.value = ''
   successMessage.value = ''
   try {
-    star.value = (await clearStar(star.value.starId)).data
+    star.value = {
+      ...star.value,
+      fiveStar: 0,
+      feedback: '',
+      imgOne: null,
+      imgTwo: null,
+      imgThree: null,
+    }
     hydrateForm(star.value)
     successMessage.value = '評價內容已清空。'
   } catch (error) {
@@ -129,13 +151,14 @@ async function handleSubmit() {
   successMessage.value = ''
   const imageValues = images.value.map((image) => image.base64)
   try {
-    star.value = (await updateStar(star.value.starId, {
+    star.value = {
+      ...star.value,
       fiveStar: rating.value,
       feedback: feedback.value.trim() || null,
       imgOne: imageValues[0] ?? null,
       imgTwo: imageValues[1] ?? null,
       imgThree: imageValues[2] ?? null,
-    })).data
+    }
     hydrateForm(star.value)
     successMessage.value = '評價已送出。'
   } catch (error) {
