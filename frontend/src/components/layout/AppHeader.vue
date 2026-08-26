@@ -4,6 +4,16 @@ import SearchBar from './SearchBar.vue'
 import { useCartStore } from '@/stores/cart'
 
 const cartStore = useCartStore()
+// DinoGo 檢視版：模擬會員全部未讀訊息超過 99 筆的徽章效果。
+const unreadCount = 128
+const notificationItems = [
+  { recordId: 1, recordStatus: 'UNREAD', sendTitle: '訂單已完成', sendContent: '您的訂單已完成，現在可以前往商品明細留下評價。' },
+  { recordId: 2, recordStatus: 'UNREAD', sendTitle: '商品已出貨', sendContent: '賣家已將商品交付物流，請留意最新配送進度。' },
+  { recordId: 3, recordStatus: 'READ', sendTitle: '會員專屬通知', sendContent: '本週會員活動已開始，歡迎前往商城查看活動內容。' },
+  { recordId: 4, recordStatus: 'READ', sendTitle: '更多通知', sendContent: '前往會員收件匣查看完整內容。' },
+]
+const latestNotifications = notificationItems.slice(0, 3)
+const hasMoreNotifications = notificationItems.length > 3
 </script>
 
 <template>
@@ -22,13 +32,43 @@ const cartStore = useCartStore()
           ><i class="bi bi-heart" aria-hidden="true"></i
           ><span class="header-action__label">收藏</span></RouterLink
         >
-        <RouterLink
-          class="header-action header-action--badge"
-          to="/member/messages"
-          aria-label="通知"
-          ><i class="bi bi-bell" aria-hidden="true"></i><span class="notification-badge">2</span
-          ><span class="header-action__label">通知</span></RouterLink
-        >
+        <div class="notification-region">
+          <RouterLink class="header-action header-action--badge" to="/member/messages" aria-label="通知">
+            <i class="bi bi-bell" aria-hidden="true"></i>
+            <span v-if="unreadCount > 0" class="notification-badge">
+              <span
+                class="notification-badge__value"
+                :class="{
+                  'notification-badge__value--compact': unreadCount > 9,
+                  'notification-badge__value--dense': unreadCount > 99,
+                }"
+              >{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+            </span>
+            <span class="header-action__label">通知</span>
+          </RouterLink>
+
+          <div class="notification-popover" aria-label="最新通知">
+            <RouterLink
+              v-for="item in latestNotifications"
+              :key="item.recordId"
+              class="notification-preview"
+              to="/member/messages"
+            >
+              <span
+                class="notification-read-dot"
+                :class="{ 'notification-read-dot--read': item.recordStatus === 'READ' }"
+                :aria-label="item.recordStatus === 'READ' ? '已讀' : '未讀'"
+              ></span>
+              <span class="notification-preview__copy">
+                <!-- //msg-title// -->
+                <strong>{{ item.sendTitle }}</strong>
+                <!-- //msg-content// -->
+                <small>{{ item.sendContent }}</small>
+              </span>
+            </RouterLink>
+            <RouterLink v-if="hasMoreNotifications" class="notification-more" to="/member/messages" aria-label="查看更多通知">…</RouterLink>
+          </div>
+        </div>
         <RouterLink class="header-action header-action--badge" to="/cart" aria-label="購物車"
           ><i class="bi bi-cart" aria-hidden="true"></i
           ><span class="notification-badge">{{ cartStore.totalQuantity }}</span
@@ -138,15 +178,72 @@ const cartStore = useCartStore()
   position: absolute;
   top: 10px;
   right: 16px;
+  display: inline-flex;
   width: 16px;
+  min-width: 16px;
+  height: 16px;
   min-height: 16px;
-  padding: 1px 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   color: var(--color-surface);
   font-size: 9px;
-  line-height: 1.2;
+  line-height: 1;
   text-align: center;
   border-radius: var(--radius-pill);
   background: var(--color-danger);
+}
+.notification-region {
+  position: relative;
+  display: inline-flex;
+}
+.notification-popover {
+  position: absolute;
+  z-index: 1040;
+  top: 100%;
+  right: 0;
+  display: none;
+  width: calc(var(--space-8) * 6);
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+.notification-region:hover .notification-popover {
+  display: block;
+}
+.notification-preview {
+  display: grid;
+  min-height: calc(var(--space-8) + var(--space-2));
+  grid-template-columns: var(--space-3) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-text);
+  text-decoration: none;
+  border-bottom: 1px solid var(--color-border);
+}
+.notification-preview:hover { color: var(--color-primary-active); background: var(--color-primary-soft); }
+.notification-read-dot { width: var(--space-2); height: var(--space-2); background: var(--color-primary); border-radius: var(--radius-pill); }
+.notification-read-dot--read { background: var(--color-disabled); }
+.notification-preview__copy { display: grid; min-width: 0; gap: var(--space-1); }
+.notification-preview__copy strong,
+.notification-preview__copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notification-preview__copy strong { font-size: var(--font-size-sm); }
+.notification-preview__copy small { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.notification-more { display: grid; min-height: var(--space-5); place-items: center; color: var(--color-text-muted); font-size: var(--font-size-lg); line-height: 1; text-decoration: none; background: var(--color-surface-soft); }
+.notification-more:hover { color: var(--color-primary-active); background: var(--color-primary-soft); }
+.notification-badge__value {
+  display: inline-block;
+  line-height: 1;
+  transform-origin: center;
+}
+.notification-badge__value--compact {
+  transform: scale(0.85);
+}
+.notification-badge__value--dense {
+  transform: scale(0.7);
 }
 .member-action {
   padding: 0;
