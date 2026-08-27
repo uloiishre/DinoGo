@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { logSafeError } from '@/utils/safeError'
 import { getImageUrl } from '@/utils/imageUrl'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -18,6 +19,7 @@ const quantity = ref(1)
 const isFavorite = ref(false)
 const favoriteLoading = ref(false)
 const favoriteMessage = ref('')
+const authStore = useAuthStore()
 
 // Review 檢視版：使用本地展示資料，不呼叫尚未整合的 Review 後端。
 const activeDetailTab = ref('description')
@@ -293,6 +295,12 @@ const fetchFavoriteStatus = async () => {
     return
   }
 
+  // 訪客不需要查收藏狀態
+  if (!authStore.isAuthenticated) {
+    isFavorite.value = false
+    return
+  }
+
   try {
     const response = await api.get('/favorites')
 
@@ -345,7 +353,9 @@ const toggleFavorite = async () => {
 }
 
 function previewReviewPool() {
-  const imageUrls = (product.value?.images ?? []).map((image) => getImageUrl(image.imageUrl)).filter(Boolean)
+  const imageUrls = (product.value?.images ?? [])
+    .map((image) => getImageUrl(image.imageUrl))
+    .filter(Boolean)
   const messages = [
     '包裝完整，商品質感很好，實際使用後符合期待。',
     '尺寸與頁面說明一致，出貨速度也很快。',
@@ -660,7 +670,11 @@ onUnmounted(() => {
             </button>
           </div>
 
-          <div v-if="activeDetailTab === 'description'" class="detail-panel description-panel" role="tabpanel">
+          <div
+            v-if="activeDetailTab === 'description'"
+            class="detail-panel description-panel"
+            role="tabpanel"
+          >
             <h2>產品說明</h2>
             <p>{{ product.description || '目前尚無產品說明。' }}</p>
           </div>
@@ -698,7 +712,11 @@ onUnmounted(() => {
                   </span>
                 </div>
                 <p>{{ review.feedback || '此會員只留下星等評價。' }}</p>
-                <div v-if="reviewImages(review).length" class="review-thumbnails" aria-label="評價照片">
+                <div
+                  v-if="reviewImages(review).length"
+                  class="review-thumbnails"
+                  aria-label="評價照片"
+                >
                   <img
                     v-for="(image, index) in reviewImages(review)"
                     :key="index"
@@ -709,13 +727,32 @@ onUnmounted(() => {
               </button>
             </div>
             <div v-if="reviewsLoading" class="review-loading" role="status">正在載入評價...</div>
-            <div v-else-if="reviewsLoaded && !reviewsHasNext && reviews.length" class="review-end">已顯示全部評價</div>
+            <div v-else-if="reviewsLoaded && !reviewsHasNext && reviews.length" class="review-end">
+              已顯示全部評價
+            </div>
           </div>
         </section>
 
-        <div v-if="selectedReview" class="review-overlay" role="presentation" @click.self="closeReview">
-          <article class="review-dialog" role="dialog" aria-modal="true" aria-labelledby="review-dialog-title">
-            <button type="button" class="review-dialog__close" aria-label="關閉評價詳閱" @click="closeReview">×</button>
+        <div
+          v-if="selectedReview"
+          class="review-overlay"
+          role="presentation"
+          @click.self="closeReview"
+        >
+          <article
+            class="review-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="review-dialog-title"
+          >
+            <button
+              type="button"
+              class="review-dialog__close"
+              aria-label="關閉評價詳閱"
+              @click="closeReview"
+            >
+              ×
+            </button>
             <header>
               <p>{{ maskMemberId(selectedReview.memberId) }}</p>
               <h2 id="review-dialog-title">商品評價</h2>
@@ -729,7 +766,9 @@ onUnmounted(() => {
                 ></i>
               </span>
             </header>
-            <p class="review-dialog__feedback">{{ selectedReview.feedback || '此會員只留下星等評價。' }}</p>
+            <p class="review-dialog__feedback">
+              {{ selectedReview.feedback || '此會員只留下星等評價。' }}
+            </p>
             <div v-if="reviewImages(selectedReview).length" class="review-dialog__images">
               <img
                 v-for="(image, index) in reviewImages(selectedReview)"
@@ -1165,11 +1204,7 @@ onUnmounted(() => {
 }
 
 .detail-panel {
-  min-height: calc(
-    (var(--space-8) + var(--space-5)) * 6
-    + var(--space-3) * 5
-    + var(--space-5) * 2
-  );
+  min-height: calc((var(--space-8) + var(--space-5)) * 6 + var(--space-3) * 5 + var(--space-5) * 2);
   padding: var(--space-5);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -1190,11 +1225,7 @@ onUnmounted(() => {
 }
 
 .reviews-panel {
-  height: calc(
-    (var(--space-8) + var(--space-5)) * 6
-    + var(--space-3) * 5
-    + var(--space-5) * 2
-  );
+  height: calc((var(--space-8) + var(--space-5)) * 6 + var(--space-3) * 5 + var(--space-5) * 2);
   overflow-y: auto;
   scrollbar-gutter: stable;
 }
