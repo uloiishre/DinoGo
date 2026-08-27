@@ -20,6 +20,10 @@ const isFavorite = ref(false)
 const favoriteLoading = ref(false)
 const favoriteMessage = ref('')
 const authStore = useAuthStore()
+const seller = ref(null)
+const sellerLoading = ref(false)
+
+const sellerCoupons = ref([])
 
 // Review 檢視版：使用本地展示資料，不呼叫尚未整合的 Review 後端。
 const activeDetailTab = ref('description')
@@ -422,6 +426,74 @@ function closeReview() {
 function handleReviewEscape(event) {
   if (event.key === 'Escape' && selectedReview.value) closeReview()
 }
+
+const fetchSeller = async () => {
+  if (!product.value?.sellerId) return
+
+  try {
+    sellerLoading.value = true
+
+    const response = await api.get(`/stores/${product.value.sellerId}`)
+
+    seller.value = response.data
+  } catch (error) {
+    console.error('取得賣家資料失敗：', error)
+  } finally {
+    sellerLoading.value = false
+  }
+}
+
+const fetchSellerCoupons = async () => {
+  if (!product.value?.sellerId) return
+
+  try {
+    const response = await api.get('/coupons/available', {
+      params: {
+        sellerId: product.value.sellerId,
+      },
+    })
+
+    sellerCoupons.value = response.data
+  } catch (error) {
+    console.error('取得賣家優惠券失敗：', error)
+  }
+}
+const getStoreLogoUrl = (url) => {
+  if (!url) return ''
+
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+
+  return `http://localhost:8080${url}`
+}
+
+const goToStore = (sellerId) => {
+  router.push({
+    path: '/products',
+    query: {
+      sellerId,
+    },
+  })
+}
+const claimCoupon = async (couponId) => {
+  try {
+    await api.post(`/member/coupons/${couponId}/claim`)
+
+    alert('優惠券領取成功')
+  } catch (error) {
+    console.error('領取優惠券失敗：', error)
+
+    if (error.response?.status === 401) {
+      router.push({
+        name: 'Login',
+        query: {
+          redirect: route.fullPath,
+        },
+      })
+    }
+  }
+}
 /**
  * SKU 改變時，數量回到 1
  */
@@ -431,7 +503,10 @@ watch(selectedSku, () => {
 
 onMounted(async () => {
   await fetchProductDetail()
+  await fetchSeller()
+  await fetchSellerCoupons()
   await fetchFavoriteStatus()
+
   window.addEventListener('keydown', handleReviewEscape)
 })
 
@@ -649,87 +724,185 @@ onUnmounted(() => {
         </div>
 
         <section class="product-detail-tabs" aria-label="產品明細內容">
-          <div class="detail-tab-list" role="tablist" aria-label="產品資訊篩選">
-            <button
-              type="button"
-              role="tab"
-              :aria-selected="activeDetailTab === 'description'"
-              :class="{ active: activeDetailTab === 'description' }"
-              @click="selectDetailTab('description')"
-            >
-              產品說明
-            </button>
-            <button
-              type="button"
-              role="tab"
-              :aria-selected="activeDetailTab === 'reviews'"
-              :class="{ active: activeDetailTab === 'reviews' }"
-              @click="selectDetailTab('reviews')"
-            >
-              商品評價
-            </button>
-          </div>
-
-          <div
-            v-if="activeDetailTab === 'description'"
-            class="detail-panel description-panel"
-            role="tabpanel"
-          >
-            <h2>產品說明</h2>
-            <p>{{ product.description || '目前尚無產品說明。' }}</p>
-          </div>
-
-          <div
-            v-else
-            class="detail-panel reviews-panel"
-            role="tabpanel"
-            tabindex="0"
-            aria-label="商品評價，可向下捲動載入更多"
-            @scroll.passive="handleReviewScroll"
-          >
-            <div v-if="reviewsLoaded && reviews.length === 0" class="review-state">
-              此商品目前尚無商品評價。
-            </div>
-            <div v-else class="review-list">
-              <button
-                v-for="review in reviews"
-                :key="review.starId"
-                type="button"
-                class="review-card"
-                :aria-label="`詳閱 ${maskMemberId(review.memberId)} 的評價`"
-                @click="openReview(review)"
-              >
-                <div class="review-card__heading">
-                  <strong>{{ maskMemberId(review.memberId) }}</strong>
-                  <span class="review-stars" :aria-label="`${review.fiveStar} 顆星`">
-                    <i
-                      v-for="value in 5"
-                      :key="value"
-                      class="bi"
-                      :class="value <= review.fiveStar ? 'bi-star-fill' : 'bi-star'"
-                      aria-hidden="true"
-                    ></i>
-                  </span>
-                </div>
-                <p>{{ review.feedback || '此會員只留下星等評價。' }}</p>
-                <div
-                  v-if="reviewImages(review).length"
-                  class="review-thumbnails"
-                  aria-label="評價照片"
+          <div class="product-bottom-layout">
+            <!-- 左邊：產品說明 / 商品評價 -->
+            <section class="product-detail-tabs" aria-label="產品明細內容">
+              <div class="detail-tab-list" role="tablist" aria-label="產品資訊篩選">
+                <button
+                  type="button"
+                  role="tab"
+                  :aria-selected="activeDetailTab === 'description'"
+                  :class="{ active: activeDetailTab === 'description' }"
+                  @click="selectDetailTab('description')"
                 >
-                  <img
-                    v-for="(image, index) in reviewImages(review)"
-                    :key="index"
-                    :src="image"
-                    :alt="`評價照片 ${index + 1}`"
-                  />
+                  產品說明
+                </button>
+
+                <button
+                  type="button"
+                  role="tab"
+                  :aria-selected="activeDetailTab === 'reviews'"
+                  :class="{ active: activeDetailTab === 'reviews' }"
+                  @click="selectDetailTab('reviews')"
+                >
+                  商品評價
+                </button>
+              </div>
+
+              <div
+                v-if="activeDetailTab === 'description'"
+                class="detail-panel description-panel"
+                role="tabpanel"
+              >
+                <h2>產品說明</h2>
+
+                <p>
+                  {{ product.description || '目前尚無產品說明。' }}
+                </p>
+              </div>
+
+              <div
+                v-else
+                class="detail-panel reviews-panel"
+                role="tabpanel"
+                tabindex="0"
+                aria-label="商品評價，可向下捲動載入更多"
+                @scroll.passive="handleReviewScroll"
+              >
+                <div v-if="reviewsLoaded && reviews.length === 0" class="review-state">
+                  此商品目前尚無商品評價。
                 </div>
-              </button>
-            </div>
-            <div v-if="reviewsLoading" class="review-loading" role="status">正在載入評價...</div>
-            <div v-else-if="reviewsLoaded && !reviewsHasNext && reviews.length" class="review-end">
-              已顯示全部評價
-            </div>
+
+                <div v-else class="review-list">
+                  <button
+                    v-for="review in reviews"
+                    :key="review.starId"
+                    type="button"
+                    class="review-card"
+                    @click="openReview(review)"
+                  >
+                    <div class="review-card__heading">
+                      <strong>
+                        {{ maskMemberId(review.memberId) }}
+                      </strong>
+
+                      <span class="review-stars" :aria-label="`${review.fiveStar} 顆星`">
+                        <i
+                          v-for="value in 5"
+                          :key="value"
+                          class="bi"
+                          :class="value <= review.fiveStar ? 'bi-star-fill' : 'bi-star'"
+                          aria-hidden="true"
+                        ></i>
+                      </span>
+                    </div>
+
+                    <p>
+                      {{ review.feedback || '此會員只留下星等評價。' }}
+                    </p>
+                  </button>
+                </div>
+
+                <div v-if="reviewsLoading" class="review-loading" role="status">
+                  正在載入評價...
+                </div>
+
+                <div
+                  v-else-if="reviewsLoaded && !reviewsHasNext && reviews.length"
+                  class="review-end"
+                >
+                  已顯示全部評價
+                </div>
+              </div>
+            </section>
+
+            <!-- 右邊 -->
+            <aside class="product-sidebar">
+              <!-- 賣家 -->
+              <section v-if="sellerLoading || seller" class="seller-card">
+                <div v-if="sellerLoading" class="sidebar-loading">賣家資料載入中...</div>
+
+                <template v-else>
+                  <div class="seller-header">
+                    <img
+                      v-if="seller.storeLogoUrl"
+                      :src="getStoreLogoUrl(seller.storeLogoUrl)"
+                      :alt="seller.storeName"
+                      class="seller-logo"
+                    />
+
+                    <div v-else class="seller-logo-placeholder">
+                      <i class="bi bi-shop"></i>
+                    </div>
+
+                    <div class="seller-info">
+                      <h2 class="seller-name">
+                        {{ seller.storeName }}
+                      </h2>
+
+                      <p class="seller-description">
+                        {{ seller.storeDescription || '目前尚無商店介紹' }}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div class="seller-actions">
+                    <button type="button" class="seller-chat-button">
+                      <i class="bi bi-chat-dots"></i>
+                      聊天
+                    </button>
+
+                    <button
+                      type="button"
+                      class="seller-store-button"
+                      @click="goToStore(seller.sellerId)"
+                    >
+                      <i class="bi bi-shop"></i>
+                      進入賣家賣場
+                    </button>
+                  </div>
+                </template>
+              </section>
+
+              <!-- 優惠券 -->
+              <section class="seller-coupon-card">
+                <h2 class="sidebar-title">該賣家可使用的優惠券</h2>
+
+                <div v-if="sellerCoupons.length === 0" class="coupon-empty">
+                  目前尚無可使用的優惠券
+                </div>
+
+                <div v-else class="coupon-list">
+                  <div v-for="coupon in sellerCoupons" :key="coupon.couponId" class="coupon-item">
+                    <div class="coupon-main">
+                      <strong class="coupon-name">
+                        {{ coupon.couponName }}
+                      </strong>
+
+                      <div class="coupon-discount">
+                        <template v-if="coupon.discountType === 'PERCENT'">
+                          {{ coupon.discountValue }}% OFF
+                        </template>
+
+                        <template v-else> 折 NT$ {{ coupon.discountValue }} </template>
+                      </div>
+
+                      <div v-if="coupon.minPurchaseAmount" class="coupon-condition">
+                        滿 NT$ {{ coupon.minPurchaseAmount }} 可用
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      class="coupon-claim-button"
+                      @click.stop="claimCoupon(coupon.couponId)"
+                    >
+                      領取
+                    </button>
+                  </div>
+                </div>
+              </section>
+            </aside>
           </div>
         </section>
 
@@ -1143,9 +1316,296 @@ onUnmounted(() => {
   transform: translateY(2px);
 }
 
+/* =========================
+   下半部左右配置
+   ========================= */
+
+.product-bottom-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+  gap: 28px;
+
+  margin-top: var(--space-7);
+
+  align-items: start;
+}
+
 .product-detail-tabs {
-  width: min(100%, calc(100% * 2 / 3));
-  margin: var(--space-7) 0 0;
+  width: 100%;
+  margin: 0;
+}
+
+.product-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+
+  /* 往下移，對齊左側 tab 底部 */
+  margin-top: 48px;
+}
+
+/* =========================
+   賣家資訊
+   ========================= */
+
+.seller-card {
+  padding: 22px;
+
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+
+  box-shadow: var(--shadow-card);
+}
+
+.seller-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.seller-logo,
+.seller-logo-placeholder {
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+
+  border-radius: 50%;
+}
+
+.seller-logo {
+  object-fit: cover;
+
+  border: 1px solid var(--color-border);
+}
+
+.seller-logo-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: var(--color-text-muted);
+  font-size: 28px;
+
+  background: var(--color-surface-soft);
+
+  border: 1px solid var(--color-border);
+}
+
+.seller-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.seller-name {
+  margin: 0;
+
+  color: var(--color-text);
+
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.seller-description {
+  display: -webkit-box;
+
+  overflow: hidden;
+
+  margin: 6px 0 0;
+
+  color: var(--color-text-muted);
+
+  font-size: 13px;
+  line-height: 1.5;
+
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.sidebar-loading {
+  padding: 24px 0;
+
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+/* =========================
+   賣家按鈕
+   ========================= */
+
+.seller-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr;
+  gap: 10px;
+
+  margin-top: 20px;
+}
+
+.seller-actions button {
+  min-height: 40px;
+
+  padding: 8px 10px;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  border-radius: var(--radius-md);
+
+  cursor: pointer;
+}
+
+.seller-chat-button {
+  color: var(--color-primary);
+
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-primary);
+}
+
+.seller-store-button {
+  color: #fff;
+
+  background: var(--color-primary);
+
+  border: 1px solid var(--color-primary);
+}
+
+.seller-chat-button:hover {
+  background: var(--color-primary-soft);
+}
+
+.seller-store-button:hover {
+  opacity: 0.9;
+}
+
+/* =========================
+   優惠券區
+   ========================= */
+
+.seller-coupon-card {
+  padding: 22px;
+
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+
+  box-shadow: var(--shadow-card);
+}
+
+.sidebar-title {
+  margin: 0 0 18px;
+
+  color: var(--color-text);
+
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.coupon-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.coupon-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  padding: 14px;
+
+  background: var(--color-surface-soft);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.coupon-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.coupon-name {
+  display: block;
+
+  margin-bottom: 4px;
+
+  color: var(--color-text);
+
+  font-size: 14px;
+}
+
+.coupon-discount {
+  color: var(--color-primary);
+
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.coupon-condition {
+  margin-top: 4px;
+
+  color: var(--color-text-muted);
+
+  font-size: 12px;
+}
+
+.coupon-claim-button {
+  flex: 0 0 auto;
+
+  padding: 7px 12px;
+
+  color: #fff;
+
+  font-size: 13px;
+  font-weight: 600;
+
+  background: var(--color-primary);
+
+  border: 0;
+  border-radius: var(--radius-md);
+
+  cursor: pointer;
+}
+
+.coupon-claim-button:hover {
+  opacity: 0.9;
+}
+
+.coupon-empty {
+  padding: 30px 10px;
+
+  color: var(--color-text-muted);
+
+  font-size: 14px;
+  text-align: center;
+}
+
+/* =========================
+   RWD
+   ========================= */
+
+@media (max-width: 991.98px) {
+  .product-bottom-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .seller-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .coupon-item {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .coupon-claim-button {
+    width: 100%;
+  }
 }
 
 .detail-tab-list {

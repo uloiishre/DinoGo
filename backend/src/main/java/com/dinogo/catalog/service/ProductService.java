@@ -411,6 +411,7 @@ public class ProductService {
 
                 return ProductDetailResponse.builder()
                                 .productId(product.getProductId())
+                                .sellerId(product.getSeller().getSellerId())
                                 .productName(product.getProductName())
                                 .description(product.getDescription())
                                 .basePrice(product.getBasePrice())
@@ -472,6 +473,7 @@ public class ProductService {
 
                 return ProductDetailResponse.builder()
                                 .productId(product.getProductId())
+                                .sellerId(product.getSeller().getSellerId())
                                 .productName(product.getProductName())
                                 .description(product.getDescription())
                                 .basePrice(product.getBasePrice())

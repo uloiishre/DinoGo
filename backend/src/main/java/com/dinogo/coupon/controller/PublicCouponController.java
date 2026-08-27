@@ -2,9 +2,12 @@ package com.dinogo.coupon.controller;
 
 import com.dinogo.coupon.dto.PublicCouponResponse;
 import com.dinogo.coupon.service.CouponService;
+
 import java.util.List;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -18,7 +21,9 @@ public class PublicCouponController {
     }
 
     @GetMapping("/available")
-    public List<PublicCouponResponse> getAvailableCoupons() {
-        return couponService.getAvailableCoupons();
+    public List<PublicCouponResponse> getAvailableCoupons(
+            @RequestParam(required = false) Integer sellerId) {
+
+        return couponService.getAvailableCoupons(sellerId);
     }
 }
