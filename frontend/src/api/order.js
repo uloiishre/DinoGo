@@ -19,6 +19,21 @@ export function createPayment(orderId, paymentMethodCode) {
   )
 }
 
+export function submitEcpayCheckout(checkout) {
+  const form = document.createElement('form')
+  form.method = 'post'
+  form.action = checkout.action
+  Object.entries(checkout.fields).forEach(([name, value]) => {
+    const input = document.createElement('input')
+    input.type = 'hidden'
+    input.name = name
+    input.value = value
+    form.appendChild(input)
+  })
+  document.body.appendChild(form)
+  form.submit()
+}
+
 export function getPaymentCapabilities() {
   return api.get('/payments/capabilities')
 }
@@ -36,4 +51,8 @@ export function simulatePayment(orderId, paymentId, status = 'SUCCESS', failureR
 
 export function confirmDelivery(orderId) {
   return api.patch(`/orders/${orderId}/shipment/confirm-delivery`)
+}
+
+export function getShipmentEvents(orderId) {
+  return api.get(`/orders/${orderId}/shipment/events`)
 }

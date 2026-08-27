@@ -1,9 +1,10 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { cancelOrder, confirmDelivery, getOrder } from '@/api/order'
+import { cancelOrder, confirmDelivery, getOrder, getShipmentEvents } from '@/api/order'
 import { getOrderDisplayStatus } from '@/utils/orderDisplayStatus'
 import { getImageUrl } from '@/utils/imageUrl'
+import OrderItemReviewView from '@/views/review/OrderItemReviewView.vue'
 
 const route = useRoute()
 const order = ref(null)
@@ -11,10 +12,12 @@ const loading = ref(true)
 const errorMessage = ref('')
 const confirmingDelivery = ref(false)
 const deliveryErrorMessage = ref('')
+const shipmentEvents = ref([])
 const cancellingOrder = ref(false)
 const cancellationErrorMessage = ref('')
 const cancellationReason = ref('')
 const showCancellationModal = ref(false)
+const reviewItemId = ref(null)
 const fetchingOrder = ref(false)
 const AUTO_REFRESH_INTERVAL_MS = 10_000
 let autoRefreshTimer = null
@@ -44,6 +47,11 @@ const shipmentStatusLabels = {
   AVAILABLE_FOR_PICKUP: '可取貨',
   DELIVERED: '已送達',
 }
+const shipmentEventLabels = {
+  LABEL_CREATED: '賣家已建立寄件資料', HANDED_OVER: '賣家已交寄',
+  IN_TRANSIT: '運送中', AVAILABLE_FOR_PICKUP: '包裹已可取貨', DELIVERED: '已送達',
+}
+const shipmentEventSourceLabels = { SELLER: '賣家', CARRIER: '物流商', SYSTEM: '系統', BUYER: '買家' }
 
 const progressSteps = [
   {
@@ -88,7 +96,15 @@ async function loadOrder({ silent = false, force = false } = {}) {
 
   try {
     const response = await getOrder(orderId.value)
-    if (requestId === latestLoadRequestId) order.value = response.data
+    if (requestId === latestLoadRequestId) {
+      order.value = response.data
+      shipmentEvents.value = []
+      if (response.data?.shipment) {
+        try {
+          shipmentEvents.value = (await getShipmentEvents(orderId.value)).data ?? []
+        } catch { shipmentEvents.value = [] }
+      }
+    }
   } catch (error) {
     if (!silent && requestId === latestLoadRequestId) {
       errorMessage.value = error.response?.data?.message ?? '訂單詳情載入失敗，請稍後再試。'
@@ -187,6 +203,18 @@ function formatDate(value) {
     minute: '2-digit',
     hour12: false,
   }).format(new Date(value))
+}
+
+function isItemReviewed(item) {
+  return Number(item.fiveStar ?? 0) > 0 || item.isReviewed === true
+}
+
+function openReviewModal(item) {
+  reviewItemId.value = item.orderItemId
+}
+
+function closeReviewModal() {
+  reviewItemId.value = null
 }
 
 onMounted(() => {
@@ -301,6 +329,21 @@ onUnmounted(() => {
               </div>
 
               <strong class="product-subtotal">{{ formatCurrency(item.subtotal) }}</strong>
+
+              <button
+                v-if="order.status === 'COMPLETED'"
+                type="button"
+                class="review-endcap"
+                :class="isItemReviewed(item) ? 'review-endcap--reviewed' : 'review-endcap--pending'"
+                :aria-label="isItemReviewed(item) ? `修改 ${item.productName} 的評價` : `評價 ${item.productName}`"
+                :title="isItemReviewed(item) ? '已評價' : '未評價'"
+                @click="openReviewModal(item)"
+              >
+                <!-- //review-未評價// -->
+                <i v-if="!isItemReviewed(item)" class="bi bi-star-fill" aria-hidden="true"></i>
+                <!-- //review-已評價// -->
+                <i v-else class="bi bi-star" aria-hidden="true"></i>
+              </button>
             </article>
 
             <div class="remark-row">
@@ -342,6 +385,13 @@ onUnmounted(() => {
                     ・{{ order.shipment.trackingNo }}
                   </template>
                 </p>
+                <ol v-if="shipmentEvents.length" class="shipment-timeline" aria-label="物流軌跡">
+                  <li v-for="event in shipmentEvents" :key="event.shipmentEventId">
+                    <strong>{{ shipmentEventLabels[event.eventType] ?? event.eventType }}</strong>
+                    <small>{{ formatDate(event.occurredAt) }}・{{ shipmentEventSourceLabels[event.source] ?? event.source }}</small>
+                    <span v-if="event.remark">{{ event.remark }}</span>
+                  </li>
+                </ol>
                 <button
                   v-if="order.shipment.status === 'AVAILABLE_FOR_PICKUP'"
                   class="btn btn-primary mt-2"
@@ -412,10 +462,21 @@ onUnmounted(() => {
         </form>
       </div>
     </div>
+
+    <OrderItemReviewView
+      v-if="reviewItemId !== null"
+      :order-data="order"
+      :initial-order-item-id="reviewItemId"
+      modal
+      @close="closeReviewModal"
+    />
   </section>
 </template>
 
 <style scoped>
+.shipment-timeline { display: grid; gap: var(--space-3); margin: var(--space-4) 0 0; padding-left: var(--space-4); border-left: 2px solid var(--color-primary-300); }
+.shipment-timeline li { display: grid; gap: var(--space-1); color: var(--color-text-700); font-size: var(--font-size-sm); }
+.shipment-timeline small, .shipment-timeline span { color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .order-detail-page {
   min-height: 620px;
   padding: var(--space-5) 0 var(--space-8);
@@ -734,7 +795,7 @@ onUnmounted(() => {
 .product-row {
   display: grid;
   min-height: 96px;
-  grid-template-columns: 82px minmax(0, 1fr) auto;
+  grid-template-columns: 82px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 14px;
   padding: var(--space-3) 0;
@@ -781,6 +842,45 @@ onUnmounted(() => {
 .product-subtotal {
   font-size: 13px;
   white-space: nowrap;
+}
+
+.review-endcap {
+  display: grid;
+  min-width: calc(var(--space-7) + var(--space-2));
+  align-self: stretch;
+  place-items: center;
+  margin-block: calc(var(--space-3) * -1);
+  font-size: var(--font-size-lg);
+  text-decoration: none;
+  appearance: none;
+  border: 0;
+  border-left: 1px solid var(--color-border);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  box-shadow: none;
+}
+/* 未評價：強烈主視覺綠色 */
+.review-endcap--pending {
+  color: var(--color-surface);
+  background: var(--color-primary);
+}
+/* 已評價：灰暗主視覺綠色 */
+.review-endcap--reviewed {
+  color: var(--color-primary-600);
+  background: var(--color-primary);
+}
+
+.review-endcap:hover {
+  color: var(--color-surface);
+  background: var(--color-primary-hover);
+}
+
+.review-endcap:active {
+  background: var(--color-primary-active);
+}
+
+.review-endcap:focus-visible {
+  
+  box-shadow: none;
 }
 
 .remark-row {

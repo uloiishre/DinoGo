@@ -61,22 +61,64 @@ const statusText = {
   REVIEWING: '審核中',
 }
 
-const serviceTimeOptions = [
-  { label: '09:00 - 18:00', start: '09:00:00', end: '18:00:00' },
-  { label: '10:00 - 19:00', start: '10:00:00', end: '19:00:00' },
-  { label: '11:00 - 20:00', start: '11:00:00', end: '20:00:00' },
-  { label: '全天候客服', start: '00:00:00', end: '23:59:00' },
-]
+const timeUnitOptions = {
+  hours: Array.from({ length: 24 }, (_, index) => String(index).padStart(2, '0')),
+  minutes: Array.from({ length: 60 }, (_, index) => String(index).padStart(2, '0')),
+}
 
-const selectedServiceTime = ref('09:00:00|18:00:00')
-
-const selectedServiceTimeLabel = computed(() => {
-  const option = serviceTimeOptions.find(
-    (item) => `${item.start}|${item.end}` === selectedServiceTime.value,
-  )
-
-  return option?.label || '未設定客服時間'
+const serviceTime = reactive({
+  startHour: '09',
+  startMinute: '00',
+  endHour: '18',
+  endMinute: '00',
 })
+
+const normalizeTimeParts = (value, fallback) => {
+  const [fallbackHour, fallbackMinute] = fallback.split(':')
+  const [hour = fallbackHour, minute = fallbackMinute] = String(value || '').split(':')
+
+  return {
+    hour: String(hour).padStart(2, '0'),
+    minute: String(minute).padStart(2, '0'),
+  }
+}
+
+const formatServiceTime = (prefix) =>
+  `${serviceTime[`${prefix}Hour`]}:${serviceTime[`${prefix}Minute`]}`
+
+const formatServiceTimeForApi = (prefix) => `${formatServiceTime(prefix)}:00`
+
+const selectedServiceTimeLabel = computed(
+  () => `${formatServiceTime('start')} - ${formatServiceTime('end')}`,
+)
+
+const activeTimePicker = ref('')
+const timePickerDraft = reactive({
+  hour: '09',
+  minute: '00',
+})
+
+const timePickerTitle = computed(() =>
+  activeTimePicker.value === 'end' ? '選擇結束時間' : '選擇開始時間',
+)
+
+const openTimePicker = (prefix) => {
+  activeTimePicker.value = prefix
+  timePickerDraft.hour = serviceTime[`${prefix}Hour`]
+  timePickerDraft.minute = serviceTime[`${prefix}Minute`]
+}
+
+const closeTimePicker = () => {
+  activeTimePicker.value = ''
+}
+
+const confirmTimePicker = () => {
+  if (!activeTimePicker.value) return
+
+  serviceTime[`${activeTimePicker.value}Hour`] = timePickerDraft.hour
+  serviceTime[`${activeTimePicker.value}Minute`] = timePickerDraft.minute
+  closeTimePicker()
+}
 
 const applyProfileToForm = (profile) => {
   form.storeName = profile.storeName ?? ''
@@ -84,7 +126,12 @@ const applyProfileToForm = (profile) => {
   form.status = profile.status ?? 'ACTIVE'
 
   if (profile.serviceStartTime && profile.serviceEndTime) {
-    selectedServiceTime.value = `${profile.serviceStartTime}|${profile.serviceEndTime}`
+    const startTime = normalizeTimeParts(profile.serviceStartTime, '09:00:00')
+    const endTime = normalizeTimeParts(profile.serviceEndTime, '18:00:00')
+    serviceTime.startHour = startTime.hour
+    serviceTime.startMinute = startTime.minute
+    serviceTime.endHour = endTime.hour
+    serviceTime.endMinute = endTime.minute
   }
 
   logoUrl.value = profile.storeLogoUrl ?? ''
@@ -94,7 +141,8 @@ const applyProfileToForm = (profile) => {
 const handleSave = async () => {
   isSaving.value = true
   savedMessage.value = ''
-  const [serviceStartTime, serviceEndTime] = selectedServiceTime.value.split('|')
+  const serviceStartTime = formatServiceTimeForApi('start')
+  const serviceEndTime = formatServiceTimeForApi('end')
 
   try {
     const response = await updateSellerProfile({
@@ -246,18 +294,76 @@ onMounted(async () => {
             </select>
           </label>
 
-          <label class="form-field">
-            客服時間
-            <select v-model="selectedServiceTime">
-              <option
-                v-for="option in serviceTimeOptions"
-                :key="option.label"
-                :value="`${option.start}|${option.end}`"
+          <fieldset class="form-field time-field">
+            <legend>客服時間</legend>
+
+            <div class="time-inputs">
+              <button
+                type="button"
+                class="time-input-button"
+                :class="{ 'is-active': activeTimePicker === 'start' }"
+                @click="openTimePicker('start')"
               >
-                {{ option.label }}
-              </option>
-            </select>
-          </label>
+                <i class="bi bi-clock" aria-hidden="true"></i>
+                <span>{{ formatServiceTime('start') }}</span>
+              </button>
+
+              <span class="time-separator">-</span>
+
+              <button
+                type="button"
+                class="time-input-button"
+                :class="{ 'is-active': activeTimePicker === 'end' }"
+                @click="openTimePicker('end')"
+              >
+                <i class="bi bi-clock" aria-hidden="true"></i>
+                <span>{{ formatServiceTime('end') }}</span>
+              </button>
+            </div>
+
+            <div v-if="activeTimePicker" class="time-picker-panel">
+              <div class="time-picker-header">
+                <strong>{{ timePickerTitle }}</strong>
+                <button type="button" aria-label="關閉時間選單" @click="closeTimePicker">
+                  <i class="bi bi-x-lg" aria-hidden="true"></i>
+                </button>
+              </div>
+
+              <div class="time-picker-columns">
+                <div class="time-picker-column" aria-label="小時">
+                  <button
+                    v-for="hour in timeUnitOptions.hours"
+                    :key="`picker-hour-${hour}`"
+                    type="button"
+                    :class="{ 'is-selected': timePickerDraft.hour === hour }"
+                    @click="timePickerDraft.hour = hour"
+                  >
+                    {{ hour }}
+                  </button>
+                </div>
+
+                <span class="time-colon">:</span>
+
+                <div class="time-picker-column" aria-label="分鐘">
+                  <button
+                    v-for="minute in timeUnitOptions.minutes"
+                    :key="`picker-minute-${minute}`"
+                    type="button"
+                    :class="{ 'is-selected': timePickerDraft.minute === minute }"
+                    @click="timePickerDraft.minute = minute"
+                  >
+                    {{ minute }}
+                  </button>
+                </div>
+
+              </div>
+
+              <div class="time-picker-actions">
+                <button type="button" class="secondary-button" @click="closeTimePicker">取消</button>
+                <button type="button" class="primary-button" @click="confirmTimePicker">確認</button>
+              </div>
+            </div>
+          </fieldset>
         </section>
       </aside>
 
@@ -503,6 +609,157 @@ h3 {
   gap: var(--space-2);
   color: var(--color-text-700);
   font-weight: 700;
+}
+
+.time-field {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.time-field legend {
+  margin-bottom: var(--space-2);
+  padding: 0;
+}
+
+.time-inputs {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.time-input-button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+}
+
+.time-input-button i {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.time-input-button:hover,
+.time-input-button.is-active {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-soft);
+}
+
+.time-separator {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+}
+
+.time-picker-panel {
+  position: relative;
+  z-index: 5;
+  display: grid;
+  gap: var(--space-3);
+  width: min(100%, 280px);
+  margin-top: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.time-picker-header,
+.time-picker-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.time-picker-header {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.time-picker-header strong {
+  color: var(--color-text-800);
+  font-size: var(--font-size-sm);
+}
+
+.time-picker-header button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.time-picker-header button:hover {
+  background: var(--color-bg-muted);
+  color: var(--color-text-800);
+}
+
+.time-picker-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  padding: 0 var(--space-4);
+}
+
+.time-picker-column {
+  display: grid;
+  gap: 2px;
+  max-height: 188px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-2) 0;
+}
+
+.time-picker-column button {
+  min-height: 32px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.time-picker-column button:hover {
+  background: var(--color-bg-muted);
+  color: var(--color-text-900);
+}
+
+.time-picker-column button.is-selected {
+  background: var(--color-danger);
+  color: var(--color-surface);
+  font-weight: 800;
+}
+
+.time-colon {
+  width: 20px;
+  color: var(--color-danger);
+  text-align: center;
+}
+
+.time-picker-actions {
+  justify-content: flex-end;
+  border-top: 1px solid var(--color-border);
 }
 
 .logo-section {

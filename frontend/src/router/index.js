@@ -107,6 +107,11 @@ const routes = [
         component: () => import('@/views/sales/OrderDetail.vue'),
       },
       {
+        path: 'orders/:orderId/items/:orderItemId/review',
+        name: 'MemberOrderItemReview',
+        component: () => import('@/views/review/OrderItemReviewView.vue'),
+      },
+      {
         path: 'favorites',
         name: 'MemberFavorites',
         component: () => import('@/views/member/MemberFavoritesView.vue'),
@@ -159,6 +164,11 @@ const routes = [
         path: 'orders',
         name: 'SellerOrders',
         component: () => import('@/views/seller/SellerOrderListView.vue'),
+      },
+      {
+        path: 'orders/batch-shipment',
+        name: 'SellerBatchShipment',
+        component: () => import('@/views/seller/SellerBatchShipmentView.vue'),
       },
       {
         path: 'orders/:id',

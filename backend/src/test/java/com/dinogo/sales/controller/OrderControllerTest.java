@@ -39,7 +39,7 @@ class OrderControllerTest {
     void createOrderReturnsCreatedResponseAndLocation() {
         OrderService orderService = mock(OrderService.class);
         CreateOrderRequest request = new CreateOrderRequest(
-                10, null, null,
+                10, "HOME_DELIVERY", null, null,
                 List.of(new CreateOrderItemRequest(100, 1)));
         CreateOrderResponse serviceResponse = new CreateOrderResponse(
                 99, "ORD202608110001", OrderStatus.PENDING_PAYMENT,

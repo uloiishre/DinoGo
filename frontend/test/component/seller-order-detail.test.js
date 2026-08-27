@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import SellerOrderDetailView from '../../src/views/seller/SellerOrderDetailView.vue'
 import {
-  acceptSellerOrder,
   createSellerShipment,
   getSellerOrder,
   updateSellerShipmentTrackingInfo,
@@ -18,7 +17,6 @@ vi.mock('vue-router', () => ({
 }))
 
 vi.mock('../../src/api/sellerOrderApi.js', () => ({
-  acceptSellerOrder: vi.fn(),
   createSellerShipment: vi.fn(),
   getSellerOrder: vi.fn(),
   updateSellerShipmentTrackingInfo: vi.fn(),
@@ -94,22 +92,17 @@ describe('seller shipment operation flow', () => {
     expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeUndefined()
   })
 
-  test('accepts a paid order and then confirms shipment through the page controls', async () => {
+  test('confirms shipment through the page controls', async () => {
     const preparingShipment = {
       shipmentId: 3,
       status: 'PREPARING',
       carrierName: '黑貓宅急便',
       trackingNo: 'TRACK-001',
     }
-    acceptSellerOrder.mockResolvedValue({ data: orderFixture({ status: 'PROCESSING', shipment: preparingShipment }) })
     updateSellerShipmentStatus.mockResolvedValue({
       data: { ...preparingShipment, status: 'SHIPPED', shippedAt: '2026-08-19T10:00:00Z' },
     })
-    const wrapper = await mountView(orderFixture({ shipment: preparingShipment }))
-
-    await wrapper.get('button.accept-button').trigger('click')
-    await flushPromises()
-    expect(acceptSellerOrder).toHaveBeenCalledWith(10)
+    const wrapper = await mountView(orderFixture({ status: 'PROCESSING', shipment: preparingShipment }))
 
     const shipmentButton = wrapper.get('button.shipment-submit')
     expect(shipmentButton.text()).toBe('確認出貨')
@@ -215,28 +208,8 @@ describe('seller shipment operation flow', () => {
     expect(wrapper.find('button.shipment-submit').exists()).toBe(false)
   })
 
-  test('does not let an older silent refresh overwrite an accepted order', async () => {
-    let resolveStaleRefresh
-    const paidOrder = orderFixture()
-    const processingOrder = orderFixture({ status: 'PROCESSING' })
-    getSellerOrder
-      .mockResolvedValueOnce({ data: paidOrder })
-      .mockReturnValueOnce(new Promise((resolve) => { resolveStaleRefresh = resolve }))
-    acceptSellerOrder.mockResolvedValue({ data: processingOrder })
-
-    const wrapper = mount(SellerOrderDetailView)
-    await flushPromises()
-
-    window.dispatchEvent(new Event('focus'))
-    await Promise.resolve()
-    await wrapper.get('button.accept-button').trigger('click')
-    await flushPromises()
-
-    expect(acceptSellerOrder).toHaveBeenCalledWith(10)
-    expect(wrapper.find('button.accept-button').exists()).toBe(false)
-
-    resolveStaleRefresh({ data: paidOrder })
-    await flushPromises()
+  test('does not expose an order acceptance action in the detail view', async () => {
+    const wrapper = await mountView()
 
     expect(wrapper.find('button.accept-button').exists()).toBe(false)
   })

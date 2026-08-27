@@ -1,12 +1,15 @@
 <script setup>
-import { RouterLink, useRoute } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { computed } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import { getCurrentSellerId } from '@/utils/seller-session'
 
 // 沒有 sellerId 時，不要自動變成 1
 const sellerId = computed(() => getCurrentSellerId())
 
 const route = useRoute()
+const router = useRouter()
+const authStore = useAuthStore()
 
 const navItems = [
   { label: '營運總覽', to: '/seller/dashboard', icon: 'bi-speedometer2' },
@@ -16,6 +19,7 @@ const navItems = [
     icon: 'bi-box-seam',
   },
   { label: '訂單管理', to: '/seller/orders', icon: 'bi-receipt' },
+  { label: '批次出貨', to: '/seller/orders/batch-shipment', icon: 'bi-truck' },
   { label: '優惠券管理', to: '/seller/coupons', icon: 'bi-ticket-perforated' },
   { label: '賣家錢包', to: '/seller/wallet', icon: 'bi-wallet2' },
   { label: '訊息中心', to: '/seller/messages', icon: 'bi-chat-left-text' },
@@ -29,7 +33,16 @@ const isItemActive = (item) => {
     return route.path.startsWith('/seller/products')
   }
 
+  if (item.to === '/seller/orders') {
+    return route.path === item.to
+  }
+
   return route.path === item.to
+}
+
+function logout() {
+  authStore.signOut()
+  router.replace({ name: 'Login' })
 }
 </script>
 
@@ -48,11 +61,14 @@ const isItemActive = (item) => {
       </div>
     </section>
 
-    <RouterLink v-if="sellerId" class="store-link" :to="`/products?sellerId=${sellerId}`">
-      查看店鋪
-    </RouterLink>
-
     <nav class="seller-nav" aria-label="賣家中心導覽">
+      <div v-if="sellerId" class="seller-nav-group">
+        <RouterLink class="seller-nav-link store-link" :to="`/products?sellerId=${sellerId}`">
+          <i class="nav-mark bi bi-shop-window" aria-hidden="true"></i>
+          <span>查看店鋪</span>
+        </RouterLink>
+      </div>
+
       <div v-for="item in navItems" :key="item.to" class="seller-nav-group">
         <RouterLink v-slot="{ href, navigate }" custom :to="item.to">
           <a
@@ -79,6 +95,13 @@ const isItemActive = (item) => {
         <small>規劃中</small>
       </div>
     </nav>
+
+    <div class="seller-nav-footer">
+      <button type="button" class="seller-logout-button" @click="logout">
+        <i class="nav-mark bi bi-box-arrow-right" aria-hidden="true"></i>
+        <span>登出</span>
+      </button>
+    </div>
   </aside>
 </template>
 
@@ -90,7 +113,7 @@ const isItemActive = (item) => {
   height: 100vh;
   min-height: 100vh;
   display: grid;
-  grid-template-rows: auto auto auto 1fr;
+  grid-template-rows: auto auto 1fr auto;
   background: var(--color-primary-800);
   color: var(--color-text-50);
 }
@@ -139,29 +162,6 @@ const isItemActive = (item) => {
 .seller-card div {
   display: grid;
   gap: 2px;
-}
-
-.store-link {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 40px;
-  margin: var(--space-3) var(--space-4) 0;
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--color-surface);
-  font-size: var(--font-size-sm);
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.store-link:hover {
-  background: rgba(255, 255, 255, 0.16);
-}
-
-.store-link i {
-  font-size: var(--font-size-sm);
 }
 
 .seller-nav {
@@ -222,9 +222,42 @@ const isItemActive = (item) => {
   opacity: 0.58;
 }
 
+.store-link {
+  font-weight: 600;
+}
+
+.seller-nav-footer {
+  padding: var(--space-4);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.seller-logout-button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 40px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-100);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.seller-logout-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-surface);
+}
+
 .seller-nav a:focus-visible,
 .brand-link:focus-visible,
-.store-link:focus-visible {
+.store-link:focus-visible,
+.seller-logout-button:focus-visible {
   outline: none;
   box-shadow: var(--shadow-focus);
 }
@@ -256,8 +289,8 @@ const isItemActive = (item) => {
     display: none;
   }
 
-  .store-link {
-    margin-bottom: var(--space-3);
+  .seller-nav-footer {
+    padding-top: 0;
   }
 }
 

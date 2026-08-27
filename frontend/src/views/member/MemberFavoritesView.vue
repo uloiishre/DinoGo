@@ -14,7 +14,7 @@ const loading = ref(false)
 const errorMessage = ref('')
 const removingId = ref(null)
 const addingCartId = ref(null)
-
+const showCartSuccess = ref(false)
 // ================================
 // 規格選擇
 // ================================
@@ -34,7 +34,15 @@ const loadFavorites = async () => {
 
     const response = await api.get('/favorites')
 
-    favorites.value = response.data || []
+    favorites.value = (response.data || []).sort((a, b) => {
+      // 1. 可購買商品排前面
+      if (a.available !== b.available) {
+        return a.available ? -1 : 1
+      }
+
+      // 2. 同樣狀態下，按照 productId 小到大
+      return Number(a.productId) - Number(b.productId)
+    })
   } catch (error) {
     logSafeError('取得收藏失敗：', error)
 
@@ -202,13 +210,19 @@ const addToCart = async () => {
       quantity: 1,
     })
 
-    alert('已加入購物車')
-
     // 先結束加入購物車狀態
     addingCartId.value = null
 
-    // 再關閉規格選擇視窗
+    // 關閉規格選擇視窗
     closeSkuSelector()
+
+    // 顯示中央成功提示
+    showCartSuccess.value = true
+
+    // 1 秒後自動關閉
+    setTimeout(() => {
+      showCartSuccess.value = false
+    }, 1000)
   } catch (error) {
     logSafeError('加入購物車失敗：', error)
 
@@ -532,6 +546,22 @@ onMounted(() => {
                 加入購物車
               </span>
             </button>
+          </div>
+        </div>
+      </div>
+      <!-- ================================
+           加入購物車成功提示
+      ================================ -->
+
+      <div v-if="showCartSuccess" class="cart-success-backdrop">
+        <div class="cart-success-message">
+          <div class="cart-success-icon">
+            <i class="bi bi-check-lg"></i>
+          </div>
+
+          <div class="cart-success-content">
+            <strong>已加入購物車</strong>
+            <span>商品已成功加入購物車</span>
           </div>
         </div>
       </div>
@@ -1497,5 +1527,104 @@ onMounted(() => {
 }
 .product-link-disabled {
   cursor: default;
+}
+/* ========================================
+   加入購物車成功提示
+======================================== */
+
+.cart-success-backdrop {
+  position: fixed;
+
+  inset: 0;
+
+  z-index: 2000;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: var(--space-4);
+
+  background: rgba(0, 0, 0, 0.15);
+
+  pointer-events: none;
+}
+
+.cart-success-message {
+  display: flex;
+
+  align-items: center;
+
+  gap: var(--space-3);
+
+  min-width: 280px;
+
+  padding: var(--space-4) var(--space-5);
+
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-border);
+
+  border-radius: var(--radius-lg);
+
+  box-shadow: var(--shadow-lg);
+
+  animation: cart-success-show 0.2s ease-out;
+}
+
+.cart-success-icon {
+  width: 42px;
+  height: 42px;
+
+  flex: 0 0 42px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  color: var(--color-surface);
+
+  background: var(--color-primary);
+
+  border-radius: 50%;
+
+  font-size: 22px;
+}
+
+.cart-success-content {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: var(--space-1);
+}
+
+.cart-success-content strong {
+  color: var(--color-text);
+
+  font-family: var(--font-body);
+  font-size: var(--font-size-base);
+  font-weight: 700;
+}
+
+.cart-success-content span {
+  color: var(--color-text-muted);
+
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+}
+
+@keyframes cart-success-show {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 </style>

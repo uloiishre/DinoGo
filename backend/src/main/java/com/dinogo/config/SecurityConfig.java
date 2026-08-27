@@ -32,6 +32,8 @@ public class SecurityConfig {
                                 .authorizeHttpRequests(authorize -> authorize
                                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                                                 .requestMatchers("/api/auth/**").permitAll()
+                                                .requestMatchers(HttpMethod.POST, "/api/ecpay/callback").permitAll()
+                                                .requestMatchers(HttpMethod.POST, "/api/ecpay/order-result").permitAll()
                                                 .requestMatchers(HttpMethod.GET,
                                                                 "/api/products/**",
                                                                 "/api/categories/**",

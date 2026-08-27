@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { logSafeError } from '@/utils/safeError'
@@ -18,6 +18,15 @@ const quantity = ref(1)
 const isFavorite = ref(false)
 const favoriteLoading = ref(false)
 const favoriteMessage = ref('')
+
+// Review 檢視版：使用本地展示資料，不呼叫尚未整合的 Review 後端。
+const activeDetailTab = ref('description')
+const reviews = ref([])
+const reviewsLoading = ref(false)
+const reviewsLoaded = ref(false)
+const reviewsHasNext = ref(true)
+const selectedReview = ref(null)
+const previewReviewOffset = ref(0)
 
 /**
  * 取得商品詳情
@@ -334,6 +343,75 @@ const toggleFavorite = async () => {
     favoriteLoading.value = false
   }
 }
+
+function previewReviewPool() {
+  const imageUrls = (product.value?.images ?? []).map((image) => getImageUrl(image.imageUrl)).filter(Boolean)
+  const messages = [
+    '包裝完整，商品質感很好，實際使用後符合期待。',
+    '尺寸與頁面說明一致，出貨速度也很快。',
+    '操作容易，細節做工不錯，會推薦給其他買家。',
+    '顏色接近實品照片，整體使用體驗很滿意。',
+    '功能符合需求，客服回覆清楚，值得再次購買。',
+  ]
+  return Array.from({ length: 20 }, (_, index) => ({
+    starId: index + 1,
+    memberId: 12031 + index * 17,
+    fiveStar: 5 - (index % 3),
+    feedback: messages[index % messages.length],
+    images: imageUrls.length && index % 3 !== 2 ? [imageUrls[index % imageUrls.length]] : [],
+  }))
+}
+
+function maskMemberId(memberId) {
+  const value = String(memberId ?? '')
+  if (!value) return '會員 ****'
+  if (value.length === 1) return `會員 ${value}****`
+  return `會員 ${value.slice(0, 1)}****${value.slice(-1)}`
+}
+
+function reviewImages(review) {
+  return Array.isArray(review?.images) ? review.images : []
+}
+
+async function loadReviews({ append = false } = {}) {
+  if (reviewsLoading.value || (append && !reviewsHasNext.value)) return
+  reviewsLoading.value = true
+  await Promise.resolve()
+  const pool = previewReviewPool()
+  const start = append ? previewReviewOffset.value : 0
+  const batch = pool.slice(start, start + 10)
+  reviews.value = append ? [...reviews.value, ...batch] : batch
+  previewReviewOffset.value = start + batch.length
+  reviewsHasNext.value = previewReviewOffset.value < pool.length
+  reviewsLoaded.value = true
+  reviewsLoading.value = false
+}
+
+async function selectDetailTab(tab) {
+  activeDetailTab.value = tab
+  if (tab === 'reviews' && !reviewsLoaded.value) await loadReviews()
+}
+
+function handleReviewScroll(event) {
+  const target = event.currentTarget
+  if (target.scrollTop + target.clientHeight >= target.scrollHeight - 24) {
+    void loadReviews({ append: true })
+  }
+}
+
+function openReview(review) {
+  selectedReview.value = review
+  document.body.style.overflow = 'hidden'
+}
+
+function closeReview() {
+  selectedReview.value = null
+  document.body.style.overflow = ''
+}
+
+function handleReviewEscape(event) {
+  if (event.key === 'Escape' && selectedReview.value) closeReview()
+}
 /**
  * SKU 改變時，數量回到 1
  */
@@ -344,6 +422,12 @@ watch(selectedSku, () => {
 onMounted(async () => {
   await fetchProductDetail()
   await fetchFavoriteStatus()
+  window.addEventListener('keydown', handleReviewEscape)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleReviewEscape)
+  document.body.style.overflow = ''
 })
 </script>
 
@@ -427,10 +511,7 @@ onMounted(async () => {
               <div class="product-sold-count">已售出 {{ product.soldCount ?? 0 }} 件</div>
             </div>
 
-            <!-- 商品描述 -->
-            <div class="product-description mb-4">
-              {{ product.description }}
-            </div>
+            <!-- 商品說明改由主圖下方標籤面板顯示。 -->
 
             <!-- =========================
                  SKU 規格========================== -->
@@ -555,6 +636,109 @@ onMounted(async () => {
             <!-- 完全沒有 SKU -->
             <div v-else class="empty-sku-message">此商品目前沒有規格資料</div>
           </div>
+        </div>
+
+        <section class="product-detail-tabs" aria-label="產品明細內容">
+          <div class="detail-tab-list" role="tablist" aria-label="產品資訊篩選">
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="activeDetailTab === 'description'"
+              :class="{ active: activeDetailTab === 'description' }"
+              @click="selectDetailTab('description')"
+            >
+              產品說明
+            </button>
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="activeDetailTab === 'reviews'"
+              :class="{ active: activeDetailTab === 'reviews' }"
+              @click="selectDetailTab('reviews')"
+            >
+              商品評價
+            </button>
+          </div>
+
+          <div v-if="activeDetailTab === 'description'" class="detail-panel description-panel" role="tabpanel">
+            <h2>產品說明</h2>
+            <p>{{ product.description || '目前尚無產品說明。' }}</p>
+          </div>
+
+          <div
+            v-else
+            class="detail-panel reviews-panel"
+            role="tabpanel"
+            tabindex="0"
+            aria-label="商品評價，可向下捲動載入更多"
+            @scroll.passive="handleReviewScroll"
+          >
+            <div v-if="reviewsLoaded && reviews.length === 0" class="review-state">
+              此商品目前尚無商品評價。
+            </div>
+            <div v-else class="review-list">
+              <button
+                v-for="review in reviews"
+                :key="review.starId"
+                type="button"
+                class="review-card"
+                :aria-label="`詳閱 ${maskMemberId(review.memberId)} 的評價`"
+                @click="openReview(review)"
+              >
+                <div class="review-card__heading">
+                  <strong>{{ maskMemberId(review.memberId) }}</strong>
+                  <span class="review-stars" :aria-label="`${review.fiveStar} 顆星`">
+                    <i
+                      v-for="value in 5"
+                      :key="value"
+                      class="bi"
+                      :class="value <= review.fiveStar ? 'bi-star-fill' : 'bi-star'"
+                      aria-hidden="true"
+                    ></i>
+                  </span>
+                </div>
+                <p>{{ review.feedback || '此會員只留下星等評價。' }}</p>
+                <div v-if="reviewImages(review).length" class="review-thumbnails" aria-label="評價照片">
+                  <img
+                    v-for="(image, index) in reviewImages(review)"
+                    :key="index"
+                    :src="image"
+                    :alt="`評價照片 ${index + 1}`"
+                  />
+                </div>
+              </button>
+            </div>
+            <div v-if="reviewsLoading" class="review-loading" role="status">正在載入評價...</div>
+            <div v-else-if="reviewsLoaded && !reviewsHasNext && reviews.length" class="review-end">已顯示全部評價</div>
+          </div>
+        </section>
+
+        <div v-if="selectedReview" class="review-overlay" role="presentation" @click.self="closeReview">
+          <article class="review-dialog" role="dialog" aria-modal="true" aria-labelledby="review-dialog-title">
+            <button type="button" class="review-dialog__close" aria-label="關閉評價詳閱" @click="closeReview">×</button>
+            <header>
+              <p>{{ maskMemberId(selectedReview.memberId) }}</p>
+              <h2 id="review-dialog-title">商品評價</h2>
+              <span class="review-stars" :aria-label="`${selectedReview.fiveStar} 顆星`">
+                <i
+                  v-for="value in 5"
+                  :key="value"
+                  class="bi"
+                  :class="value <= selectedReview.fiveStar ? 'bi-star-fill' : 'bi-star'"
+                  aria-hidden="true"
+                ></i>
+              </span>
+            </header>
+            <p class="review-dialog__feedback">{{ selectedReview.feedback || '此會員只留下星等評價。' }}</p>
+            <div v-if="reviewImages(selectedReview).length" class="review-dialog__images">
+              <img
+                v-for="(image, index) in reviewImages(selectedReview)"
+                :key="index"
+                :src="image"
+                :alt="`評價放大照片 ${index + 1}`"
+              />
+            </div>
+          </article>
         </div>
       </div>
     </div>
@@ -918,5 +1102,284 @@ onMounted(async () => {
   margin: 0;
   line-height: 1;
   transform: translateY(2px);
+}
+
+.product-detail-tabs {
+  width: min(100%, calc(100% * 2 / 3));
+  margin: var(--space-7) 0 0;
+}
+
+.detail-tab-list {
+  display: flex;
+  justify-content: flex-start;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.detail-tab-list button {
+  position: relative;
+  min-height: calc(var(--space-7) + var(--space-1));
+  flex: 0 0 auto;
+  min-width: calc(var(--space-8) * 2);
+  padding: 0 var(--space-5);
+  text-align: left;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  background: var(--color-surface);
+  border: 0;
+  cursor: pointer;
+}
+
+.detail-tab-list button::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: var(--space-1);
+  content: '';
+  background: transparent;
+}
+
+.detail-tab-list button:hover {
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.detail-tab-list button.active,
+.detail-tab-list button:active {
+  color: var(--color-primary-active);
+}
+
+.detail-tab-list button.active::after {
+  background: var(--color-primary);
+}
+
+.detail-tab-list button:focus-visible,
+.detail-panel:focus-visible,
+.review-card:focus-visible,
+.review-dialog button:focus-visible,
+.review-state button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.detail-panel {
+  min-height: calc(
+    (var(--space-8) + var(--space-5)) * 6
+    + var(--space-3) * 5
+    + var(--space-5) * 2
+  );
+  padding: var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.description-panel h2 {
+  margin: 0 0 var(--space-4);
+  font-family: var(--font-heading);
+  font-size: var(--font-size-lg);
+}
+
+.description-panel p {
+  margin: 0;
+  line-height: var(--line-height-base);
+  white-space: pre-line;
+}
+
+.reviews-panel {
+  height: calc(
+    (var(--space-8) + var(--space-5)) * 6
+    + var(--space-3) * 5
+    + var(--space-5) * 2
+  );
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.review-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.review-card {
+  display: grid;
+  min-height: calc(var(--space-8) + var(--space-5));
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-4);
+  color: var(--color-text);
+  text-align: left;
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.review-card:hover {
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary);
+}
+
+.review-card:active {
+  border-color: var(--color-primary-active);
+}
+
+.review-card__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.review-card__heading strong {
+  font-size: var(--font-size-sm);
+}
+
+.review-stars {
+  display: inline-flex;
+  gap: var(--space-1);
+  color: var(--color-warning);
+}
+
+.review-card p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.review-thumbnails {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.review-thumbnails img {
+  width: var(--space-7);
+  height: var(--space-7);
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.review-state,
+.review-loading,
+.review-end {
+  display: flex;
+  min-height: calc(var(--space-8) * 2);
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.review-state--error {
+  color: var(--color-danger);
+}
+
+.review-state button {
+  padding: var(--space-2) var(--space-4);
+  color: var(--color-primary);
+  background: var(--color-surface);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+}
+
+.review-overlay {
+  position: fixed;
+  z-index: 1050;
+  inset: 0;
+  display: grid;
+  padding: var(--space-5);
+  place-items: center;
+  background: color-mix(in srgb, var(--color-text) 65%, transparent);
+}
+
+.review-dialog {
+  position: relative;
+  width: min(100%, calc(var(--space-8) * 10));
+  max-height: calc(100vh - var(--space-8));
+  overflow-y: auto;
+  padding: var(--space-6);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.review-dialog__close {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: grid;
+  width: calc(var(--space-5) + var(--space-4));
+  height: calc(var(--space-5) + var(--space-4));
+  place-items: center;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xl);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+
+.review-dialog__close:hover {
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.review-dialog header p,
+.review-dialog header h2,
+.review-dialog__feedback {
+  margin: 0;
+}
+
+.review-dialog header p {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.review-dialog header h2 {
+  margin: var(--space-1) 0 var(--space-2);
+  font-family: var(--font-heading);
+  font-size: var(--font-size-xl);
+}
+
+.review-dialog__feedback {
+  margin-top: var(--space-5);
+  white-space: pre-wrap;
+}
+
+.review-dialog__images {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.review-dialog__images img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+}
+
+@media (max-width: 767.98px) {
+  .product-detail-tabs {
+    width: 100%;
+  }
+
+  .detail-panel {
+    padding: var(--space-4);
+  }
+
+  .review-dialog__images {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

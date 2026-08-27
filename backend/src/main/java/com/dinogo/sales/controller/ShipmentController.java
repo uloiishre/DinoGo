@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.dinogo.sales.dto.shipment.CreateShipmentRequest;
 import com.dinogo.sales.dto.shipment.ShipmentResponse;
+import com.dinogo.sales.dto.shipment.ShipmentEventResponse;
+import com.dinogo.sales.dto.shipment.SimulateTcatEventRequest;
+import java.util.List;
 import com.dinogo.sales.dto.shipment.UpdateShipmentStatusRequest;
 import com.dinogo.sales.dto.shipment.UpdateShipmentTrackingInfoRequest;
 import com.dinogo.sales.service.ShipmentService;
@@ -51,6 +54,13 @@ public class ShipmentController {
                 shipmentService.getShipment(orderId, member.memberId()));
     }
 
+    @GetMapping("/events")
+    public ResponseEntity<List<ShipmentEventResponse>> getShipmentEvents(
+            @PathVariable Integer orderId,
+            @AuthenticationPrincipal AuthenticatedMember member) {
+        return ResponseEntity.ok(shipmentService.getShipmentEvents(orderId, member.memberId()));
+    }
+
     @PatchMapping("/status")
     public ResponseEntity<ShipmentResponse> updateShipmentStatus(
             @PathVariable Integer orderId,
@@ -58,6 +68,14 @@ public class ShipmentController {
             @Valid @RequestBody UpdateShipmentStatusRequest request) {
         return ResponseEntity.ok(shipmentService.updateShipmentStatus(
                 orderId, member.memberId(), request));
+    }
+
+    @PostMapping("/simulate-tcat-event")
+    public ResponseEntity<ShipmentResponse> simulateTcatEvent(
+            @PathVariable Integer orderId,
+            @AuthenticationPrincipal AuthenticatedMember member,
+            @Valid @RequestBody SimulateTcatEventRequest request) {
+        return ResponseEntity.ok(shipmentService.simulateTcatEvent(orderId, member.memberId(), request));
     }
 
     @PatchMapping("/tracking-info")

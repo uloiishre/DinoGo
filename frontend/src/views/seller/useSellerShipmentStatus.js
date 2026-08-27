@@ -5,18 +5,14 @@ export function useSellerShipmentStatus({ order, updateStatus }) {
   const shipmentActionError = ref('')
 
   const shipmentAction = computed(() => {
-    if (order.value?.shipment?.status === 'PREPARING' && order.value.status === 'PROCESSING') {
+    if (
+      order.value?.shipment?.status === 'PREPARING' &&
+      ['PAID', 'PROCESSING'].includes(order.value.status)
+    ) {
       return {
         status: 'SHIPPED',
         label: '確認出貨',
         pendingLabel: '出貨確認中…',
-      }
-    }
-    if (order.value?.shipment?.status === 'SHIPPED') {
-      return {
-        status: 'AVAILABLE_FOR_PICKUP',
-        label: '標記可取貨',
-        pendingLabel: '更新中…',
       }
     }
     return null

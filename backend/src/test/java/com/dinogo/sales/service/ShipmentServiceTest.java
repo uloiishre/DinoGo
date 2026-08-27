@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.List;
+import org.mockito.ArgumentCaptor;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.dinogo.catalog.repository.ProductRepository;
 import com.dinogo.sales.dto.shipment.CreateShipmentRequest;
+import com.dinogo.sales.dto.shipment.SimulateTcatEventRequest;
 import com.dinogo.sales.dto.shipment.UpdateShipmentStatusRequest;
 import com.dinogo.sales.dto.shipment.UpdateShipmentTrackingInfoRequest;
 import com.dinogo.sales.entity.Order;
@@ -28,11 +31,15 @@ import com.dinogo.sales.entity.Payment;
 import com.dinogo.sales.entity.PaymentStatus;
 import com.dinogo.sales.entity.Shipment;
 import com.dinogo.sales.entity.ShipmentStatus;
+import com.dinogo.sales.entity.ShipmentEvent;
+import com.dinogo.sales.entity.ShipmentEventType;
+import com.dinogo.sales.entity.ShipmentEventSource;
 import com.dinogo.sales.exception.InvalidOrderException;
 import com.dinogo.sales.exception.OrderNotFoundException;
 import com.dinogo.sales.repository.OrderRepository;
 import com.dinogo.sales.repository.PaymentRepository;
 import com.dinogo.sales.repository.ShipmentRepository;
+import com.dinogo.sales.repository.ShipmentEventRepository;
 import com.dinogo.seller.entity.Seller;
 import com.dinogo.seller.repository.SellerRepository;
 
@@ -41,6 +48,8 @@ class ShipmentServiceTest {
 
         @Mock
         private ShipmentRepository shipmentRepository;
+        @Mock
+        private ShipmentEventRepository shipmentEventRepository;
         @Mock
         private OrderRepository orderRepository;
         @Mock
@@ -58,6 +67,7 @@ class ShipmentServiceTest {
         void setUp() {
                 shipmentService = new ShipmentService(
                                 shipmentRepository,
+                                shipmentEventRepository,
                                 orderRepository,
                                 paymentRepository,
                                 sellerRepository,
@@ -82,6 +92,10 @@ class ShipmentServiceTest {
                 assertEquals("Black Cat", response.carrierName());
                 assertEquals("TRACK-1", response.trackingNo());
                 assertEquals(ShipmentStatus.PREPARING, response.status());
+                ArgumentCaptor<ShipmentEvent> eventCaptor = ArgumentCaptor.forClass(ShipmentEvent.class);
+                verify(shipmentEventRepository).save(eventCaptor.capture());
+                assertEquals(ShipmentEventType.LABEL_CREATED, eventCaptor.getValue().getEventType());
+                assertEquals(ShipmentEventSource.SELLER, eventCaptor.getValue().getSource());
         }
 
         @Test
@@ -160,6 +174,23 @@ class ShipmentServiceTest {
 
                 assertEquals(ShipmentStatus.SHIPPED, response.status());
                 assertNotNull(response.shippedAt());
+                assertEquals(OrderStatus.SHIPPED, shipment.getOrder().getStatus());
+                verify(shipmentEventRepository).save(any(ShipmentEvent.class));
+        }
+
+        @Test
+        void paidOrderCanShipWithoutManualAcceptance() {
+                Shipment shipment = shipment(order(10, 6, 30, OrderStatus.PAID));
+                when(seller.getSellerId()).thenReturn(30);
+                when(seller.getStatus()).thenReturn("ACTIVE");
+                when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
+                when(shipmentRepository.findForStatusUpdate(10, 30)).thenReturn(Optional.of(shipment));
+                when(shipmentRepository.save(shipment)).thenReturn(shipment);
+
+                var response = shipmentService.updateShipmentStatus(
+                                10, 8, new UpdateShipmentStatusRequest(ShipmentStatus.SHIPPED));
+
+                assertEquals(ShipmentStatus.SHIPPED, response.status());
                 assertEquals(OrderStatus.SHIPPED, shipment.getOrder().getStatus());
         }
 
@@ -260,6 +291,100 @@ class ShipmentServiceTest {
                 assertNotNull(shipment.getOrder().getCompletedAt());
                 assertEquals(PaymentStatus.SUCCESS, payment.getStatus());
                 assertNotNull(payment.getPaidAt());
+                verify(shipmentEventRepository).save(any(ShipmentEvent.class));
+        }
+
+        @Test
+        void buyerAndOrderSellerCanReadShipmentEventsButUnrelatedMemberCannot() {
+                Shipment shipment = shipment(order(10, 6, 30, OrderStatus.PROCESSING));
+                shipment.setShipmentId(20);
+                when(shipmentRepository.findByOrderOrderId(10)).thenReturn(Optional.of(shipment));
+                when(shipmentEventRepository.findByShipmentShipmentIdOrderByOccurredAtAsc(20)).thenReturn(List.of());
+
+                assertEquals(List.of(), shipmentService.getShipmentEvents(10, 6));
+
+                when(seller.getSellerId()).thenReturn(30);
+                when(seller.getStatus()).thenReturn("ACTIVE");
+                when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
+                assertEquals(List.of(), shipmentService.getShipmentEvents(10, 8));
+
+                when(sellerRepository.findByMember_MemberId(9)).thenReturn(Optional.empty());
+                assertThrows(OrderNotFoundException.class, () -> shipmentService.getShipmentEvents(10, 9));
+        }
+
+        @Test
+        void sellerCanSimulateTcatInTransitAfterHandover() {
+                Shipment shipment = shipment(order(10, 6, 30, OrderStatus.SHIPPED));
+                shipment.setShipmentId(20);
+                shipment.setStatus(ShipmentStatus.SHIPPED);
+                when(seller.getSellerId()).thenReturn(30);
+                when(seller.getStatus()).thenReturn("ACTIVE");
+                when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
+                when(shipmentRepository.findForStatusUpdate(10, 30)).thenReturn(Optional.of(shipment));
+                when(shipmentEventRepository.findByShipmentShipmentIdOrderByOccurredAtAsc(20))
+                                .thenReturn(List.of(event(shipment, ShipmentEventType.HANDED_OVER)));
+                when(shipmentRepository.save(shipment)).thenReturn(shipment);
+
+                var response = shipmentService.simulateTcatEvent(
+                                10, 8, new SimulateTcatEventRequest(ShipmentEventType.IN_TRANSIT));
+
+                assertEquals(ShipmentStatus.SHIPPED, response.status());
+                ArgumentCaptor<ShipmentEvent> eventCaptor = ArgumentCaptor.forClass(ShipmentEvent.class);
+                verify(shipmentEventRepository).save(eventCaptor.capture());
+                assertEquals(ShipmentEventType.IN_TRANSIT, eventCaptor.getValue().getEventType());
+                assertEquals(ShipmentEventSource.CARRIER, eventCaptor.getValue().getSource());
+                verify(shipmentRepository).save(shipment);
+        }
+
+        @Test
+        void sellerCannotSkipTcatSimulationSteps() {
+                Shipment shipment = shipment(order(10, 6, 30, OrderStatus.SHIPPED));
+                shipment.setShipmentId(20);
+                shipment.setStatus(ShipmentStatus.SHIPPED);
+                when(seller.getSellerId()).thenReturn(30);
+                when(seller.getStatus()).thenReturn("ACTIVE");
+                when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
+                when(shipmentRepository.findForStatusUpdate(10, 30)).thenReturn(Optional.of(shipment));
+                when(shipmentEventRepository.findByShipmentShipmentIdOrderByOccurredAtAsc(20))
+                                .thenReturn(List.of(event(shipment, ShipmentEventType.HANDED_OVER)));
+
+                assertThrows(InvalidOrderException.class, () -> shipmentService.simulateTcatEvent(
+                                10, 8, new SimulateTcatEventRequest(ShipmentEventType.OUT_FOR_DELIVERY)));
+
+                verify(shipmentEventRepository, never()).save(any());
+                verify(shipmentRepository, never()).save(any());
+        }
+
+        @Test
+        void tcatDeliveryCompletesShipmentAndOrder() {
+                Shipment shipment = shipment(order(10, 6, 30, OrderStatus.SHIPPED));
+                shipment.setShipmentId(20);
+                shipment.setStatus(ShipmentStatus.SHIPPED);
+                Payment payment = new Payment();
+                payment.setStatus(PaymentStatus.PENDING);
+                when(seller.getSellerId()).thenReturn(30);
+                when(seller.getStatus()).thenReturn("ACTIVE");
+                when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
+                when(shipmentRepository.findForStatusUpdate(10, 30)).thenReturn(Optional.of(shipment));
+                when(shipmentEventRepository.findByShipmentShipmentIdOrderByOccurredAtAsc(20))
+                                .thenReturn(List.of(event(shipment, ShipmentEventType.OUT_FOR_DELIVERY)));
+                when(paymentRepository.findFirstByOrderOrderIdAndStatusAndPaymentMethodMethodCode(
+                                10, PaymentStatus.PENDING, "CASH_ON_DELIVERY"))
+                                .thenReturn(Optional.of(payment));
+                when(shipmentRepository.save(shipment)).thenReturn(shipment);
+
+                var response = shipmentService.simulateTcatEvent(
+                                10, 8, new SimulateTcatEventRequest(ShipmentEventType.DELIVERED));
+
+                assertEquals(ShipmentStatus.DELIVERED, response.status());
+                assertNotNull(shipment.getDeliveredAt());
+                assertEquals(OrderStatus.COMPLETED, shipment.getOrder().getStatus());
+                assertNotNull(shipment.getOrder().getCompletedAt());
+                assertEquals(PaymentStatus.SUCCESS, payment.getStatus());
+                ArgumentCaptor<ShipmentEvent> eventCaptor = ArgumentCaptor.forClass(ShipmentEvent.class);
+                verify(shipmentEventRepository).save(eventCaptor.capture());
+                assertEquals(ShipmentEventType.DELIVERED, eventCaptor.getValue().getEventType());
+                assertEquals(ShipmentEventSource.CARRIER, eventCaptor.getValue().getSource());
         }
 
         @Test
@@ -430,5 +555,12 @@ class ShipmentServiceTest {
                 shipment.setOrder(order);
                 shipment.setStatus(ShipmentStatus.PREPARING);
                 return shipment;
+        }
+
+        private ShipmentEvent event(Shipment shipment, ShipmentEventType eventType) {
+                ShipmentEvent event = new ShipmentEvent();
+                event.setShipment(shipment);
+                event.setEventType(eventType);
+                return event;
         }
 }

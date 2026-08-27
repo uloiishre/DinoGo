@@ -13,6 +13,7 @@ public record SellerOrderListResponse(
         Integer buyerId,
         OrderStatus status,
         BigDecimal totalAmount,
+        BigDecimal discountAmount,
         LocalDateTime createdAt,
         List<OrderItemResponse> items) {
 }

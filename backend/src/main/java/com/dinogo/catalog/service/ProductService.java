@@ -291,6 +291,7 @@ public class ProductService {
                         Integer categoryId,
                         Integer subcategoryId,
                         Integer brandId,
+                        Integer sellerId,
                         Integer page,
                         Integer size,
                         String sort) {
@@ -336,6 +337,14 @@ public class ProductService {
                                                                                 .get("brandId"),
                                                                 brandId));
                         }
+                        // 賣家
+                        if (sellerId != null) {
+                                predicates.add(
+                                                cb.equal(
+                                                                root.join("seller")
+                                                                                .get("sellerId"),
+                                                                sellerId));
+                        }
 
                         return cb.and(
                                         predicates.toArray(new Predicate[0]));
@@ -370,6 +379,10 @@ public class ProductService {
 
                 Product product = productRepository.findById(productId)
                                 .orElseThrow(() -> new RuntimeException("找不到商品"));
+
+                if (product.getStatus() != 1) {
+                        throw new RuntimeException("商品不存在或目前未上架");
+                }
 
                 List<ProductImageResponse> images = product.getImages()
                                 .stream()
@@ -1012,6 +1025,7 @@ public class ProductService {
 
                 return responses;
         }
+
         // 商品軟刪除
         @Transactional
         public void deleteProduct(Integer productId, Integer memberId) {

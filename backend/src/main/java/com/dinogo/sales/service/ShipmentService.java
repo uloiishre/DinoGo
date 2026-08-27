@@ -1,6 +1,7 @@
 package com.dinogo.sales.service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -19,11 +20,17 @@ import com.dinogo.sales.entity.OrderStatus;
 import com.dinogo.sales.entity.PaymentStatus;
 import com.dinogo.sales.entity.Shipment;
 import com.dinogo.sales.entity.ShipmentStatus;
+import com.dinogo.sales.entity.ShipmentEvent;
+import com.dinogo.sales.entity.ShipmentEventSource;
+import com.dinogo.sales.entity.ShipmentEventType;
+import com.dinogo.sales.dto.shipment.ShipmentEventResponse;
+import com.dinogo.sales.dto.shipment.SimulateTcatEventRequest;
 import com.dinogo.sales.exception.InvalidOrderException;
 import com.dinogo.sales.exception.OrderNotFoundException;
 import com.dinogo.sales.repository.OrderRepository;
 import com.dinogo.sales.repository.PaymentRepository;
 import com.dinogo.sales.repository.ShipmentRepository;
+import com.dinogo.sales.repository.ShipmentEventRepository;
 import com.dinogo.seller.entity.Seller;
 import com.dinogo.seller.repository.SellerRepository;
 
@@ -37,6 +44,7 @@ public class ShipmentService {
             ShipmentStatus.SHIPPED, Set.of(ShipmentStatus.AVAILABLE_FOR_PICKUP));
 
     private final ShipmentRepository shipmentRepository;
+    private final ShipmentEventRepository shipmentEventRepository;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final SellerRepository sellerRepository;
@@ -44,12 +52,14 @@ public class ShipmentService {
 
     public ShipmentService(
             ShipmentRepository shipmentRepository,
+            ShipmentEventRepository shipmentEventRepository,
             OrderRepository orderRepository,
             PaymentRepository paymentRepository,
             SellerRepository sellerRepository,
             ProductRepository productRepository) {
 
         this.shipmentRepository = shipmentRepository;
+        this.shipmentEventRepository = shipmentEventRepository;
         this.orderRepository = orderRepository;
         this.paymentRepository = paymentRepository;
         this.sellerRepository = sellerRepository;
@@ -80,7 +90,9 @@ public class ShipmentService {
         shipment.setTrackingNo(normalize(request.trackingNo()));
         shipment.setStatus(ShipmentStatus.PREPARING);
 
-        return toResponse(shipmentRepository.save(shipment));
+        Shipment savedShipment = shipmentRepository.save(shipment);
+        recordEvent(savedShipment, ShipmentEventType.LABEL_CREATED, ShipmentEventSource.SELLER, "賣家已建立寄件資料");
+        return toResponse(savedShipment);
     }
 
     @Transactional(readOnly = true)
@@ -94,6 +106,17 @@ public class ShipmentService {
         }
 
         return toResponse(shipment);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<ShipmentEventResponse> getShipmentEvents(Integer orderId, Integer memberId) {
+        Shipment shipment = shipmentRepository.findByOrderOrderId(orderId)
+                .orElseThrow(() -> new OrderNotFoundException("Shipment does not exist"));
+        if (!memberId.equals(shipment.getOrder().getBuyerId()) && !isOrderSeller(shipment.getOrder(), memberId)) {
+            throw new OrderNotFoundException("Shipment does not exist");
+        }
+        return shipmentEventRepository.findByShipmentShipmentIdOrderByOccurredAtAsc(shipment.getShipmentId()).stream()
+                .map(event -> new ShipmentEventResponse(event.getShipmentEventId(), event.getEventType(), event.getSource(), event.getRemark(), event.getOccurredAt())).toList();
     }
 
     @Transactional
@@ -120,14 +143,16 @@ public class ShipmentService {
         LocalDateTime now = LocalDateTime.now();
         Order order = shipment.getOrder();
         if (targetStatus == ShipmentStatus.SHIPPED) {
-            if (order.getStatus() != OrderStatus.PROCESSING) {
+            if (order.getStatus() != OrderStatus.PROCESSING && order.getStatus() != OrderStatus.PAID) {
                 throw new InvalidOrderException(
-                        "Order must be processing before shipment can be shipped");
+                        "Order must be paid or processing before shipment can be shipped");
             }
             shipment.setShippedAt(now);
             order.setStatus(OrderStatus.SHIPPED);
+            recordEvent(shipment, ShipmentEventType.HANDED_OVER, ShipmentEventSource.SELLER, "賣家已確認交寄");
         } else if (targetStatus == ShipmentStatus.AVAILABLE_FOR_PICKUP) {
             shipment.setAvailablePickupAt(now);
+            recordEvent(shipment, ShipmentEventType.AVAILABLE_FOR_PICKUP, ShipmentEventSource.SYSTEM, "包裹已可取貨");
         }
 
         shipment.setStatus(targetStatus);
@@ -196,6 +221,7 @@ public class ShipmentService {
 
         shipment.setStatus(ShipmentStatus.DELIVERED);
         shipment.setDeliveredAt(now);
+        recordEvent(shipment, ShipmentEventType.DELIVERED, ShipmentEventSource.BUYER, "買家已確認收貨");
 
         order.setStatus(OrderStatus.COMPLETED);
         order.setCompletedAt(now);
@@ -237,6 +263,48 @@ public class ShipmentService {
 
     private String normalize(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    @Transactional
+    public ShipmentResponse simulateTcatEvent(Integer orderId, Integer memberId, SimulateTcatEventRequest request) {
+        Seller seller = getActiveSellerByMemberId(memberId);
+        Shipment shipment = shipmentRepository.findForStatusUpdate(orderId, seller.getSellerId())
+                .orElseThrow(() -> new OrderNotFoundException("Shipment does not exist"));
+        List<ShipmentEvent> events = shipmentEventRepository
+                .findByShipmentShipmentIdOrderByOccurredAtAsc(shipment.getShipmentId());
+        ShipmentEventType previous = events.isEmpty() ? null : events.get(events.size() - 1).getEventType();
+        ShipmentEventType target = request.eventType();
+        if (!isValidTcatTransition(previous, target)) {
+            throw new InvalidOrderException("Invalid simulated TCat event transition: " + previous + " -> " + target);
+        }
+        recordEvent(shipment, target, ShipmentEventSource.CARRIER, "黑貓宅急便模擬回報");
+        if (target == ShipmentEventType.DELIVERED) {
+            LocalDateTime now = LocalDateTime.now();
+            shipment.setStatus(ShipmentStatus.DELIVERED);
+            shipment.setDeliveredAt(now);
+            shipment.getOrder().setStatus(OrderStatus.COMPLETED);
+            shipment.getOrder().setCompletedAt(now);
+            increaseSoldCount(shipment.getOrder());
+            completeCashOnDeliveryPayment(orderId, now);
+        }
+        return toResponse(shipmentRepository.save(shipment));
+    }
+
+    private void recordEvent(Shipment shipment, ShipmentEventType type,
+            ShipmentEventSource source, String remark) {
+        ShipmentEvent event = new ShipmentEvent();
+        event.setShipment(shipment);
+        event.setEventType(type);
+        event.setSource(source);
+        event.setRemark(remark);
+        event.setOccurredAt(LocalDateTime.now());
+        shipmentEventRepository.save(event);
+    }
+
+    private boolean isValidTcatTransition(ShipmentEventType previous, ShipmentEventType target) {
+        return (previous == ShipmentEventType.HANDED_OVER && target == ShipmentEventType.IN_TRANSIT)
+                || (previous == ShipmentEventType.IN_TRANSIT && target == ShipmentEventType.OUT_FOR_DELIVERY)
+                || (previous == ShipmentEventType.OUT_FOR_DELIVERY && target == ShipmentEventType.DELIVERED);
     }
 
     private ShipmentResponse toResponse(Shipment shipment) {

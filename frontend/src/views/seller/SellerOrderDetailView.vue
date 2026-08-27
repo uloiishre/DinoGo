@@ -2,9 +2,10 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import {
-  acceptSellerOrder,
   createSellerShipment,
   getSellerOrder,
+  getShipmentEvents,
+  simulateTcatEvent,
   updateSellerShipmentTrackingInfo,
   updateSellerShipmentStatus,
 } from '@/api/sellerOrderApi'
@@ -14,15 +15,17 @@ const route = useRoute()
 const order = ref(null)
 const loading = ref(true)
 const errorMessage = ref('')
-const acceptingOrder = ref(false)
-const actionError = ref('')
 const shipmentForm = ref({ carrierName: '', trackingNo: '' })
 const creatingShipment = ref(false)
 const shipmentFormError = ref('')
 const showShipmentConfirmModal = ref(false)
 const editingShipmentInfo = ref(false)
+const shipmentEvents = ref([])
+const simulatingTcatEvent = ref(false)
+const tcatSimulationError = ref('')
 const fetchingOrder = ref(false)
 const AUTO_REFRESH_INTERVAL_MS = 10_000
+const TCAT_CARRIER_NAME = '黑貓宅急便'
 let autoRefreshTimer = null
 let latestLoadRequestId = 0
 const orderId = computed(() => Number(route.params.id))
@@ -42,7 +45,7 @@ const paymentStatusLabels = {
   CANCELLED: '付款已取消',
 }
 const shipmentStatusLabels = {
-  PREPARING: '備貨中',
+  PREPARING: '已建立寄件資料',
   SHIPPED: '已出貨',
   AVAILABLE_FOR_PICKUP: '可取貨',
   DELIVERED: '已送達',
@@ -81,6 +84,15 @@ const progressSteps = computed(() =>
 const canCreateShipment = computed(
   () => !order.value?.shipment && ['PAID', 'PROCESSING'].includes(order.value?.status),
 )
+const nextTcatEvent = computed(() => {
+  if (order.value?.shipment?.carrierName?.trim() !== TCAT_CARRIER_NAME) return null
+  if (order.value?.shipment?.status !== 'SHIPPED') return null
+  const previous = shipmentEvents.value.at(-1)?.eventType
+  if (previous === 'HANDED_OVER') return { type: 'IN_TRANSIT', label: '模擬運送中' }
+  if (previous === 'IN_TRANSIT') return { type: 'OUT_FOR_DELIVERY', label: '模擬配送中' }
+  if (previous === 'OUT_FOR_DELIVERY') return { type: 'DELIVERED', label: '模擬已送達' }
+  return null
+})
 const { shipmentAction, shipmentActionError, updatingShipment, updateShipmentStatus } =
   useSellerShipmentStatus({
     order,
@@ -122,7 +134,17 @@ async function loadOrder({ silent = false, force = false } = {}) {
   }
   try {
     const response = await getSellerOrder(orderId.value)
-    if (requestId === latestLoadRequestId) order.value = response.data
+    if (requestId === latestLoadRequestId) {
+      order.value = response.data
+      shipmentEvents.value = []
+      if (response.data?.shipment) {
+        try {
+          shipmentEvents.value = (await getShipmentEvents(orderId.value)).data ?? []
+        } catch {
+          shipmentEvents.value = []
+        }
+      }
+    }
   } catch (error) {
     if (!silent && requestId === latestLoadRequestId) {
       errorMessage.value = error.response?.data?.message ?? '無法載入訂單詳情。'
@@ -140,11 +162,6 @@ function invalidatePendingOrderLoad() {
   fetchingOrder.value = false
 }
 
-function applyOrderResponse(nextOrder) {
-  invalidatePendingOrderLoad()
-  order.value = nextOrder
-}
-
 function shouldAutoRefresh() {
   return order.value && !['COMPLETED', 'CANCELLED'].includes(order.value.status)
 }
@@ -152,20 +169,6 @@ function shouldAutoRefresh() {
 function refreshOrderSilently() {
   if (document.hidden || !shouldAutoRefresh()) return
   void loadOrder({ silent: true })
-}
-
-async function acceptOrder() {
-  if (order.value?.status !== 'PAID' || acceptingOrder.value) return
-
-  acceptingOrder.value = true
-  actionError.value = ''
-  try {
-    applyOrderResponse((await acceptSellerOrder(orderId.value)).data)
-  } catch (error) {
-    actionError.value = error.response?.data?.message ?? '接收訂單失敗，請稍後再試。'
-  } finally {
-    acceptingOrder.value = false
-  }
 }
 
 async function submitShipment() {
@@ -225,6 +228,21 @@ async function confirmShipmentStatus() {
   await updateShipmentStatus()
   if (!shipmentActionError.value) {
     showShipmentConfirmModal.value = false
+    await loadOrder({ force: true })
+  }
+}
+
+async function simulateNextTcatEvent() {
+  if (!nextTcatEvent.value || simulatingTcatEvent.value) return
+  simulatingTcatEvent.value = true
+  tcatSimulationError.value = ''
+  try {
+    await simulateTcatEvent(orderId.value, nextTcatEvent.value.type)
+    await loadOrder({ force: true })
+  } catch (error) {
+    tcatSimulationError.value = error.response?.data?.message ?? '黑貓模擬回報失敗。'
+  } finally {
+    simulatingTcatEvent.value = false
   }
 }
 
@@ -284,16 +302,6 @@ onUnmounted(() => {
           <p class="section-label">訂單 {{ order.orderNo }}</p>
           <strong>{{ orderStatusLabels[order.status] ?? order.status }}</strong>
           <small>{{ formatDate(order.createdAt) }}</small>
-          <button
-            v-if="order.status === 'PAID'"
-            class="accept-button"
-            type="button"
-            :disabled="acceptingOrder"
-            @click="acceptOrder"
-          >
-            {{ acceptingOrder ? '接收中…' : '接收訂單' }}
-          </button>
-          <small v-if="actionError" class="action-error" role="alert">{{ actionError }}</small>
         </div>
         <div class="order-progress" aria-label="訂單進度">
           <div
@@ -417,12 +425,6 @@ onUnmounted(() => {
               <p class="section-label">送達時間</p>
               <strong>{{ formatDate(order.shipment.deliveredAt) }}</strong>
             </div>
-            <p
-              v-if="order.shipment.status === 'PREPARING' && order.status === 'PAID'"
-              class="shipment-hint"
-            >
-              請先接收訂單，再確認商品出貨。
-            </p>
             <p v-if="shipmentActionError" class="form-error" role="alert">
               {{ shipmentActionError }}
             </p>
@@ -435,6 +437,16 @@ onUnmounted(() => {
             >
               {{ shipmentAction.label }}
             </button>
+            <button
+              v-if="nextTcatEvent"
+              class="secondary-button"
+              type="button"
+              :disabled="simulatingTcatEvent"
+              @click="simulateNextTcatEvent"
+            >
+              {{ simulatingTcatEvent ? '黑貓回報中…' : nextTcatEvent.label }}
+            </button>
+            <p v-if="tcatSimulationError" class="form-error" role="alert">{{ tcatSimulationError }}</p>
             <div
               v-if="showShipmentConfirmModal"
               class="modal-backdrop"
@@ -502,7 +514,7 @@ onUnmounted(() => {
             @submit.prevent="submitShipment"
           >
             <p class="form-description">
-              {{ editingShipmentInfo ? '修改物流商或單號後，再確認商品出貨。' : '填寫物流商與單號，建立後即可接續更新配送狀態。' }}
+              {{ editingShipmentInfo ? '修改物流商或單號後，再確認商品已交寄。' : '填寫物流商與單號後，系統只會建立寄件資料；商品尚未視為已交寄。' }}
             </p>
             <div class="form-field">
               <label for="carrier-name">物流商</label>
@@ -536,7 +548,7 @@ onUnmounted(() => {
             </div>
             <p v-if="shipmentFormError" class="form-error" role="alert">{{ shipmentFormError }}</p>
             <button class="shipment-submit" type="submit" :disabled="creatingShipment">
-              {{ creatingShipment ? '儲存中…' : editingShipmentInfo ? '儲存物流資訊' : '建立出貨資訊' }}
+              {{ creatingShipment ? '儲存中…' : editingShipmentInfo ? '儲存寄件資料' : '建立寄件資料' }}
             </button>
           </form>
           <p v-else class="empty-message">此訂單目前無法建立物流資料。</p>
@@ -789,12 +801,6 @@ h2 {
   color: var(--color-danger) !important;
   font-size: var(--font-size-sm);
 }
-.shipment-hint {
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
-  background: var(--color-warning-soft);
-  color: var(--color-warning) !important;
-}
 .shipment-submit {
   border: 1px solid var(--color-primary-700);
   background: var(--color-primary-700);
@@ -824,30 +830,10 @@ button {
   background: var(--color-surface);
   color: var(--color-text-700);
 }
-.accept-button {
-  width: fit-content;
-  margin-top: var(--space-2);
-  border: 1px solid var(--color-primary-700);
-  background: var(--color-primary-700);
-  color: var(--color-surface);
-}
-.accept-button:hover:not(:disabled) {
-  background: var(--color-primary-800);
-}
-.accept-button:focus-visible,
 .secondary-button:focus-visible,
 .back-button:focus-visible {
   outline: none;
   box-shadow: var(--shadow-focus);
-}
-.accept-button:disabled {
-  border-color: var(--color-disabled);
-  background: var(--color-disabled-bg);
-  color: var(--color-text-subtle);
-  cursor: not-allowed;
-}
-.action-error {
-  color: var(--color-danger);
 }
 @media (max-width: 1000px) {
   .detail-layout {
