@@ -22,8 +22,8 @@ const favoriteMessage = ref('')
 const authStore = useAuthStore()
 const seller = ref(null)
 const sellerLoading = ref(false)
-
 const sellerCoupons = ref([])
+const ratingSummary = ref(null)
 
 // Review 檢視版：使用本地展示資料，不呼叫尚未整合的 Review 後端。
 const activeDetailTab = ref('description')
