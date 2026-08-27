@@ -219,6 +219,7 @@ const routes = [
         component: () => import('@/views/admin/AdminSellerApplicationDetailView.vue'),
       },
       { path: 'members', name: 'AdminMembers', component: () => import('@/views/admin/AdminMembersView.vue') },
+      { path: 'messages', name: 'AdminMessages', component: () => import('@/views/admin/AdminMessagesView.vue') },
     ],
   },
   {
