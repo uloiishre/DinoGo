@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { taiwanAddressOptions } from '@/data/taiwanAddressData'
 
 const props = defineProps({
   open: {
@@ -35,6 +36,11 @@ const form = reactive({
 })
 const validationMessage = ref('')
 
+const cities = taiwanAddressOptions.map((item) => item.city)
+const availableDistricts = computed(
+  () => taiwanAddressOptions.find((item) => item.city === form.city)?.districts ?? [],
+)
+
 const isEditing = computed(() => Boolean(props.address?.addressId))
 const dialogTitle = computed(() => (isEditing.value ? '編輯地址' : '新增地址'))
 
@@ -43,11 +49,32 @@ function resetForm() {
   form.receiverName = props.address?.receiverName ?? ''
   form.receiverPhone = props.address?.receiverPhone ?? ''
   form.postalCode = props.address?.postalCode ?? ''
-  form.city = props.address?.city ?? ''
+  form.city = (props.address?.city ?? '').replace('臺', '台')
   form.district = props.address?.district ?? ''
   form.detailAddress = props.address?.detailAddress ?? ''
   form.isDefault = Boolean(props.address?.isDefault)
   validationMessage.value = ''
+}
+
+function handleCityChange() {
+  form.district = ''
+}
+
+function normalizePostalCode() {
+  form.postalCode = form.postalCode.replace(/\D/g, '').slice(0, 6)
+  if (form.postalCode.length < 3) return
+
+  const matchedDistricts = taiwanAddressOptions.flatMap((item) =>
+    item.districts
+      .filter((district) => district.postalCode === form.postalCode.slice(0, 3))
+      .map((district) => ({ city: item.city, ...district })),
+  )
+
+  const matchedCities = [...new Set(matchedDistricts.map((item) => item.city))]
+  if (matchedCities.length !== 1) return
+
+  form.city = matchedCities[0]
+  form.district = matchedDistricts.length === 1 ? matchedDistricts[0].district : ''
 }
 
 watch(
@@ -148,17 +175,35 @@ function closeDialog() {
 
             <label class="address-form-field address-form-field-small">
               <span>郵遞區號</span>
-              <input v-model.trim="form.postalCode" type="text" maxlength="10" />
+              <input
+                v-model="form.postalCode"
+                inputmode="numeric"
+                type="text"
+                maxlength="6"
+                @input="normalizePostalCode"
+              />
             </label>
 
             <label class="address-form-field">
               <span>縣市 <b aria-hidden="true">*</b></span>
-              <input v-model.trim="form.city" type="text" maxlength="50" required />
+              <select v-model="form.city" required @change="handleCityChange">
+                <option value="">請選擇縣市</option>
+                <option v-for="city in cities" :key="city" :value="city">{{ city }}</option>
+              </select>
             </label>
 
             <label class="address-form-field">
               <span>行政區 <b aria-hidden="true">*</b></span>
-              <input v-model.trim="form.district" type="text" maxlength="50" required />
+              <select v-model="form.district" required :disabled="!form.city">
+                <option value="">{{ form.city ? '請選擇行政區' : '請先選擇縣市' }}</option>
+                <option
+                  v-for="item in availableDistricts"
+                  :key="item.district"
+                  :value="item.district"
+                >
+                  {{ item.district }}
+                </option>
+              </select>
             </label>
 
             <label class="address-form-field address-form-field-wide">
@@ -307,7 +352,8 @@ function closeDialog() {
   color: var(--color-danger);
 }
 
-.address-form-field input {
+.address-form-field input,
+.address-form-field select {
   width: 100%;
   height: 48px;
   padding: 0 var(--space-3);
@@ -318,10 +364,17 @@ function closeDialog() {
   border-radius: var(--radius-md);
 }
 
-.address-form-field input:focus {
+.address-form-field input:focus,
+.address-form-field select:focus {
   border-color: var(--color-primary);
   box-shadow: var(--shadow-focus);
   outline: none;
+}
+
+.address-form-field select:disabled {
+  color: var(--color-text-subtle);
+  cursor: not-allowed;
+  background: var(--color-bg-muted);
 }
 
 .address-form-field-wide {

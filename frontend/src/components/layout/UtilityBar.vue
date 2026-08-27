@@ -39,6 +39,9 @@ function logout() {
 
 <style scoped>
 .utility-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1040;
   min-height: 32px;
   color: var(--color-surface);
   background: var(--color-primary-active);

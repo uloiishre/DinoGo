@@ -38,15 +38,27 @@ public class CouponService {
     }
 
     @Transactional(readOnly = true)
-    public List<PublicCouponResponse> getAvailableCoupons() {
+    public List<PublicCouponResponse> getAvailableCoupons(Integer sellerId) {
         LocalDateTime now = LocalDateTime.now();
 
         return couponRepository.findByStatusOrderByCouponIdDesc("ACTIVE")
                 .stream()
+
+                // 有傳 sellerId → 只顯示該賣家的優惠券
+                // 沒傳 sellerId → 顯示所有賣家的優惠券
+                .filter(coupon -> sellerId == null
+                        || sellerId.equals(coupon.getSellerId()))
+
+                // 優惠券已經開始
                 .filter(coupon -> !coupon.getStartAt().isAfter(now))
+
+                // 優惠券尚未過期
                 .filter(coupon -> !coupon.getEndAt().isBefore(now))
+
+                // 沒有限量，或尚未被領完
                 .filter(coupon -> coupon.getLimitCount() == null
                         || coupon.getUsedCount() < coupon.getLimitCount())
+
                 .map(this::toPublicResponse)
                 .toList();
     }

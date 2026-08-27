@@ -191,13 +191,13 @@ onMounted(loadOrders)
 <style scoped>
 .order-page {
   min-height: 620px;
-  padding: var(--space-5) 0 var(--space-8);
+  padding: 40px 0;
   background: var(--color-bg);
 }
 
 .order-container {
-  max-width: 1440px;
-  padding-inline: var(--space-8);
+  --bs-gutter-x: var(--space-6);
+  max-width: 1232px;
 }
 
 .page-header {
@@ -206,13 +206,14 @@ onMounted(loadOrders)
   flex-direction: column;
   justify-content: center;
   gap: var(--space-1);
+  margin-bottom: var(--space-5);
 }
 
 .page-header h1 {
   margin: 0;
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: 26px;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   line-height: var(--line-height-heading);
 }
@@ -220,7 +221,8 @@ onMounted(loadOrders)
 .page-header p {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 13px;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
 }
 
 .order-tabs {
@@ -237,7 +239,9 @@ onMounted(loadOrders)
   flex: 0 0 auto;
   padding: 0;
   color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: var(--line-height-base);
   background: transparent;
   border: 0;
   cursor: pointer;
@@ -304,7 +308,7 @@ onMounted(loadOrders)
   width: 100%;
   color: var(--color-text);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--font-size-base);
   background: transparent;
   border: 0;
   outline: 0;
@@ -389,7 +393,9 @@ onMounted(loadOrders)
 
 .order-copy strong {
   overflow: hidden;
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  line-height: 1.45;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -407,15 +413,21 @@ onMounted(loadOrders)
 }
 
 .order-copy small {
-  font-size: 10px;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
 }
 
 .status-badge {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
   min-width: 58px;
-  padding: 6px 10px;
+  padding: var(--space-1) var(--space-3);
   color: var(--color-info);
-  font-size: 10px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
+  line-height: 1.3;
   text-align: center;
   background: var(--color-info-soft);
   border-radius: var(--radius-sm);
@@ -440,7 +452,8 @@ onMounted(loadOrders)
 
 .order-total {
   min-width: 100px;
-  font-size: 13px;
+  font-size: var(--font-size-md);
+  font-weight: 700;
   text-align: right;
 }
 
@@ -455,6 +468,8 @@ onMounted(loadOrders)
   padding: var(--space-6);
   color: var(--color-text-muted);
   text-align: center;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -467,6 +482,8 @@ onMounted(loadOrders)
 
 .state-card strong {
   color: var(--color-text);
+  font-size: var(--font-size-md);
+  font-weight: 700;
 }
 
 .state-card button {
@@ -485,14 +502,6 @@ onMounted(loadOrders)
 }
 
 @media (max-width: 767.98px) {
-  .order-page {
-    padding-top: var(--space-4);
-  }
-
-  .order-container {
-    padding-inline: var(--space-4);
-  }
-
   .filter-row {
     grid-template-columns: 1fr;
   }
@@ -515,6 +524,12 @@ onMounted(loadOrders)
     grid-column: 2 / -1;
     min-width: 0;
     text-align: left;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .order-page {
+    padding: var(--space-6) 0;
   }
 }
 

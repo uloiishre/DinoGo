@@ -115,65 +115,81 @@ onMounted(loadCoupons)
 </script>
 
 <template>
-  <main class="member-coupons-page">
-    <header class="page-header">
-      <div>
-        <h1>我的優惠券</h1>
-        <p>查看可用、已使用與已過期的優惠券</p>
-      </div>
-    </header>
+  <main class="member-coupons-shell">
+    <div class="container member-coupons-shell__container">
+      <section class="member-coupons-page">
+        <header class="page-header">
+          <div>
+            <h1>我的優惠券</h1>
+            <p>查看可用、已使用與已過期的優惠券</p>
+          </div>
+        </header>
 
-    <nav class="coupon-tabs" aria-label="優惠券分類">
-      <button
-        v-for="tab in tabs"
-        :key="tab.value"
-        type="button"
-        :class="{ active: activeTab === tab.value }"
-        @click="activeTab = tab.value"
-      >
-        {{ tab.label }}
-        <span v-if="tab.count">{{ tab.count }}</span>
-      </button>
-    </nav>
+        <nav class="coupon-tabs" aria-label="優惠券分類">
+          <button
+            v-for="tab in tabs"
+            :key="tab.value"
+            type="button"
+            :class="{ active: activeTab === tab.value }"
+            @click="activeTab = tab.value"
+          >
+            {{ tab.label }}
+            <span v-if="tab.count">{{ tab.count }}</span>
+          </button>
+        </nav>
 
-    <p v-if="errorMessage" class="notice-message">{{ errorMessage }}</p>
-    <p v-if="isLoading" class="state-message">優惠券資料載入中...</p>
+        <p v-if="errorMessage" class="notice-message">{{ errorMessage }}</p>
+        <p v-if="isLoading" class="state-message">優惠券資料載入中...</p>
 
-    <section v-else-if="visibleCoupons.length" class="coupon-list" aria-label="優惠券列表">
-      <article
-        v-for="coupon in visibleCoupons"
-        :key="coupon.couponId || coupon.couponCode"
-        class="coupon-card"
-      >
-        <div class="coupon-value">
-          <strong>{{ couponAmount(coupon) }}</strong>
-          <span>{{ statusText(coupon.normalizedStatus) }}</span>
-        </div>
+        <section v-else-if="visibleCoupons.length" class="coupon-list" aria-label="優惠券列表">
+          <article
+            v-for="coupon in visibleCoupons"
+            :key="coupon.couponId || coupon.couponCode"
+            class="coupon-card"
+          >
+            <div class="coupon-value">
+              <strong>{{ couponAmount(coupon) }}</strong>
+              <span>{{ statusText(coupon.normalizedStatus) }}</span>
+            </div>
 
-        <div class="coupon-copy">
-          <h2>{{ coupon.couponName || 'DINO-GO 平台優惠券' }}</h2>
-          <span class="coupon-seller">{{ coupon.sellerName || `賣家 #${coupon.sellerId}` }}</span>
-          <p>{{ couponDescription(coupon) }}</p>
-        </div>
+            <div class="coupon-copy">
+              <h2>{{ coupon.couponName || 'DINO-GO 平台優惠券' }}</h2>
+              <span class="coupon-seller">{{
+                coupon.sellerName || `賣家 #${coupon.sellerId}`
+              }}</span>
+              <p>{{ couponDescription(coupon) }}</p>
+            </div>
 
-        <span class="coupon-badge">{{ statusText(coupon.normalizedStatus) }}</span>
-      </article>
-    </section>
+            <span class="coupon-badge">{{ statusText(coupon.normalizedStatus) }}</span>
+          </article>
+        </section>
 
-    <section v-else class="empty-state">
-      <i class="bi bi-ticket-perforated" aria-hidden="true"></i>
-      <strong>此分類目前沒有優惠券</strong>
-    </section>
+        <section v-else class="empty-state">
+          <i class="bi bi-ticket-perforated" aria-hidden="true"></i>
+          <strong>此分類目前沒有優惠券</strong>
+        </section>
+      </section>
+    </div>
   </main>
 </template>
 
 <style scoped>
+.member-coupons-shell {
+  background: var(--color-bg);
+}
+
+.member-coupons-shell__container {
+  --bs-gutter-x: var(--space-6);
+  max-width: 1232px;
+  padding-block: 40px;
+}
+
 .member-coupons-page {
   display: grid;
-  gap: var(--space-4);
-  width: min(980px, calc(100% - 48px));
+  gap: var(--space-5);
+  width: 100%;
   margin: 0 auto;
-  padding: var(--space-5) 0;
+  padding: 0;
 }
 
 .coupon-seller {
@@ -186,9 +202,10 @@ onMounted(loadCoupons)
 
 .page-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
+  min-height: 68px;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-1);
 }
 
 .page-header h1,
@@ -201,16 +218,18 @@ onMounted(loadCoupons)
 }
 
 .page-header h1 {
-  color: var(--color-text-900);
-  font-family: var(--font-heading);
+  color: var(--color-text);
+  font-family: var(--font-body);
   font-size: var(--font-size-xl);
-  line-height: 1.25;
+  font-weight: 700;
+  line-height: var(--line-height-heading);
 }
 
 .page-header p {
-  margin-top: var(--space-2);
+  margin-top: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
 }
 
 .coupon-tabs {
@@ -253,8 +272,14 @@ onMounted(loadCoupons)
 
 .coupon-list {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4);
+}
+
+@media (max-width: 991.98px) {
+  .coupon-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 .coupon-card {
@@ -375,10 +400,6 @@ button:focus-visible {
 }
 
 @media (max-width: 640px) {
-  .member-coupons-page {
-    padding: var(--space-4) 0;
-  }
-
   .coupon-tabs button {
     flex: 1 1 100%;
   }
@@ -406,6 +427,12 @@ button:focus-visible {
   .coupon-value::before,
   .coupon-value::after {
     display: none;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .member-coupons-shell__container {
+    padding-block: var(--space-6);
   }
 }
 </style>

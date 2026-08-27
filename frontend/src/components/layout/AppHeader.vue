@@ -89,6 +89,9 @@ const hasMoreNotifications = notificationItems.length > 3
 
 <style scoped>
 .app-header {
+  position: sticky;
+  top: var(--space-6);
+  z-index: 1030;
   margin: 0;
   color: var(--color-text);
   background: var(--color-surface);

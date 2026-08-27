@@ -529,17 +529,17 @@ onUnmounted(() => {
 
 <style scoped>
 .shipment-timeline { display: grid; gap: var(--space-3); margin: var(--space-4) 0 0; padding-left: var(--space-4); border-left: 2px solid var(--color-primary-300); }
-.shipment-timeline li { display: grid; gap: var(--space-1); color: var(--color-text-700); font-size: var(--font-size-sm); }
-.shipment-timeline small { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.shipment-timeline li { display: grid; gap: var(--space-1); color: var(--color-text-700); font-size: var(--font-size-base); line-height: var(--line-height-base); }
+.shipment-timeline small, .shipment-timeline span { color: var(--color-text-muted); font-size: var(--font-size-sm); line-height: var(--line-height-base); }
 .order-detail-page {
   min-height: 620px;
-  padding: var(--space-5) 0 var(--space-8);
+  padding: 40px 0;
   background: var(--color-bg);
 }
 
 .detail-container {
-  max-width: 1440px;
-  padding-inline: var(--space-8);
+  --bs-gutter-x: var(--space-6);
+  max-width: 1232px;
 }
 
 .page-header {
@@ -553,7 +553,8 @@ onUnmounted(() => {
 .page-header h1 {
   margin: 0;
   color: var(--color-text);
-  font-size: 26px;
+  font-family: var(--font-body);
+  font-size: var(--font-size-xl);
   font-weight: 700;
   line-height: var(--line-height-heading);
 }
@@ -561,7 +562,8 @@ onUnmounted(() => {
 .page-header p {
   margin: var(--space-1) 0 0;
   color: var(--color-text-muted);
-  font-size: 13px;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
 }
 
 .header-actions {
@@ -574,7 +576,7 @@ onUnmounted(() => {
   min-height: 42px;
   padding: 0 var(--space-4);
   color: var(--color-danger);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   background: var(--color-surface);
   border: 1px solid var(--color-danger);
@@ -658,7 +660,7 @@ onUnmounted(() => {
 
 .reason-count {
   color: var(--color-text-subtle);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   text-align: right;
 }
 
@@ -702,7 +704,7 @@ onUnmounted(() => {
   justify-content: center;
   padding: 0 var(--space-4);
   color: var(--color-surface);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   text-decoration: none;
   background: var(--color-primary);
@@ -729,7 +731,7 @@ onUnmounted(() => {
   grid-template-columns: repeat(4, 1fr);
   align-items: center;
   gap: 18px;
-  margin-top: var(--space-4);
+  margin-top: var(--space-5);
   padding: 22px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -746,7 +748,7 @@ onUnmounted(() => {
 }
 
 .progress-step strong {
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
 }
 
@@ -787,7 +789,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  margin-top: var(--space-4);
+  margin-top: var(--space-5);
   padding: var(--space-4);
   color: var(--color-danger);
   background: var(--color-danger-soft);
@@ -805,7 +807,8 @@ onUnmounted(() => {
 }
 
 .cancelled-notice span {
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
 }
 
 .detail-columns {
@@ -829,12 +832,12 @@ onUnmounted(() => {
 }
 
 .detail-card h2 {
-  font-size: var(--font-size-base);
+  font-size: 19px;
   font-weight: 700;
 }
 
 .detail-card h3 {
-  font-size: 13px;
+  font-size: var(--font-size-sm);
   font-weight: 700;
 }
 
@@ -882,7 +885,8 @@ onUnmounted(() => {
 
 .product-copy strong {
   overflow: hidden;
-  font-size: 13px;
+  font-size: var(--font-size-base);
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -890,11 +894,12 @@ onUnmounted(() => {
 .product-copy span,
 .product-copy small {
   color: var(--color-text-muted);
-  font-size: 11px;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
 }
 
 .product-subtotal {
-  font-size: 13px;
+  font-size: var(--font-size-md);
   white-space: nowrap;
 }
 
@@ -943,7 +948,8 @@ onUnmounted(() => {
   gap: var(--space-4);
   padding-top: var(--space-4);
   color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
   border-top: 1px solid var(--color-border);
 }
 
@@ -953,10 +959,15 @@ onUnmounted(() => {
 }
 
 .status-badge {
-  padding: 6px 10px;
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1) var(--space-3);
   color: var(--color-info);
-  font-size: 10px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
+  line-height: 1.3;
   background: var(--color-info-soft);
   border-radius: var(--radius-sm);
 }
@@ -995,7 +1006,7 @@ onUnmounted(() => {
 .info-section p {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   line-height: 1.7;
 }
 
@@ -1094,7 +1105,7 @@ onUnmounted(() => {
 .amount-summary dt,
 .amount-summary dd {
   margin: 0;
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
 }
 
 .amount-summary dt {
@@ -1116,7 +1127,7 @@ onUnmounted(() => {
 .amount-summary .total-row dt,
 .amount-summary .total-row dd {
   color: var(--color-primary-active);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   font-weight: 700;
 }
 
@@ -1131,6 +1142,8 @@ onUnmounted(() => {
   padding: var(--space-6);
   color: var(--color-text-muted);
   text-align: center;
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -1138,6 +1151,8 @@ onUnmounted(() => {
 
 .state-card strong {
   color: var(--color-text);
+  font-size: var(--font-size-md);
+  font-weight: 700;
 }
 
 .state-card > i {
@@ -1167,10 +1182,6 @@ onUnmounted(() => {
 }
 
 @media (max-width: 767.98px) {
-  .detail-container {
-    padding-inline: var(--space-4);
-  }
-
   .page-header {
     align-items: flex-start;
     flex-direction: column;
@@ -1188,6 +1199,12 @@ onUnmounted(() => {
 
   .step-line {
     display: none;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .order-detail-page {
+    padding: var(--space-6) 0;
   }
 }
 
