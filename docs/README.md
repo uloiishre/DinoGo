@@ -17,7 +17,7 @@
 | 跨模組 contract | [order-cross-module-contracts.md](order-cross-module-contracts.md) | D 與 B、E 的訂單整合需求。 |
 | 跨模組 contract | [member-sysmsg-cross-module-contract.md](member-sysmsg-cross-module-contract.md) | A 提供給 F 的會員查詢、通知偏好與 Email 收件篩選規則。 |
 | 前端規範 | [pinia-guide.md](pinia-guide.md) | Pinia、JWT、Axios、Store、路由守衛、手動測試與組員新增規則。 |
-| 設計入口 | [design/frontend-task-rules.md](design/frontend-task-rules.md) | 前端任務的最小設計文件閱讀路由。 |
+| 設計入口 | [design/frontend-task-rules.md](design/frontend-task-rules.md) | 前端任務的最小設計文件閱讀路由；設計 token、元件與交付規格以 `docs/design/` 下的 Markdown 文件為準。 |
 
 ## 任務閱讀路由
 
