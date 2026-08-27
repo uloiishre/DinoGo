@@ -14,7 +14,7 @@ DinoGo 是 Java / Spring Boot、Vue 3、MSSQL 的六人 B2B2C 電商專案。
 
 | 文件 | 用途 | 規則 |
 | --- | --- | --- |
-| `docs/database-schema.md` | 正式資料表、欄位、PK/FK、關聯、ownership | DB schema 唯一 Source of Truth；未經明確批准不得修改。 |
+| `docs/database-schema.md` | 實際資料表、欄位、constraint、index 與關聯快照 | 由最新 SQL Server bacpac 產生的 DB schema 唯一 Source of Truth；未經明確批准不得修改或推測不存在的結構。 |
 | `docs/team-plan.md` | 分工、時程、每日計畫 | 計畫不等於實際完成狀態；查詢進度時要對照 Git 與程式。 |
 | `docs/git-workflow.md` | 分支、commit、push、PR、衝突處理 | 所有 Git 寫入操作前必讀。 |
 | `docs/teacher-code-style.md` | 老師專案可沿用的 coding pattern | 先讀摘要；不足時才讀本機 read-only reference。 |
@@ -40,9 +40,10 @@ DinoGo 是 Java / Spring Boot、Vue 3、MSSQL 的六人 B2B2C 電商專案。
 ## 4. 資料、模組與 API 邊界
 
 - A：member、address、role、member_role、member_oauth_account。
-- B：商品目錄；C：購物車與收藏；D：訂單／付款／物流；E：賣家中心；F：通知／評價／客服。完整表與 ownership 以 database schema 為準。
+- B：商品目錄；C：購物車與收藏；D：訂單／付款／物流；E：賣家中心；F：通知／評價／客服。實際資料表與關聯以 database schema 為準；模組 ownership 以 team plan 為準。
 - 跨模組優先使用既有 API／Service contract，不以直接修改其他模組程式繞過依賴。
 - 不得自行新增或刪除資料表、欄位、PK/FK、關聯、migration 或變更 ownership。
+- 建立或修改 Entity、Repository、持久化 DTO mapping、SQL、migration 或 FK mapping 前，先讀取 `docs/database-schema.md`。若程式與該 snapshot 不一致，先回報 schema mismatch，不得自行補齊或修改任一方。
 - API 若變更 URL、HTTP method、request/response 欄位或型別、validation、authorization / role，必須在實作前說明影響並通知相關模組。
 
 ## 5. 實作規則

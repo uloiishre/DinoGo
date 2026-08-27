@@ -1,6 +1,6 @@
 # 每日目標
 
-> 本文件是 2026/08/07～2026/08/23 的開發計畫（Plan），不代表實際完成狀態（Actual）。實際進度須以 Git 紀錄與目前 codebase 為準。若本文的資料表 ownership 與 `database-schema.md` 不一致，資料表 ownership 以 `database-schema.md` 為準；功能分工與每日規劃仍以本文件為準。
+> 本文件是 2026/08/07～2026/08/23 的開發計畫（Plan），不代表實際完成狀態（Actual）。實際進度須以 Git 紀錄與目前 codebase 為準。實際資料表與關聯以 `database-schema.md` 為準；資料表 ownership、功能分工與每日規劃仍以本文件為準。
 
 > 開發期間：2026/08/07 ～ 2026/08/23
 > 
