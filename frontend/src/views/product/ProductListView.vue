@@ -16,6 +16,92 @@ const errorMessage = ref('')
 const currentPage = ref(0)
 const pageSize = ref(12)
 const storeProfile = ref(null)
+const categories = ref([])
+const brands = ref([])
+
+const minPrice = ref('')
+const maxPrice = ref('')
+const minRating = ref('')
+
+const subcategories = ref([])
+
+const selectedCategoryId = ref(route.query.categoryId || '')
+const selectedSubcategoryId = ref(route.query.subcategoryId || '')
+const selectedBrandId = ref(route.query.brandId || '')
+const fetchCategories = async () => {
+  try {
+    const response = await api.get('/categories')
+    categories.value = response.data
+  } catch (error) {
+    console.error('取得分類失敗：', error)
+  }
+}
+const fetchSubcategories = async () => {
+  try {
+    // 沒選大分類時，不顯示任何子分類
+    if (!selectedCategoryId.value) {
+      subcategories.value = []
+      return
+    }
+
+    const response = await api.get('/subcategories', {
+      params: {
+        categoryId: selectedCategoryId.value,
+      },
+    })
+
+    subcategories.value = response.data
+  } catch (error) {
+    console.error('取得子分類失敗：', error)
+    subcategories.value = []
+  }
+}
+const fetchBrands = async () => {
+  try {
+    const response = await api.get('/brands')
+    brands.value = response.data
+  } catch (error) {
+    console.error('取得品牌失敗：', error)
+  }
+}
+
+const applyFilters = () => {
+  currentPage.value = 0
+
+  router.push({
+    query: {
+      ...route.query,
+
+      categoryId: selectedCategoryId.value || undefined,
+      subcategoryId: selectedSubcategoryId.value || undefined,
+      brandId: selectedBrandId.value || undefined,
+
+      minPrice: minPrice.value || undefined,
+      maxPrice: maxPrice.value || undefined,
+      minRating: minRating.value || undefined,
+    },
+  })
+}
+
+const resetFilters = () => {
+  selectedCategoryId.value = ''
+  selectedSubcategoryId.value = ''
+  selectedBrandId.value = ''
+
+  subcategories.value = []
+
+  minPrice.value = ''
+  maxPrice.value = ''
+  minRating.value = ''
+
+  router.push({
+    query: {
+      keyword: route.query.keyword || undefined,
+      sellerId: route.query.sellerId || undefined,
+      sort: route.query.sort || undefined,
+    },
+  })
+}
 
 const loadStoreProfile = async () => {
   if (!route.query.sellerId) {
@@ -61,8 +147,20 @@ const fetchProducts = async () => {
       params.brandId = route.query.brandId
     }
 
+    if (route.query.minPrice) {
+      params.minPrice = route.query.minPrice
+    }
+
+    if (route.query.maxPrice) {
+      params.maxPrice = route.query.maxPrice
+    }
+
     if (route.query.sort) {
       params.sort = route.query.sort
+    }
+
+    if (route.query.sellerId) {
+      params.sellerId = route.query.sellerId
     }
 
     const response = await api.get('/products', { params })
@@ -101,6 +199,8 @@ watch(
     route.query.categoryId,
     route.query.subcategoryId,
     route.query.brandId,
+    route.query.minPrice,
+    route.query.maxPrice,
     route.query.sort,
   ],
   () => {
@@ -109,6 +209,12 @@ watch(
     fetchProducts()
   },
 )
+watch(selectedCategoryId, async () => {
+  // 大分類改變時，原本選的子分類失效
+  selectedSubcategoryId.value = ''
+
+  await fetchSubcategories()
+})
 
 // 切換排序
 const changeSort = () => {
@@ -123,8 +229,15 @@ const changeSort = () => {
 }
 
 // 第一次進入頁面時取得商品
-onMounted(() => {
+onMounted(async () => {
   loadStoreProfile()
+  await fetchCategories()
+  await fetchBrands()
+
+  if (selectedCategoryId.value) {
+    await fetchSubcategories()
+  }
+
   fetchProducts()
 })
 const formatStoreTime = (time) => {
@@ -139,6 +252,7 @@ const formatStoreTime = (time) => {
 <template>
   <main class="product-list-page">
     <div class="container py-5">
+      <!-- 賣家資訊 -->
       <section v-if="route.query.sellerId && storeProfile" class="store-banner">
         <img
           v-if="storeProfile.storeLogoUrl"
@@ -154,101 +268,218 @@ const formatStoreTime = (time) => {
         </div>
 
         <div class="store-meta">
-          <strong>{{ storeProfile.status === 'ACTIVE' ? '營運中' : '暫停接單' }}</strong>
+          <strong>
+            {{ storeProfile.status === 'ACTIVE' ? '營運中' : '暫停接單' }}
+          </strong>
+
           <span v-if="storeProfile.serviceStartTime && storeProfile.serviceEndTime">
-            營業時間 {{ formatStoreTime(storeProfile.serviceStartTime) }} -
+            營業時間
+            {{ formatStoreTime(storeProfile.serviceStartTime) }}
+            -
             {{ formatStoreTime(storeProfile.serviceEndTime) }}
           </span>
-          <span v-else>商品持續更新</span>
+
+          <span v-else> 商品持續更新 </span>
         </div>
       </section>
 
-      <!-- 標題 -->
-      <div class="mb-4">
-        <h1 class="page-title">商品列表</h1>
-      </div>
+      <!-- =========================
+           左側篩選 + 右側商品
+           ========================= -->
+      <div class="product-list-layout">
+        <!-- 左側篩選 -->
+        <aside class="filter-sidebar">
+          <div class="filter-sidebar-header">
+            <h2>篩選條件</h2>
 
-      <!-- 每頁顯示 -->
-      <div class="product-list-toolbar">
-        <div class="product-count">共 {{ totalElements }} 件商品</div>
-
-        <div class="toolbar-actions">
-          <!-- 排序 -->
-          <div class="sort-selector">
-            <label for="sort">排序：</label>
-
-            <select id="sort" v-model="sort" @change="changeSort">
-              <option value="">預設排序</option>
-              <option value="newest">最新上架</option>
-              <option value="priceAsc">價格：低到高</option>
-              <option value="priceDesc">價格：高到低</option>
-              <option value="salesDesc">銷量最高</option>
-            </select>
+            <button type="button" class="filter-reset-text" @click="resetFilters">清除</button>
           </div>
 
-          <!-- 每頁顯示 -->
-          <div class="page-size-selector">
-            <label for="page-size">每頁顯示：</label>
+          <!-- 分類 -->
+          <section class="filter-section">
+            <h3>分類</h3>
 
-            <select id="page-size" v-model.number="pageSize" @change="changePageSize">
-              <option :value="2">2(測試用)</option>
-              <option :value="12">12</option>
-              <option :value="24">24</option>
+            <select v-model="selectedCategoryId" class="filter-select">
+              <option value="">全部分類</option>
+
+              <option
+                v-for="category in categories"
+                :key="category.categoryId"
+                :value="category.categoryId"
+              >
+                {{ category.categoryName }}
+              </option>
             </select>
+          </section>
+
+          <!-- 子分類 -->
+          <section class="filter-section">
+            <h3>子分類</h3>
+
+            <select
+              v-model="selectedSubcategoryId"
+              class="filter-select"
+              :disabled="!selectedCategoryId"
+            >
+              <option value="">
+                {{ selectedCategoryId ? '全部子分類' : '請先選擇分類' }}
+              </option>
+
+              <option
+                v-for="subcategory in subcategories"
+                :key="subcategory.subcategoryId"
+                :value="subcategory.subcategoryId"
+              >
+                {{ subcategory.subcategoryName }}
+              </option>
+            </select>
+          </section>
+
+          <!-- 品牌 -->
+          <section class="filter-section">
+            <h3>品牌</h3>
+
+            <select v-model="selectedBrandId" class="filter-select">
+              <option value="">全部品牌</option>
+
+              <option v-for="brand in brands" :key="brand.brandId" :value="brand.brandId">
+                {{ brand.brandName }}
+              </option>
+            </select>
+          </section>
+
+          <!-- 價格 -->
+          <section class="filter-section">
+            <h3>價格區間</h3>
+
+            <div class="price-range">
+              <input v-model="minPrice" type="number" class="price-input" placeholder="最低價" />
+
+              <span class="price-separator">－</span>
+
+              <input v-model="maxPrice" type="number" class="price-input" placeholder="最高價" />
+            </div>
+          </section>
+
+          <!-- 評價 -->
+          <section class="filter-section">
+            <h3>商品評價</h3>
+
+            <label v-for="rating in [5, 4, 3, 2, 1]" :key="rating" class="rating-option">
+              <input v-model.number="minRating" type="radio" name="rating-filter" :value="rating" />
+
+              <span class="filter-stars">
+                <i
+                  v-for="star in 5"
+                  :key="star"
+                  class="bi"
+                  :class="star <= rating ? 'bi-star-fill' : 'bi-star'"
+                ></i>
+              </span>
+
+              <span> {{ rating }} 星以上 </span>
+            </label>
+          </section>
+
+          <button type="button" class="apply-filter-button" @click="applyFilters">套用篩選</button>
+        </aside>
+
+        <!-- 右側商品 -->
+        <section class="product-results">
+          <!-- 標題 + 排序 -->
+          <div class="product-results-header">
+            <div>
+              <h1 class="page-title">商品列表</h1>
+
+              <div class="product-count">共 {{ totalElements }} 件商品</div>
+            </div>
+
+            <div class="toolbar-actions">
+              <div class="sort-selector">
+                <label for="sort"> 排序： </label>
+
+                <select id="sort" v-model="sort" @change="changeSort">
+                  <option value="">預設排序</option>
+
+                  <option value="newest">最新上架</option>
+
+                  <option value="priceAsc">價格：低到高</option>
+
+                  <option value="priceDesc">價格：高到低</option>
+
+                  <option value="salesDesc">銷量最高</option>
+                </select>
+              </div>
+
+              <div class="page-size-selector">
+                <label for="page-size"> 每頁顯示： </label>
+
+                <select id="page-size" v-model.number="pageSize" @change="changePageSize">
+                  <option :value="12">12</option>
+                  <option :value="24">24</option>
+                </select>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      <!-- 載入中 -->
-      <div v-if="loading" class="text-center py-5">商品載入中...</div>
+          <!-- Loading -->
+          <div v-if="loading" class="text-center py-5">商品載入中...</div>
 
-      <!-- 錯誤 -->
-      <div v-else-if="errorMessage" class="error-message text-center py-5">
-        {{ errorMessage }}
-      </div>
+          <!-- Error -->
+          <div v-else-if="errorMessage" class="error-message text-center py-5">
+            {{ errorMessage }}
+          </div>
 
-      <!-- 沒有商品 -->
-      <div v-else-if="products.length === 0" class="empty-message text-center py-5">
-        目前沒有符合條件的商品
-      </div>
+          <!-- 無商品 -->
+          <div v-else-if="products.length === 0" class="empty-message text-center py-5">
+            目前沒有符合條件的商品
+          </div>
 
-      <!-- 商品列表 -->
-      <div v-else class="row g-4">
-        <div v-for="product in products" :key="product.productId" class="col-6 col-md-4 col-lg-3">
-          <ProductCard :product="product" />
-        </div>
-      </div>
+          <!-- 商品 -->
+          <div v-else class="row g-4">
+            <div
+              v-for="product in products"
+              :key="product.productId"
+              class="col-6 col-md-4 col-xl-3"
+            >
+              <ProductCard :product="product" />
+            </div>
+          </div>
 
-      <!-- 分頁 -->
-      <div v-if="totalPages > 1" class="pagination-wrapper">
-        <button
-          type="button"
-          class="page-button"
-          :disabled="currentPage === 0"
-          @click="goToPage(currentPage - 1)"
-        >
-          上一頁
-        </button>
+          <!-- 分頁 -->
+          <div v-if="totalPages > 1" class="pagination-wrapper">
+            <button
+              type="button"
+              class="page-button"
+              :disabled="currentPage === 0"
+              @click="goToPage(currentPage - 1)"
+            >
+              上一頁
+            </button>
 
-        <button
-          v-for="page in totalPages"
-          :key="page"
-          type="button"
-          class="page-button"
-          :class="{ active: currentPage === page - 1 }"
-          @click="goToPage(page - 1)"
-        >
-          {{ page }}
-        </button>
+            <button
+              v-for="page in totalPages"
+              :key="page"
+              type="button"
+              class="page-button"
+              :class="{
+                active: currentPage === page - 1,
+              }"
+              @click="goToPage(page - 1)"
+            >
+              {{ page }}
+            </button>
 
-        <button
-          type="button"
-          class="page-button"
-          :disabled="currentPage === totalPages - 1"
-          @click="goToPage(currentPage + 1)"
-        >
-          下一頁
-        </button>
+            <button
+              type="button"
+              class="page-button"
+              :disabled="currentPage === totalPages - 1"
+              @click="goToPage(currentPage + 1)"
+            >
+              下一頁
+            </button>
+          </div>
+        </section>
       </div>
     </div>
   </main>
@@ -336,37 +567,310 @@ const formatStoreTime = (time) => {
   color: var(--color-text-muted);
 }
 
-.product-list-toolbar {
+.product-list-layout {
+  display: grid;
+
+  grid-template-columns:
+    220px
+    minmax(0, 1fr);
+
+  gap: 28px;
+
+  align-items: start;
+}
+
+/* =========================
+   左側篩選
+   ========================= */
+
+.filter-sidebar {
+  padding: 20px;
+
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.filter-sidebar-header {
   display: flex;
+
   align-items: center;
   justify-content: space-between;
+
+  margin-bottom: 20px;
+}
+
+.filter-sidebar-header h2 {
+  margin: 0;
+
+  color: var(--color-text);
+
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.filter-reset-text {
+  padding: 0;
+
+  color: var(--color-text-muted);
+
+  font-size: 13px;
+
+  background: transparent;
+
+  border: 0;
+
+  cursor: pointer;
+}
+
+.filter-reset-text:hover {
+  color: var(--color-primary);
+}
+
+/* =========================
+   每個篩選區塊
+   ========================= */
+
+.filter-section {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+
+  border-bottom: 1px solid var(--color-border);
+}
+
+.filter-section h3 {
+  margin: 0 0 12px;
+
+  color: var(--color-text);
+
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* =========================
+   Select
+   ========================= */
+
+.filter-select {
+  width: 100%;
+  height: 40px;
+
+  padding: 0 10px;
+
+  color: var(--color-text);
+
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.filter-select:hover,
+.filter-select:focus {
+  border-color: var(--color-primary);
+
+  outline: none;
+}
+
+/* =========================
+   價格
+   ========================= */
+
+.price-filter {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto
+    minmax(0, 1fr);
+
+  align-items: center;
+
+  gap: 6px;
+}
+
+.price-filter input {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+
+  padding: 0 8px;
+
+  color: var(--color-text);
+
+  background: var(--color-surface);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.price-filter input:focus {
+  outline: none;
+
+  border-color: var(--color-primary);
+}
+
+.price-filter span {
+  color: var(--color-text-muted);
+}
+
+/* =========================
+   評價
+   ========================= */
+
+.rating-option {
+  display: flex;
+
+  align-items: center;
+
+  gap: 7px;
+
+  margin-bottom: 10px;
+
+  color: var(--color-text);
+
+  font-size: 13px;
+
+  cursor: pointer;
+}
+
+.rating-option input {
+  accent-color: var(--color-primary);
+}
+
+.filter-stars {
+  display: inline-flex;
+
+  gap: 1px;
+
+  color: var(--color-warning);
+
+  font-size: 12px;
+}
+
+/* =========================
+   套用
+   ========================= */
+
+.apply-filter-button {
+  width: 100%;
+
+  padding: 10px 12px;
+
+  color: #fff;
+
+  font-size: 14px;
+  font-weight: 600;
+
+  background: var(--color-primary);
+
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+
+  cursor: pointer;
+}
+
+.apply-filter-button:hover {
+  opacity: 0.9;
+}
+
+/* =========================
+   右側
+   ========================= */
+
+.product-results {
+  min-width: 0;
+}
+
+.product-results-header {
+  display: flex;
+
+  align-items: flex-end;
+  justify-content: space-between;
+
+  gap: 24px;
 
   margin-bottom: 24px;
 }
 
-.product-count {
-  color: var(--color-text-muted);
+.page-title {
+  margin: 0 0 8px;
+
+  color: var(--color-text);
+
+  font-family: var(--font-heading);
+
+  font-size: 26px;
+  font-weight: 700;
 }
 
+.product-count {
+  color: var(--color-text-muted);
+
+  font-size: 14px;
+}
+
+/* =========================
+   排序 / 每頁
+   ========================= */
+
+.toolbar-actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 18px;
+}
+
+.sort-selector,
 .page-size-selector {
   display: flex;
+
   align-items: center;
+
   gap: 8px;
 }
 
+.sort-selector label,
+.page-size-selector label {
+  color: var(--color-text);
+
+  font-size: 14px;
+}
+
+.sort-selector select,
 .page-size-selector select {
-  padding: 6px 10px;
+  height: 40px;
+
+  padding: 0 10px;
+
+  color: var(--color-text);
+
+  background: var(--color-surface);
 
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-
-  background: var(--color-surface);
-  color: var(--color-text);
 }
+
+.sort-selector select:hover,
+.sort-selector select:focus,
+.page-size-selector select:hover,
+.page-size-selector select:focus {
+  outline: none;
+
+  border-color: var(--color-primary);
+}
+
+/* =========================
+   分頁
+   ========================= */
 
 .pagination-wrapper {
   display: flex;
+
   justify-content: center;
+
   gap: 8px;
 
   margin-top: 40px;
@@ -378,52 +882,80 @@ const formatStoreTime = (time) => {
 
   padding: 0 12px;
 
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  color: var(--color-text);
 
   background: var(--color-surface);
-  color: var(--color-text);
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 
   cursor: pointer;
 }
 
 .page-button:hover:not(:disabled) {
+  color: var(--color-primary);
+
   background: var(--color-primary-soft);
+
+  border-color: var(--color-primary);
 }
 
 .page-button.active {
-  color: white;
+  color: #fff;
+
   background: var(--color-primary);
+
   border-color: var(--color-primary);
 }
 
 .page-button:disabled {
-  opacity: 0.5;
   cursor: not-allowed;
+
+  opacity: 0.5;
+}
+.filter-select:disabled {
+  color: var(--color-text-muted);
+  background: var(--color-surface-soft);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+/* =========================
+   RWD
+   ========================= */
+
+@media (max-width: 991.98px) {
+  .product-list-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-sidebar {
+    width: 100%;
+  }
+
+  .product-results-header {
+    align-items: stretch;
+
+    flex-direction: column;
+  }
 }
 
-.toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 20px;
+@media (max-width: 575.98px) {
+  .toolbar-actions {
+    align-items: stretch;
+
+    flex-direction: column;
+  }
+
+  .sort-selector,
+  .page-size-selector {
+    justify-content: space-between;
+  }
+
+  .sort-selector select,
+  .page-size-selector select {
+    flex: 1;
+  }
 }
-
-.sort-selector {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.sort-selector select {
-  padding: 6px 10px;
-
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-
-  background: var(--color-surface);
-  color: var(--color-text);
-}
-
 @media (max-width: 680px) {
   .store-banner {
     align-items: flex-start;
@@ -443,5 +975,21 @@ const formatStoreTime = (time) => {
   border-radius: var(--radius-md);
   object-fit: cover;
   border: 1px solid var(--color-border);
+}
+.price-range {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.price-input {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 8px;
+  font-size: 14px;
+  box-sizing: border-box;
 }
 </style>

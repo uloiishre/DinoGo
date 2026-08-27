@@ -1,5 +1,6 @@
 package com.dinogo.catalog.controller;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -50,7 +51,9 @@ public class ProductController {
             @RequestParam(required = false) Integer sellerId,
             @RequestParam(defaultValue = "0") Integer page,
             @RequestParam(defaultValue = "12") Integer size,
-            @RequestParam(required = false) String sort) {
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice) {
 
         return productService.getProducts(
                 keyword,
@@ -58,6 +61,8 @@ public class ProductController {
                 subcategoryId,
                 brandId,
                 sellerId,
+                minPrice,
+                maxPrice,
                 page,
                 size,
                 sort);
