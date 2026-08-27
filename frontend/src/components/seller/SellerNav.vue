@@ -48,10 +48,22 @@ function logout() {
 
 <template>
   <aside class="seller-nav-shell">
-    <RouterLink class="brand-link" to="/seller/dashboard">
-      <strong>DINO-GO</strong>
-      <span>商家中心</span>
-    </RouterLink>
+    <div class="seller-nav-header">
+      <RouterLink class="brand-link" to="/seller/dashboard">
+        <strong>DINO-GO</strong>
+        <span>商家中心</span>
+      </RouterLink>
+
+      <RouterLink
+        v-if="sellerId"
+        class="store-link"
+        :to="`/products?sellerId=${sellerId}`"
+        aria-label="查看店鋪"
+        title="查看店鋪"
+      >
+        <i class="bi bi-shop-window" aria-hidden="true"></i>
+      </RouterLink>
+    </div>
 
     <section class="seller-card">
       <span class="seller-card-icon">店</span>
@@ -62,13 +74,6 @@ function logout() {
     </section>
 
     <nav class="seller-nav" aria-label="賣家中心導覽">
-      <div v-if="sellerId" class="seller-nav-group">
-        <RouterLink class="seller-nav-link store-link" :to="`/products?sellerId=${sellerId}`">
-          <i class="nav-mark bi bi-shop-window" aria-hidden="true"></i>
-          <span>查看店鋪</span>
-        </RouterLink>
-      </div>
-
       <div v-for="item in navItems" :key="item.to" class="seller-nav-group">
         <RouterLink v-slot="{ href, navigate }" custom :to="item.to">
           <a
@@ -118,10 +123,18 @@ function logout() {
   color: var(--color-text-50);
 }
 
+.seller-nav-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-5);
+}
+
 .brand-link {
   display: grid;
+  min-width: 0;
   gap: var(--space-1);
-  padding: var(--space-5);
   color: var(--color-surface);
   text-decoration: none;
 }
@@ -223,7 +236,28 @@ function logout() {
 }
 
 .store-link {
-  font-weight: 600;
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-surface);
+  text-decoration: none;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.store-link:hover {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.store-link i {
+  font-size: var(--font-size-base);
 }
 
 .seller-nav-footer {
@@ -256,8 +290,12 @@ function logout() {
 
 .seller-nav a:focus-visible,
 .brand-link:focus-visible,
-.store-link:focus-visible,
 .seller-logout-button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.store-link:focus-visible {
   outline: none;
   box-shadow: var(--shadow-focus);
 }

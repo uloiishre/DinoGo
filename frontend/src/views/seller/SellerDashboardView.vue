@@ -1,412 +1,1143 @@
 <script setup>
-const alertItems = [
-  { label: '待付款', value: '5', note: '提醒買家完成付款', tone: 'warning', icon: 'bi-credit-card' },
-  { label: '待出貨', value: '3', note: '今日優先處理', tone: 'danger', icon: 'bi-truck' },
-  { label: '退貨/退款', value: '1', note: '需在 24 小時內回覆', tone: 'danger', icon: 'bi-arrow-counterclockwise' },
-  { label: '未回覆訊息', value: '7', note: '平均等待 18 分鐘', tone: 'warning', icon: 'bi-chat-left-text' },
-  { label: '低庫存商品', value: '2', note: '建議立即補貨', tone: 'warning', icon: 'bi-box-seam' },
-  { label: '審核未通過', value: '1', note: '商品需重新送審', tone: 'neutral', icon: 'bi-shield-exclamation' },
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { Line } from 'vue-chartjs'
+import {
+  CategoryScale,
+  Chart as ChartJS,
+  Filler,
+  Legend,
+  LinearScale,
+  LineElement,
+  PointElement,
+  Tooltip,
+} from 'chart.js'
+import { getSellerOrders } from '@/api/sellerOrderApi'
+import { getSellerProducts } from '@/api/sellerProductApi'
+import { getSellerWalletTransactions } from '@/api/sellerWalletApi'
+import { getCurrentSellerId } from '@/utils/seller-session'
+
+ChartJS.register(CategoryScale, Filler, Legend, LinearScale, LineElement, PointElement, Tooltip)
+
+const walletTransactions = ref([])
+const sellerOrders = ref([])
+const sellerProducts = ref([])
+const dashboardLoading = ref(false)
+const dashboardError = ref('')
+const dateInput = ref(null)
+const selectedDate = ref(toDateKey(new Date()))
+const selectedCategory = ref('ALL')
+const selectedTrendKeys = ref(['sales', 'orders'])
+const chartPalette = ref({
+  sales: '#657a6d',
+  orders: '#9a7b42',
+  cancelled: '#c73e3a',
+  quantity: '#64748b',
+  text: '#38423d',
+  muted: '#66706a',
+  border: '#e8e6e1',
+  surface: '#ffffff',
+})
+let dashboardRefreshTimer = null
+
+async function loadDashboardData() {
+  try {
+    dashboardLoading.value = true
+    dashboardError.value = ''
+
+    const sellerId = getCurrentSellerId()
+    const [walletResponse, orderResponse, productResponse] = await Promise.all([
+      getSellerWalletTransactions(),
+      getSellerOrders(),
+      sellerId ? getSellerProducts(sellerId) : Promise.resolve({ data: [] }),
+    ])
+
+    walletTransactions.value = walletResponse.data || []
+    sellerOrders.value = Array.isArray(orderResponse.data) ? orderResponse.data : []
+    sellerProducts.value = Array.isArray(productResponse.data) ? productResponse.data : []
+  } catch {
+    dashboardError.value = '無法載入營運資料，請稍後再試。'
+    walletTransactions.value = []
+    sellerOrders.value = []
+    sellerProducts.value = []
+  } finally {
+    dashboardLoading.value = false
+  }
+}
+
+const incomeTransactions = computed(() =>
+  walletTransactions.value.filter(
+    (item) => item.status === 'AVAILABLE' && item.direction === 'income',
+  ),
+)
+
+const selectedDateRevenue = computed(() => getRevenueByDate(selectedDate.value))
+const sevenDayRange = computed(() => getDateRange(selectedDate.value, 6, 0))
+const previousSevenDayRange = computed(() => getDateRange(selectedDate.value, 13, 7))
+const sevenDayRevenue = computed(() =>
+  getRevenueBetween(sevenDayRange.value.startKey, sevenDayRange.value.endKey),
+)
+const selectedDateOrders = computed(() => getOrdersByDate(selectedDate.value))
+const yesterdayKey = computed(() => {
+  const date = new Date(`${selectedDate.value}T00:00:00`)
+  date.setDate(date.getDate() - 1)
+  return toDateKey(date)
+})
+const yesterdayOrders = computed(() => getOrdersByDate(yesterdayKey.value))
+const yesterdayRevenue = computed(() => getRevenueByDate(yesterdayKey.value))
+const orderCount = computed(() => selectedDateOrders.value.length)
+const yesterdayOrderCount = computed(() => yesterdayOrders.value.length)
+const pendingShipmentCount = computed(
+  () =>
+    selectedDateOrders.value.filter((order) => ['PAID', 'PROCESSING'].includes(order.status))
+      .length,
+)
+const yesterdayPendingShipmentCount = computed(
+  () =>
+    yesterdayOrders.value.filter((order) => ['PAID', 'PROCESSING'].includes(order.status)).length,
+)
+const selectedSoldQuantity = computed(() => getSoldQuantity(selectedDateOrders.value))
+const yesterdaySoldQuantity = computed(() => getSoldQuantity(yesterdayOrders.value))
+const averageOrderValue = computed(() =>
+  orderCount.value ? Math.round(selectedDateRevenue.value / orderCount.value) : 0,
+)
+const yesterdayAverageOrderValue = computed(() =>
+  yesterdayOrderCount.value ? Math.round(yesterdayRevenue.value / yesterdayOrderCount.value) : 0,
+)
+const previousSevenDayRevenue = computed(() =>
+  getRevenueBetween(previousSevenDayRange.value.startKey, previousSevenDayRange.value.endKey),
+)
+
+const metricCards = computed(() => [
+  {
+    label: '今日銷售',
+    value: formatCurrency(selectedDateRevenue.value),
+    help: '選擇日期當天已入帳的訂單收入總和。',
+    previous: `昨日 ${formatCurrency(yesterdayRevenue.value)}`,
+    change: formatChange(selectedDateRevenue.value, yesterdayRevenue.value),
+  },
+  {
+    label: '近 7 日營收',
+    value: formatCurrency(sevenDayRevenue.value),
+    help: `以選擇日期為結束日，統計 ${formatDateRange(sevenDayRange.value)} 已入帳交易加總。`,
+    previous: `前 7 日 ${formatCurrency(previousSevenDayRevenue.value)}`,
+    change: formatChange(sevenDayRevenue.value, previousSevenDayRevenue.value),
+  },
+  {
+    label: '訂單數',
+    value: `${orderCount.value} 筆`,
+    help: '選擇日期建立的賣家訂單筆數。',
+    previous: `昨日 ${yesterdayOrderCount.value} 筆`,
+    change: formatChange(orderCount.value, yesterdayOrderCount.value),
+  },
+  {
+    label: '平均客單價',
+    value: formatCurrency(averageOrderValue.value),
+    help: '今日銷售除以訂單數。',
+    previous: `昨日 ${formatCurrency(yesterdayAverageOrderValue.value)}`,
+    change: formatChange(averageOrderValue.value, yesterdayAverageOrderValue.value),
+  },
+  {
+    label: '銷售件數',
+    value: `${selectedSoldQuantity.value} 件`,
+    help: '選擇日期所有訂單明細的商品數量加總。',
+    previous: `昨日 ${yesterdaySoldQuantity.value} 件`,
+    change: formatChange(selectedSoldQuantity.value, yesterdaySoldQuantity.value),
+  },
+  {
+    label: '待出貨訂單',
+    value: `${pendingShipmentCount.value} 筆`,
+    help: '狀態為已付款或處理中的訂單，通常代表需要安排出貨。',
+    previous: `昨日 ${yesterdayPendingShipmentCount.value} 筆`,
+    change: formatChange(
+      pendingShipmentCount.value,
+      yesterdayPendingShipmentCount.value,
+      'lower-is-better',
+    ),
+  },
+])
+
+const productLookup = computed(() => {
+  const map = new Map()
+  sellerProducts.value.forEach((product) => {
+    map.set(product.productId, product)
+  })
+  return map
+})
+
+const categoryOptions = computed(() => {
+  const categories = new Set(
+    sellerProducts.value.map((product) => getProductCategory(product)).filter(Boolean),
+  )
+
+  return ['ALL', ...Array.from(categories)]
+})
+
+const productInsightRows = computed(() => {
+  const productMap = new Map()
+
+  selectedDateOrders.value.forEach((order) => {
+    ;(order.items || []).forEach((item) => {
+      const productId = item.productId || item.product?.productId || item.id
+      if (!productId) return
+
+      const current = productMap.get(productId) || {
+        productId,
+        productName: item.productName || item.product?.productName || `商品 #${productId}`,
+        category: getProductCategory(productLookup.value.get(productId) || item.product || item),
+        revenue: 0,
+        orderCount: 0,
+        quantity: 0,
+        buyerIds: new Set(),
+        stock: Number(productLookup.value.get(productId)?.stock || 0),
+        status: productLookup.value.get(productId)?.status,
+      }
+
+      const quantity = Number(item.quantity || 0)
+      const amount = Number(item.subtotal || item.totalAmount || item.unitPrice * quantity || 0)
+
+      current.revenue += amount
+      current.quantity += quantity
+      current.orderCount += 1
+      if (order.buyerId) current.buyerIds.add(order.buyerId)
+      productMap.set(productId, current)
+    })
+  })
+
+  return Array.from(productMap.values())
+    .filter((item) => selectedCategory.value === 'ALL' || item.category === selectedCategory.value)
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 5)
+    .map((item, index) => ({
+      ...item,
+      rank: index + 1,
+      buyerCount: item.buyerIds.size,
+    }))
+})
+
+const trendMetricOptions = [
+  { key: 'sales', label: '銷售額' },
+  { key: 'orders', label: '訂單數' },
+  { key: 'cancelled', label: '取消訂單' },
+  { key: 'quantity', label: '銷售件數' },
 ]
 
-const salesMetrics = [
-  { label: '今日銷售額', value: 'NT$4,722', change: '+12%', trend: 'up', note: '較昨日同時段' },
-  { label: '訂單數', value: '8', change: '+2 筆', trend: 'up', note: '較昨日同時段' },
-  { label: '轉換率', value: '3.8%', change: '-0.4%', trend: 'down', note: '較上週同期' },
-  { label: '平均客單價', value: 'NT$590', change: '+8%', trend: 'up', note: '較昨日同時段' },
-]
+const hourlyTrendBuckets = computed(() => {
+  const buckets = Array.from({ length: 12 }, (_, index) => {
+    const startHour = index * 2
+    return {
+      label: `${String(startHour).padStart(2, '0')}:00`,
+      sales: 0,
+      orders: 0,
+      cancelled: 0,
+      quantity: 0,
+    }
+  })
 
-const revenueItems = [
-  { label: '已完結金額', value: 'NT$18,420', note: '完成訂單可計入收益' },
-  { label: '預計撥款', value: 'NT$12,880', note: '下一批撥款預估' },
-]
+  incomeTransactions.value
+    .filter((item) => item.occurredAt?.slice(0, 10) === selectedDate.value)
+    .forEach((item) => {
+      const hour = new Date(item.occurredAt).getHours()
+      const bucketIndex = Math.min(Math.floor(hour / 2), buckets.length - 1)
+      buckets[bucketIndex].sales += Number(item.amount || 0)
+    })
 
-const insightItems = [
-  { title: '托特包流量升高但庫存偏低', action: '建議補貨 30 件並提高曝光商品排序。' },
-  { title: '新會員 9 折券使用率 42%', action: '建議延長活動 3 天，提高首次下單轉換。' },
-  { title: '收納袋曝光高但轉換率偏低', action: '建議優化首圖與商品描述。' },
-]
+  selectedDateOrders.value.forEach((order) => {
+    if (!order.createdAt) return
+    const hour = new Date(order.createdAt).getHours()
+    const bucketIndex = Math.min(Math.floor(hour / 2), buckets.length - 1)
+    buckets[bucketIndex].orders += 1
+    buckets[bucketIndex].quantity += getSoldQuantity([order])
 
-const productHighlights = [
-  { label: '最高銷售額商品', value: '苔色日常托特包', note: 'NT$8,400 / 5 筆訂單' },
-  { label: '潛力商品', value: '山影收納袋', note: '流量 +38%，庫存剩 6 件' },
-]
+    if (order.status === 'CANCELLED') {
+      buckets[bucketIndex].cancelled += 1
+    }
+  })
 
-const trafficSources = [
-  { label: '站內搜尋', value: '46%' },
-  { label: '優惠券入口', value: '28%' },
-  { label: '收藏回訪', value: '16%' },
-  { label: '其他', value: '10%' },
-]
+  return buckets
+})
 
-const platformNotices = [
-  { title: '8/25 夏末大促報名截止', note: '剩 5 天，符合資格商品 12 件。' },
-  { title: '物流費率將於 9/1 調整', note: '宅配大型材積將新增級距。' },
-]
+const trendChartData = computed(() => {
+  const enabledOptions = trendMetricOptions.filter((option) =>
+    selectedTrendKeys.value.includes(option.key),
+  )
+
+  return {
+    labels: hourlyTrendBuckets.value.map((bucket) => bucket.label),
+    datasets: enabledOptions.map((option) => ({
+      label: option.label,
+      data: hourlyTrendBuckets.value.map((bucket) => bucket[option.key]),
+      borderColor: chartPalette.value[option.key],
+      backgroundColor: toAlpha(chartPalette.value[option.key], 0.12),
+      pointBackgroundColor: chartPalette.value.surface,
+      pointBorderColor: chartPalette.value[option.key],
+      pointHoverBackgroundColor: chartPalette.value[option.key],
+      pointHoverBorderColor: chartPalette.value.surface,
+      pointRadius: 3,
+      pointHoverRadius: 5,
+      borderWidth: 2,
+      tension: 0.36,
+      fill: option.key === 'sales',
+    })),
+  }
+})
+
+const trendChartOptions = computed(() => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  interaction: {
+    intersect: false,
+    mode: 'index',
+  },
+  plugins: {
+    legend: {
+      display: false,
+    },
+    tooltip: {
+      backgroundColor: chartPalette.value.text,
+      displayColors: true,
+      padding: 12,
+      callbacks: {
+        label(context) {
+          const value = Number(context.raw || 0)
+          return context.dataset.label === '銷售額'
+            ? `${context.dataset.label}: ${formatCurrency(value)}`
+            : `${context.dataset.label}: ${value.toLocaleString('zh-TW')}`
+        },
+      },
+    },
+  },
+  scales: {
+    x: {
+      grid: {
+        display: false,
+      },
+      ticks: {
+        color: chartPalette.value.muted,
+        maxRotation: 0,
+        autoSkip: true,
+        autoSkipPadding: 18,
+      },
+    },
+    y: {
+      beginAtZero: true,
+      grid: {
+        color: chartPalette.value.border,
+      },
+      ticks: {
+        color: chartPalette.value.muted,
+        precision: 0,
+      },
+    },
+  },
+}))
+
+function toDateKey(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function getDateRange(baseDateKey, startDaysBefore, endDaysBefore) {
+  const baseDate = new Date(`${baseDateKey}T00:00:00`)
+  const start = new Date(baseDate)
+  start.setDate(baseDate.getDate() - startDaysBefore)
+  const end = new Date(baseDate)
+  end.setDate(baseDate.getDate() - endDaysBefore)
+
+  return {
+    startKey: toDateKey(start),
+    endKey: toDateKey(end),
+  }
+}
+
+function getOrdersByDate(dateKey) {
+  return sellerOrders.value.filter((order) => order.createdAt?.slice(0, 10) === dateKey)
+}
+
+function getRevenueByDate(dateKey) {
+  return incomeTransactions.value
+    .filter((item) => item.occurredAt?.slice(0, 10) === dateKey)
+    .reduce((sum, item) => sum + Number(item.amount || 0), 0)
+}
+
+function getRevenueBetween(startKey, endKey) {
+  return incomeTransactions.value
+    .filter((item) => {
+      const dateKey = item.occurredAt?.slice(0, 10)
+      return dateKey && dateKey >= startKey && dateKey <= endKey
+    })
+    .reduce((sum, item) => sum + Number(item.amount || 0), 0)
+}
+
+function getSoldQuantity(orders) {
+  return orders.reduce(
+    (sum, order) =>
+      sum + (order.items || []).reduce((itemSum, item) => itemSum + Number(item.quantity || 0), 0),
+    0,
+  )
+}
+
+function formatChange(current, previous, direction = 'higher-is-better') {
+  const currentValue = Number(current || 0)
+  const previousValue = Number(previous || 0)
+
+  if (previousValue === 0) {
+    const tone =
+      currentValue === 0 ? 'neutral' : direction === 'lower-is-better' ? 'negative' : 'positive'
+    return { text: currentValue === 0 ? '0.00%' : '+100%', tone }
+  }
+
+  const rate = ((currentValue - previousValue) / previousValue) * 100
+  const isPositive = direction === 'lower-is-better' ? rate < 0 : rate > 0
+  const isNegative = direction === 'lower-is-better' ? rate > 0 : rate < 0
+
+  return {
+    text: `${rate > 0 ? '+' : ''}${rate.toFixed(2)}%`,
+    tone: isPositive ? 'positive' : isNegative ? 'negative' : 'neutral',
+  }
+}
+
+function toggleTrendKey(key) {
+  if (selectedTrendKeys.value.includes(key)) {
+    selectedTrendKeys.value = selectedTrendKeys.value.filter((item) => item !== key)
+    return
+  }
+
+  selectedTrendKeys.value = [...selectedTrendKeys.value, key]
+}
+
+function openDatePicker() {
+  dateInput.value?.showPicker?.()
+  dateInput.value?.focus()
+}
+
+function exportDashboardCsv() {
+  const metricRows = metricCards.value.map((item) => ({
+    type: '關鍵指標',
+    name: item.label,
+    value: item.value,
+    previous: item.previous,
+    change: item.change.text,
+    product: '',
+    category: '',
+    revenue: '',
+    orderCount: '',
+    quantity: '',
+    buyerCount: '',
+    stock: '',
+    status: '',
+  }))
+  const productRows = productInsightRows.value.map((item) => ({
+    type: '商品銷售排名',
+    name: `第 ${item.rank} 名`,
+    value: '',
+    previous: '',
+    change: '',
+    product: item.productName,
+    category: item.category,
+    revenue: formatCurrency(item.revenue),
+    orderCount: item.orderCount,
+    quantity: item.quantity,
+    buyerCount: item.buyerCount,
+    stock: item.stock,
+    status: formatProductStatus(item.status),
+  }))
+  const headers = [
+    '類型',
+    '名稱',
+    '數值',
+    '比較基準',
+    '變化',
+    '商品',
+    '分類',
+    '銷售額',
+    '訂單數',
+    '件數',
+    '買家數',
+    '庫存',
+    '狀態',
+  ]
+  const rows = [...metricRows, ...productRows].map((row) => [
+    row.type,
+    row.name,
+    row.value,
+    row.previous,
+    row.change,
+    row.product,
+    row.category,
+    row.revenue,
+    row.orderCount,
+    row.quantity,
+    row.buyerCount,
+    row.stock,
+    row.status,
+  ])
+  const csv = [headers, ...rows].map((row) => row.map(escapeCsvCell).join(',')).join('\r\n')
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `DinoGo_營運總覽_${selectedDate.value}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+function formatCurrency(value) {
+  return `NT$${Number(value || 0).toLocaleString('zh-TW')}`
+}
+
+function formatDateRange(range) {
+  return `${range.startKey} 至 ${range.endKey}`
+}
+
+function formatProductStatus(status) {
+  if (status === 'ACTIVE' || status === 0) return '上架中'
+  if (status === 'INACTIVE' || status === 1) return '草稿'
+  if (status === 2) return '已下架'
+  return '未設定'
+}
+
+function getProductCategory(product = {}) {
+  return (
+    product.categoryName ||
+    product.category?.categoryName ||
+    product.category?.name ||
+    product.subcategoryName ||
+    product.subcategory?.subcategoryName ||
+    product.subcategory?.name ||
+    product.subcategory?.category?.categoryName ||
+    product.subcategory?.category?.name ||
+    '未分類'
+  )
+}
+
+function escapeCsvCell(value) {
+  const text = String(value ?? '')
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
+}
+
+function loadChartPalette() {
+  const styles = window.getComputedStyle(document.documentElement)
+  chartPalette.value = {
+    sales: getCssColor(styles, '--color-primary-600', chartPalette.value.sales),
+    orders: getCssColor(styles, '--color-warning', chartPalette.value.orders),
+    cancelled: getCssColor(styles, '--color-danger', chartPalette.value.cancelled),
+    quantity: getCssColor(styles, '--color-info', chartPalette.value.quantity),
+    text: getCssColor(styles, '--color-text-700', chartPalette.value.text),
+    muted: getCssColor(styles, '--color-text-muted', chartPalette.value.muted),
+    border: getCssColor(styles, '--color-border', chartPalette.value.border),
+    surface: getCssColor(styles, '--color-surface', chartPalette.value.surface),
+  }
+}
+
+function getCssColor(styles, token, fallback) {
+  return styles.getPropertyValue(token).trim() || fallback
+}
+
+function toAlpha(color, alpha) {
+  const normalized = color.trim()
+  if (!normalized.startsWith('#') || ![4, 7].includes(normalized.length)) {
+    return normalized
+  }
+
+  const hex =
+    normalized.length === 4
+      ? `#${normalized[1]}${normalized[1]}${normalized[2]}${normalized[2]}${normalized[3]}${normalized[3]}`
+      : normalized
+  const red = Number.parseInt(hex.slice(1, 3), 16)
+  const green = Number.parseInt(hex.slice(3, 5), 16)
+  const blue = Number.parseInt(hex.slice(5, 7), 16)
+
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`
+}
+
+onMounted(() => {
+  loadChartPalette()
+  loadDashboardData()
+  dashboardRefreshTimer = window.setInterval(loadDashboardData, 5 * 60 * 1000)
+})
+
+onUnmounted(() => {
+  if (dashboardRefreshTimer) {
+    window.clearInterval(dashboardRefreshTimer)
+  }
+})
 </script>
 
 <template>
-  <section class="seller-page">
-    <header class="page-header">
-      <div>
-        <h1>商家營運總覽</h1>
-        <p class="eyebrow">森日選物 · 今日營運狀態</p>
-      </div>
-    </header>
-
-    <section class="priority-panel">
-      <div class="panel-heading">
-        <div>
-          <p class="section-kicker">Priority</p>
-          <h2>營運待辦與即時警訊</h2>
-        </div>
-        <span>需優先處理</span>
-      </div>
-
-      <div class="alert-grid">
-        <article v-for="item in alertItems" :key="item.label" class="alert-card" :class="item.tone">
-          <i class="bi" :class="item.icon" aria-hidden="true"></i>
-          <div>
-            <span>{{ item.label }}</span>
-            <strong>{{ item.value }}</strong>
-            <p>{{ item.note }}</p>
-          </div>
-        </article>
-      </div>
+  <section class="seller-dashboard">
+    <section class="filter-bar">
+      <label class="date-filter" @click="openDatePicker">
+        選擇日期
+        <input ref="dateInput" v-model="selectedDate" type="date" aria-label="選擇營運資料日期" />
+      </label>
+      <button class="export-link" type="button" @click="exportDashboardCsv">
+        <i class="bi bi-download" aria-hidden="true"></i>
+        匯出資料
+      </button>
     </section>
+
+    <p v-if="dashboardError" class="state-message state-message--error">{{ dashboardError }}</p>
+    <p v-else-if="dashboardLoading" class="state-message">營運資料載入中...</p>
 
     <section class="metric-panel">
       <div class="panel-heading">
-        <div>
-          <p class="section-kicker">Sales Pulse</p>
-          <h2>核心銷售數據</h2>
-        </div>
+        <h1>關鍵指標</h1>
+        <span>每 5 分鐘自動更新</span>
       </div>
 
       <div class="metric-grid">
-        <article v-for="item in salesMetrics" :key="item.label" class="metric-card">
-          <span>{{ item.label }}</span>
+        <article v-for="item in metricCards" :key="item.label" class="metric-card">
+          <span class="metric-label">
+            {{ item.label }}
+            <span class="metric-help" tabindex="0" aria-label="指標說明">
+              ?
+              <span class="metric-tooltip">{{ item.help }}</span>
+            </span>
+          </span>
           <strong>{{ item.value }}</strong>
-          <em :class="item.trend">
-            <i class="bi" :class="item.trend === 'up' ? 'bi-arrow-up-right' : 'bi-arrow-down-right'" aria-hidden="true"></i>
-            {{ item.change }}
-          </em>
-          <small>{{ item.note }}</small>
-        </article>
-      </div>
-
-      <div class="revenue-grid">
-        <article v-for="item in revenueItems" :key="item.label" class="revenue-card">
-          <span>{{ item.label }}</span>
-          <strong>{{ item.value }}</strong>
-          <p>{{ item.note }}</p>
+          <div class="metric-compare">
+            <span>{{ item.previous }}</span>
+            <em :class="`metric-change--${item.change.tone}`">{{ item.change.text }}</em>
+          </div>
         </article>
       </div>
     </section>
 
-    <div class="insight-layout">
-      <section class="insight-panel">
-        <div class="panel-heading">
-          <div>
-            <p class="section-kicker">Insights</p>
-            <h2>商業洞察與行動建議</h2>
-          </div>
+    <section class="hourly-sales-panel">
+      <div class="panel-heading">
+        <h2>今日趨勢</h2>
+        <span>已選擇 {{ selectedTrendKeys.length }} / {{ trendMetricOptions.length }}</span>
+      </div>
+
+      <div class="trend-selector" aria-label="選擇趨勢指標">
+        <button
+          v-for="option in trendMetricOptions"
+          :key="option.key"
+          type="button"
+          :class="{ active: selectedTrendKeys.includes(option.key) }"
+          :style="{ '--series-color': chartPalette[option.key] }"
+          @click="toggleTrendKey(option.key)"
+        >
+          <i></i>
+          <span>{{ option.label }}</span>
+        </button>
+      </div>
+
+      <div class="chart-frame chart-frame--line" aria-label="分時指標趨勢">
+        <Line :data="trendChartData" :options="trendChartOptions" />
+      </div>
+    </section>
+
+    <section class="product-performance-panel">
+      <div class="panel-heading">
+        <h1>商品銷售排名</h1>
+      </div>
+
+      <div class="product-toolbar">
+        <label class="category-filter">
+          分類
+          <select v-model="selectedCategory" aria-label="篩選商品分類">
+            <option v-for="category in categoryOptions" :key="category" :value="category">
+              {{ category === 'ALL' ? '全部分類' : category }}
+            </option>
+          </select>
+        </label>
+      </div>
+
+      <div class="ranking-control">
+        排名依照
+        <strong>銷售額</strong>
+      </div>
+
+      <div class="product-table">
+        <div class="product-table-head">
+          <span>排名</span>
+          <span>商品</span>
+          <span>分類</span>
+          <span>銷售額</span>
+          <span>訂單數</span>
+          <span>件數</span>
+          <span>買家數</span>
+          <span>庫存</span>
+          <span>狀態</span>
         </div>
 
-        <div class="highlight-grid">
-          <article v-for="item in productHighlights" :key="item.label" class="highlight-card">
-            <span>{{ item.label }}</span>
-            <strong>{{ item.value }}</strong>
-            <p>{{ item.note }}</p>
-          </article>
+        <div v-if="productInsightRows.length === 0" class="product-empty">
+          <i class="bi bi-file-earmark-bar-graph" aria-hidden="true"></i>
+          <p>目前尚未收集到足夠的數據進行商品排名，可先完成訂單或上架商品後再查看。</p>
         </div>
 
-        <div class="suggestion-list">
-          <article v-for="item in insightItems" :key="item.title" class="suggestion-card">
-            <i class="bi bi-stars" aria-hidden="true"></i>
-            <div>
-              <strong>{{ item.title }}</strong>
-              <p>{{ item.action }}</p>
-            </div>
-          </article>
+        <div
+          v-for="item in productInsightRows"
+          v-else
+          :key="`${selectedCategory}-${item.productId}`"
+          class="product-table-row"
+        >
+          <span>{{ item.rank }}</span>
+          <strong>{{ item.productName }}</strong>
+          <span>{{ item.category }}</span>
+          <span>{{ formatCurrency(item.revenue) }}</span>
+          <span>{{ item.orderCount }}</span>
+          <span>{{ item.quantity }}</span>
+          <span>{{ item.buyerCount }}</span>
+          <span>{{ item.stock }}</span>
+          <span>{{ formatProductStatus(item.status) }}</span>
         </div>
-      </section>
-
-      <aside class="side-panel">
-        <section class="traffic-card">
-          <h2>行銷與流量</h2>
-          <div v-for="item in trafficSources" :key="item.label" class="traffic-row">
-            <span>{{ item.label }}</span>
-            <strong>{{ item.value }}</strong>
-          </div>
-        </section>
-
-        <section class="notice-card">
-          <h2>平台重要通知</h2>
-          <article v-for="notice in platformNotices" :key="notice.title">
-            <strong>{{ notice.title }}</strong>
-            <p>{{ notice.note }}</p>
-          </article>
-        </section>
-      </aside>
-    </div>
+      </div>
+    </section>
   </section>
 </template>
 
 <style scoped>
-.seller-page {
+.seller-dashboard {
   display: grid;
-  gap: var(--space-5);
-  max-width: 1280px;
+  gap: var(--space-4);
+  width: min(100%, 1480px);
 }
 
-.page-header,
+.filter-bar,
+.metric-panel,
+.hourly-sales-panel,
+.product-performance-panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+}
+
+.date-filter,
+.filter-bar button {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  background: var(--color-surface);
+  color: var(--color-text-700);
+  font: inherit;
+  text-decoration: none;
+}
+
+.date-filter {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.date-filter input {
+  min-height: 30px;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-900);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+}
+
+.date-filter input:focus {
+  outline: none;
+}
+
+.export-link {
+  margin-left: auto;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.metric-panel,
+.hourly-sales-panel,
+.product-performance-panel {
+  padding: var(--space-5);
+}
+
 .panel-heading {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
-.eyebrow,
-.section-kicker,
-.panel-heading span,
-.alert-card span,
-.alert-card p,
-.metric-card span,
-.metric-card small,
-.revenue-card span,
-.revenue-card p,
-.highlight-card span,
-.highlight-card p,
-.suggestion-card p,
-.traffic-row span,
-.notice-card p {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.eyebrow,
-.section-kicker,
-h1,
-h2,
-p {
-  margin-top: 0;
-}
-
-.eyebrow,
-.section-kicker {
-  margin-bottom: var(--space-1);
-}
-
-h1,
-h2 {
-  margin-bottom: 0;
+.panel-heading h1,
+.panel-heading h2 {
+  margin: 0;
   color: var(--color-text-900);
   font-family: var(--font-heading);
 }
 
-h1 {
-  font-size: var(--font-size-xl);
+.panel-heading h1 {
+  font-size: var(--font-size-lg);
 }
 
-h2 {
+.panel-heading h2 {
   font-size: var(--font-size-base);
 }
 
-.priority-panel,
-.metric-panel,
-.insight-panel,
-.traffic-card,
-.notice-card {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  padding: var(--space-5);
-}
-
-.priority-panel {
-  border-left: 4px solid var(--color-danger);
-}
-
-.alert-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-  margin-top: var(--space-4);
-}
-
-.alert-card {
-  min-height: 96px;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-4);
-  background: var(--color-bg-muted);
-}
-
-.alert-card i {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-primary);
-}
-
-.alert-card div,
-.metric-card,
-.revenue-card,
-.highlight-card,
-.suggestion-card div,
-.traffic-card,
-.notice-card {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.alert-card strong,
-.metric-card strong,
-.revenue-card strong {
-  color: var(--color-text-900);
-  font-size: 26px;
-  line-height: 1;
-}
-
-.alert-card.danger strong {
-  color: var(--color-danger);
-}
-
-.alert-card.warning strong {
-  color: var(--color-warning);
-}
-
-.alert-card p,
-.revenue-card p,
-.highlight-card p,
-.suggestion-card p,
-.notice-card p {
-  margin-bottom: 0;
-  line-height: 1.6;
+.panel-heading span,
+.metric-label,
+.metric-compare span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
 }
 
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-  margin-top: var(--space-4);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 
-.metric-card,
-.revenue-card,
-.highlight-card {
+.metric-card {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 112px;
+  grid-template-rows: auto 1fr auto;
+  gap: var(--space-2);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-bg-muted);
-  padding: var(--space-4);
+  padding: var(--space-3);
+  background: linear-gradient(180deg, var(--color-surface) 0%, var(--color-bg-muted) 100%);
 }
 
-.metric-card em {
-  width: fit-content;
+.metric-label {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.metric-help {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-pill);
-  padding: 3px 9px;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1;
+  cursor: help;
+}
+
+.metric-tooltip {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 8px);
+  z-index: 30;
+  display: block;
+  width: max-content;
+  max-width: 240px;
+  transform: translateX(-50%) translateY(-2px);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  color: var(--color-text-950);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  line-height: 1.5;
+  opacity: 0;
+  pointer-events: none;
+  text-align: left;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+  white-space: normal;
+}
+
+.metric-tooltip::before {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: 8px;
+  height: 8px;
+  border-top: 1px solid var(--color-border-strong);
+  border-left: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  content: '';
+  transform: translate(-50%, 4px) rotate(45deg);
+}
+
+.metric-help:hover .metric-tooltip,
+.metric-help:focus .metric-tooltip,
+.metric-help:focus-visible .metric-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.metric-card strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-900);
+  font-size: 28px;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metric-compare {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: end;
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-2);
+}
+
+.metric-compare span,
+.metric-compare em {
+  min-width: 0;
+  overflow: hidden;
   font-size: var(--font-size-xs);
   font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metric-compare em {
+  justify-self: end;
+  border-radius: var(--radius-pill);
+  padding: 2px 7px;
   font-weight: 800;
 }
 
-.metric-card em.up {
+.metric-change--positive {
   background: var(--color-success-soft);
   color: var(--color-success);
 }
 
-.metric-card em.down {
+.metric-change--negative {
   background: var(--color-danger-soft);
   color: var(--color-danger);
 }
 
-.revenue-grid {
+.metric-change--neutral {
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
+}
+
+.hourly-sales-panel {
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+}
+
+.trend-selector {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-  margin-top: var(--space-3);
+  gap: 8px;
 }
 
-.insight-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  gap: var(--space-5);
-}
-
-.side-panel {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.highlight-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
-  margin-top: var(--space-4);
-}
-
-.highlight-card strong,
-.suggestion-card strong,
-.traffic-row strong,
-.notice-card strong {
-  color: var(--color-text-900);
-}
-
-.suggestion-list {
-  display: grid;
-  gap: var(--space-3);
-  margin-top: var(--space-4);
-}
-
-.suggestion-card {
-  display: flex;
-  gap: var(--space-3);
+.trend-selector button {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
+  padding: 0 var(--space-2);
+  background: var(--color-surface);
+  color: var(--color-text-700);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.trend-selector button > i {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--series-color);
+  opacity: 0.28;
+}
+
+.trend-selector button.active {
+  border-color: var(--series-color);
+  background: color-mix(in srgb, var(--series-color) 8%, var(--color-surface));
+}
+
+.trend-selector button.active > i {
+  opacity: 1;
+}
+
+.trend-selector button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.chart-frame {
+  position: relative;
+  min-width: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-muted);
   padding: var(--space-4);
 }
 
-.suggestion-card i {
-  color: var(--color-primary);
+.chart-frame--line {
+  height: 320px;
 }
 
-.side-panel { display: grid; gap: var(--space-4); }
+.product-performance-panel {
+  display: grid;
+  gap: var(--space-3);
+}
 
-.traffic-row {
+.product-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--space-3);
+}
+
+.category-filter,
+.ranking-control {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
-  padding: var(--space-3);
+  padding: 0 var(--space-3);
+  background: var(--color-surface);
+  color: var(--color-text-700);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+}
+
+.category-filter select,
+.ranking-control strong {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-900);
+  font: inherit;
+  font-weight: 800;
+}
+
+.category-filter select:focus {
+  outline: none;
+}
+
+.ranking-control {
+  margin-top: var(--space-3);
+}
+
+.product-table {
+  margin-top: var(--space-3);
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.product-table-head,
+.product-table-row {
+  display: grid;
+  grid-template-columns:
+    64px minmax(220px, 1.6fr) minmax(112px, 0.85fr) minmax(132px, 1fr)
+    minmax(84px, 0.7fr) minmax(84px, 0.7fr) minmax(84px, 0.7fr) minmax(84px, 0.7fr)
+    minmax(96px, 0.8fr);
+  align-items: center;
+  min-width: 900px;
+}
+
+.product-table-head {
+  min-height: 44px;
   background: var(--color-bg-muted);
+  color: var(--color-text-700);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
 }
 
-.notice-card article {
+.product-table-head span,
+.product-table-row span,
+.product-table-row strong {
+  min-width: 0;
+  padding: 0 var(--space-3);
+  white-space: nowrap;
+}
+
+.product-table-row {
+  min-height: 52px;
   border-top: 1px solid var(--color-border);
-  padding-top: var(--space-3);
+  color: inherit;
+  font-size: var(--font-size-sm);
+  text-decoration: none;
 }
 
-@media (max-width: 1120px) {
-  .side-panel { grid-template-columns: 1fr; }
+.product-table-row strong {
+  color: var(--color-text-900);
 }
 
-@media (max-width: 680px) {
-  .alert-grid,
-  .metric-grid,
-  .revenue-grid,
-  .highlight-grid {
+.product-empty {
+  display: grid;
+  min-height: 170px;
+  place-items: center;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.product-empty i {
+  color: var(--color-border-strong);
+  font-size: 42px;
+}
+
+.product-empty p {
+  margin: 0;
+  max-width: 520px;
+  font-size: var(--font-size-sm);
+}
+
+.state-message {
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
+  font-weight: 700;
+}
+
+.state-message--error {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+@media (max-width: 1180px) {
+  .metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .filter-bar {
+    overflow-x: auto;
+  }
+
+  .metric-grid {
     grid-template-columns: 1fr;
+  }
+
+  .product-toolbar {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 </style>
