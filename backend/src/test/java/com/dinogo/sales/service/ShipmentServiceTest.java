@@ -317,6 +317,7 @@ class ShipmentServiceTest {
                 Shipment shipment = shipment(order(10, 6, 30, OrderStatus.SHIPPED));
                 shipment.setShipmentId(20);
                 shipment.setStatus(ShipmentStatus.SHIPPED);
+                shipment.setCarrierName("新竹物流");
                 when(seller.getSellerId()).thenReturn(30);
                 when(seller.getStatus()).thenReturn("ACTIVE");
                 when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
@@ -333,6 +334,7 @@ class ShipmentServiceTest {
                 verify(shipmentEventRepository).save(eventCaptor.capture());
                 assertEquals(ShipmentEventType.IN_TRANSIT, eventCaptor.getValue().getEventType());
                 assertEquals(ShipmentEventSource.CARRIER, eventCaptor.getValue().getSource());
+                assertEquals("新竹物流模擬回報", eventCaptor.getValue().getRemark());
                 verify(shipmentRepository).save(shipment);
         }
 

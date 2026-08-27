@@ -277,7 +277,8 @@ public class ShipmentService {
         if (!isValidTcatTransition(previous, target)) {
             throw new InvalidOrderException("Invalid simulated TCat event transition: " + previous + " -> " + target);
         }
-        recordEvent(shipment, target, ShipmentEventSource.CARRIER, "黑貓宅急便模擬回報");
+        recordEvent(shipment, target, ShipmentEventSource.CARRIER,
+                (shipment.getCarrierName() == null ? "物流商" : shipment.getCarrierName()) + "模擬回報");
         if (target == ShipmentEventType.DELIVERED) {
             LocalDateTime now = LocalDateTime.now();
             shipment.setStatus(ShipmentStatus.DELIVERED);

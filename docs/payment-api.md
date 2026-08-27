@@ -42,11 +42,17 @@ GET /api/payments/capabilities
 ```http
 POST /api/orders/{orderId}/payments
 Content-Type: application/json
+Idempotency-Key: 8c9989af-2bce-4f4d-810a-bcce7ad50a8b
 
 {
   "paymentMethodCode": "CREDIT_CARD"
 }
 ```
+
+`Idempotency-Key` is required (maximum 64 characters). Retrying the same
+payment creation request must reuse the same key; the server returns the
+original payment instead of creating a duplicate. Reusing a key with a
+different payment method returns `400 Bad Request`.
 
 When `paymentMethodCode` is `CREDIT_CARD` and ECPay is enabled, the response additionally
 contains `ecpayCheckout`. The browser must create a form from `fields` and POST it to
@@ -77,6 +83,12 @@ The simulation endpoint is enabled by default. Set the environment variable belo
 ```text
 PAYMENT_SIMULATION_ENABLED=false
 ```
+
+Pending payments expire after 15 minutes by default. Expiry changes the order to
+`CANCELLED` with `cancelledBy=SYSTEM`, cancels any pending payment attempt, and
+restores reserved stock. Configure this with `PAYMENT_EXPIRY_TIMEOUT_MINUTES`.
+Set `PAYMENT_EXPIRY_ENABLED=false` to disable the job in test or maintenance
+environments.
 
 未啟用時回傳 `404 Not Found`，且不會更新付款或訂單。
 

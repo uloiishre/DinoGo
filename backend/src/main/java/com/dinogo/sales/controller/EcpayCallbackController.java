@@ -16,8 +16,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.dinogo.sales.entity.OrderStatus;
+import com.dinogo.sales.entity.Order;
 import com.dinogo.sales.entity.Payment;
 import com.dinogo.sales.entity.PaymentStatus;
+import com.dinogo.sales.repository.OrderRepository;
 import com.dinogo.sales.repository.PaymentRepository;
 import com.dinogo.sales.service.EcpayPaymentGateway;
 
@@ -27,12 +29,17 @@ public class EcpayCallbackController {
     private static final Logger log = LoggerFactory.getLogger(EcpayCallbackController.class);
     private final EcpayPaymentGateway gateway;
     private final PaymentRepository paymentRepository;
+    private final OrderRepository orderRepository;
     private final String frontendBaseUrl;
 
-    public EcpayCallbackController(EcpayPaymentGateway gateway, PaymentRepository paymentRepository,
+    public EcpayCallbackController(
+            EcpayPaymentGateway gateway,
+            PaymentRepository paymentRepository,
+            OrderRepository orderRepository,
             @Value("${app.frontend.base-url:http://localhost:5173}") String frontendBaseUrl) {
         this.gateway = gateway;
         this.paymentRepository = paymentRepository;
+        this.orderRepository = orderRepository;
         this.frontendBaseUrl = frontendBaseUrl;
     }
 
@@ -49,11 +56,24 @@ public class EcpayCallbackController {
             log.error("ECPay callback is missing MerchantTradeNo");
             return ResponseEntity.badRequest().body("Missing MerchantTradeNo");
         }
-        Payment payment = paymentRepository.findByPaymentNo(merchantTradeNo).orElse(null);
-        if (payment == null) {
+        Payment paymentReference = paymentRepository.findByPaymentNo(merchantTradeNo).orElse(null);
+        if (paymentReference == null) {
             log.error("ECPay callback has no matching payment: MerchantTradeNo={}, TradeNo={}", merchantTradeNo,
                     tradeNo);
             return ResponseEntity.badRequest().body("Unknown MerchantTradeNo");
+        }
+        Order order = orderRepository.findForEcpayCallback(paymentReference.getOrder().getOrderId()).orElse(null);
+        if (order == null) {
+            log.error("ECPay callback has no matching order: MerchantTradeNo={}", merchantTradeNo);
+            return ResponseEntity.badRequest().body("Unknown order");
+        }
+        Payment payment = order.getPayments().stream()
+                .filter(candidate -> merchantTradeNo.equals(candidate.getPaymentNo()))
+                .findFirst()
+                .orElse(null);
+        if (payment == null) {
+            log.error("ECPay callback payment does not belong to locked order: MerchantTradeNo={}", merchantTradeNo);
+            return ResponseEntity.badRequest().body("Payment mismatch");
         }
         BigDecimal tradeAmount;
         try {
@@ -75,15 +95,20 @@ public class EcpayCallbackController {
                     merchantTradeNo, tradeNo);
             return ResponseEntity.badRequest().body("Transaction mismatch");
         }
-        if (payment.getStatus() == PaymentStatus.FAILED)
+        if (payment.getStatus() == PaymentStatus.FAILED || payment.getStatus() == PaymentStatus.CANCELLED)
             return ResponseEntity.ok("1|OK");
         if (payment.getStatus() != PaymentStatus.PENDING) {
             log.error("ECPay callback has a non-processable payment status: MerchantTradeNo={}, status={}",
                     merchantTradeNo, payment.getStatus());
             return ResponseEntity.badRequest().body("Payment status mismatch");
         }
+        if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            log.warn("Ignored late ECPay callback for order in status {}: MerchantTradeNo={}",
+                    order.getStatus(), merchantTradeNo);
+            return ResponseEntity.ok("1|OK");
+        }
         if ("1".equals(fields.get("RtnCode"))) {
-            if (paymentRepository.existsByOrderOrderIdAndStatus(payment.getOrder().getOrderId(),
+            if (paymentRepository.existsByOrderOrderIdAndStatus(order.getOrderId(),
                     PaymentStatus.SUCCESS)) {
                 log.error("ECPay callback would create a second successful payment: MerchantTradeNo={}",
                         merchantTradeNo);
@@ -92,7 +117,7 @@ public class EcpayCallbackController {
             payment.setStatus(PaymentStatus.SUCCESS);
             payment.setTransactionNo(tradeNo);
             payment.setPaidAt(LocalDateTime.now());
-            payment.getOrder().setStatus(OrderStatus.PROCESSING);
+            order.setStatus(OrderStatus.PROCESSING);
         } else {
             payment.setStatus(PaymentStatus.FAILED);
             String message = fields.getOrDefault("RtnMsg", "ECPay payment failed");

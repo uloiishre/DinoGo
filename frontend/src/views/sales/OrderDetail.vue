@@ -1,7 +1,14 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { cancelOrder, confirmDelivery, getOrder, getShipmentEvents } from '@/api/order'
+import {
+  cancelOrder,
+  confirmDelivery,
+  createPayment,
+  getOrder,
+  getShipmentEvents,
+  submitEcpayCheckout,
+} from '@/api/order'
 import { getOrderDisplayStatus } from '@/utils/orderDisplayStatus'
 import { getImageUrl } from '@/utils/imageUrl'
 import OrderItemReviewView from '@/views/review/OrderItemReviewView.vue'
@@ -17,6 +24,8 @@ const cancellingOrder = ref(false)
 const cancellationErrorMessage = ref('')
 const cancellationReason = ref('')
 const showCancellationModal = ref(false)
+const retryingPayment = ref(false)
+const paymentRetryErrorMessage = ref('')
 const reviewItemId = ref(null)
 const fetchingOrder = ref(false)
 const AUTO_REFRESH_INTERVAL_MS = 10_000
@@ -33,6 +42,11 @@ const canCancelOrder = computed(() => {
     && (!order.value.shipment || order.value.shipment.status === 'PREPARING')
 })
 const displayStatus = computed(() => getOrderDisplayStatus(order.value))
+const canRetryCreditCardPayment = computed(() => (
+  order.value?.status === 'PENDING_PAYMENT'
+  && order.value.payment?.paymentMethodCode === 'CREDIT_CARD'
+  && ['PENDING', 'FAILED'].includes(order.value.payment?.status)
+))
 
 const paymentStatusLabels = {
   PENDING: '待付款',
@@ -49,9 +63,9 @@ const shipmentStatusLabels = {
 }
 const shipmentEventLabels = {
   LABEL_CREATED: '賣家已建立寄件資料', HANDED_OVER: '賣家已交寄',
-  IN_TRANSIT: '運送中', AVAILABLE_FOR_PICKUP: '包裹已可取貨', DELIVERED: '已送達',
+  IN_TRANSIT: '包裹抵達理貨中心', OUT_FOR_DELIVERY: '配送中',
+  AVAILABLE_FOR_PICKUP: '包裹已可取貨', DELIVERED: '已送達',
 }
-const shipmentEventSourceLabels = { SELLER: '賣家', CARRIER: '物流商', SYSTEM: '系統', BUYER: '買家' }
 
 const progressSteps = [
   {
@@ -178,6 +192,26 @@ async function handleCancelOrder() {
     cancellationErrorMessage.value = error.response?.data?.message ?? '取消訂單失敗，請稍後再試'
   } finally {
     cancellingOrder.value = false
+  }
+}
+
+async function handleRetryCreditCardPayment() {
+  if (!canRetryCreditCardPayment.value || retryingPayment.value) return
+
+  retryingPayment.value = true
+  paymentRetryErrorMessage.value = ''
+  try {
+    const response = await createPayment(orderId.value, 'CREDIT_CARD')
+    const checkout = response.data?.ecpayCheckout
+    if (!checkout) {
+      paymentRetryErrorMessage.value = '目前無法建立信用卡付款，請稍後再試。'
+      return
+    }
+    submitEcpayCheckout(checkout)
+  } catch (error) {
+    paymentRetryErrorMessage.value = error.response?.data?.message ?? '重新付款失敗，請稍後再試。'
+  } finally {
+    retryingPayment.value = false
   }
 }
 
@@ -371,6 +405,27 @@ onUnmounted(() => {
                 <p v-if="order.payment.failureReason" class="muted payment-failure">
                   {{ order.payment.failureReason }}
                 </p>
+                <div v-if="canRetryCreditCardPayment" class="payment-actions">
+                  <button
+                    class="retry-payment-button"
+                    type="button"
+                    :disabled="retryingPayment"
+                    @click="handleRetryCreditCardPayment"
+                  >
+                    <span
+                      v-if="retryingPayment"
+                      class="spinner-border spinner-border-sm"
+                      aria-hidden="true"
+                    ></span>
+                    {{ retryingPayment ? '正在建立付款…' : '重新信用卡付款' }}
+                  </button>
+                  <RouterLink class="payment-back-button" :to="{ name: 'MemberOrders' }">
+                    返回訂單列表
+                  </RouterLink>
+                </div>
+                <p v-if="paymentRetryErrorMessage" class="payment-retry-error" role="alert">
+                  {{ paymentRetryErrorMessage }}
+                </p>
               </template>
               <p v-else>尚未建立付款資料</p>
             </section>
@@ -388,8 +443,7 @@ onUnmounted(() => {
                 <ol v-if="shipmentEvents.length" class="shipment-timeline" aria-label="物流軌跡">
                   <li v-for="event in shipmentEvents" :key="event.shipmentEventId">
                     <strong>{{ shipmentEventLabels[event.eventType] ?? event.eventType }}</strong>
-                    <small>{{ formatDate(event.occurredAt) }}・{{ shipmentEventSourceLabels[event.source] ?? event.source }}</small>
-                    <span v-if="event.remark">{{ event.remark }}</span>
+                    <small>{{ formatDate(event.occurredAt) }}</small>
                   </li>
                 </ol>
                 <button
@@ -476,7 +530,7 @@ onUnmounted(() => {
 <style scoped>
 .shipment-timeline { display: grid; gap: var(--space-3); margin: var(--space-4) 0 0; padding-left: var(--space-4); border-left: 2px solid var(--color-primary-300); }
 .shipment-timeline li { display: grid; gap: var(--space-1); color: var(--color-text-700); font-size: var(--font-size-sm); }
-.shipment-timeline small, .shipment-timeline span { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.shipment-timeline small { color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .order-detail-page {
   min-height: 620px;
   padding: var(--space-5) 0 var(--space-8);
@@ -947,6 +1001,80 @@ onUnmounted(() => {
 
 .info-section .muted {
   color: var(--color-text-subtle);
+}
+
+.retry-payment-button {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 40px;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: 0 var(--space-3);
+  color: var(--color-surface);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+}
+
+.payment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.payment-actions .retry-payment-button {
+  margin-top: 0;
+}
+
+.payment-back-button {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  padding: 0 var(--space-3);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  text-decoration: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.payment-back-button:hover {
+  color: var(--color-primary-active);
+  background: var(--color-primary-soft);
+}
+
+.payment-back-button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.retry-payment-button:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.retry-payment-button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.retry-payment-button:disabled {
+  color: var(--color-text-subtle);
+  cursor: not-allowed;
+  background: var(--color-disabled-bg);
+  border-color: var(--color-disabled);
+}
+
+.payment-retry-error {
+  margin: var(--space-2) 0 0;
+  color: var(--color-danger) !important;
 }
 
 .amount-summary {

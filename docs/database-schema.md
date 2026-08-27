@@ -532,6 +532,10 @@ Table sales.Payment {
     note: '付款編號，由後端產生'
   ]
 
+  idempotency_key varchar(64) [
+    note: '付款建立請求的冪等鍵；舊資料可為 NULL，新付款必填'
+  ]
+
   order_id int [
     not null,
     ref: > sales.Orders.order_id,
@@ -585,6 +589,7 @@ Table sales.Payment {
     (order_id, status) [
       name: 'ix_payment_order_status'
     ]
+    (order_id, idempotency_key) [unique, name: 'uq_payment_order_idempotency_key']
   }
 
   Note: '''
@@ -1405,6 +1410,7 @@ CREATE TABLE sales.PaymentMethod (
 CREATE TABLE sales.Payment (
     payment_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_payment PRIMARY KEY,
     payment_no varchar(40) NOT NULL CONSTRAINT uq_payment_payment_no UNIQUE,
+    idempotency_key varchar(64) NULL,
     order_id int NOT NULL CONSTRAINT fk_payment_orders FOREIGN KEY REFERENCES sales.Orders(order_id),
     payment_method_id int NOT NULL CONSTRAINT fk_payment_payment_method FOREIGN KEY REFERENCES sales.PaymentMethod(payment_method_id),
     amount decimal(12,2) NOT NULL,
@@ -1429,6 +1435,10 @@ CREATE TABLE sales.Shipment (
     created_at datetime2 NOT NULL CONSTRAINT df_shipment_created_at DEFAULT SYSDATETIME(),
     updated_at datetime2 NOT NULL CONSTRAINT df_shipment_updated_at DEFAULT SYSDATETIME()
 );
+
+CREATE UNIQUE INDEX uq_payment_order_idempotency_key
+ON sales.Payment(order_id, idempotency_key)
+WHERE idempotency_key IS NOT NULL;
 
 CREATE TABLE sales.ShipmentEvent (
     shipment_event_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_shipment_event PRIMARY KEY,
