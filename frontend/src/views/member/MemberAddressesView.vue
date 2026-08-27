@@ -363,7 +363,7 @@ onMounted(loadAddresses)
 
 .address-card-actions {
   display: flex;
-  gap: 14px;
+  justify-content: space-between;
   margin-top: 13px;
 }
 
