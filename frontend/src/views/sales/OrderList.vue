@@ -154,6 +154,7 @@ onMounted(loadOrders)
           v-for="order in visibleOrders"
           :key="order.orderId"
           class="order-card"
+          :data-order-id="order.orderId"
           :to="{ name: 'MemberOrderDetail', params: { id: order.orderId } }"
           :aria-label="`查看訂單 ${order.orderNo}`"
         >

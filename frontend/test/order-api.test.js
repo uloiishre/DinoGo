@@ -44,6 +44,8 @@ test('createPayment retries once after timeout with the same request', async (co
     assert.equal(request.method, 'post')
     assert.equal(request.url, '/orders/10/payments')
     assert.deepEqual(JSON.parse(request.data), { paymentMethodCode: 'CREDIT_CARD' })
+    assert.equal(request.headers['Idempotency-Key'], requests[0].headers['Idempotency-Key'])
+    assert.match(request.headers['Idempotency-Key'], /^[0-9a-f-]{36}$/i)
   }
   assert.equal(response.data.paymentId, 20)
 })

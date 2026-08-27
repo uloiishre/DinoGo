@@ -18,6 +18,7 @@ import com.dinogo.sales.entity.Payment;
 import com.dinogo.sales.entity.PaymentMethod;
 import com.dinogo.sales.entity.PaymentStatus;
 import com.dinogo.sales.repository.PaymentRepository;
+import com.dinogo.sales.repository.OrderRepository;
 import com.dinogo.sales.service.EcpayPaymentGateway;
 
 import static org.mockito.Mockito.mock;
@@ -28,7 +29,9 @@ class EcpayCallbackControllerTest {
     void successfulCallbackMarksPaymentAndOrderPaid() {
         EcpayPaymentGateway gateway = mock(EcpayPaymentGateway.class);
         PaymentRepository paymentRepository = mock(PaymentRepository.class);
+        OrderRepository orderRepository = mock(OrderRepository.class);
         Payment payment = pendingCreditCardPayment();
+        payment.getOrder().getPayments().add(payment);
         Map<String, String> fields = Map.of(
                 "MerchantTradeNo", "PAY260825120000ABCDE",
                 "TradeNo", "ECPAY-TRADE-1",
@@ -38,10 +41,11 @@ class EcpayCallbackControllerTest {
         when(gateway.verify(fields)).thenReturn(true);
         when(paymentRepository.findByPaymentNo("PAY260825120000ABCDE"))
                 .thenReturn(Optional.of(payment));
+        when(orderRepository.findForEcpayCallback(10)).thenReturn(Optional.of(payment.getOrder()));
         when(paymentRepository.existsByOrderOrderIdAndStatus(10, PaymentStatus.SUCCESS))
                 .thenReturn(false);
 
-        var response = new EcpayCallbackController(gateway, paymentRepository, "http://localhost:5173")
+        var response = new EcpayCallbackController(gateway, paymentRepository, orderRepository, "http://localhost:5173")
                 .callback(fields);
 
         assertThat(response.getStatusCode().value()).isEqualTo(200);
@@ -57,15 +61,46 @@ class EcpayCallbackControllerTest {
     void invalidSignatureReturnsBadRequestWithoutReadingOrUpdatingPayment() {
         EcpayPaymentGateway gateway = mock(EcpayPaymentGateway.class);
         PaymentRepository paymentRepository = mock(PaymentRepository.class);
+        OrderRepository orderRepository = mock(OrderRepository.class);
         Map<String, String> fields = Map.of("MerchantTradeNo", "PAY260825120000ABCDE");
         when(gateway.verify(fields)).thenReturn(false);
 
-        var response = new EcpayCallbackController(gateway, paymentRepository, "http://localhost:5173")
+        var response = new EcpayCallbackController(gateway, paymentRepository, orderRepository, "http://localhost:5173")
                 .callback(fields);
 
         assertThat(response.getStatusCode().value()).isEqualTo(400);
         assertThat(response.getBody()).isEqualTo("CheckMacValue Error");
         verifyNoInteractions(paymentRepository);
+    }
+
+    @Test
+    void lateSuccessCallbackForCancelledOrderAcknowledgesWithoutChangingState() {
+        EcpayPaymentGateway gateway = mock(EcpayPaymentGateway.class);
+        PaymentRepository paymentRepository = mock(PaymentRepository.class);
+        OrderRepository orderRepository = mock(OrderRepository.class);
+        Payment payment = pendingCreditCardPayment();
+        payment.setStatus(PaymentStatus.CANCELLED);
+        payment.getOrder().setStatus(OrderStatus.CANCELLED);
+        payment.getOrder().getPayments().add(payment);
+        Map<String, String> fields = Map.of(
+                "MerchantTradeNo", "PAY260825120000ABCDE",
+                "TradeNo", "ECPAY-TRADE-1",
+                "TradeAmt", "1000",
+                "RtnCode", "1",
+                "CheckMacValue", "verified");
+        when(gateway.verify(fields)).thenReturn(true);
+        when(paymentRepository.findByPaymentNo("PAY260825120000ABCDE"))
+                .thenReturn(Optional.of(payment));
+        when(orderRepository.findForEcpayCallback(10)).thenReturn(Optional.of(payment.getOrder()));
+
+        var response = new EcpayCallbackController(gateway, paymentRepository, orderRepository, "http://localhost:5173")
+                .callback(fields);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        assertThat(response.getBody()).isEqualTo("1|OK");
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
+        assertThat(payment.getOrder().getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        verify(paymentRepository, never()).save(payment);
     }
 
     private Payment pendingCreditCardPayment() {

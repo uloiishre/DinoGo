@@ -16,6 +16,11 @@ const order = ref(null)
 const loading = ref(true)
 const errorMessage = ref('')
 const shipmentForm = ref({ carrierName: '', trackingNo: '' })
+const carrierOptions = [
+  { name: '黑貓宅急便', trackingNoTemplate: '範例：1234-5678-9012（12 碼）' },
+  { name: '新竹物流', trackingNoTemplate: '範例：1234567890（10 碼）' },
+  { name: '嘉里大榮物流', trackingNoTemplate: '範例：1234567890（10 碼）' },
+]
 const creatingShipment = ref(false)
 const shipmentFormError = ref('')
 const showShipmentConfirmModal = ref(false)
@@ -25,10 +30,15 @@ const simulatingTcatEvent = ref(false)
 const tcatSimulationError = ref('')
 const fetchingOrder = ref(false)
 const AUTO_REFRESH_INTERVAL_MS = 10_000
-const TCAT_CARRIER_NAME = '黑貓宅急便'
 let autoRefreshTimer = null
 let latestLoadRequestId = 0
 const orderId = computed(() => Number(route.params.id))
+const selectedCarrier = computed(() =>
+  carrierOptions.find((carrier) => carrier.name === shipmentForm.value.carrierName),
+)
+const trackingNoPlaceholder = computed(
+  () => selectedCarrier.value?.trackingNoTemplate ?? '請先選擇物流商',
+)
 
 const orderStatusLabels = {
   PENDING_PAYMENT: '待付款',
@@ -85,7 +95,6 @@ const canCreateShipment = computed(
   () => !order.value?.shipment && ['PAID', 'PROCESSING'].includes(order.value?.status),
 )
 const nextTcatEvent = computed(() => {
-  if (order.value?.shipment?.carrierName?.trim() !== TCAT_CARRIER_NAME) return null
   if (order.value?.shipment?.status !== 'SHIPPED') return null
   const previous = shipmentEvents.value.at(-1)?.eventType
   if (previous === 'HANDED_OVER') return { type: 'IN_TRANSIT', label: '模擬運送中' }
@@ -232,6 +241,10 @@ async function confirmShipmentStatus() {
   }
 }
 
+function handleCarrierChange() {
+  shipmentFormError.value = ''
+}
+
 async function simulateNextTcatEvent() {
   if (!nextTcatEvent.value || simulatingTcatEvent.value) return
   simulatingTcatEvent.value = true
@@ -240,7 +253,7 @@ async function simulateNextTcatEvent() {
     await simulateTcatEvent(orderId.value, nextTcatEvent.value.type)
     await loadOrder({ force: true })
   } catch (error) {
-    tcatSimulationError.value = error.response?.data?.message ?? '黑貓模擬回報失敗。'
+    tcatSimulationError.value = error.response?.data?.message ?? '物流模擬回報失敗。'
   } finally {
     simulatingTcatEvent.value = false
   }
@@ -444,7 +457,7 @@ onUnmounted(() => {
               :disabled="simulatingTcatEvent"
               @click="simulateNextTcatEvent"
             >
-              {{ simulatingTcatEvent ? '黑貓回報中…' : nextTcatEvent.label }}
+              {{ simulatingTcatEvent ? '物流回報中…' : nextTcatEvent.label }}
             </button>
             <p v-if="tcatSimulationError" class="form-error" role="alert">{{ tcatSimulationError }}</p>
             <div
@@ -518,18 +531,20 @@ onUnmounted(() => {
             </p>
             <div class="form-field">
               <label for="carrier-name">物流商</label>
-              <input
+              <select
                 id="carrier-name"
                 v-model="shipmentForm.carrierName"
                 name="carrierName"
-                type="text"
-                maxlength="100"
                 required
-                autocomplete="organization"
-                placeholder="例如：黑貓宅急便"
                 :aria-invalid="Boolean(shipmentFormError)"
                 :disabled="creatingShipment"
-              />
+                @change="handleCarrierChange"
+              >
+                <option value="" disabled>請選擇物流商</option>
+                <option v-for="carrier in carrierOptions" :key="carrier.name" :value="carrier.name">
+                  {{ carrier.name }}
+                </option>
+              </select>
             </div>
             <div class="form-field">
               <label for="tracking-no">物流單號</label>
@@ -541,7 +556,7 @@ onUnmounted(() => {
                 maxlength="100"
                 required
                 autocomplete="off"
-                placeholder="請輸入物流追蹤單號"
+                :placeholder="trackingNoPlaceholder"
                 :aria-invalid="Boolean(shipmentFormError)"
                 :disabled="creatingShipment"
               />
@@ -777,7 +792,8 @@ h2 {
   font-size: var(--font-size-sm);
   font-weight: 700;
 }
-.form-field input {
+.form-field input,
+.form-field select {
   min-height: 42px;
   width: 100%;
   border: 1px solid var(--color-border-strong);
@@ -786,12 +802,14 @@ h2 {
   background: var(--color-surface);
   color: var(--color-text);
 }
-.form-field input:focus-visible {
+.form-field input:focus-visible,
+.form-field select:focus-visible {
   outline: none;
   border-color: var(--color-primary);
   box-shadow: var(--shadow-focus);
 }
-.form-field input:disabled {
+.form-field input:disabled,
+.form-field select:disabled {
   border-color: var(--color-disabled);
   background: var(--color-disabled-bg);
   color: var(--color-text-subtle);

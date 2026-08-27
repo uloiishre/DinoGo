@@ -30,8 +30,9 @@ import lombok.Setter;
 @Table(name = "Payment", schema = "sales", uniqueConstraints = @UniqueConstraint(name = "uq_payment_payment_no", columnNames = "payment_no"), indexes = {
                 @Index(name = "ix_payment_order_id", columnList = "order_id"),
                 @Index(name = "ix_payment_payment_method_id", columnList = "payment_method_id"),
-                @Index(name = "ix_payment_status", columnList = "status"),
-                @Index(name = "ix_payment_order_status", columnList = "order_id, status")
+        @Index(name = "ix_payment_status", columnList = "status"),
+        @Index(name = "ix_payment_order_status", columnList = "order_id, status"),
+        @Index(name = "ix_payment_order_idempotency_key", columnList = "order_id, idempotency_key")
 })
 public class Payment {
 
@@ -42,6 +43,13 @@ public class Payment {
 
         @Column(name = "payment_no", nullable = false, length = 40)
         private String paymentNo;
+
+        /**
+         * Client supplied key used to make payment creation safe to retry. Existing
+         * rows created before this feature are intentionally allowed to remain null.
+         */
+        @Column(name = "idempotency_key", length = 64)
+        private String idempotencyKey;
 
         @ManyToOne(fetch = FetchType.LAZY, optional = false)
         @JoinColumn(name = "order_id", nullable = false)

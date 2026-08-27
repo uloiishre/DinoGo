@@ -55,7 +55,10 @@ public class PaymentService {
     public PaymentResponse createPayment(
             Integer orderId,
             Integer buyerId,
+            String idempotencyKey,
             CreatePaymentRequest request) {
+
+        String normalizedIdempotencyKey = normalizeIdempotencyKey(idempotencyKey);
 
         if (!simulationEnabled && !CASH_ON_DELIVERY.equals(request.paymentMethodCode())
                 && !("CREDIT_CARD".equals(request.paymentMethodCode()) && ecpayPaymentGateway.isEnabled())) {
@@ -67,6 +70,16 @@ public class PaymentService {
                 .findForPaymentCreation(orderId, buyerId)
                 .orElseThrow(() ->
                         new OrderNotFoundException("Order does not exist"));
+
+        Payment existingPayment = paymentRepository
+                .findByOrderOrderIdAndIdempotencyKey(orderId, normalizedIdempotencyKey)
+                .orElse(null);
+        if (existingPayment != null) {
+            if (!existingPayment.getPaymentMethod().getMethodCode().equals(request.paymentMethodCode())) {
+                throw new InvalidOrderException("Idempotency-Key was already used with a different payment method");
+            }
+            return toResponse(existingPayment, checkoutFor(existingPayment));
+        }
 
         Payment pendingPayment = paymentRepository
                 .findFirstByOrderOrderIdAndStatus(orderId, PaymentStatus.PENDING)
@@ -86,10 +99,19 @@ public class PaymentService {
         if (pendingPayment != null) {
             if (pendingPayment.getPaymentMethod().getMethodCode()
                     .equals(request.paymentMethodCode())) {
-                return toResponse(pendingPayment, checkoutFor(pendingPayment));
+                if (isEcpayCreditCardRetry(pendingPayment)) {
+                    pendingPayment.setStatus(PaymentStatus.CANCELLED);
+                    pendingPayment.setFailureReason("Superseded by payment retry");
+                    paymentRepository.save(pendingPayment);
+                } else {
+                    return toResponse(pendingPayment, checkoutFor(pendingPayment));
+                }
             }
-            throw new InvalidOrderException(
-                    "A pending payment with a different method already exists for this order");
+            if (!pendingPayment.getPaymentMethod().getMethodCode()
+                    .equals(request.paymentMethodCode())) {
+                throw new InvalidOrderException(
+                        "A pending payment with a different method already exists for this order");
+            }
         }
 
         PaymentMethod method = paymentMethodRepository
@@ -101,6 +123,7 @@ public class PaymentService {
 
         Payment payment = new Payment();
         payment.setPaymentNo(generatePaymentNo());
+        payment.setIdempotencyKey(normalizedIdempotencyKey);
         payment.setOrder(order);
         payment.setPaymentMethod(method);
 
@@ -191,6 +214,22 @@ public class PaymentService {
         }
         String normalized = failureReason.trim();
         return normalized.length() <= 255 ? normalized : normalized.substring(0, 255);
+    }
+
+    private boolean isEcpayCreditCardRetry(Payment pendingPayment) {
+        return ecpayPaymentGateway.isEnabled()
+                && "CREDIT_CARD".equals(pendingPayment.getPaymentMethod().getMethodCode());
+    }
+
+    private String normalizeIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new InvalidOrderException("Idempotency-Key is required");
+        }
+        String normalized = idempotencyKey.trim();
+        if (normalized.length() > 64) {
+            throw new InvalidOrderException("Idempotency-Key must not exceed 64 characters");
+        }
+        return normalized;
     }
 
     private EcpayCheckout checkoutFor(Payment payment) {
