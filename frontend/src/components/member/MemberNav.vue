@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -39,6 +39,25 @@ const accountItems = [
   { label: '註銷帳號', routeName: 'MemberDeactivateAccount', icon: 'bi-person-x' },
 ]
 const isAccountActive = computed(() => accountItems.some((item) => item.routeName === route.name))
+const accountMenu = ref(null)
+const isAccountMenuOpen = ref(false)
+
+function toggleAccountMenu() {
+  isAccountMenuOpen.value = !isAccountMenuOpen.value
+}
+
+function closeAccountMenu() {
+  isAccountMenuOpen.value = false
+}
+
+function closeAccountMenuOnOutsidePointer(event) {
+  if (accountMenu.value && !accountMenu.value.contains(event.target)) {
+    closeAccountMenu()
+  }
+}
+
+onMounted(() => document.addEventListener('pointerdown', closeAccountMenuOnOutsidePointer))
+onBeforeUnmount(() => document.removeEventListener('pointerdown', closeAccountMenuOnOutsidePointer))
 </script>
 
 <template>
@@ -74,26 +93,34 @@ const isAccountActive = computed(() => accountItems.some((item) => item.routeNam
         </RouterLink>
 
         <!-- 帳戶設定使用下拉選單切換會員資料、地址與密碼。 -->
-        <div class="dropdown dg-member-account-menu" role="listitem">
+        <div
+          ref="accountMenu"
+          class="dropdown dg-member-account-menu"
+          role="listitem"
+          @keydown.esc="closeAccountMenu"
+        >
           <button
             class="dg-member-nav-link dg-member-account-button"
             :class="{ 'is-active': isAccountActive }"
             type="button"
-            data-bs-toggle="dropdown"
-            data-bs-auto-close="true"
-            aria-expanded="false"
+            :aria-expanded="isAccountMenuOpen"
+            @click="toggleAccountMenu"
           >
             <i class="bi bi-person" aria-hidden="true"></i>
             <span>帳戶設定</span>
             <i class="bi bi-chevron-down dg-member-account-arrow" aria-hidden="true"></i>
           </button>
 
-          <ul class="dropdown-menu dropdown-menu-end dg-member-account-dropdown">
+          <ul
+            class="dropdown-menu dropdown-menu-end dg-member-account-dropdown"
+            :class="{ show: isAccountMenuOpen }"
+          >
             <li v-for="item in accountItems" :key="item.routeName">
               <RouterLink
                 :to="{ name: item.routeName }"
                 class="dropdown-item dg-member-account-item"
                 active-class="is-active"
+                @click="closeAccountMenu"
               >
                 <i class="bi" :class="item.icon" aria-hidden="true"></i>
                 <span>{{ item.label }}</span>
