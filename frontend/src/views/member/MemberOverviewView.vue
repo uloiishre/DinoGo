@@ -235,7 +235,7 @@ onMounted(loadOverview)
   background: var(--color-bg);
 }
 .member-overview__container {
-  max-width: 1440px;
+  max-width: 1232px;
   padding-top: 28px;
   padding-bottom: var(--space-8);
 }
