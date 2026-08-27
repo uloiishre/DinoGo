@@ -292,6 +292,8 @@ public class ProductService {
                         Integer subcategoryId,
                         Integer brandId,
                         Integer sellerId,
+                        BigDecimal minPrice,
+                        BigDecimal maxPrice,
                         Integer page,
                         Integer size,
                         String sort) {
@@ -344,6 +346,21 @@ public class ProductService {
                                                                 root.join("seller")
                                                                                 .get("sellerId"),
                                                                 sellerId));
+                        }
+                        // 最低價格
+                        if (minPrice != null) {
+                                predicates.add(
+                                                cb.greaterThanOrEqualTo(
+                                                                root.get("minSkuPrice"),
+                                                                minPrice));
+                        }
+
+                        // 最高價格
+                        if (maxPrice != null) {
+                                predicates.add(
+                                                cb.lessThanOrEqualTo(
+                                                                root.get("minSkuPrice"),
+                                                                maxPrice));
                         }
 
                         return cb.and(
