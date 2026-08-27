@@ -255,7 +255,7 @@ onMounted(() => {
 </script>
 <template>
   <main class="favorite-page">
-    <div class="favorite-container">
+    <div class="container favorite-container">
       <!-- ================================
            Page Header
       ================================= -->
@@ -583,12 +583,9 @@ onMounted(() => {
 }
 
 .favorite-container {
-  width: 100%;
-  max-width: 1440px;
-
-  margin: 0 auto;
-
-  padding: var(--space-7) var(--space-6);
+  --bs-gutter-x: var(--space-6);
+  max-width: 1232px;
+  padding-block: 40px;
 
   box-sizing: border-box;
 }
@@ -599,24 +596,25 @@ onMounted(() => {
 
 .favorite-header {
   display: flex;
+  min-height: 68px;
   align-items: flex-end;
   justify-content: space-between;
 
   gap: var(--space-5);
 
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-5);
 }
 
 .favorite-title {
-  margin: 0 0 var(--space-2);
+  margin: 0 0 var(--space-1);
 
   color: var(--color-text);
 
-  font-family: var(--font-heading);
+  font-family: var(--font-body);
   font-size: var(--font-size-xl);
   font-weight: 700;
 
-  line-height: 1.3;
+  line-height: var(--line-height-heading);
 }
 
 .favorite-description {
@@ -996,10 +994,6 @@ onMounted(() => {
 ======================================== */
 
 @media (max-width: 1024px) {
-  .favorite-container {
-    padding: var(--space-6) var(--space-5);
-  }
-
   .favorite-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1010,10 +1004,6 @@ onMounted(() => {
 ======================================== */
 
 @media (max-width: 768px) {
-  .favorite-container {
-    padding: var(--space-5) var(--space-4);
-  }
-
   .favorite-header {
     align-items: flex-start;
 
@@ -1034,14 +1024,6 @@ onMounted(() => {
 ======================================== */
 
 @media (max-width: 480px) {
-  .favorite-container {
-    padding: var(--space-4) var(--space-3);
-  }
-
-  .favorite-title {
-    font-size: var(--font-size-lg);
-  }
-
   .favorite-grid {
     grid-template-columns: 1fr;
 
@@ -1054,6 +1036,12 @@ onMounted(() => {
 
   .favorite-card {
     padding: var(--space-3);
+  }
+}
+
+@media (max-width: 575.98px) {
+  .favorite-container {
+    padding-block: var(--space-6);
   }
 }
 .product-link {

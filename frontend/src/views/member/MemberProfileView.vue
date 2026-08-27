@@ -1,5 +1,8 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import flatpickr from 'flatpickr'
+import { MandarinTraditional } from 'flatpickr/dist/l10n/zh-tw'
+import 'flatpickr/dist/flatpickr.css'
 import { getMemberProfile, updateMemberProfile } from '@/api/member'
 import { useAuthStore } from '@/stores/auth'
 
@@ -23,6 +26,8 @@ const memberStatus = ref('')
 const memberCreatedAt = ref('')
 const memberUpdatedAt = ref('')
 const authStore = useAuthStore()
+const birthDateInput = ref(null)
+let birthDatePicker = null
 
 // 將 API 資料整理成表單欄位，並保留取消編輯時可還原的版本。
 function applyProfile(profile) {
@@ -126,7 +131,59 @@ function cancelEditing() {
   isEditing.value = false
 }
 
-onMounted(loadProfile)
+function syncBirthDatePickerDisabledState() {
+  if (!birthDatePicker) return
+
+  const isDisabled = !isEditing.value
+  birthDatePicker.set('clickOpens', !isDisabled)
+  birthDatePicker.input.disabled = isDisabled
+  birthDatePicker.altInput.disabled = isDisabled
+}
+
+function initializeBirthDatePicker() {
+  if (!birthDateInput.value) return
+
+  birthDatePicker = flatpickr(birthDateInput.value, {
+    altInput: true,
+    altInputClass: 'profile-birth-date-picker__input',
+    altFormat: 'Y/m/d',
+    allowInput: true,
+    dateFormat: 'Y-m-d',
+    defaultDate: form.value.birthDate || null,
+    disableMobile: true,
+    locale: MandarinTraditional,
+    maxDate: new Date(),
+    monthSelectorType: 'dropdown',
+    onChange: (_, dateString) => {
+      form.value.birthDate = dateString
+    },
+    onReady: (_, __, instance) => {
+      instance.calendarContainer.classList.add('profile-birth-date-calendar')
+    },
+  })
+  syncBirthDatePickerDisabledState()
+}
+
+watch(
+  () => form.value.birthDate,
+  (birthDate) => {
+    if (!birthDatePicker || birthDatePicker.input.value === birthDate) return
+    birthDatePicker.setDate(birthDate || null, false, 'Y-m-d')
+  },
+)
+
+watch(isEditing, syncBirthDatePickerDisabledState)
+
+onMounted(async () => {
+  await loadProfile()
+  await nextTick()
+  initializeBirthDatePicker()
+})
+
+onBeforeUnmount(() => {
+  birthDatePicker?.destroy()
+  birthDatePicker = null
+})
 </script>
 
 <template>
@@ -202,9 +259,10 @@ onMounted(loadProfile)
                 <span>生日</span>
                 <input
                   id="profile-birth-date"
-                  v-model="form.birthDate"
-                  :disabled="!isEditing"
-                  type="date"
+                  ref="birthDateInput"
+                  class="profile-birth-date-picker"
+                  type="text"
+                  autocomplete="bday"
                 />
               </label>
             </div>
@@ -296,9 +354,10 @@ onMounted(loadProfile)
 }
 
 .profile-page-inner {
-  max-width: 1440px;
-  padding-top: 22px;
-  padding-bottom: var(--space-8);
+  --bs-gutter-x: var(--space-6);
+  max-width: 1232px;
+  padding-top: 40px;
+  padding-bottom: 40px;
 }
 
 /* 頁面標題與編輯按鈕。 */
@@ -308,13 +367,14 @@ onMounted(loadProfile)
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-5);
-  margin-bottom: 18px;
+  margin-bottom: var(--space-5);
 }
 
 .profile-page-header h1 {
   margin: 0 0 var(--space-1);
   color: var(--color-text);
-  font-size: 26px;
+  font-family: var(--font-body);
+  font-size: var(--font-size-xl);
   font-weight: 700;
   line-height: var(--line-height-heading);
 }
@@ -322,7 +382,8 @@ onMounted(loadProfile)
 .profile-page-header p {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 13px;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
 }
 
 .profile-edit-button,
@@ -330,7 +391,7 @@ onMounted(loadProfile)
 .profile-cancel-button {
   min-height: 42px;
   padding: 0 var(--space-4);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   border-radius: var(--radius-md);
 }
@@ -371,7 +432,7 @@ onMounted(loadProfile)
 .profile-status-card h2 {
   margin: 0 0 14px;
   color: var(--color-text);
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 700;
 }
 
@@ -388,7 +449,7 @@ onMounted(loadProfile)
   flex-direction: column;
   gap: 5px;
   color: var(--color-text);
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 600;
 }
 
@@ -401,7 +462,7 @@ onMounted(loadProfile)
   height: 40px;
   padding: 0 11px;
   color: var(--color-text);
-  font-size: 11px;
+  font-size: var(--font-size-base);
   font-weight: 400;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -448,7 +509,8 @@ onMounted(loadProfile)
 .profile-email-preferences__hint {
   margin: 0 0 2px;
   color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
 }
 
 .profile-checkbox-field {
@@ -488,7 +550,7 @@ onMounted(loadProfile)
 
 .profile-checkbox-field small {
   color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   line-height: 1.5;
 }
 
@@ -519,13 +581,13 @@ onMounted(loadProfile)
 /* 會員帳戶狀態。 */
 .profile-status-badge {
   display: inline-flex;
-  min-height: 28px;
+  min-height: 32px;
   align-items: center;
   gap: 7px;
   margin: 0;
-  padding: 0 10px;
+  padding: 0 var(--space-3);
   color: var(--color-success);
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   background: var(--color-success-soft);
   border-radius: var(--radius-sm);
@@ -541,7 +603,7 @@ onMounted(loadProfile)
 .profile-member-meta {
   margin: 14px 0 0;
   color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   line-height: 1.7;
 }
 
@@ -580,11 +642,6 @@ onMounted(loadProfile)
 }
 
 @media (max-width: 767.98px) {
-  .profile-page-inner {
-    padding-top: var(--space-5);
-    padding-bottom: var(--space-7);
-  }
-
   .profile-page-header {
     align-items: stretch;
     flex-direction: column;
@@ -600,6 +657,90 @@ onMounted(loadProfile)
 
   .profile-field:first-child {
     grid-column: 1;
+  }
+}
+
+.profile-field :deep(.profile-birth-date-picker__input) {
+  width: 100%;
+  height: 40px;
+  padding: 0 11px;
+  color: var(--color-text);
+  font-size: var(--font-size-base);
+  font-weight: 400;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  outline: none;
+}
+
+.profile-field :deep(.profile-birth-date-picker__input:hover:not(:disabled)) {
+  border-color: var(--color-primary);
+}
+
+.profile-field :deep(.profile-birth-date-picker__input:focus) {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
+}
+
+.profile-field :deep(.profile-birth-date-picker__input:disabled) {
+  color: var(--color-text-muted);
+  cursor: default;
+  background: var(--color-bg-muted);
+}
+
+:global(.flatpickr-calendar.profile-birth-date-calendar) {
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+:global(.flatpickr-calendar.profile-birth-date-calendar::before),
+:global(.flatpickr-calendar.profile-birth-date-calendar::after) {
+  display: none;
+}
+
+:global(.profile-birth-date-calendar .flatpickr-months),
+:global(.profile-birth-date-calendar .flatpickr-weekdays),
+:global(.profile-birth-date-calendar .flatpickr-current-month),
+:global(.profile-birth-date-calendar .flatpickr-monthDropdown-months),
+:global(.profile-birth-date-calendar .numInputWrapper span),
+:global(.profile-birth-date-calendar .flatpickr-prev-month),
+:global(.profile-birth-date-calendar .flatpickr-next-month) {
+  color: var(--color-text);
+}
+
+:global(.profile-birth-date-calendar .flatpickr-monthDropdown-months),
+:global(.profile-birth-date-calendar .numInput) {
+  background: var(--color-surface);
+}
+
+:global(.profile-birth-date-calendar .flatpickr-day:hover),
+:global(.profile-birth-date-calendar .flatpickr-day:focus),
+:global(.profile-birth-date-calendar .flatpickr-prev-month:hover),
+:global(.profile-birth-date-calendar .flatpickr-next-month:hover) {
+  color: var(--color-primary-active);
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary-soft);
+}
+
+:global(.profile-birth-date-calendar .flatpickr-day.today) {
+  border-color: var(--color-primary-active);
+}
+
+:global(.profile-birth-date-calendar .flatpickr-day.selected),
+:global(.profile-birth-date-calendar .flatpickr-day.selected:hover),
+:global(.profile-birth-date-calendar .flatpickr-day.selected:focus) {
+  color: var(--color-surface);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+@media (max-width: 575.98px) {
+  .profile-page-inner {
+    padding-top: var(--space-6);
+    padding-bottom: var(--space-6);
   }
 }
 </style>
