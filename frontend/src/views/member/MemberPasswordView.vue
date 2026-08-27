@@ -167,20 +167,22 @@ async function savePassword() {
 }
 
 .password-page-inner {
-  max-width: 1440px;
-  padding-top: 22px;
-  padding-bottom: var(--space-8);
+  --bs-gutter-x: var(--space-6);
+  max-width: 1232px;
+  padding-top: 40px;
+  padding-bottom: 40px;
 }
 
 .password-page-header {
   min-height: 68px;
-  margin-bottom: 18px;
+  margin-bottom: var(--space-5);
 }
 
 .password-page-header h1 {
   margin: 0 0 var(--space-1);
   color: var(--color-text);
-  font-size: 26px;
+  font-family: var(--font-body);
+  font-size: var(--font-size-xl);
   font-weight: 700;
   line-height: var(--line-height-heading);
 }
@@ -336,11 +338,6 @@ async function savePassword() {
 }
 
 @media (max-width: 767.98px) {
-  .password-page-inner {
-    padding-top: var(--space-5);
-    padding-bottom: var(--space-7);
-  }
-
   .password-form-card,
   .password-rules-card {
     padding: var(--space-5);
@@ -348,6 +345,13 @@ async function savePassword() {
 
   .password-save-button {
     width: 100%;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .password-page-inner {
+    padding-top: var(--space-6);
+    padding-bottom: var(--space-6);
   }
 }
 </style>

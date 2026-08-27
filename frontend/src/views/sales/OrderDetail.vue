@@ -479,13 +479,13 @@ onUnmounted(() => {
 .shipment-timeline small, .shipment-timeline span { color: var(--color-text-muted); font-size: var(--font-size-xs); }
 .order-detail-page {
   min-height: 620px;
-  padding: var(--space-5) 0 var(--space-8);
+  padding: 40px 0;
   background: var(--color-bg);
 }
 
 .detail-container {
-  max-width: 1440px;
-  padding-inline: var(--space-8);
+  --bs-gutter-x: var(--space-6);
+  max-width: 1232px;
 }
 
 .page-header {
@@ -499,7 +499,8 @@ onUnmounted(() => {
 .page-header h1 {
   margin: 0;
   color: var(--color-text);
-  font-size: 26px;
+  font-family: var(--font-body);
+  font-size: var(--font-size-xl);
   font-weight: 700;
   line-height: var(--line-height-heading);
 }
@@ -675,7 +676,7 @@ onUnmounted(() => {
   grid-template-columns: repeat(4, 1fr);
   align-items: center;
   gap: 18px;
-  margin-top: var(--space-4);
+  margin-top: var(--space-5);
   padding: 22px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -733,7 +734,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  margin-top: var(--space-4);
+  margin-top: var(--space-5);
   padding: var(--space-4);
   color: var(--color-danger);
   background: var(--color-danger-soft);
@@ -1039,10 +1040,6 @@ onUnmounted(() => {
 }
 
 @media (max-width: 767.98px) {
-  .detail-container {
-    padding-inline: var(--space-4);
-  }
-
   .page-header {
     align-items: flex-start;
     flex-direction: column;
@@ -1060,6 +1057,12 @@ onUnmounted(() => {
 
   .step-line {
     display: none;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .order-detail-page {
+    padding: var(--space-6) 0;
   }
 }
 

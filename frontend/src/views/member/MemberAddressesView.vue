@@ -211,9 +211,10 @@ onMounted(loadAddresses)
 }
 
 .address-page-inner {
-  max-width: 1440px;
-  padding-top: 22px;
-  padding-bottom: var(--space-8);
+  --bs-gutter-x: var(--space-6);
+  max-width: 1232px;
+  padding-top: 40px;
+  padding-bottom: 40px;
 }
 
 /* 頁面標題與新增按鈕。 */
@@ -223,12 +224,14 @@ onMounted(loadAddresses)
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-5);
+  margin-bottom: var(--space-5);
 }
 
 .address-page-header h1 {
   margin: 0 0 var(--space-1);
   color: var(--color-text);
-  font-size: 26px;
+  font-family: var(--font-body);
+  font-size: var(--font-size-xl);
   font-weight: 700;
   line-height: var(--line-height-heading);
 }
@@ -447,11 +450,6 @@ onMounted(loadAddresses)
 }
 
 @media (max-width: 767.98px) {
-  .address-page-inner {
-    padding-top: var(--space-5);
-    padding-bottom: var(--space-7);
-  }
-
   .address-page-header {
     align-items: stretch;
     flex-direction: column;
@@ -470,6 +468,13 @@ onMounted(loadAddresses)
   .address-alert {
     align-items: flex-start;
     flex-direction: column;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .address-page-inner {
+    padding-top: var(--space-6);
+    padding-bottom: var(--space-6);
   }
 }
 </style>

@@ -190,13 +190,13 @@ onMounted(loadOrders)
 <style scoped>
 .order-page {
   min-height: 620px;
-  padding: var(--space-5) 0 var(--space-8);
+  padding: 40px 0;
   background: var(--color-bg);
 }
 
 .order-container {
-  max-width: 1440px;
-  padding-inline: var(--space-8);
+  --bs-gutter-x: var(--space-6);
+  max-width: 1232px;
 }
 
 .page-header {
@@ -205,13 +205,14 @@ onMounted(loadOrders)
   flex-direction: column;
   justify-content: center;
   gap: var(--space-1);
+  margin-bottom: var(--space-5);
 }
 
 .page-header h1 {
   margin: 0;
   color: var(--color-text);
   font-family: var(--font-body);
-  font-size: 26px;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   line-height: var(--line-height-heading);
 }
@@ -484,14 +485,6 @@ onMounted(loadOrders)
 }
 
 @media (max-width: 767.98px) {
-  .order-page {
-    padding-top: var(--space-4);
-  }
-
-  .order-container {
-    padding-inline: var(--space-4);
-  }
-
   .filter-row {
     grid-template-columns: 1fr;
   }
@@ -514,6 +507,12 @@ onMounted(loadOrders)
     grid-column: 2 / -1;
     min-width: 0;
     text-align: left;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .order-page {
+    padding: var(--space-6) 0;
   }
 }
 
