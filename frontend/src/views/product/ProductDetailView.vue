@@ -366,13 +366,35 @@ function previewReviewPool() {
     '顏色接近實品照片，整體使用體驗很滿意。',
     '功能符合需求，客服回覆清楚，值得再次購買。',
   ]
-  return Array.from({ length: 20 }, (_, index) => ({
-    starId: index + 1,
-    memberId: 12031 + index * 17,
-    fiveStar: 5 - (index % 3),
-    feedback: messages[index % messages.length],
-    images: imageUrls.length && index % 3 !== 2 ? [imageUrls[index % imageUrls.length]] : [],
-  }))
+  return Array.from({ length: 20 }, (_, index) => {
+    const displayType = index % 4
+    return {
+      starId: index + 1,
+      memberId: 12031 + index * 17,
+      fiveStar: 5 - (index % 3),
+      feedback: displayType === 2 || displayType === 3 ? '' : messages[index % messages.length],
+      images:
+        imageUrls.length && (displayType === 0 || displayType === 2)
+          ? [imageUrls[index % imageUrls.length]]
+          : [],
+      starUpdAt: new Date(Date.now() - index * 60000).toISOString(),
+    }
+  }).sort(compareReviewDisplayOrder)
+}
+
+// 產品明細檢視版比照後端：內容＋圖片為 2、內容或圖片為 1、僅星等為 0。
+function reviewDisplayPriority(review) {
+  const hasContent = Boolean(review?.feedback?.trim())
+  const hasImage = reviewImages(review).length > 0
+  return hasContent && hasImage ? 2 : hasContent || hasImage ? 1 : 0
+}
+
+function compareReviewDisplayOrder(left, right) {
+  return (
+    reviewDisplayPriority(right) - reviewDisplayPriority(left) ||
+    new Date(right.starUpdAt).getTime() - new Date(left.starUpdAt).getTime() ||
+    right.starId - left.starId
+  )
 }
 
 function maskMemberId(memberId) {

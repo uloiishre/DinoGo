@@ -12,6 +12,7 @@ const navItems = [
   { label: '總覽', to: '/admin/dashboard', icon: 'bi-speedometer2' },
   { label: '商家申請', to: '/admin/seller-applications', icon: 'bi-clipboard-check' },
   { label: '會員管理', to: '/admin/members', icon: 'bi-people' },
+  { label: '訊息中心', to: '/admin/messages', icon: 'bi-chat-left-text' },
   { label: '系統設定', to: '/admin/settings', icon: 'bi-gear' },
 ]
 
