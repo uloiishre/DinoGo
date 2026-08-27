@@ -187,7 +187,7 @@ onMounted(loadCoupons)
 .member-coupons-page {
   display: grid;
   gap: var(--space-5);
-  width: min(980px, 100%);
+  width: 100%;
   margin: 0 auto;
   padding: 0;
 }
@@ -270,8 +270,14 @@ onMounted(loadCoupons)
 
 .coupon-list {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4);
+}
+
+@media (max-width: 991.98px) {
+  .coupon-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 .coupon-card {
