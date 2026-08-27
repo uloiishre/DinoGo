@@ -202,9 +202,10 @@ onMounted(loadCoupons)
 
 .page-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
+  min-height: 68px;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-1);
 }
 
 .page-header h1,
@@ -225,9 +226,10 @@ onMounted(loadCoupons)
 }
 
 .page-header p {
-  margin-top: var(--space-2);
+  margin-top: 0;
   color: var(--color-text-muted);
-  font-size: 13px;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
 }
 
 .coupon-tabs {

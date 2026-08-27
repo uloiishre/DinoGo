@@ -596,6 +596,7 @@ onMounted(() => {
 
 .favorite-header {
   display: flex;
+  min-height: 68px;
   align-items: flex-end;
   justify-content: space-between;
 
@@ -605,7 +606,7 @@ onMounted(() => {
 }
 
 .favorite-title {
-  margin: 0 0 var(--space-2);
+  margin: 0 0 var(--space-1);
 
   color: var(--color-text);
 
@@ -1023,10 +1024,6 @@ onMounted(() => {
 ======================================== */
 
 @media (max-width: 480px) {
-  .favorite-title {
-    font-size: var(--font-size-lg);
-  }
-
   .favorite-grid {
     grid-template-columns: 1fr;
 
