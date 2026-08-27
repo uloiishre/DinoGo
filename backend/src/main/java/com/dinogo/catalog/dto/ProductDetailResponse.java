@@ -18,6 +18,8 @@ public class ProductDetailResponse {
 
     private Integer productId;
 
+    private Integer sellerId;
+
     private String productName;
 
     private String description;
