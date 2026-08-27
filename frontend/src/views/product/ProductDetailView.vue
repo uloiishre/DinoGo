@@ -23,7 +23,6 @@ const authStore = useAuthStore()
 const seller = ref(null)
 const sellerLoading = ref(false)
 const sellerCoupons = ref([])
-const ratingSummary = ref(null)
 
 // Review 檢視版：使用本地展示資料，不呼叫尚未整合的 Review 後端。
 const activeDetailTab = ref('description')
@@ -571,26 +570,19 @@ onUnmounted(() => {
                商品資訊
           ========================== -->
           <div class="col-md-6">
-            <!-- 分類 -->
-            <div class="product-category mb-2">
-              {{ product.categoryName }}
-              /
-              {{ product.subcategoryName }}
+            <div class="product-meta">
+              分類：{{ product.categoryName }} / {{ product.subcategoryName }}
             </div>
 
-            <!-- 商品名稱 -->
-            <h1 class="product-title">
+            <h1 class="product-name">
               {{ product.productName }}
             </h1>
 
-            <!-- 品牌 -->
-            <div class="product-brand mb-3">品牌：{{ product.brandName }}</div>
+            <div class="product-meta">品牌：{{ product.brandName }}</div>
 
-            <!-- 價格&銷售量 -->
             <div class="product-price-area mb-4">
               <div class="product-price">
-                NT$
-                {{ selectedSku ? selectedSku.price : product.basePrice }}
+                NT$ {{ selectedSku ? selectedSku.price : product.basePrice }}
               </div>
 
               <div class="product-sold-count">已售出 {{ product.soldCount ?? 0 }} 件</div>
@@ -1302,18 +1294,31 @@ onUnmounted(() => {
 .product-price-area {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 18px;
+
+  width: 100%;
+  padding: 10px 14px;
+  margin: 12px 0 18px;
+
+  background-color: #e4ece6;
+  border-radius: var(--radius-md);
 }
 
 .product-price {
   margin: 0;
-  line-height: 1;
+
+  color: var(--color-primary);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .product-sold-count {
   margin: 0;
-  line-height: 1;
-  transform: translateY(2px);
+
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.2;
 }
 
 /* =========================
@@ -1858,6 +1863,23 @@ onUnmounted(() => {
   aspect-ratio: 1;
   object-fit: cover;
   border-radius: var(--radius-md);
+}
+.product-meta {
+  margin-bottom: 8px;
+
+  color: var(--color-text-muted);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.product-name {
+  margin: 0 0 8px;
+
+  color: var(--color-text);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.3;
 }
 
 @media (max-width: 767.98px) {
