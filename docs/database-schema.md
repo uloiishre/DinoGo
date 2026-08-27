@@ -1,1691 +1,1844 @@
-﻿# Database Schema
+# DinoGo Database Schema
 
-> 模組責任分配
-> A：會員與帳號模組
-> B：商品目錄模組
-> C：購物車與收藏模組
-> D：訂單、付款與物流模組
-> E：賣家中心模組（優惠券與 AI 銷售分析）
-> F：通知、評價與客服模組
-> AI：對話對照模組（全體組員暫定負責）
-
-## 文件使用說明
-
-本文件主要有三個程式碼區塊，請依用途使用：
-
-| 區塊      | 中文標題                 | 用途                                                                                                       | 是否可直接在 MSSQL 執行                                       |
-| --------- | ------------------------ | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| DBML      | ER Diagram（DBML）       | 給 dbdiagram.io 產生 ERD 圖，可貼到 <https://dbdiagram.io/d>。                                             | 不可，DBML 是畫 ERD 的描述語法，不是 T-SQL                    |
-| Seed Data | Seed Data（範例資料）    | 建表完成後使用的開發測試資料。                                                                             | 可以，但要先建立資料表                                        |
-| T-SQL DDL | MSSQL 建表腳本（完整版） | MSSQL 正式建表腳本，包含 `CREATE TABLE`、`CREATE SCHEMA`、`CREATE INDEX`、PK、FK、UNIQUE、CHECK、DEFAULT。 | 可以，建議貼到 SSMS / Azure Data Studio，先選好空資料庫再執行 |
-
-注意：DBML 是 ERD 繪圖用語法；MSSQL 建表請使用後面的「MSSQL 建表腳本（完整版）」區塊。
-
-## 0811 實際資料庫匯出比對結果
-
-本文件的 35 張表是原先的設計規格；依 2026/08/11 的 SSMS 物件總管確認，
-目前 `DinoGo` 實際有 29 張資料表與 10 個 Schema。`DinoGo_0811_schema.sql`
-也與此實際狀態一致。
-
-| 項目               | 文件設計 | 0811 實際匯出                                                                                                    |
-| ------------------ | -------- | ---------------------------------------------------------------------------------------------------------------- |
-| 資料表數量         | 35 張    | 29 張                                                                                                            |
-| Schema 數量        | 9 個     | 10 個                                                                                                            |
-| 實際多出的 Schema  | 無       | `sysmsg`（目前沒有資料表）                                                                                       |
-| 文件中尚未建立的表 | 無       | `review.ProductRecord`、`review.MemberRecord`、`msg.MsgTemplate`、`msg.MsgSample`、`msg.Msg`、`msg.MsgRecipient` |
-
-因此目前資料庫實際狀態與文件設計規格不一致。MSSQL DDL 區塊仍保留 35 張表的設計版本；若 6 張表已確定不再使用，才應進一步同步刪除 DBML、DDL、責任分工與驗收標準中的相關內容。
-
-## ER Diagram（DBML）
-
-以下是給 dbdiagram.io 使用的 ER Diagram 程式碼，不是 MSSQL 建表語法。
-
-```dbml
-// 區塊 1：ER Diagram（DBML）
-// 用途：貼到 dbdiagram.io 產生 ERD 圖，不可直接在 MSSQL 執行。
-Project database_schema {
-  database_type: 'SQL Server'
-}
-
-// A：會員與帳號模組
-Table member.Member {
-  member_id int [pk, increment]
-  email varchar(100) [not null, unique]
-  password_hash varchar(255) [not null]
-  auth_version int [not null, default: 0]
-  last_name nvarchar(50) [not null]
-  first_name nvarchar(50) [not null]
-  birth_date date
-  phone varchar(20)
-  email_order_notifications bit [not null, default: 1]
-  email_marketing_notifications bit [not null, default: 0]
-  status varchar(20) [not null, default: 'ACTIVE']
-  created_at datetime2 [not null, default: `SYSDATETIME()`]
-  updated_at datetime2 [not null, default: `SYSDATETIME()`]
-}
-
-// A：會員與帳號模組
-Table member.Address {
-  address_id int [pk, increment]
-  member_id int [not null, ref: > member.Member.member_id]
-  receiver_name nvarchar(100) [not null]
-  receiver_phone varchar(20) [not null]
-  postal_code varchar(10)
-  city nvarchar(50) [not null]
-  district nvarchar(50) [not null]
-  detail_address nvarchar(255) [not null]
-  is_default bit [not null, default: 0]
-  created_at datetime2 [not null, default: `SYSDATETIME()`]
-  updated_at datetime2 [not null, default: `SYSDATETIME()`]
-}
-
-// A：會員與帳號模組
-Table member.Role {
-  role_id int [pk, increment]
-  role_name varchar(50) [not null, unique]
-  description nvarchar(100)
-}
-
-// A：會員與帳號模組
-Table member.MemberRole {
-  member_id int [not null, ref: > member.Member.member_id]
-  role_id int [not null, ref: > member.Role.role_id]
-  assigned_at datetime2 [not null, default: `SYSDATETIME()`]
-
-  indexes {
-    (member_id, role_id) [pk]
-  }
-}
-
-// A：會員與帳號模組
-Table member.MemberOAuthAccount {
-  oauth_account_id int [pk, increment]
-  member_id int [not null, ref: > member.Member.member_id]
-  provider varchar(30) [not null]
-  provider_user_id varchar(255) [not null]
-  provider_email varchar(255)
-  created_at datetime2 [not null, default: `SYSDATETIME()`]
-  updated_at datetime2 [not null, default: `SYSDATETIME()`]
-
-  indexes {
-    (provider, provider_user_id) [unique]
-    (member_id, provider) [unique]
-  }
-}
-
-// A：會員帳號狀態異動稽核
-Table member.MemberAccountStatusHistory {
-  history_id int [pk, increment]
-  member_id int [not null, ref: > member.Member.member_id]
-  previous_status varchar(20) [not null]
-  new_status varchar(20) [not null]
-  reason nvarchar(500)
-  changed_by int [ref: > member.Member.member_id]
-  changed_at datetime2 [not null, default: `SYSDATETIME()`]
-
-  indexes { (member_id, changed_at) }
-}
-
-// E：賣家中心模組 - 商家資料
-Table seller.Seller {
-  seller_id int [pk, increment]
-  member_id int [not null, unique, ref: - member.Member.member_id]
-  store_name varchar(100) [not null]
-  store_description varchar(500)
-  store_logo_url varchar(255)
-  status varchar(30) [not null]
-  created_at datetime2 [not null, default: `SYSDATETIME()`]
-  updated_at datetime2 [not null, default: `SYSDATETIME()`]
-}
-// E：賣家申請審核
-Table seller.SellerApplication {
-  application_id int [pk, increment]
-  member_id int [not null, ref: > member.Member.member_id]
-  store_name varchar(100) [not null]
-  store_description varchar(500)
-  store_logo_url varchar(255)
-  status varchar(30) [not null]
-  reject_reason varchar(500)
-  reviewed_by int
-  reviewed_at datetime2
-  created_at datetime2 [not null]
-  updated_at datetime2 [not null]
-}
-
-// B：商品目錄模組
-Table catalog.Category {
-  category_id int [pk, increment]
-  category_name nvarchar(100) [not null, unique]
-}
-
-// B：商品目錄模組
-Table catalog.Subcategory {
-  subcategory_id int [pk, increment]
-  category_id int [not null, ref: > catalog.Category.category_id]
-  subcategory_name nvarchar(100) [not null]
-
-  indexes {
-    (category_id, subcategory_name) [unique]
-  }
-}
-
-// B：商品目錄模組
-Table catalog.Brand {
-  brand_id int [pk, increment]
-  brand_name nvarchar(100) [not null]
-}
-
-// B：商品目錄模組
-Table catalog.Product {
-  product_id int [pk, increment]
-  seller_id int [not null, ref: > seller.Seller.seller_id]
-  subcategory_id int [not null, ref: > catalog.Subcategory.subcategory_id]
-  brand_id int [not null, ref: > catalog.Brand.brand_id]
-  product_name nvarchar(50) [not null]
-  description nvarchar(3000)
-  base_price decimal(10,2) [not null]
-  status bit [not null, default: 1]
-  view_count int [not null, default: 0]
-  sold_count int [not null, default: 0]
-  created_at datetime2 [not null, default: `SYSDATETIME()`]
-  updated_at datetime2 [not null, default: `SYSDATETIME()`]
-}
-
-// B：商品目錄模組
-Table catalog.ProductSku {
-  sku_id int [pk, increment]
-  product_id int [not null, ref: > catalog.Product.product_id]
-  spec1_name nvarchar(30)
-  spec1_value nvarchar(50)
-  spec2_name nvarchar(30)
-  spec2_value nvarchar(50)
-  price decimal(10,2) [not null]
-  stock int [not null]
-  status tinyint [not null, default: 1]
-}
-
-// B：商品目錄模組
-Table catalog.ProductImage {
-  image_id int [pk, increment]
-  product_id int [not null, ref: > catalog.Product.product_id]
-  image_url nvarchar(255) [not null]
-  sort_order int [not null]
-  is_main bit [not null, default: 0]
-}
-
-// C：購物車與收藏模組
-Table cart.Cart {
-  cart_id int [pk, increment]
-  member_id int [not null, unique, ref: - member.Member.member_id]
-}
-
-// C：購物車與收藏模組
-Table cart.CartItem {
-  cart_item_id int [pk, increment]
-  cart_id int [not null, ref: > cart.Cart.cart_id]
-  sku_id int [not null, ref: > catalog.ProductSku.sku_id]
-  quantity int [not null]
-
-  indexes {
-    (cart_id, sku_id) [unique]
-  }
-}
-
-// C：購物車與收藏模組
-Table cart.Favorite {
-  favorite_id int [pk, increment]
-  member_id int [not null, ref: > member.Member.member_id]
-  product_id int [not null, ref: > catalog.Product.product_id]
-
-  indexes {
-    (member_id, product_id) [unique]
-  }
-}
-
-// ======================================================
-// D：訂單、付款與物流模組
-// 用途：貼至 dbdiagram.io 產生 ER Diagram
-//
-// 外部關聯資料表：
-// member.Member
-// seller.Seller
-// member.Address
-// catalog.Product
-// catalog.ProductSku
-// ======================================================
-
-
-// ------------------------------------------------------
-// 訂單主表
-// ------------------------------------------------------
-Table sales.Orders {
-  order_id int [pk, increment]
-
-  order_no varchar(30) [
-    not null,
-    unique,
-    note: '訂單編號，由後端產生，例如 ORD202608020001'
-  ]
-
-  buyer_id int [
-    not null,
-    ref: > member.Member.member_id,
-    note: '下單會員 ID'
-  ]
-
-  seller_id int [
-    not null,
-    ref: > seller.Seller.seller_id,
-    note: '此訂單所屬賣家；MVP 一張訂單只屬於一個賣家'
-  ]
-
-  address_id int [
-    ref: > member.Address.address_id,
-    note: '下單時選擇的地址 ID；歷史訂單顯示應以地址快照欄位為準'
-  ]
-
-  // 收件資料快照
-  receiver_name nvarchar(100) [
-    not null,
-    note: '下單當下的收件人姓名快照'
-  ]
-
-  receiver_phone varchar(20) [
-    not null,
-    note: '下單當下的收件人電話快照'
-  ]
-
-  shipping_postal_code varchar(10) [
-    note: '下單當下的郵遞區號快照'
-  ]
-
-  shipping_city nvarchar(50) [
-    not null,
-    note: '下單當下的縣市快照'
-  ]
-
-  shipping_district nvarchar(50) [
-    not null,
-    note: '下單當下的行政區快照'
-  ]
-
-  shipping_detail_address nvarchar(255) [
-    not null,
-    note: '下單當下的詳細地址快照'
-  ]
-
-  status varchar(30) [
-    not null,
-    default: 'PENDING_PAYMENT',
-    note: '合法值：PENDING_PAYMENT、PAID、PROCESSING、SHIPPED、COMPLETED、CANCELLED'
-  ]
-
-  subtotal_amount decimal(12,2) [
-    not null,
-    note: '商品小計，由後端重新計算；必須 >= 0'
-  ]
-
-  shipping_fee decimal(12,2) [
-    not null,
-    default: 0,
-    note: '運費；必須 >= 0'
-  ]
-
-  discount_amount decimal(12,2) [
-    not null,
-    default: 0,
-    note: '折扣金額；必須 >= 0'
-  ]
-
-  total_amount decimal(12,2) [
-    not null,
-    note: '訂單總額，由後端計算；必須 >= 0'
-  ]
-
-  buyer_remark nvarchar(500) [
-    note: '買家訂單備註'
-  ]
-
-  cancel_reason nvarchar(500) [
-    note: '取消原因'
-  ]
-
-  cancelled_by varchar(20) [
-    note: '取消者類型，建議合法值：BUYER、SELLER、SYSTEM'
-  ]
-
-  cancelled_at datetime2 [
-    note: '訂單取消時間'
-  ]
-
-  completed_at datetime2 [
-    note: '訂單完成時間'
-  ]
-
-  created_at datetime2 [
-    not null,
-    default: `SYSDATETIME()`
-  ]
-
-  updated_at datetime2 [
-    not null,
-    default: `SYSDATETIME()`
-  ]
-
-  indexes {
-    buyer_id [name: 'ix_orders_buyer_id']
-    seller_id [name: 'ix_orders_seller_id']
-    status [name: 'ix_orders_status']
-
-    (buyer_id, created_at) [
-      name: 'ix_orders_buyer_created_at'
-    ]
-
-    (seller_id, status, created_at) [
-      name: 'ix_orders_seller_status_created_at'
-    ]
-  }
-
-  Note: '''
-  訂單狀態合法值：
-  PENDING_PAYMENT、PAID、PROCESSING、SHIPPED、COMPLETED、CANCELLED。
-
-  狀態轉換由後端 Service 控制：
-  PENDING_PAYMENT → PAID
-  PENDING_PAYMENT → CANCELLED
-  PAID → PROCESSING
-  PROCESSING → SHIPPED
-  SHIPPED → COMPLETED
-
-  正式 MSSQL DDL 需建立狀態及金額 CHECK CONSTRAINT。
-  '''
-}
-
-
-// ------------------------------------------------------
-// 訂單商品明細
-// ------------------------------------------------------
-Table sales.OrderItem {
-  order_item_id int [pk, increment]
-
-  order_id int [
-    not null,
-    ref: > sales.Orders.order_id,
-    note: '所屬訂單'
-  ]
-
-  product_id int [
-    not null,
-    ref: > catalog.Product.product_id,
-    note: '原始商品 ID；商品顯示仍應使用快照'
-  ]
-
-  sku_id int [
-    not null,
-    ref: > catalog.ProductSku.sku_id,
-    note: '原始 SKU ID；SKU 顯示仍應使用快照'
-  ]
-
-  // 商品資料快照
-  product_name nvarchar(100) [
-    not null,
-    note: '下單當下的商品名稱快照'
-  ]
-
-  sku_spec nvarchar(200) [
-    note: '下單當下的 SKU 規格快照，例如：黑色 / XL'
-  ]
-
-  product_image_url nvarchar(500) [
-    note: '下單當下的商品主圖網址快照'
-  ]
-
-  unit_price decimal(12,2) [
-    not null,
-    note: '下單當下的商品單價；由後端取得 SKU 價格；必須 >= 0'
-  ]
-
-  quantity int [
-    not null,
-    note: '購買數量；必須 > 0'
-  ]
-
-  subtotal decimal(12,2) [
-    not null,
-    note: '商品明細小計，unit_price × quantity；必須 >= 0'
-  ]
-
-  is_reviewed bit [
-    not null,
-    default: 0,
-    note: '是否已建立商品評價；實際評價內容存於 F 模組'
-  ]
-
-  created_at datetime2 [
-    not null,
-    default: `SYSDATETIME()`
-  ]
-
-  indexes {
-    order_id [name: 'ix_order_item_order_id']
-    product_id [name: 'ix_order_item_product_id']
-    sku_id [name: 'ix_order_item_sku_id']
-    is_reviewed [name: 'ix_order_item_is_reviewed']
-  }
-
-  Note: '''
-  product_name、sku_spec、product_image_url、unit_price 為下單快照。
-  商品之後改名、改規格、改價格或下架，不應影響歷史訂單內容。
-
-  正式 MSSQL DDL 需限制：
-  unit_price >= 0
-  quantity > 0
-  subtotal >= 0
-  '''
-}
-
-
-// ------------------------------------------------------
-// 付款方式
-// ------------------------------------------------------
-Table sales.PaymentMethod {
-  payment_method_id int [pk, increment]
-
-  method_code varchar(30) [
-    not null,
-    unique,
-    note: '付款方式代碼，例如 CREDIT_CARD、BANK_TRANSFER、CASH_ON_DELIVERY'
-  ]
-
-  method_name nvarchar(50) [
-    not null,
-    note: '付款方式顯示名稱，例如信用卡、銀行轉帳、貨到付款'
-  ]
-
-  created_at datetime2 [
-    not null,
-    default: `SYSDATETIME()`
-  ]
-
-  updated_at datetime2 [
-    not null,
-    default: `SYSDATETIME()`
-  ]
-
-  Note: '''
-  payment_method 為共用付款方式主檔。
-  method_code 必須保持 UNIQUE。
-  MVP 若不需要啟用或停用付款方式，可不加入 is_active。
-  '''
-}
-
-
-// ------------------------------------------------------
-// 付款紀錄
-// ------------------------------------------------------
-Table sales.Payment {
-  payment_id int [pk, increment]
-
-  payment_no varchar(40) [
-    not null,
-    unique,
-    note: '付款編號，由後端產生'
-  ]
-
-  idempotency_key varchar(64) [
-    note: '付款建立請求的冪等鍵；舊資料可為 NULL，新付款必填'
-  ]
-
-  order_id int [
-    not null,
-    ref: > sales.Orders.order_id,
-    note: '付款所屬訂單；不可設定 UNIQUE，一張訂單可有多次付款嘗試'
-  ]
-
-  payment_method_id int [
-    not null,
-    ref: > sales.PaymentMethod.payment_method_id,
-    note: '付款方式'
-  ]
-
-  amount decimal(12,2) [
-    not null,
-    note: '付款金額，由 orders.total_amount 帶入；必須 >= 0'
-  ]
-
-  status varchar(20) [
-    not null,
-    default: 'PENDING',
-    note: '合法值：PENDING、SUCCESS、FAILED、CANCELLED'
-  ]
-
-  transaction_no varchar(100) [
-    note: '第三方交易編號或模擬付款交易編號'
-  ]
-
-  failure_reason nvarchar(255) [
-    note: '付款失敗原因'
-  ]
-
-  paid_at datetime2 [
-    note: '付款成功時間'
-  ]
-
-  created_at datetime2 [
-    not null,
-    default: `SYSDATETIME()`
-  ]
-
-  updated_at datetime2 [
-    not null,
-    default: `SYSDATETIME()`
-  ]
-
-  indexes {
-    order_id [name: 'ix_payment_order_id']
-    payment_method_id [name: 'ix_payment_payment_method_id']
-    status [name: 'ix_payment_status']
-
-    (order_id, status) [
-      name: 'ix_payment_order_status'
-    ]
-    (order_id, idempotency_key) [unique, name: 'uq_payment_order_idempotency_key']
-  }
-
-  Note: '''
-  payment.order_id 不可加入 UNIQUE。
-
-  一張訂單可以有多筆付款紀錄，例如：
-  第一次付款 FAILED
-  第二次付款 SUCCESS
-
-  同一張訂單最多只能有一筆 SUCCESS，
-  此規則由後端 Service 驗證。
-
-  正式 MSSQL DDL 需限制：
-  amount >= 0
-  status IN ('PENDING', 'SUCCESS', 'FAILED', 'CANCELLED')
-  '''
-}
-
-
-// ------------------------------------------------------
-// 物流資料
-// ------------------------------------------------------
-Table sales.Shipment {
-  shipment_id int [pk, increment]
-
-  order_id int [
-    not null,
-    unique,
-    ref: - sales.Orders.order_id,
-    note: 'MVP 一張訂單只建立一筆物流資料'
-  ]
-
-  carrier_name nvarchar(100) [
-    note: '物流商名稱'
-  ]
-
-  tracking_no varchar(100) [
-    note: '物流追蹤編號'
-  ]
-
-  status varchar(30) [
-    not null,
-    default: 'PREPARING',
-    note: '合法值：PREPARING、SHIPPED、AVAILABLE_FOR_PICKUP、DELIVERED'
-  ]
-
-  shipped_at datetime2 [
-    note: '賣家出貨時間'
-  ]
-
-  available_pickup_at datetime2 [
-    note: '商品可取貨時間'
-  ]
-
-  delivered_at datetime2 [
-    note: '商品送達或取貨完成時間'
-  ]
-
-  delivery_photo_url nvarchar(500) [
-    note: '送達證明或配送照片網址'
-  ]
-
-  created_at datetime2 [
-    not null,
-    default: `SYSDATETIME()`
-  ]
-
-  updated_at datetime2 [
-    not null,
-    default: `SYSDATETIME()`
-  ]
-
-  indexes {
-    status [name: 'ix_shipment_status']
-    tracking_no [name: 'ix_shipment_tracking_no']
-  }
-
-  Note: '''
-  shipment.order_id 保持 UNIQUE，
-  代表目前 MVP 為 orders 與 shipment 一對一。
-
-  正式 MSSQL DDL 需限制：
-  status IN (
-    'PREPARING',
-    'SHIPPED',
-    'AVAILABLE_FOR_PICKUP',
-    'DELIVERED'
-  )
-  '''
-}
-
-// ------------------------------------------------------
-// 物流事件軌跡
-// ------------------------------------------------------
-Table sales.ShipmentEvent {
-  shipment_event_id int [pk, increment]
-  shipment_id int [not null, ref: > sales.Shipment.shipment_id]
-  event_type varchar(30) [not null, note: 'LABEL_CREATED、HANDED_OVER、IN_TRANSIT、OUT_FOR_DELIVERY、AVAILABLE_FOR_PICKUP、DELIVERED']
-  source varchar(20) [not null, note: 'SELLER、CARRIER、SYSTEM、BUYER']
-  remark nvarchar(500)
-  occurred_at datetime2 [not null]
-  created_at datetime2 [not null, default: `SYSDATETIME()`]
-
-  indexes {
-    (shipment_id, occurred_at) [name: 'ix_shipment_event_shipment_occurred']
-  }
-}
-
-// F：評價模組
-Table review.ProductRecord {
-  product_record_id int [pk, increment]
-  order_item_id int [not null, unique, ref: - sales.OrderItem.order_item_id]
-  reviewer_id int [not null, ref: > member.Member.member_id]
-  rating tinyint [not null, note: '1-5']
-  content nvarchar(1000)
-  created_at datetime2 [not null, default: `SYSDATETIME()`]
-  updated_at datetime2 [not null, default: `SYSDATETIME()`]
-
-  indexes {
-    reviewer_id
-  }
-}
-
-// F：評價模組
-Table review.MemberRecord {
-  member_record_id int [pk, increment]
-  order_id int [not null, ref: > sales.Orders.order_id]
-  reviewer_id int [not null, ref: > member.Member.member_id]
-  target_member_id int [not null, ref: > member.Member.member_id]
-  rating tinyint [not null, note: '1-5']
-  content nvarchar(1000)
-  created_at datetime2 [not null, default: `SYSDATETIME()`]
-  updated_at datetime2 [not null, default: `SYSDATETIME()`]
-
-  indexes {
-    (order_id, reviewer_id, target_member_id) [unique]
-    order_id
-    reviewer_id
-    target_member_id
-  }
-}
-
-// E：賣家中心模組 - 優惠券
-Table seller.Coupon {
-  coupon_id int [pk, increment]
-  seller_id int [not null, ref: > seller.Seller.seller_id]
-  coupon_code varchar(100) [not null]
-  coupon_name varchar(100) [not null]
-  discount_type varchar(30) [not null, note: 'PERCENT, AMOUNT']
-  discount_value decimal(18,2) [not null, note: '> 0']
-  min_purchase_amount decimal(18,2)
-  start_at datetime2 [not null]
-  end_at datetime2 [not null]
-  limit_count int [note: 'NULL or > 0']
-  used_count int [not null, default: 0]
-  scope_type varchar(30) [not null, note: 'ALL, CATEGORY, PRODUCT']
-  category_id int [ref: > catalog.Category.category_id]
-  product_id int [ref: > catalog.Product.product_id]
-  status varchar(30) [not null, note: 'DRAFT, ACTIVE, DISABLED, EXPIRED']
-  created_at datetime2 [not null, default: `SYSDATETIME()`]
-  updated_at datetime2 [not null, default: `SYSDATETIME()`]
-
-  indexes {
-    (seller_id, coupon_code) [unique]
-  }
-}
-
-// E：賣家中心模組 - 會員優惠券領取紀錄
-// 透過 coupon.coupon_id 串接 coupon，再由 coupon.seller_id 對應 seller。
-Table seller.MemberCoupon {
-  member_coupon_id int [pk, increment]
-  coupon_id int [not null, ref: > seller.Coupon.coupon_id]
-  member_id int [not null, ref: > member.Member.member_id]
-  is_used bit [not null, default: 0]
-  used_at datetime2
-  received_at datetime2 [not null, default: `SYSDATETIME()`]
-
-  indexes {
-    (coupon_id, member_id) [unique]
-  }
-}
-
-// E：賣家中心模組 - AI 銷售分析
-Table seller.SellerAiSalesAnalysis {
-  analysis_id int [pk, increment]
-  seller_id int [not null, ref: > seller.Seller.seller_id]
-  analysis_period_start date [not null]
-  analysis_period_end date [not null]
-  revenue_amount decimal(12,2) [not null, default: 0, note: '>= 0']
-  order_count int [not null, default: 0, note: '>= 0']
-  product_count int [not null, default: 0, note: '>= 0']
-  used_coupon_count int [not null, default: 0, note: '>= 0']
-  top_product_summary nvarchar(500)
-  coupon_summary nvarchar(500)
-  risk_summary nvarchar(500)
-  ai_summary nvarchar(1000) [not null]
-  ai_recommendation nvarchar(1000)
-  model_name varchar(100)
-  generated_at datetime2 [not null, default: `SYSDATETIME()`]
-  created_at datetime2 [not null, default: `SYSDATETIME()`]
-
-  indexes {
-    (seller_id, generated_at) [name: 'ix_seller_ai_sales_analysis_seller_generated']
-    (seller_id, analysis_period_start, analysis_period_end) [name: 'ix_seller_ai_sales_analysis_period']
-  }
-}
-
-// F：通知模組
-Table msg.MsgTemplate {
-  template_id int [pk, increment]
-  role_type char(2) [not null]
-  msg_type varchar(50) [not null]
-  title nvarchar(50) [not null]
-  content nvarchar(500) [not null]
-  coupon_id int [ref: > seller.Coupon.coupon_id]
-}
-
-// F：通知模組
-Table msg.MsgSample {
-  sample_id int [pk, increment]
-  role_type char(2) [not null]
-  msg_type varchar(50) [not null]
-  sample_subject nvarchar(500) [not null]
-  sample_content nvarchar(500) [not null]
-  sample_at datetime2 [not null, default: `SYSDATETIME()`]
-}
-
-// F：通知模組
-Table msg.Msg {
-  msg_id int [pk, increment]
-  template_id int [ref: > msg.MsgTemplate.template_id]
-  sender_id int [not null, ref: > member.Member.member_id]
-  title nvarchar(200) [not null]
-  content nvarchar(5000) [not null]
-  created_at datetime2 [not null, default: `SYSDATETIME()`]
-}
-
-// F：通知模組
-Table msg.MsgRecipient {
-  msg_recipient_id int [pk, increment]
-  msg_id int [not null, ref: > msg.Msg.msg_id]
-  member_id int [not null, ref: > member.Member.member_id]
-  is_read bit [not null, default: 0]
-  read_at datetime2
-  delivered_at datetime2 [not null, default: `SYSDATETIME()`]
-
-  indexes {
-    (msg_id, member_id) [unique]
-  }
-}
-
-// AI：對話對照模組
-Table ai.AiConversation {
-  conversation_id int [pk, increment]
-  cloud_conversation_id varchar(255) [not null]
-  member_id int [not null, ref: > member.Member.member_id]
-  provider varchar(50) [not null]
-  log_file_path nvarchar(500) [not null]
-  created_at datetime2 [not null, default: `SYSDATETIME()`]
-  updated_at datetime2 [not null, default: `SYSDATETIME()`]
-
-  indexes {
-    (provider, cloud_conversation_id) [unique]
-  }
-}
-
-// F：客服模組：service schema
-Table service.Role {
-  service_role_id int [pk]
-  role_name varchar(50) [not null, note: 'customer / seller']
-}
-
-Table service.Topic {
-  topic_id char(1) [pk]
-  role_name varchar(50) [not null]
-  topic nvarchar(50)
-  topic_enter nvarchar(100)
-}
-
-Table service.Subtheme {
-  subtheme_id int [pk]
-  role_name varchar(50) [not null]
-  topic nvarchar(50)
-  subtheme nvarchar(50)
-  subtheme_enter nvarchar(100)
-}
-
-Table service.Demand {
-  demand_id int [pk]
-  role_name varchar(50) [not null]
-  subtheme nvarchar(50)
-  demand nvarchar(50)
-  demand_enter nvarchar(100)
-}
-
-Table service.Reply {
-  sys_reply_id int [pk]
-  role_name varchar(50) [not null]
-  demand nvarchar(50)
-  reply nvarchar(100)
-  reply_enter nvarchar(100)
-}
-
-```
-
-## 模組責任對照表
-
-| 組員             | 負責資料表                                                                                                                                                                                               | 說明                                                                            |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| A                | `member.Member`, `member.Address`, `member.Role`, `member.MemberRole`, `member.MemberOAuthAccount`                                                                                                       | 會員與帳號模組，負責會員資料、地址、角色、權限關聯與第三方登入對照              |
-| B                | `catalog.Category`, `catalog.Subcategory`, `catalog.Brand`, `catalog.Product`, `catalog.ProductSku`, `catalog.ProductImage`                                                                              | 商品目錄模組，負責商品分類、品牌、商品與商品 SKU 管理                           |
-| C                | `cart.Cart`, `cart.CartItem`, `cart.Favorite`                                                                                                                                                            | 購物車與收藏模組，負責購物車內容與會員收藏清單                                  |
-| D                | `sales.Orders`, `sales.OrderItem`, `sales.PaymentMethod`, `sales.Payment`, `sales.Shipment`                                                                                                              | 訂單、付款與物流模組，負責訂單流轉、付款紀錄與物流狀態                          |
-| E                | `seller.Seller`, `seller.Coupon`, `seller.MemberCoupon`, `seller.SellerAiSalesAnalysis`                                                                                                                  | 賣家中心後台模組，負責商家資料、賣家優惠券、會員領券紀錄與 AI 銷售分析          |
-| F                | `msg.MsgTemplate`, `msg.MsgSample`, `msg.Msg`, `msg.MsgRecipient`, `review.ProductRecord`, `review.MemberRecord`, `service.Role`, `service.Topic`, `service.Subtheme`, `service.Demand`, `service.Reply` | 通知、評價與客服模組，負責正式訊息、收件狀態、商品/會員評價、客服分類與系統回覆 |
-| 全體組員（暫定） | `ai.AiConversation`                                                                                                                                                                                      | AI 對話對照模組，暫定由全體組員共同負責                                         |
-
-## 建表順序（MSSQL）
-
-```text
-01_create_member_tables.sql
-02_create_account_seller_tables.sql
-03_create_catalog_tables.sql
-04_create_product_tables.sql
-05_create_cart_tables.sql
-06_create_order_tables.sql
-07_create_seller_center_tables.sql
-08_create_review_tables.sql
-09_create_msg_tables.sql
-10_create_ai_tables.sql
-11_create_service_tables.sql
-90_insert_seed_data.sql
-```
-
-### 建表順序說明
-
-1. 先建立 `member.Member`、`member.Role`
-2. 再建立 `member.Address`、`member.MemberRole`、`member.MemberOAuthAccount`、`seller.Seller`
-3. 再建立 `catalog.Category`、`catalog.Subcategory`、`catalog.Brand`
-4. 再建立 `catalog.Product`、`catalog.ProductSku`、`catalog.ProductImage`
-5. 再建立 `cart.Cart`、`cart.CartItem`、`cart.Favorite`
-6. 再建立 `sales.Orders`、`sales.OrderItem`、`sales.PaymentMethod`、`sales.Payment`、`sales.Shipment`
-7. 再建立 `seller.Coupon`、`seller.MemberCoupon`、`seller.SellerAiSalesAnalysis`
-8. 建立 `review.ProductRecord`、`review.MemberRecord`
-9. 建立 `msg.MsgTemplate`、`msg.MsgSample`、`msg.Msg`、`msg.MsgRecipient`
-10. 建立 `ai.AiConversation`
-11. 最後建立 `service.Role`、`service.Topic`、`service.Subtheme`、`service.Demand`、`service.Reply`
-
-> `seller.Seller` 歸 E 賣家中心後台負責，但因為 B 商品、D 訂單、E 優惠券與 AI 銷售分析都會參照 `seller.Seller.seller_id`，所以建表時需先在第 2 步建立。
-
-## Seed Data（範例資料）
-
-這一段是測試用範例資料，不是建表語法。請先執行「MSSQL 建表腳本（完整版）」建立資料表，再依外鍵順序執行 Seed Data。
-
-> 責任對應：
+> Actual SQL Server database schema snapshot.
 >
-> - A：會員、角色與身分資料
-> - B：分類、品牌、商品與 SKU 資料
-> - D：付款方式與訂單相關資料
-> - E：賣家中心資料，包含商家資料、優惠券、會員領券紀錄與賣家 AI 銷售分析
-> - F：通知範本、評價與客服資料
-> - 全體組員：AI 對話資料需搭配實際功能再補
-
-```sql
--- 區塊 2：Seed Data（範例資料）
--- 用途：建表完成後執行，用來建立開發測試資料。
-
--- A：角色資料
-INSERT INTO member.Role (role_id, role_name, description)
-VALUES
-    (1, 'buyer', '一般會員'),
-    (2, 'seller', '商家會員'),
-    (3, 'admin', '管理員');
-
--- A：會員資料
-SET IDENTITY_INSERT member.Member ON;
-INSERT INTO member.Member (
-    member_id,
-    email,
-    password_hash,
-    last_name,
-    first_name,
-    birth_date,
-    phone,
-    status,
-    created_at,
-    updated_at
-)
-VALUES
-    (1, 'buyer01@example.com', 'hash_buyer_01', '王', '小明', '1998-03-15', '0912345678', 'ACTIVE', SYSDATETIME(), SYSDATETIME()),
-    (2, 'seller01@example.com', 'hash_seller_01', '李', '小華', '1990-07-22', '0923456789', 'ACTIVE', SYSDATETIME(), SYSDATETIME()),
-    (3, 'admin01@example.com', 'hash_admin_01', '張', '管理', '1988-11-05', '0934567890', 'ACTIVE', SYSDATETIME(), SYSDATETIME());
-SET IDENTITY_INSERT member.Member OFF;
-
--- A：會員角色資料
-INSERT INTO member.MemberRole (member_id, role_id, assigned_at)
-VALUES
-    (1, 1, SYSDATETIME()),
-    (2, 2, SYSDATETIME()),
-    (3, 3, SYSDATETIME());
-
--- E：賣家中心資料 - 商家資料
-SET IDENTITY_INSERT seller.Seller ON;
-INSERT INTO seller.Seller (
-    seller_id,
-    member_id,
-    store_name,
-    store_description,
-    store_logo_url,
-    status,
-    created_at,
-    updated_at
-)
-VALUES
-    (1, 2, '小華生活館', '生活用品與日常商品', 'https://example.com/logo1.png', 'ACTIVE', SYSDATETIME(), SYSDATETIME());
-SET IDENTITY_INSERT seller.Seller OFF;
-
--- B：分類資料
-SET IDENTITY_INSERT catalog.Category ON;
-INSERT INTO catalog.Category (category_id, category_name)
-VALUES
-    (1, '家電'),
-    (2, '服飾'),
-    (3, '食品');
-SET IDENTITY_INSERT catalog.Category OFF;
-
-SET IDENTITY_INSERT catalog.Subcategory ON;
-INSERT INTO catalog.Subcategory (subcategory_id, category_id, subcategory_name)
-VALUES
-    (1, 1, '電器'),
-    (2, 2, '男裝'),
-    (3, 3, '零食');
-SET IDENTITY_INSERT catalog.Subcategory OFF;
-
-SET IDENTITY_INSERT catalog.Brand ON;
-INSERT INTO catalog.Brand (brand_id, brand_name)
-VALUES
-    (1, 'A品牌'),
-    (2, 'B品牌'),
-    (3, 'C品牌');
-SET IDENTITY_INSERT catalog.Brand OFF;
-
--- B：商品資料
-SET IDENTITY_INSERT catalog.Product ON;
-INSERT INTO catalog.Product (
-    product_id,
-    seller_id,
-    subcategory_id,
-    brand_id,
-    product_name,
-    description,
-    base_price,
-    status,
-    view_count,
-    sold_count,
-    created_at,
-    updated_at
-)
-VALUES
-    (1, 1, 1, 1, '吹風機', '高效能吹風機', 799.00, 1, 120, 25, SYSDATETIME(), SYSDATETIME()),
-    (2, 1, 2, 2, '休閒T恤', '舒適透氣休閒T恤', 299.00, 1, 55, 10, SYSDATETIME(), SYSDATETIME());
-SET IDENTITY_INSERT catalog.Product OFF;
-
--- B：SKU 資料
-SET IDENTITY_INSERT catalog.ProductSku ON;
-INSERT INTO catalog.ProductSku (
-    sku_id,
-    product_id,
-    spec1_name,
-    spec1_value,
-    spec2_name,
-    spec2_value,
-    price,
-    stock,
-    status
-)
-VALUES
-    (1, 1, '顏色', '白色', NULL, NULL, 799.00, 50, 1),
-    (2, 2, '顏色', '黑色', '尺寸', 'M', 299.00, 30, 1);
-SET IDENTITY_INSERT catalog.ProductSku OFF;
-
--- D：付款方式資料
-SET IDENTITY_INSERT sales.PaymentMethod ON;
-INSERT INTO sales.PaymentMethod (
-    payment_method_id,
-    method_code,
-    method_name,
-    created_at,
-    updated_at
-)
-VALUES
-    (1, 'CREDIT_CARD', '信用卡', SYSDATETIME(), SYSDATETIME()),
-    (2, 'LINE_PAY', 'LINE Pay', SYSDATETIME(), SYSDATETIME()),
-    (3, 'CASH_ON_DELIVERY', '貨到付款', SYSDATETIME(), SYSDATETIME());
-SET IDENTITY_INSERT sales.PaymentMethod OFF;
-
--- E：賣家中心資料 - 優惠券資料
-SET IDENTITY_INSERT seller.Coupon ON;
-INSERT INTO seller.Coupon (
-    coupon_id,
-    seller_id,
-    coupon_code,
-    coupon_name,
-    discount_type,
-    discount_value,
-    min_purchase_amount,
-    start_at,
-    end_at,
-    limit_count,
-    used_count,
-    scope_type,
-    category_id,
-    product_id,
-    status,
-    created_at,
-    updated_at
-)
-VALUES
-    (1, 1, 'SAVE10', '新會員9折券', 'PERCENT', 10.00, 500.00, SYSDATETIME(), DATEADD(day, 30, SYSDATETIME()), 100, 0, 'ALL', NULL, NULL, 'ACTIVE', SYSDATETIME(), SYSDATETIME());
-SET IDENTITY_INSERT seller.Coupon OFF;
-```
-
-## 修改重點整理
-
-- 將資料庫物件命名調整為 SQL Server Schema 架構：schema 使用小寫模組名，資料表使用 PascalCase，欄位維持小寫 snake_case。
-- 將識別碼統一改為 `int`，符合 MSSQL 與後端 JPA 的使用習慣。
-- 將 `catalog.ProductSku` 使用通用規格欄位 `spec1_name`、`spec1_value`、`spec2_name`、`spec2_value`。
-- D 模組改為保留必要快照欄位，`sales.Orders` 保存收件資料快照，`sales.OrderItem` 保存商品、SKU 與主圖快照。
-- 將原本重複型態的訊息結構整理成 `msg.MsgTemplate`、`msg.MsgSample`、`msg.Msg` 與 `msg.MsgRecipient`，讓訊息樣本、模板與實際收件狀態分離。
-- 新增評價模組 `review.ProductRecord`、`review.MemberRecord`，歸類到 F 組員；`review` 作為正式 SQL Server Schema，不使用 `public` 或縮寫 `rev`。
-- 新增 `member.MemberOAuthAccount` 保存 Google 等第三方登入帳號對照。
-- 新增 `ai.AiConversation` 保存雲端對話 ID、本地會員與聊天文字檔路徑的對照，暫定由全體組員共同負責。
-- `seller.Seller` 商家資料歸類到 E 賣家中心後台模組，B 商品目錄透過 `catalog.Product.seller_id` 串接賣家。
-- 新增 `seller.SellerAiSalesAnalysis` 保存賣家 AI 銷售分析結果，歸類到 E 賣家中心模組，並透過 `seller_id` 串接 `seller.Seller`。
-- 客服模組歸類到 F 組員，並統一使用 `service` Schema 管理 `service.Role`、`service.Topic`、`service.Subtheme`、`service.Demand`、`service.Reply`。
-- 補上建表順序，讓建立資料表時可以依順序執行，避免外鍵錯誤。
-- 補上 seed data，方便開發測試與驗證資料關聯。
-
-## 驗收標準
-
-完成 0801 ERD 修改後，建議用以下文字標準檢查：
-
-- DBML 貼到 dbdiagram.io 後，應產生 35 張資料表。
-- DBML 不額外設定 ERD 表頭顏色，表頭維持 dbdiagram 預設樣式。
-- Review 與 Service 不再作為獨立組員列入責任分配，應歸類到 F 組員。
-- E 賣家中心模組包含 `seller.Seller`、`seller.Coupon`、`seller.MemberCoupon`、`seller.SellerAiSalesAnalysis`；其中 `seller.Coupon` 與 `seller.SellerAiSalesAnalysis` 直接以 `seller_id` 串接 `seller.Seller`，`seller.MemberCoupon` 透過 `seller.Coupon` 串接賣家。
-- AI 模組 `ai.AiConversation` 暫定由全體組員共同負責。
-- 資料庫命名應使用 SQL Server Schema 架構；不得使用 PostgreSQL 預設 Schema `public`。
-- Schema 使用小寫模組名，資料表使用 PascalCase，例如 member.Member、member.Address、
-  eview.ProductRecord。
-- 不應保留舊訊息表名 `notification_template`、`notification`；訊息相關表應為 `msg.MsgTemplate`、`msg.MsgSample`、`msg.Msg`、`msg.MsgRecipient`。
-- 訊息型別欄位統一使用 `msg_type`，不再混用 `mesg_type` 或 `message_type`。
-- `member.Member` 與 `cart.Cart` 應為一對一，`cart.Cart.member_id` 必須唯一。
-- `cart.CartItem` 只保留 `sku_id`，不保留 `product_id`，並有 `UNIQUE(cart_id, sku_id)`。
-- `catalog.Category.category_name` 必須為 `NOT NULL + UNIQUE`。
-- `catalog.Subcategory` 必須有 `UNIQUE(category_id, subcategory_name)`。
-- `catalog.Product.seller_id` 必須為 `NOT NULL`。
-- `sales.Orders` 應保留 `receiver_name`、`receiver_phone`、`shipping_postal_code`、`shipping_city`、`shipping_district`、`shipping_detail_address` 作為下單快照。
-- `sales.OrderItem` 應保留 `product_name`、`sku_spec`、`product_image_url` 作為下單快照。
-- `review` 作為正式 SQL Server Schema；正式表名為 `review.ProductRecord`、`review.MemberRecord`，不縮寫為 `rev`。
-- MSSQL 建表腳本在空資料庫執行時，應可建立 9 個 Schema 與 35 張資料表。
-- Seed Data 應在建表完成後執行，且至少能建立角色、會員、商家、分類、品牌、商品、SKU、付款方式與優惠券基本測試資料。
-
-## 1NF / 2NF / 3NF 檢查結果
-
-### 1NF（第一正規化）
-
-- 已符合 1NF。
-- 每一欄位都是單一原子值，不包含多值欄位或巢狀資料。
-- `catalog.ProductSku` 的規格欄位已改成明確欄位，避免後續因新增規格而頻繁擴增欄位。
-
-### 2NF（第二正規化）
-
-- 已符合 2NF。
-- 所有非主鍵欄位皆完全相依於整個主鍵。
-- 例如 `member.MemberRole` 的 `assigned_at` 完全依賴 `(member_id, role_id)`，沒有部份相依。
-
-### 3NF（第三正規化）
-
-- 已大幅接近並符合 3NF 的核心精神。
-- D 模組保留訂單快照欄位，確保商品或地址資料異動後，歷史訂單仍能顯示下單當下內容。
-- 目前資料關聯皆透過外鍵連結，資料只保留本表應有的屬性。
-- `msg.MsgTemplate`、`msg.MsgSample`、`msg.Msg` 與 `msg.MsgRecipient` 取代原本重複型別訊息表，避免相同資訊分散在多張表，並保留會員收件狀態。
-- `review.ProductRecord` 以 `order_item_id` 對應商品評價來源，避免重複保存可由訂單明細取得的商品資料。
-- `review.MemberRecord` 以 `order_id`、`reviewer_id`、`target_member_id` 描述會員互評來源與對象。
-
-### 最終判斷
-
-- 1NF：符合
-- 2NF：符合
-- 3NF：符合 3NF 核心設計原則
-
-## MSSQL 建表腳本（完整版）
-
-這一段是可以直接貼到 MSSQL（Microsoft SQL Server）執行的 T-SQL 建表腳本，建議使用 SSMS 或 Azure Data Studio，先選定一個空資料庫後再執行。若資料庫已存在同名資料表，`CREATE TABLE` 會失敗，需要先確認是否要保留舊資料或另外建立新資料庫。`GO` 是 SSMS、sqlcmd、Azure Data Studio 支援的批次分隔語法；若改用 JDBC migration 工具，需將 `GO` 拆成不同批次處理。
-
-```sql
--- 區塊 3：MSSQL 建表腳本（完整版）
--- 用途：建立 MSSQL 資料表、Schema、PK、FK、UNIQUE、CHECK、DEFAULT 與索引。
--- 建議：在空資料庫執行；若已有同名資料表，CREATE TABLE 會失敗。
-
-CREATE SCHEMA member;
-GO
-CREATE SCHEMA seller;
-GO
-CREATE SCHEMA catalog;
-GO
-CREATE SCHEMA cart;
-GO
-CREATE SCHEMA sales;
-GO
-CREATE SCHEMA review;
-GO
-CREATE SCHEMA msg;
-GO
-CREATE SCHEMA ai;
-GO
-CREATE SCHEMA service;
-GO
-CREATE TABLE member.Member (
-    member_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_member PRIMARY KEY,
-    email varchar(100) NOT NULL CONSTRAINT uq_member_email UNIQUE,
-    password_hash varchar(255) NOT NULL,
-    auth_version int NOT NULL CONSTRAINT df_member_auth_version DEFAULT 0,
-    last_name nvarchar(50) NOT NULL,
-    first_name nvarchar(50) NOT NULL,
-    birth_date date NULL,
-    phone varchar(20) NULL,
-    email_order_notifications bit NOT NULL CONSTRAINT df_member_email_order_notifications DEFAULT 1,
-    email_marketing_notifications bit NOT NULL CONSTRAINT df_member_email_marketing_notifications DEFAULT 0,
-    status varchar(20) NOT NULL CONSTRAINT df_member_status DEFAULT 'ACTIVE',
-    created_at datetime2 NOT NULL CONSTRAINT df_member_created_at DEFAULT SYSDATETIME(),
-    updated_at datetime2 NOT NULL CONSTRAINT df_member_updated_at DEFAULT SYSDATETIME(),
-    CONSTRAINT ck_member_status CHECK (status IN ('ACTIVE', 'SUSPENDED', 'DEACTIVATED'))
-);
-
-CREATE TABLE member.Address (
-    address_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_address PRIMARY KEY,
-    member_id int NOT NULL CONSTRAINT fk_address_member FOREIGN KEY REFERENCES member.Member(member_id),
-    receiver_name nvarchar(100) NOT NULL,
-    receiver_phone varchar(20) NOT NULL,
-    postal_code varchar(10) NULL,
-    city nvarchar(50) NOT NULL,
-    district nvarchar(50) NOT NULL,
-    detail_address nvarchar(255) NOT NULL,
-    is_default bit NOT NULL CONSTRAINT df_address_is_default DEFAULT 0,
-    created_at datetime2 NOT NULL CONSTRAINT df_address_created_at DEFAULT SYSDATETIME(),
-    updated_at datetime2 NOT NULL CONSTRAINT df_address_updated_at DEFAULT SYSDATETIME()
-);
-
-CREATE TABLE member.Role (
-    role_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_role PRIMARY KEY,
-    role_name varchar(50) NOT NULL CONSTRAINT uq_role_role_name UNIQUE,
-    description nvarchar(100) NULL
-);
-
-CREATE TABLE member.MemberRole (
-    member_id int NOT NULL CONSTRAINT fk_member_role_member FOREIGN KEY REFERENCES member.Member(member_id),
-    role_id int NOT NULL CONSTRAINT fk_member_role_role FOREIGN KEY REFERENCES member.Role(role_id),
-    assigned_at datetime2 NOT NULL CONSTRAINT df_member_role_assigned_at DEFAULT SYSDATETIME(),
-    CONSTRAINT pk_member_role PRIMARY KEY (member_id, role_id)
-);
-
-CREATE TABLE member.MemberOAuthAccount (
-    oauth_account_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_member_oauth_account PRIMARY KEY,
-    member_id int NOT NULL CONSTRAINT fk_member_oauth_account_member FOREIGN KEY REFERENCES member.Member(member_id),
-    provider varchar(30) NOT NULL,
-    provider_user_id varchar(255) NOT NULL,
-    provider_email varchar(255) NULL,
-    created_at datetime2 NOT NULL CONSTRAINT df_member_oauth_account_created_at DEFAULT SYSDATETIME(),
-    updated_at datetime2 NOT NULL CONSTRAINT df_member_oauth_account_updated_at DEFAULT SYSDATETIME(),
-    CONSTRAINT uq_member_oauth_provider_user UNIQUE (provider, provider_user_id),
-    CONSTRAINT uq_member_oauth_member_provider UNIQUE (member_id, provider)
-);
-
-CREATE TABLE member.MemberAccountStatusHistory (
-    history_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_member_account_status_history PRIMARY KEY,
-    member_id int NOT NULL CONSTRAINT fk_member_account_status_history_member FOREIGN KEY REFERENCES member.Member(member_id),
-    previous_status varchar(20) NOT NULL,
-    new_status varchar(20) NOT NULL,
-    reason nvarchar(500) NULL,
-    changed_by int NULL CONSTRAINT fk_member_account_status_history_changed_by FOREIGN KEY REFERENCES member.Member(member_id),
-    changed_at datetime2 NOT NULL CONSTRAINT df_member_account_status_history_changed_at DEFAULT SYSDATETIME()
-);
-
-CREATE TABLE seller.Seller (
-    seller_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_seller PRIMARY KEY,
-    member_id int NOT NULL CONSTRAINT uq_seller_member UNIQUE CONSTRAINT fk_seller_member FOREIGN KEY REFERENCES member.Member(member_id),
-    store_name varchar(100) NOT NULL,
-    store_description varchar(500) NULL,
-    store_logo_url varchar(255) NULL,
-    status varchar(30) NOT NULL,
-    created_at datetime2 NOT NULL CONSTRAINT df_seller_created_at DEFAULT SYSDATETIME(),
-    updated_at datetime2 NOT NULL CONSTRAINT df_seller_updated_at DEFAULT SYSDATETIME()
-);
-
-CREATE TABLE catalog.Category (
-    category_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_category PRIMARY KEY,
-    category_name nvarchar(100) NOT NULL CONSTRAINT uq_category_name UNIQUE
-);
-
-CREATE TABLE catalog.Subcategory (
-    subcategory_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_subcategory PRIMARY KEY,
-    category_id int NOT NULL CONSTRAINT fk_subcategory_category FOREIGN KEY REFERENCES catalog.Category(category_id),
-    subcategory_name nvarchar(100) NOT NULL,
-    CONSTRAINT uq_subcategory_category_name UNIQUE (category_id, subcategory_name)
-);
-
-CREATE TABLE catalog.Brand (
-    brand_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_brand PRIMARY KEY,
-    brand_name nvarchar(100) NOT NULL
-);
-
-CREATE TABLE catalog.Product (
-    product_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_product PRIMARY KEY,
-    seller_id int NOT NULL CONSTRAINT fk_product_seller FOREIGN KEY REFERENCES seller.Seller(seller_id),
-    subcategory_id int NOT NULL CONSTRAINT fk_product_subcategory FOREIGN KEY REFERENCES catalog.Subcategory(subcategory_id),
-    brand_id int NOT NULL CONSTRAINT fk_product_brand FOREIGN KEY REFERENCES catalog.Brand(brand_id),
-    product_name nvarchar(50) NOT NULL,
-    description nvarchar(3000) NULL,
-    base_price decimal(10,2) NOT NULL,
-    status bit NOT NULL CONSTRAINT df_product_status DEFAULT 1,
-    view_count int NOT NULL CONSTRAINT df_product_view_count DEFAULT 0,
-    sold_count int NOT NULL CONSTRAINT df_product_sold_count DEFAULT 0,
-    created_at datetime2 NOT NULL CONSTRAINT df_product_created_at DEFAULT SYSDATETIME(),
-    updated_at datetime2 NOT NULL CONSTRAINT df_product_updated_at DEFAULT SYSDATETIME()
-);
-
-CREATE TABLE catalog.ProductSku (
-    sku_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_product_sku PRIMARY KEY,
-    product_id int NOT NULL CONSTRAINT fk_product_sku_product FOREIGN KEY REFERENCES catalog.Product(product_id),
-    spec1_name nvarchar(30) NULL,
-    spec1_value nvarchar(50) NULL,
-    spec2_name nvarchar(30) NULL,
-    spec2_value nvarchar(50) NULL,
-    price decimal(10,2) NOT NULL,
-    stock int NOT NULL CONSTRAINT ck_product_sku_stock CHECK (stock >= 0),
-    status tinyint NOT NULL CONSTRAINT df_product_sku_status DEFAULT 1
-);
-
-CREATE TABLE catalog.ProductImage (
-    image_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_product_image PRIMARY KEY,
-    product_id int NOT NULL CONSTRAINT fk_product_image_product FOREIGN KEY REFERENCES catalog.Product(product_id),
-    image_url nvarchar(255) NOT NULL,
-    sort_order int NOT NULL,
-    is_main bit NOT NULL CONSTRAINT df_product_image_is_main DEFAULT 0
-);
-
-CREATE TABLE cart.Cart (
-    cart_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_cart PRIMARY KEY,
-    member_id int NOT NULL CONSTRAINT uq_cart_member UNIQUE CONSTRAINT fk_cart_member FOREIGN KEY REFERENCES member.Member(member_id)
-);
-
-CREATE TABLE cart.CartItem (
-    cart_item_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_cart_item PRIMARY KEY,
-    cart_id int NOT NULL CONSTRAINT fk_cart_item_cart FOREIGN KEY REFERENCES cart.Cart(cart_id),
-    sku_id int NOT NULL CONSTRAINT fk_cart_item_sku FOREIGN KEY REFERENCES catalog.ProductSku(sku_id),
-    quantity int NOT NULL CONSTRAINT ck_cart_item_quantity CHECK (quantity > 0),
-    CONSTRAINT uq_cart_item_cart_sku UNIQUE (cart_id, sku_id)
-);
-
-CREATE TABLE cart.Favorite (
-    favorite_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_favorite PRIMARY KEY,
-    member_id int NOT NULL CONSTRAINT fk_favorite_member FOREIGN KEY REFERENCES member.Member(member_id),
-    product_id int NOT NULL CONSTRAINT fk_favorite_product FOREIGN KEY REFERENCES catalog.Product(product_id),
-    CONSTRAINT uq_favorite_member_product UNIQUE (member_id, product_id)
-);
-
-CREATE TABLE sales.Orders (
-    order_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_orders PRIMARY KEY,
-    order_no varchar(30) NOT NULL CONSTRAINT uq_orders_order_no UNIQUE,
-    buyer_id int NOT NULL CONSTRAINT fk_orders_buyer FOREIGN KEY REFERENCES member.Member(member_id),
-    seller_id int NOT NULL CONSTRAINT fk_orders_seller FOREIGN KEY REFERENCES seller.Seller(seller_id),
-    address_id int NULL CONSTRAINT fk_orders_address FOREIGN KEY REFERENCES member.Address(address_id),
-    receiver_name nvarchar(100) NOT NULL,
-    receiver_phone varchar(20) NOT NULL,
-    shipping_postal_code varchar(10) NULL,
-    shipping_city nvarchar(50) NOT NULL,
-    shipping_district nvarchar(50) NOT NULL,
-    shipping_detail_address nvarchar(255) NOT NULL,
-    status varchar(30) NOT NULL CONSTRAINT df_orders_status DEFAULT 'PENDING_PAYMENT',
-    subtotal_amount decimal(12,2) NOT NULL,
-    shipping_fee decimal(12,2) NOT NULL CONSTRAINT df_orders_shipping_fee DEFAULT 0,
-    discount_amount decimal(12,2) NOT NULL CONSTRAINT df_orders_discount_amount DEFAULT 0,
-    total_amount decimal(12,2) NOT NULL,
-    buyer_remark nvarchar(500) NULL,
-    cancel_reason nvarchar(500) NULL,
-    cancelled_by varchar(20) NULL,
-    cancelled_at datetime2 NULL,
-    completed_at datetime2 NULL,
-    created_at datetime2 NOT NULL CONSTRAINT df_orders_created_at DEFAULT SYSDATETIME(),
-    updated_at datetime2 NOT NULL CONSTRAINT df_orders_updated_at DEFAULT SYSDATETIME()
-);
-
-CREATE TABLE sales.OrderItem (
-    order_item_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_order_item PRIMARY KEY,
-    order_id int NOT NULL CONSTRAINT fk_order_item_orders FOREIGN KEY REFERENCES sales.Orders(order_id),
-    product_id int NOT NULL CONSTRAINT fk_order_item_product FOREIGN KEY REFERENCES catalog.Product(product_id),
-    sku_id int NOT NULL CONSTRAINT fk_order_item_sku FOREIGN KEY REFERENCES catalog.ProductSku(sku_id),
-    product_name nvarchar(100) NOT NULL,
-    sku_spec nvarchar(200) NULL,
-    product_image_url nvarchar(500) NULL,
-    unit_price decimal(12,2) NOT NULL,
-    quantity int NOT NULL CONSTRAINT ck_order_item_quantity CHECK (quantity > 0),
-    subtotal decimal(12,2) NOT NULL,
-    is_reviewed bit NOT NULL CONSTRAINT df_order_item_is_reviewed DEFAULT 0,
-    created_at datetime2 NOT NULL CONSTRAINT df_order_item_created_at DEFAULT SYSDATETIME()
-);
-
-CREATE TABLE sales.PaymentMethod (
-    payment_method_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_payment_method PRIMARY KEY,
-    method_code varchar(30) NOT NULL CONSTRAINT uq_payment_method_method_code UNIQUE,
-    method_name nvarchar(50) NOT NULL,
-    created_at datetime2 NOT NULL CONSTRAINT df_payment_method_created_at DEFAULT SYSDATETIME(),
-    updated_at datetime2 NOT NULL CONSTRAINT df_payment_method_updated_at DEFAULT SYSDATETIME()
-);
-
-CREATE TABLE sales.Payment (
-    payment_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_payment PRIMARY KEY,
-    payment_no varchar(40) NOT NULL CONSTRAINT uq_payment_payment_no UNIQUE,
-    idempotency_key varchar(64) NULL,
-    order_id int NOT NULL CONSTRAINT fk_payment_orders FOREIGN KEY REFERENCES sales.Orders(order_id),
-    payment_method_id int NOT NULL CONSTRAINT fk_payment_payment_method FOREIGN KEY REFERENCES sales.PaymentMethod(payment_method_id),
-    amount decimal(12,2) NOT NULL,
-    status varchar(20) NOT NULL CONSTRAINT df_payment_status DEFAULT 'PENDING',
-    transaction_no varchar(100) NULL,
-    failure_reason nvarchar(255) NULL,
-    paid_at datetime2 NULL,
-    created_at datetime2 NOT NULL CONSTRAINT df_payment_created_at DEFAULT SYSDATETIME(),
-    updated_at datetime2 NOT NULL CONSTRAINT df_payment_updated_at DEFAULT SYSDATETIME()
-);
-
-CREATE TABLE sales.Shipment (
-    shipment_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_shipment PRIMARY KEY,
-    order_id int NOT NULL CONSTRAINT uq_shipment_order UNIQUE CONSTRAINT fk_shipment_orders FOREIGN KEY REFERENCES sales.Orders(order_id),
-    carrier_name nvarchar(100) NULL,
-    tracking_no varchar(100) NULL,
-    status varchar(30) NOT NULL CONSTRAINT df_shipment_status DEFAULT 'PREPARING',
-    shipped_at datetime2 NULL,
-    available_pickup_at datetime2 NULL,
-    delivered_at datetime2 NULL,
-    delivery_photo_url nvarchar(500) NULL,
-    created_at datetime2 NOT NULL CONSTRAINT df_shipment_created_at DEFAULT SYSDATETIME(),
-    updated_at datetime2 NOT NULL CONSTRAINT df_shipment_updated_at DEFAULT SYSDATETIME()
-);
-
-CREATE UNIQUE INDEX uq_payment_order_idempotency_key
-ON sales.Payment(order_id, idempotency_key)
-WHERE idempotency_key IS NOT NULL;
-
-CREATE TABLE sales.ShipmentEvent (
-    shipment_event_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_shipment_event PRIMARY KEY,
-    shipment_id int NOT NULL,
-    event_type varchar(30) NOT NULL,
-    source varchar(20) NOT NULL,
-    remark nvarchar(500) NULL,
-    occurred_at datetime2 NOT NULL,
-    created_at datetime2 NOT NULL CONSTRAINT df_shipment_event_created_at DEFAULT SYSDATETIME(),
-    CONSTRAINT fk_shipment_event_shipment FOREIGN KEY (shipment_id) REFERENCES sales.Shipment(shipment_id),
-    CONSTRAINT ck_shipment_event_type CHECK (event_type IN ('LABEL_CREATED', 'HANDED_OVER', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'AVAILABLE_FOR_PICKUP', 'DELIVERED')),
-    CONSTRAINT ck_shipment_event_source CHECK (source IN ('SELLER', 'CARRIER', 'SYSTEM', 'BUYER'))
-);
-
-CREATE TABLE review.ProductRecord (
-    product_record_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_product_record PRIMARY KEY,
-    order_item_id int NOT NULL,
-    reviewer_id int NOT NULL,
-    rating tinyint NOT NULL CONSTRAINT ck_product_record_rating CHECK (rating BETWEEN 1 AND 5),
-    content nvarchar(1000) NULL,
-    created_at datetime2 NOT NULL CONSTRAINT df_product_record_created_at DEFAULT SYSDATETIME(),
-    updated_at datetime2 NOT NULL CONSTRAINT df_product_record_updated_at DEFAULT SYSDATETIME(),
-    CONSTRAINT uq_product_record_order_item UNIQUE (order_item_id),
-    CONSTRAINT fk_product_record_order_item FOREIGN KEY (order_item_id) REFERENCES sales.OrderItem(order_item_id),
-    CONSTRAINT fk_product_record_reviewer FOREIGN KEY (reviewer_id) REFERENCES member.Member(member_id)
-);
-
-CREATE TABLE review.MemberRecord (
-    member_record_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_member_record PRIMARY KEY,
-    order_id int NOT NULL,
-    reviewer_id int NOT NULL,
-    target_member_id int NOT NULL,
-    rating tinyint NOT NULL CONSTRAINT ck_member_record_rating CHECK (rating BETWEEN 1 AND 5),
-    content nvarchar(1000) NULL,
-    created_at datetime2 NOT NULL CONSTRAINT df_member_record_created_at DEFAULT SYSDATETIME(),
-    updated_at datetime2 NOT NULL CONSTRAINT df_member_record_updated_at DEFAULT SYSDATETIME(),
-    CONSTRAINT uq_member_record_order_members UNIQUE (order_id, reviewer_id, target_member_id),
-    CONSTRAINT fk_member_record_orders FOREIGN KEY (order_id) REFERENCES sales.Orders(order_id),
-    CONSTRAINT fk_member_record_reviewer FOREIGN KEY (reviewer_id) REFERENCES member.Member(member_id),
-    CONSTRAINT fk_member_record_target_member FOREIGN KEY (target_member_id) REFERENCES member.Member(member_id)
-);
-
-CREATE TABLE seller.Coupon (
-    coupon_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_coupon PRIMARY KEY,
-    seller_id int NOT NULL CONSTRAINT fk_coupon_seller FOREIGN KEY REFERENCES seller.Seller(seller_id),
-    coupon_code varchar(100) NOT NULL,
-    coupon_name varchar(100) NOT NULL,
-    discount_type varchar(30) NOT NULL,
-    discount_value decimal(18,2) NOT NULL,
-    min_purchase_amount decimal(18,2) NULL,
-    start_at datetime2 NOT NULL,
-    end_at datetime2 NOT NULL,
-    limit_count int NULL,
-    used_count int NOT NULL CONSTRAINT df_coupon_used_count DEFAULT 0,
-    scope_type varchar(30) NOT NULL,
-    category_id int NULL CONSTRAINT fk_coupon_category FOREIGN KEY REFERENCES catalog.Category(category_id),
-    product_id int NULL CONSTRAINT fk_coupon_product FOREIGN KEY REFERENCES catalog.Product(product_id),
-    status varchar(30) NOT NULL,
-    created_at datetime2 NOT NULL CONSTRAINT df_coupon_created_at DEFAULT SYSDATETIME(),
-    updated_at datetime2 NOT NULL CONSTRAINT df_coupon_updated_at DEFAULT SYSDATETIME(),
-    CONSTRAINT uq_coupon_seller_code UNIQUE (seller_id, coupon_code),
-    CONSTRAINT ck_coupon_valid_time CHECK (end_at > start_at),
-    CONSTRAINT ck_coupon_discount_type CHECK (discount_type IN ('PERCENT', 'AMOUNT')),
-    CONSTRAINT ck_coupon_scope_type CHECK (scope_type IN ('ALL', 'CATEGORY', 'PRODUCT')),
-    CONSTRAINT ck_coupon_status CHECK (status IN ('DRAFT', 'ACTIVE', 'DISABLED', 'EXPIRED')),
-    CONSTRAINT ck_coupon_discount_value CHECK (discount_value > 0),
-    CONSTRAINT ck_coupon_limit_count CHECK (limit_count IS NULL OR limit_count > 0)
-);
-
-CREATE TABLE seller.MemberCoupon (
-    member_coupon_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_member_coupon PRIMARY KEY,
-    coupon_id int NOT NULL CONSTRAINT fk_member_coupon_coupon FOREIGN KEY REFERENCES seller.Coupon(coupon_id),
-    member_id int NOT NULL CONSTRAINT fk_member_coupon_member FOREIGN KEY REFERENCES member.Member(member_id),
-    is_used bit NOT NULL CONSTRAINT df_member_coupon_is_used DEFAULT 0,
-    used_at datetime2 NULL,
-    received_at datetime2 NOT NULL CONSTRAINT df_member_coupon_received_at DEFAULT SYSDATETIME(),
-    CONSTRAINT uq_member_coupon UNIQUE (coupon_id, member_id)
-);
-
-CREATE TABLE seller.SellerAiSalesAnalysis (
-    analysis_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_seller_ai_sales_analysis PRIMARY KEY,
-    seller_id int NOT NULL CONSTRAINT fk_seller_ai_sales_analysis_seller FOREIGN KEY REFERENCES seller.Seller(seller_id),
-    analysis_period_start date NOT NULL,
-    analysis_period_end date NOT NULL,
-    revenue_amount decimal(12,2) NOT NULL CONSTRAINT df_seller_ai_sales_analysis_revenue DEFAULT 0,
-    order_count int NOT NULL CONSTRAINT df_seller_ai_sales_analysis_order_count DEFAULT 0,
-    product_count int NOT NULL CONSTRAINT df_seller_ai_sales_analysis_product_count DEFAULT 0,
-    used_coupon_count int NOT NULL CONSTRAINT df_seller_ai_sales_analysis_used_coupon_count DEFAULT 0,
-    top_product_summary nvarchar(500) NULL,
-    coupon_summary nvarchar(500) NULL,
-    risk_summary nvarchar(500) NULL,
-    ai_summary nvarchar(1000) NOT NULL,
-    ai_recommendation nvarchar(1000) NULL,
-    model_name varchar(100) NULL,
-    generated_at datetime2 NOT NULL CONSTRAINT df_seller_ai_sales_analysis_generated_at DEFAULT SYSDATETIME(),
-    created_at datetime2 NOT NULL CONSTRAINT df_seller_ai_sales_analysis_created_at DEFAULT SYSDATETIME(),
-    CONSTRAINT ck_seller_ai_sales_analysis_period CHECK (analysis_period_end >= analysis_period_start),
-    CONSTRAINT ck_seller_ai_sales_analysis_revenue CHECK (revenue_amount >= 0),
-    CONSTRAINT ck_seller_ai_sales_analysis_order_count CHECK (order_count >= 0),
-    CONSTRAINT ck_seller_ai_sales_analysis_product_count CHECK (product_count >= 0),
-    CONSTRAINT ck_seller_ai_sales_analysis_used_coupon_count CHECK (used_coupon_count >= 0)
-);
-
-CREATE TABLE msg.MsgTemplate (
-    template_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_msg_template PRIMARY KEY,
-    role_type char(2) NOT NULL,
-    msg_type varchar(50) NOT NULL,
-    title nvarchar(50) NOT NULL,
-    content nvarchar(500) NOT NULL,
-    coupon_id int NULL CONSTRAINT fk_msg_template_coupon FOREIGN KEY REFERENCES seller.Coupon(coupon_id)
-);
-
-CREATE TABLE msg.MsgSample (
-    sample_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_msg_sample PRIMARY KEY,
-    role_type char(2) NOT NULL,
-    msg_type varchar(50) NOT NULL,
-    sample_subject nvarchar(500) NOT NULL,
-    sample_content nvarchar(500) NOT NULL,
-    sample_at datetime2 NOT NULL CONSTRAINT df_msg_sample_sample_at DEFAULT SYSDATETIME()
-);
-
-CREATE TABLE msg.Msg (
-    msg_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_msg PRIMARY KEY,
-    template_id int NULL CONSTRAINT fk_msg_template FOREIGN KEY REFERENCES msg.MsgTemplate(template_id),
-    sender_id int NOT NULL CONSTRAINT fk_msg_sender FOREIGN KEY REFERENCES member.Member(member_id),
-    title nvarchar(200) NOT NULL,
-    content nvarchar(5000) NOT NULL,
-    created_at datetime2 NOT NULL CONSTRAINT df_msg_created_at DEFAULT SYSDATETIME()
-);
-
-CREATE TABLE msg.MsgRecipient (
-    msg_recipient_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_msg_recipient PRIMARY KEY,
-    msg_id int NOT NULL CONSTRAINT fk_msg_recipient_msg FOREIGN KEY REFERENCES msg.Msg(msg_id),
-    member_id int NOT NULL CONSTRAINT fk_msg_recipient_member FOREIGN KEY REFERENCES member.Member(member_id),
-    is_read bit NOT NULL CONSTRAINT df_msg_recipient_is_read DEFAULT 0,
-    read_at datetime2 NULL,
-    delivered_at datetime2 NOT NULL CONSTRAINT df_msg_recipient_delivered_at DEFAULT SYSDATETIME(),
-    CONSTRAINT uq_msg_recipient UNIQUE (msg_id, member_id)
-);
-
-CREATE TABLE ai.AiConversation (
-    conversation_id int IDENTITY(1,1) NOT NULL CONSTRAINT pk_ai_conversation PRIMARY KEY,
-    cloud_conversation_id varchar(255) NOT NULL,
-    member_id int NOT NULL CONSTRAINT fk_ai_conversation_member FOREIGN KEY REFERENCES member.Member(member_id),
-    provider varchar(50) NOT NULL,
-    log_file_path nvarchar(500) NOT NULL,
-    created_at datetime2 NOT NULL CONSTRAINT df_ai_conversation_created_at DEFAULT SYSDATETIME(),
-    updated_at datetime2 NOT NULL CONSTRAINT df_ai_conversation_updated_at DEFAULT SYSDATETIME(),
-    CONSTRAINT uq_ai_conversation_cloud_id UNIQUE (provider, cloud_conversation_id)
-);
-
-CREATE TABLE service.Role (
-    service_role_id int NOT NULL CONSTRAINT pk_service_role PRIMARY KEY,
-    role_name varchar(50) NOT NULL CHECK (role_name IN ('customer', 'seller'))
-);
-
-CREATE TABLE service.Topic (
-    topic_id char(1) NOT NULL CONSTRAINT pk_service_topic PRIMARY KEY,
-    role_name varchar(50) NOT NULL CHECK (role_name IN ('customer', 'seller')),
-    topic nvarchar(50) NULL,
-    topic_enter nvarchar(100) NULL
-);
-
-CREATE TABLE service.Subtheme (
-    subtheme_id int NOT NULL CONSTRAINT pk_service_subtheme PRIMARY KEY,
-    role_name varchar(50) NOT NULL CHECK (role_name IN ('customer', 'seller')),
-    topic nvarchar(50) NULL,
-    subtheme nvarchar(50) NULL,
-    subtheme_enter nvarchar(100) NULL
-);
-
-CREATE TABLE service.Demand (
-    demand_id int NOT NULL CONSTRAINT pk_service_demand PRIMARY KEY,
-    role_name varchar(50) NOT NULL CHECK (role_name IN ('customer', 'seller')),
-    subtheme nvarchar(50) NULL,
-    demand nvarchar(50) NULL,
-    demand_enter nvarchar(100) NULL
-);
-
-CREATE TABLE service.Reply (
-    sys_reply_id int NOT NULL CONSTRAINT pk_service_reply PRIMARY KEY,
-    role_name varchar(50) NOT NULL CHECK (role_name IN ('customer', 'seller')),
-    demand nvarchar(50) NULL,
-    reply nvarchar(100) NULL,
-    reply_enter nvarchar(100) NULL
-);
-
-CREATE INDEX ix_member_email ON member.Member(email);
-CREATE INDEX ix_address_member_id ON member.Address(member_id);
-CREATE INDEX ix_subcategory_category_id ON catalog.Subcategory(category_id);
-CREATE INDEX ix_product_seller_id ON catalog.Product(seller_id);
-CREATE INDEX ix_product_subcategory_id ON catalog.Product(subcategory_id);
-CREATE INDEX ix_product_brand_id ON catalog.Product(brand_id);
-CREATE INDEX ix_product_sku_product_id ON catalog.ProductSku(product_id);
-CREATE INDEX ix_product_image_product_id ON catalog.ProductImage(product_id);
-CREATE INDEX ix_cart_item_cart_id ON cart.CartItem(cart_id);
-CREATE INDEX ix_cart_item_sku_id ON cart.CartItem(sku_id);
-CREATE INDEX ix_favorite_member_id ON cart.Favorite(member_id);
-CREATE INDEX ix_favorite_product_id ON cart.Favorite(product_id);
-CREATE INDEX ix_orders_buyer_id ON sales.Orders(buyer_id);
-CREATE INDEX ix_orders_seller_id ON sales.Orders(seller_id);
-CREATE INDEX ix_orders_status ON sales.Orders(status);
-CREATE INDEX ix_orders_buyer_created_at ON sales.Orders(buyer_id, created_at);
-CREATE INDEX ix_orders_seller_status_created_at ON sales.Orders(seller_id, status, created_at);
-CREATE INDEX ix_order_item_order_id ON sales.OrderItem(order_id);
-CREATE INDEX ix_order_item_product_id ON sales.OrderItem(product_id);
-CREATE INDEX ix_order_item_sku_id ON sales.OrderItem(sku_id);
-CREATE INDEX ix_order_item_is_reviewed ON sales.OrderItem(is_reviewed);
-CREATE INDEX ix_payment_order_id ON sales.Payment(order_id);
-CREATE INDEX ix_payment_payment_method_id ON sales.Payment(payment_method_id);
-CREATE INDEX ix_payment_status ON sales.Payment(status);
-CREATE INDEX ix_payment_order_status ON sales.Payment(order_id, status);
-CREATE INDEX ix_shipment_status ON sales.Shipment(status);
-CREATE INDEX ix_shipment_tracking_no ON sales.Shipment(tracking_no);
-CREATE INDEX ix_shipment_event_shipment_occurred ON sales.ShipmentEvent(shipment_id, occurred_at);
-CREATE INDEX ix_product_record_reviewer_id ON review.ProductRecord(reviewer_id);
-CREATE INDEX ix_member_record_order_id ON review.MemberRecord(order_id);
-CREATE INDEX ix_member_record_reviewer_id ON review.MemberRecord(reviewer_id);
-CREATE INDEX ix_member_record_target_member_id ON review.MemberRecord(target_member_id);
-CREATE INDEX ix_coupon_seller_id ON seller.Coupon(seller_id);
-CREATE INDEX ix_coupon_category_id ON seller.Coupon(category_id);
-CREATE INDEX ix_coupon_product_id ON seller.Coupon(product_id);
-CREATE INDEX ix_coupon_status ON seller.Coupon(status);
-CREATE INDEX ix_member_coupon_coupon_id ON seller.MemberCoupon(coupon_id);
-CREATE INDEX ix_member_coupon_member_id ON seller.MemberCoupon(member_id);
-CREATE INDEX ix_msg_template_coupon_id ON msg.MsgTemplate(coupon_id);
-CREATE INDEX ix_msg_member_id ON msg.Msg(sender_id);
-CREATE INDEX ix_msg_template_id ON msg.Msg(template_id);
-CREATE INDEX ix_msg_recipient_msg_id ON msg.MsgRecipient(msg_id);
-CREATE INDEX ix_msg_recipient_member_id ON msg.MsgRecipient(member_id);
-CREATE INDEX ix_member_oauth_account_member_id ON member.MemberOAuthAccount(member_id);
-CREATE INDEX ix_ai_conversation_member_id ON ai.AiConversation(member_id);
-CREATE INDEX ix_seller_ai_sales_analysis_seller_generated ON seller.SellerAiSalesAnalysis(seller_id, generated_at DESC);
-CREATE INDEX ix_seller_ai_sales_analysis_period ON seller.SellerAiSalesAnalysis(seller_id, analysis_period_start, analysis_period_end);
-```
-
-## 表總數統計
-
-目前這份資料模型總共有 35 張表。A-F 組員負責 34 張，AI 模組 1 張暫定由全體組員共同負責。
-
-| 模組 / 組員               | 資料表                                                                                                                                                                                                   | 小計 |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| A：會員與帳號模組         | `member.Member`, `member.Address`, `member.Role`, `member.MemberRole`, `member.MemberOAuthAccount`                                                                                                       | 5    |
-| B：商品目錄模組           | `catalog.Category`, `catalog.Subcategory`, `catalog.Brand`, `catalog.Product`, `catalog.ProductSku`, `catalog.ProductImage`                                                                              | 6    |
-| C：購物車與收藏模組       | `cart.Cart`, `cart.CartItem`, `cart.Favorite`                                                                                                                                                            | 3    |
-| D：訂單、付款與物流模組   | `sales.Orders`, `sales.OrderItem`, `sales.PaymentMethod`, `sales.Payment`, `sales.Shipment`                                                                                                              | 5    |
-| E：賣家中心模組           | `seller.Seller`, `seller.Coupon`, `seller.MemberCoupon`, `seller.SellerAiSalesAnalysis`                                                                                                                  | 4    |
-| F：通知、評價與客服模組   | `msg.MsgTemplate`, `msg.MsgSample`, `msg.Msg`, `msg.MsgRecipient`, `review.ProductRecord`, `review.MemberRecord`, `service.Role`, `service.Topic`, `service.Subtheme`, `service.Demand`, `service.Reply` | 11   |
-| 全體組員（暫定）：AI 模組 | `ai.AiConversation`                                                                                                                                                                                      | 1    |
-| 總計                      | A-F 小計 34 張，AI 全體暫定負責 1 張                                                                                                                                                                     | 35   |
+> Source: `0827.bacpac` → `model.xml`
+> Database: `DinoGo`
+> Generated: 2026-08-27
+>
+> 此文件反映產生當下的實際 SQL Server Schema。若 Java Entity、舊 ERD、舊 Markdown 或其他文件與本文件衝突，請先回報 schema mismatch，不得自行推測或修改任一方。
+
+## Schema Summary
+
+| Schema | Tables |
+| --- | ---: |
+| `ai` | 1 |
+| `cart` | 3 |
+| `catalog` | 6 |
+| `member` | 6 |
+| `msg` | 0 |
+| `review` | 2 |
+| `sales` | 6 |
+| `seller` | 6 |
+| `service` | 5 |
+| `sysmsg` | 7 |
+| **Total** | **42** |
+
+## Table List
+
+| Schema | Table |
+| --- | --- |
+| `ai` | `AiConversation` |
+| `cart` | `Cart` |
+| `cart` | `CartItem` |
+| `cart` | `Favorite` |
+| `catalog` | `Brand` |
+| `catalog` | `Category` |
+| `catalog` | `Product` |
+| `catalog` | `ProductImage` |
+| `catalog` | `ProductSku` |
+| `catalog` | `Subcategory` |
+| `member` | `Address` |
+| `member` | `Member` |
+| `member` | `MemberAccountStatusHistory` |
+| `member` | `MemberOAuthAccount` |
+| `member` | `MemberRole` |
+| `member` | `Role` |
+| `review` | `history` |
+| `review` | `star` |
+| `sales` | `OrderItem` |
+| `sales` | `Orders` |
+| `sales` | `Payment` |
+| `sales` | `PaymentMethod` |
+| `sales` | `Shipment` |
+| `sales` | `ShipmentEvent` |
+| `seller` | `Coupon` |
+| `seller` | `MemberCoupon` |
+| `seller` | `Seller` |
+| `seller` | `SellerAiSalesAnalysis` |
+| `seller` | `SellerApplication` |
+| `seller` | `withdrawal_request` |
+| `service` | `Demand` |
+| `service` | `Reply` |
+| `service` | `Role` |
+| `service` | `Subtheme` |
+| `service` | `Topic` |
+| `sysmsg` | `msg_function_sequence` |
+| `sysmsg` | `record` |
+| `sysmsg` | `record_channel` |
+| `sysmsg` | `send` |
+| `sysmsg` | `send_disorder` |
+| `sysmsg` | `send_order` |
+| `sysmsg` | `send_seller` |
+
+---
+
+## `ai.AiConversation`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `conversation_id` | `int` | NO | YES |  | NO |
+| `cloud_conversation_id` | `varchar(255)` | NO | NO |  | NO |
+| `member_id` | `int` | NO | NO |  | NO |
+| `provider` | `varchar(50)` | NO | NO |  | NO |
+| `log_file_path` | `nvarchar(500)` | NO | NO |  | NO |
+| `created_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `updated_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_ai_conversation`: `conversation_id`
+
+### Foreign Keys
+- `fk_ai_conversation_member`: `member_id` → `member.Member` (`member_id`)
+
+### Unique Constraints
+- `uq_ai_conversation_cloud_id`: `provider`, `cloud_conversation_id`
+
+### Check Constraints
+無。
+
+### Default Constraints
+- `df_ai_conversation_created_at` on `created_at`: `(sysdatetime())`
+- `df_ai_conversation_updated_at` on `updated_at`: `(sysdatetime())`
+
+### Indexes
+
+無。
+
+---
+
+## `cart.Cart`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `cart_id` | `int` | NO | YES |  | NO |
+| `member_id` | `int` | NO | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_cart`: `cart_id`
+
+### Foreign Keys
+- `fk_cart_member`: `member_id` → `member.Member` (`member_id`)
+
+### Unique Constraints
+- `uq_cart_member`: `member_id`
+
+### Check Constraints
+無。
+
+### Default Constraints
+無。
+
+### Indexes
+
+無。
+
+---
+
+## `cart.CartItem`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `cart_item_id` | `int` | NO | YES |  | NO |
+| `cart_id` | `int` | NO | NO |  | NO |
+| `sku_id` | `int` | NO | NO |  | NO |
+| `quantity` | `int` | NO | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_cart_item`: `cart_item_id`
+
+### Foreign Keys
+- `fk_cart_item_cart`: `cart_id` → `cart.Cart` (`cart_id`)
+- `fk_cart_item_sku`: `sku_id` → `catalog.ProductSku` (`sku_id`)
+
+### Unique Constraints
+- `uq_cart_item_cart_sku`: `cart_id`, `sku_id`
+
+### Check Constraints
+- `ck_cart_item_quantity`: `[quantity]>(0)`
+
+### Default Constraints
+無。
+
+### Indexes
+
+無。
+
+---
+
+## `cart.Favorite`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `favorite_id` | `int` | NO | YES |  | NO |
+| `member_id` | `int` | NO | NO |  | NO |
+| `product_id` | `int` | NO | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_favorite`: `favorite_id`
+
+### Foreign Keys
+- `fk_favorite_member`: `member_id` → `member.Member` (`member_id`)
+- `fk_favorite_product`: `product_id` → `catalog.Product` (`product_id`)
+
+### Unique Constraints
+- `uq_favorite_member_product`: `member_id`, `product_id`
+
+### Check Constraints
+無。
+
+### Default Constraints
+無。
+
+### Indexes
+
+無。
+
+---
+
+## `catalog.Brand`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `brand_id` | `int` | NO | YES |  | NO |
+| `brand_name` | `nvarchar(100)` | NO | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_brand`: `brand_id`
+
+### Foreign Keys
+無。
+
+### Unique Constraints
+- `uq_brand_brand_name`: `brand_name`
+
+### Check Constraints
+無。
+
+### Default Constraints
+無。
+
+### Indexes
+
+無。
+
+---
+
+## `catalog.Category`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `category_id` | `int` | NO | YES |  | NO |
+| `category_name` | `nvarchar(100)` | NO | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_category`: `category_id`
+
+### Foreign Keys
+無。
+
+### Unique Constraints
+- `uk_category_name`: `category_name`
+- `uq_category_name`: `category_name`
+
+### Check Constraints
+無。
+
+### Default Constraints
+無。
+
+### Indexes
+
+無。
+
+---
+
+## `catalog.Product`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `product_id` | `int` | NO | YES |  | NO |
+| `seller_id` | `int` | NO | NO |  | NO |
+| `subcategory_id` | `int` | NO | NO |  | NO |
+| `brand_id` | `int` | NO | NO |  | NO |
+| `product_name` | `nvarchar(50)` | NO | NO |  | NO |
+| `description` | `nvarchar(3000)` | YES | NO |  | NO |
+| `base_price` | `decimal(10,2)` | NO | NO |  | NO |
+| `status` | `tinyint` | NO | NO | ((0)) | NO |
+| `view_count` | `int` | NO | NO | ((0)) | NO |
+| `sold_count` | `int` | NO | NO | ((0)) | NO |
+| `created_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `updated_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_product`: `product_id`
+
+### Foreign Keys
+- `fk_product_brand`: `brand_id` → `catalog.Brand` (`brand_id`)
+- `fk_product_seller`: `seller_id` → `seller.Seller` (`seller_id`)
+- `fk_product_subcategory`: `subcategory_id` → `catalog.Subcategory` (`subcategory_id`)
+- `FKku369nri8u3s17uom8or57trs`: `subcategory_id` → `catalog.Subcategory` (`subcategory_id`)
+- `FKs6cydsualtsrprvlf2bb3lcam`: `brand_id` → `catalog.Brand` (`brand_id`)
+
+### Unique Constraints
+無。
+
+### Check Constraints
+- `ck_product_nonnegative_values`: `[base_price]>=(0) AND [view_count]>=(0) AND [sold_count]>=(0)`
+- `ck_product_status`: `[status]=(3) OR [status]=(2) OR [status]=(1) OR [status]=(0)`
+
+### Default Constraints
+- `df_product_created_at` on `created_at`: `(sysdatetime())`
+- `df_product_sold_count` on `sold_count`: `((0))`
+- `df_product_status` on `status`: `((0))`
+- `df_product_updated_at` on `updated_at`: `(sysdatetime())`
+- `df_product_view_count` on `view_count`: `((0))`
+
+### Indexes
+
+無。
+
+---
+
+## `catalog.ProductImage`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `image_id` | `int` | NO | YES |  | NO |
+| `product_id` | `int` | NO | NO |  | NO |
+| `image_url` | `nvarchar(255)` | NO | NO |  | NO |
+| `sort_order` | `int` | NO | NO |  | NO |
+| `is_main` | `bit` | NO | NO | ((0)) | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_product_image`: `image_id`
+
+### Foreign Keys
+- `fk_product_image_product`: `product_id` → `catalog.Product` (`product_id`)
+
+### Unique Constraints
+- `uq_product_image_sort_order`: `product_id`, `sort_order`
+
+### Check Constraints
+無。
+
+### Default Constraints
+- `df_product_image_is_main` on `is_main`: `((0))`
+
+### Indexes
+
+| Name | Unique | Clustered | Key columns | Included columns | Filter |
+| --- | ---: | ---: | --- | --- | --- |
+| `uq_product_image_one_main` | YES | NO | `product_id` ASC |  | ([is_main]=(1)) |
+
+---
+
+## `catalog.ProductSku`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `sku_id` | `int` | NO | YES |  | NO |
+| `product_id` | `int` | NO | NO |  | NO |
+| `spec1_name` | `nvarchar(30)` | YES | NO |  | NO |
+| `spec1_value` | `nvarchar(50)` | YES | NO |  | NO |
+| `spec2_name` | `nvarchar(30)` | YES | NO |  | NO |
+| `spec2_value` | `nvarchar(50)` | YES | NO |  | NO |
+| `price` | `decimal(10,2)` | NO | NO |  | NO |
+| `stock` | `int` | NO | NO |  | NO |
+| `status` | `tinyint` | NO | NO | ((1)) | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_product_sku`: `sku_id`
+
+### Foreign Keys
+- `fk_product_sku_product`: `product_id` → `catalog.Product` (`product_id`)
+
+### Unique Constraints
+- `uq_product_sku_sku_product`: `sku_id`, `product_id`
+
+### Check Constraints
+- `ck_product_sku_price`: `[price]>=(0)`
+- `ck_product_sku_stock`: `[stock]>=(0)`
+
+### Default Constraints
+- `df_product_sku_status` on `status`: `((1))`
+
+### Indexes
+
+無。
+
+---
+
+## `catalog.Subcategory`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `subcategory_id` | `int` | NO | YES |  | NO |
+| `category_id` | `int` | NO | NO |  | NO |
+| `subcategory_name` | `nvarchar(100)` | NO | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_subcategory`: `subcategory_id`
+
+### Foreign Keys
+- `fk_subcategory_category`: `category_id` → `catalog.Category` (`category_id`)
+- `FKe4hdbsmrx9bs9gpj1fh4mg0ku`: `category_id` → `catalog.Category` (`category_id`)
+
+### Unique Constraints
+- `uk_subcategory_category_name`: `category_id`, `subcategory_name`
+- `uq_subcategory_category_name`: `category_id`, `subcategory_name`
+
+### Check Constraints
+無。
+
+### Default Constraints
+無。
+
+### Indexes
+
+無。
+
+---
+
+## `member.Address`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `address_id` | `int` | NO | YES |  | NO |
+| `member_id` | `int` | NO | NO |  | NO |
+| `receiver_name` | `nvarchar(100)` | NO | NO |  | NO |
+| `receiver_phone` | `varchar(20)` | NO | NO |  | NO |
+| `postal_code` | `varchar(10)` | YES | NO |  | NO |
+| `city` | `nvarchar(10)` | NO | NO |  | NO |
+| `district` | `nvarchar(10)` | NO | NO |  | NO |
+| `detail_address` | `nvarchar(255)` | NO | NO |  | NO |
+| `is_default` | `bit` | NO | NO | ((0)) | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_address`: `address_id`
+
+### Foreign Keys
+- `fk_address_member`: `member_id` → `member.Member` (`member_id`)
+
+### Unique Constraints
+無。
+
+### Check Constraints
+無。
+
+### Default Constraints
+- `df_address_is_default` on `is_default`: `((0))`
+
+### Indexes
+
+| Name | Unique | Clustered | Key columns | Included columns | Filter |
+| --- | ---: | ---: | --- | --- | --- |
+| `uq_address_one_default_per_member` | YES | NO | `member_id` ASC |  | ([is_default]=(1)) |
+
+---
+
+## `member.Member`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `member_id` | `int` | NO | YES |  | NO |
+| `email` | `varchar(100)` | NO | NO |  | NO |
+| `password_hash` | `varchar(255)` | NO | NO |  | NO |
+| `last_name` | `nvarchar(50)` | NO | NO |  | NO |
+| `first_name` | `nvarchar(50)` | NO | NO |  | NO |
+| `birth_date` | `date` | YES | NO |  | NO |
+| `phone` | `varchar(20)` | YES | NO |  | NO |
+| `status` | `varchar(20)` | NO | NO | ('ACTIVE') | NO |
+| `created_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `updated_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `auth_version` | `int` | NO | NO | ((0)) | NO |
+| `email_order_notifications` | `bit` | NO | NO | ((1)) | NO |
+| `email_marketing_notifications` | `bit` | NO | NO | ((0)) | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_member`: `member_id`
+
+### Foreign Keys
+無。
+
+### Unique Constraints
+- `uq_member_email`: `email`
+
+### Check Constraints
+- `ck_member_status`: `[status]='DEACTIVATED' OR [status]='SUSPENDED' OR [status]='ACTIVE'`
+
+### Default Constraints
+- `df_member_auth_version` on `auth_version`: `((0))`
+- `df_member_created_at` on `created_at`: `(sysdatetime())`
+- `df_member_email_marketing_notifications` on `email_marketing_notifications`: `((0))`
+- `df_member_email_order_notifications` on `email_order_notifications`: `((1))`
+- `df_member_status` on `status`: `('ACTIVE')`
+- `df_member_updated_at` on `updated_at`: `(sysdatetime())`
+
+### Indexes
+
+無。
+
+---
+
+## `member.MemberAccountStatusHistory`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `history_id` | `int` | NO | YES |  | NO |
+| `member_id` | `int` | NO | NO |  | NO |
+| `previous_status` | `varchar(20)` | NO | NO |  | NO |
+| `new_status` | `varchar(20)` | NO | NO |  | NO |
+| `reason` | `nvarchar(500)` | YES | NO |  | NO |
+| `changed_by` | `int` | YES | NO |  | NO |
+| `changed_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_member_account_status_history`: `history_id`
+
+### Foreign Keys
+- `fk_member_account_status_history_changed_by`: `changed_by` → `member.Member` (`member_id`)
+- `fk_member_account_status_history_member`: `member_id` → `member.Member` (`member_id`)
+
+### Unique Constraints
+無。
+
+### Check Constraints
+無。
+
+### Default Constraints
+- `df_member_account_status_history_changed_at` on `changed_at`: `(sysdatetime())`
+
+### Indexes
+
+| Name | Unique | Clustered | Key columns | Included columns | Filter |
+| --- | ---: | ---: | --- | --- | --- |
+| `ix_member_account_status_history_member_changed_at` | NO | NO | `member_id` ASC, `changed_at` ASC |  |  |
+
+---
+
+## `member.MemberOAuthAccount`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `oauth_account_id` | `int` | NO | YES |  | NO |
+| `member_id` | `int` | NO | NO |  | NO |
+| `provider` | `varchar(30)` | NO | NO |  | NO |
+| `provider_user_id` | `varchar(255)` | NO | NO |  | NO |
+| `provider_email` | `varchar(255)` | YES | NO |  | NO |
+| `created_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `updated_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_member_oauth_account`: `oauth_account_id`
+
+### Foreign Keys
+- `fk_member_oauth_account_member`: `member_id` → `member.Member` (`member_id`)
+
+### Unique Constraints
+- `uq_member_oauth_member_provider`: `member_id`, `provider`
+- `uq_member_oauth_provider_user`: `provider`, `provider_user_id`
+
+### Check Constraints
+無。
+
+### Default Constraints
+- `df_member_oauth_account_created_at` on `created_at`: `(sysdatetime())`
+- `df_member_oauth_account_updated_at` on `updated_at`: `(sysdatetime())`
+
+### Indexes
+
+| Name | Unique | Clustered | Key columns | Included columns | Filter |
+| --- | ---: | ---: | --- | --- | --- |
+| `ix_member_oauth_account_member_id` | NO | NO | `member_id` ASC |  |  |
+
+---
+
+## `member.MemberRole`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `member_id` | `int` | NO | NO |  | NO |
+| `role_id` | `int` | NO | NO |  | NO |
+| `assigned_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_member_role`: `member_id`, `role_id`
+
+### Foreign Keys
+- `fk_member_role_member`: `member_id` → `member.Member` (`member_id`)
+- `fk_member_role_role`: `role_id` → `member.Role` (`role_id`)
+
+### Unique Constraints
+無。
+
+### Check Constraints
+無。
+
+### Default Constraints
+- `df_member_role_assigned_at` on `assigned_at`: `(sysdatetime())`
+
+### Indexes
+
+無。
+
+---
+
+## `member.Role`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `role_id` | `int` | NO | YES |  | NO |
+| `role_name` | `varchar(50)` | NO | NO |  | NO |
+| `description` | `nvarchar(100)` | YES | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_role`: `role_id`
+
+### Foreign Keys
+無。
+
+### Unique Constraints
+- `uq_role_role_name`: `role_name`
+
+### Check Constraints
+無。
+
+### Default Constraints
+無。
+
+### Indexes
+
+無。
+
+---
+
+## `review.history`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `history_id` | `int` | NO | YES |  | NO |
+| `seller_id` | `int` | NO | NO |  | NO |
+| `member_id` | `int` | NO | NO |  | NO |
+| `order_id` | `int` | NO | NO |  | NO |
+| `order_no` | `nvarchar(30)` | NO | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `PK_review_history`: `history_id`
+
+### Foreign Keys
+無。
+
+### Unique Constraints
+- `UQ_review_history_order`: `order_id`
+
+### Check Constraints
+無。
+
+### Default Constraints
+無。
+
+### Indexes
+
+無。
+
+---
+
+## `review.star`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `star_id` | `int` | NO | YES |  | NO |
+| `history_id` | `int` | NO | NO |  | NO |
+| `order_item_id` | `int` | NO | NO |  | NO |
+| `product_id` | `int` | NO | NO |  | NO |
+| `product_name` | `nvarchar(100)` | NO | NO |  | NO |
+| `image_url` | `nvarchar(500)` | YES | NO |  | NO |
+| `base_price` | `decimal(12,2)` | NO | NO |  | NO |
+| `img_one` | `varbinary` | YES | NO |  | NO |
+| `img_two` | `varbinary` | YES | NO |  | NO |
+| `img_three` | `varbinary` | YES | NO |  | NO |
+| `feedback` | `nvarchar(500)` | YES | NO |  | NO |
+| `five_star` | `int` | YES | NO |  | NO |
+| `version` | `bigint` | NO | NO | ((0)) | NO |
+| `star_upd_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `review_priority` | `computed` | YES | NO |  | YES |
+
+### Computed Columns
+- `review_priority`: `(case when [feedback] IS NOT NULL AND ltrim(rtrim([feedback]))<>N'' AND [img_one] IS NOT NULL AND datalength([img_one])>(0) then CONVERT([tinyint],(2)) when [feedback] IS NOT NULL AND ltrim(rtrim([feedback]))<>N'' OR [img_one] IS NOT NULL AND datalength([img_one])>(0) then CONVERT([tinyint],(1)) else CONVERT([tinyint],(0)) end)` (persisted: YES)
+
+### Primary Key
+- `PK_review_star`: `star_id`
+
+### Foreign Keys
+- `FK_review_star_history`: `history_id` → `review.history` (`history_id`)
+
+### Unique Constraints
+- `UQ_review_star_history_order_item`: `history_id`, `order_item_id`
+
+### Check Constraints
+- `CK_review_star_five_star`: `[five_star] IS NULL OR [five_star]>=(1) AND [five_star]<=(5)`
+- `CK_review_star_unreviewed_content`: `[five_star] IS NOT NULL OR [feedback] IS NULL AND [img_one] IS NULL AND [img_two] IS NULL AND [img_three] IS NULL`
+
+### Default Constraints
+- `DF_review_star_updated_at` on `star_upd_at`: `(sysdatetime())`
+- `DF_review_star_version` on `version`: `((0))`
+
+### Indexes
+
+| Name | Unique | Clustered | Key columns | Included columns | Filter |
+| --- | ---: | ---: | --- | --- | --- |
+| `IX_review_star_product_keyset` | NO | NO | `product_id` ASC, `review_priority` ASC, `star_upd_at` ASC, `star_id` ASC |  | ([five_star] IS NOT NULL) |
+
+---
+
+## `sales.OrderItem`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `order_item_id` | `int` | NO | YES |  | NO |
+| `order_id` | `int` | NO | NO |  | NO |
+| `product_id` | `int` | NO | NO |  | NO |
+| `sku_id` | `int` | NO | NO |  | NO |
+| `product_name` | `nvarchar(100)` | NO | NO |  | NO |
+| `sku_spec` | `nvarchar(200)` | YES | NO |  | NO |
+| `product_image_url` | `nvarchar(500)` | YES | NO |  | NO |
+| `unit_price` | `decimal(12,2)` | NO | NO |  | NO |
+| `quantity` | `int` | NO | NO |  | NO |
+| `subtotal` | `decimal(12,2)` | NO | NO |  | NO |
+| `is_reviewed` | `bit` | NO | NO | ((0)) | NO |
+| `created_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_order_item`: `order_item_id`
+
+### Foreign Keys
+- `fk_order_item_orders`: `order_id` → `sales.Orders` (`order_id`)
+- `fk_order_item_product`: `product_id` → `catalog.Product` (`product_id`)
+- `fk_order_item_sku`: `sku_id` → `catalog.ProductSku` (`sku_id`)
+- `fk_order_item_sku_product`: `sku_id`, `product_id` → `catalog.ProductSku` (`sku_id`, `product_id`)
+
+### Unique Constraints
+無。
+
+### Check Constraints
+- `ck_order_item_amount`: `[unit_price]>=(0) AND [subtotal]>=(0)`
+- `ck_order_item_amounts`: `[unit_price]>=(0) AND [subtotal]>=(0) AND [subtotal]=[unit_price]*[quantity]`
+- `ck_order_item_quantity`: `[quantity]>(0)`
+
+### Default Constraints
+- `df_order_item_created_at` on `created_at`: `(sysdatetime())`
+- `df_order_item_is_reviewed` on `is_reviewed`: `((0))`
+
+### Indexes
+
+無。
+
+---
+
+## `sales.Orders`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `order_id` | `int` | NO | YES |  | NO |
+| `order_no` | `varchar(30)` | NO | NO |  | NO |
+| `buyer_id` | `int` | NO | NO |  | NO |
+| `seller_id` | `int` | NO | NO |  | NO |
+| `address_id` | `int` | YES | NO |  | NO |
+| `receiver_name` | `nvarchar(100)` | NO | NO |  | NO |
+| `receiver_phone` | `varchar(20)` | NO | NO |  | NO |
+| `shipping_postal_code` | `varchar(10)` | YES | NO |  | NO |
+| `shipping_city` | `nvarchar(50)` | NO | NO |  | NO |
+| `shipping_district` | `nvarchar(50)` | NO | NO |  | NO |
+| `shipping_detail_address` | `nvarchar(255)` | NO | NO |  | NO |
+| `status` | `varchar(30)` | NO | NO | ('PENDING_PAYMENT') | NO |
+| `subtotal_amount` | `decimal(12,2)` | NO | NO |  | NO |
+| `shipping_fee` | `decimal(12,2)` | NO | NO | ((0)) | NO |
+| `discount_amount` | `decimal(12,2)` | NO | NO | ((0)) | NO |
+| `total_amount` | `decimal(12,2)` | NO | NO |  | NO |
+| `buyer_remark` | `nvarchar(500)` | YES | NO |  | NO |
+| `cancel_reason` | `nvarchar(500)` | YES | NO |  | NO |
+| `cancelled_by` | `varchar(20)` | YES | NO |  | NO |
+| `cancelled_at` | `datetime2(7)` | YES | NO |  | NO |
+| `completed_at` | `datetime2(7)` | YES | NO |  | NO |
+| `created_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `updated_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `member_coupon_id` | `int` | YES | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_orders`: `order_id`
+
+### Foreign Keys
+- `fk_orders_address`: `address_id` → `member.Address` (`address_id`)
+- `fk_orders_buyer`: `buyer_id` → `member.Member` (`member_id`)
+- `fk_orders_member_coupon_buyer`: `member_coupon_id`, `buyer_id` → `seller.MemberCoupon` (`member_coupon_id`, `member_id`)
+- `fk_orders_seller`: `seller_id` → `seller.Seller` (`seller_id`)
+
+### Unique Constraints
+- `uq_orders_order_no`: `order_no`
+
+### Check Constraints
+- `ck_orders_amount`: `[subtotal_amount]>=(0) AND [shipping_fee]>=(0) AND [discount_amount]>=(0) AND [total_amount]>=(0)`
+- `ck_orders_amounts`: `[subtotal_amount]>=(0) AND [shipping_fee]>=(0) AND [discount_amount]>=(0) AND [total_amount]>=(0) AND [total_amount]=(([subtotal_amount]+[shipping_fee])-[discount_amount])`
+- `ck_orders_cancelled_by`: `[cancelled_by] IS NULL OR ([cancelled_by]='SYSTEM' OR [cancelled_by]='SELLER' OR [cancelled_by]='BUYER')`
+- `ck_orders_status`: `[status]='CANCELLED' OR [status]='COMPLETED' OR [status]='DELIVERED' OR [status]='SHIPPED' OR [status]='PROCESSING' OR [status]='PAID' OR [status]='PENDING_PAYMENT'`
+
+### Default Constraints
+- `df_orders_created_at` on `created_at`: `(sysdatetime())`
+- `df_orders_discount_amount` on `discount_amount`: `((0))`
+- `df_orders_shipping_fee` on `shipping_fee`: `((0))`
+- `df_orders_status` on `status`: `('PENDING_PAYMENT')`
+- `df_orders_updated_at` on `updated_at`: `(sysdatetime())`
+
+### Indexes
+
+| Name | Unique | Clustered | Key columns | Included columns | Filter |
+| --- | ---: | ---: | --- | --- | --- |
+| `uq_orders_member_coupon` | YES | NO | `member_coupon_id` ASC |  | ([member_coupon_id] IS NOT NULL) |
+
+---
+
+## `sales.Payment`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `payment_id` | `int` | NO | YES |  | NO |
+| `payment_no` | `varchar(40)` | NO | NO |  | NO |
+| `order_id` | `int` | NO | NO |  | NO |
+| `payment_method_id` | `int` | NO | NO |  | NO |
+| `amount` | `decimal(12,2)` | NO | NO |  | NO |
+| `status` | `varchar(20)` | NO | NO | ('PENDING') | NO |
+| `transaction_no` | `varchar(100)` | YES | NO |  | NO |
+| `failure_reason` | `nvarchar(255)` | YES | NO |  | NO |
+| `paid_at` | `datetime2(7)` | YES | NO |  | NO |
+| `created_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `updated_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `idempotency_key` | `varchar(64)` | NO | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_payment`: `payment_id`
+
+### Foreign Keys
+- `fk_payment_orders`: `order_id` → `sales.Orders` (`order_id`)
+- `fk_payment_payment_method`: `payment_method_id` → `sales.PaymentMethod` (`payment_method_id`)
+
+### Unique Constraints
+- `uq_payment_order_idempotency_key`: `order_id`, `idempotency_key`
+- `uq_payment_payment_no`: `payment_no`
+
+### Check Constraints
+- `ck_payment_amount`: `[amount]>=(0)`
+- `ck_payment_status`: `[status]='CANCELLED' OR [status]='FAILED' OR [status]='SUCCESS' OR [status]='PENDING'`
+
+### Default Constraints
+- `df_payment_created_at` on `created_at`: `(sysdatetime())`
+- `df_payment_status` on `status`: `('PENDING')`
+- `df_payment_updated_at` on `updated_at`: `(sysdatetime())`
+
+### Indexes
+
+| Name | Unique | Clustered | Key columns | Included columns | Filter |
+| --- | ---: | ---: | --- | --- | --- |
+| `uq_payment_one_success_per_order` | YES | NO | `order_id` ASC |  | ([status]='SUCCESS') |
+
+---
+
+## `sales.PaymentMethod`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `payment_method_id` | `int` | NO | YES |  | NO |
+| `method_code` | `varchar(30)` | NO | NO |  | NO |
+| `method_name` | `nvarchar(50)` | NO | NO |  | NO |
+| `created_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `updated_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_payment_method`: `payment_method_id`
+
+### Foreign Keys
+無。
+
+### Unique Constraints
+- `uq_payment_method_method_code`: `method_code`
+
+### Check Constraints
+無。
+
+### Default Constraints
+- `df_payment_method_created_at` on `created_at`: `(sysdatetime())`
+- `df_payment_method_updated_at` on `updated_at`: `(sysdatetime())`
+
+### Indexes
+
+無。
+
+---
+
+## `sales.Shipment`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `shipment_id` | `int` | NO | YES |  | NO |
+| `order_id` | `int` | NO | NO |  | NO |
+| `carrier_name` | `nvarchar(100)` | YES | NO |  | NO |
+| `tracking_no` | `varchar(100)` | YES | NO |  | NO |
+| `status` | `varchar(30)` | NO | NO | ('PREPARING') | NO |
+| `shipped_at` | `datetime2(7)` | YES | NO |  | NO |
+| `available_pickup_at` | `datetime2(7)` | YES | NO |  | NO |
+| `delivered_at` | `datetime2(7)` | YES | NO |  | NO |
+| `delivery_photo_url` | `nvarchar(500)` | YES | NO |  | NO |
+| `created_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `updated_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_shipment`: `shipment_id`
+
+### Foreign Keys
+- `fk_shipment_orders`: `order_id` → `sales.Orders` (`order_id`)
+
+### Unique Constraints
+- `uq_shipment_order`: `order_id`
+
+### Check Constraints
+- `ck_shipment_status`: `[status]='DELIVERED' OR [status]='AVAILABLE_FOR_PICKUP' OR [status]='SHIPPED' OR [status]='PREPARING'`
+
+### Default Constraints
+- `df_shipment_created_at` on `created_at`: `(sysdatetime())`
+- `df_shipment_status` on `status`: `('PREPARING')`
+- `df_shipment_updated_at` on `updated_at`: `(sysdatetime())`
+
+### Indexes
+
+無。
+
+---
+
+## `sales.ShipmentEvent`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `shipment_event_id` | `int` | NO | YES |  | NO |
+| `shipment_id` | `int` | NO | NO |  | NO |
+| `event_type` | `varchar(30)` | NO | NO |  | NO |
+| `source` | `varchar(20)` | NO | NO |  | NO |
+| `remark` | `nvarchar(500)` | YES | NO |  | NO |
+| `occurred_at` | `datetime2(7)` | NO | NO |  | NO |
+| `created_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_shipment_event`: `shipment_event_id`
+
+### Foreign Keys
+- `fk_shipment_event_shipment`: `shipment_id` → `sales.Shipment` (`shipment_id`)
+
+### Unique Constraints
+無。
+
+### Check Constraints
+- `ck_shipment_event_source`: `[source]='BUYER' OR [source]='SYSTEM' OR [source]='CARRIER' OR [source]='SELLER'`
+- `ck_shipment_event_type`: `[event_type]='DELIVERED' OR [event_type]='AVAILABLE_FOR_PICKUP' OR [event_type]='OUT_FOR_DELIVERY' OR [event_type]='IN_TRANSIT' OR [event_type]='HANDED_OVER' OR [event_type]='LABEL_CREATED'`
+
+### Default Constraints
+- `df_shipment_event_created_at` on `created_at`: `(sysdatetime())`
+
+### Indexes
+
+| Name | Unique | Clustered | Key columns | Included columns | Filter |
+| --- | ---: | ---: | --- | --- | --- |
+| `ix_shipment_event_shipment_occurred` | NO | NO | `shipment_id` ASC, `occurred_at` ASC |  |  |
+
+---
+
+## `seller.Coupon`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `coupon_id` | `int` | NO | YES |  | NO |
+| `seller_id` | `int` | NO | NO |  | NO |
+| `coupon_code` | `varchar(100)` | NO | NO |  | NO |
+| `coupon_name` | `nvarchar(100)` | NO | NO |  | NO |
+| `discount_type` | `varchar(30)` | NO | NO |  | NO |
+| `discount_value` | `decimal(18,2)` | NO | NO |  | NO |
+| `min_purchase_amount` | `decimal(18,2)` | YES | NO |  | NO |
+| `start_at` | `datetime2(7)` | NO | NO |  | NO |
+| `end_at` | `datetime2(7)` | NO | NO |  | NO |
+| `limit_count` | `int` | YES | NO |  | NO |
+| `used_count` | `int` | NO | NO | ((0)) | NO |
+| `scope_type` | `varchar(30)` | NO | NO |  | NO |
+| `category_id` | `int` | YES | NO |  | NO |
+| `product_id` | `int` | YES | NO |  | NO |
+| `status` | `varchar(30)` | NO | NO |  | NO |
+| `created_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `updated_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `subcategory_id` | `int` | YES | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_coupon`: `coupon_id`
+
+### Foreign Keys
+- `fk_coupon_category`: `category_id` → `catalog.Category` (`category_id`)
+- `fk_coupon_product`: `product_id` → `catalog.Product` (`product_id`)
+- `fk_coupon_seller`: `seller_id` → `seller.Seller` (`seller_id`)
+- `fk_coupon_subcategory`: `subcategory_id` → `catalog.Subcategory` (`subcategory_id`)
+
+### Unique Constraints
+- `uq_coupon_seller_code`: `seller_id`, `coupon_code`
+
+### Check Constraints
+- `ck_coupon_discount_type`: `[discount_type]='AMOUNT' OR [discount_type]='PERCENT'`
+- `ck_coupon_discount_value`: `[discount_value]>(0)`
+- `ck_coupon_limit_count`: `[limit_count] IS NULL OR [limit_count]>(0)`
+- `ck_coupon_percent_range`: `[discount_type]<>'PERCENT' OR [discount_value]<=(100)`
+- `ck_coupon_scope_fields_v2`: `[scope_type]='STORE' AND [category_id] IS NULL AND [subcategory_id] IS NULL AND [product_id] IS NULL OR [scope_type]='CATEGORY' AND [category_id] IS NOT NULL AND [subcategory_id] IS NULL AND [product_id] IS NULL OR [scope_type]='SUBCATEGORY' AND [category_id] IS NULL AND [subcategory_id] IS NOT NULL AND [product_id] IS NULL OR [scope_type]='PRODUCT' AND [category_id] IS NULL AND [subcategory_id] IS NULL AND [product_id] IS NOT NULL`
+- `ck_coupon_scope_type_v2`: `[scope_type]='PRODUCT' OR [scope_type]='SUBCATEGORY' OR [scope_type]='CATEGORY' OR [scope_type]='STORE'`
+- `ck_coupon_status`: `[status]='EXPIRED' OR [status]='DISABLED' OR [status]='ACTIVE' OR [status]='DRAFT'`
+- `ck_coupon_usage`: `([min_purchase_amount] IS NULL OR [min_purchase_amount]>=(0)) AND [used_count]>=(0) AND ([limit_count] IS NULL OR [used_count]<=[limit_count])`
+- `ck_coupon_valid_time`: `[end_at]>[start_at]`
+
+### Default Constraints
+- `df_coupon_created_at` on `created_at`: `(sysdatetime())`
+- `df_coupon_updated_at` on `updated_at`: `(sysdatetime())`
+- `df_coupon_used_count` on `used_count`: `((0))`
+
+### Indexes
+
+| Name | Unique | Clustered | Key columns | Included columns | Filter |
+| --- | ---: | ---: | --- | --- | --- |
+| `ix_coupon_status` | NO | NO | `status` ASC |  |  |
+
+---
+
+## `seller.MemberCoupon`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `member_coupon_id` | `int` | NO | YES |  | NO |
+| `coupon_id` | `int` | NO | NO |  | NO |
+| `member_id` | `int` | NO | NO |  | NO |
+| `is_used` | `bit` | NO | NO | ((0)) | NO |
+| `used_at` | `datetime2(7)` | YES | NO |  | NO |
+| `received_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_member_coupon`: `member_coupon_id`
+
+### Foreign Keys
+- `fk_member_coupon_coupon`: `coupon_id` → `seller.Coupon` (`coupon_id`)
+- `fk_member_coupon_member`: `member_id` → `member.Member` (`member_id`)
+
+### Unique Constraints
+- `uq_member_coupon`: `coupon_id`, `member_id`
+- `uq_member_coupon_id_member`: `member_coupon_id`, `member_id`
+
+### Check Constraints
+- `ck_member_coupon_used_state`: `[is_used]=(0) AND [used_at] IS NULL OR [is_used]=(1) AND [used_at] IS NOT NULL`
+
+### Default Constraints
+- `df_member_coupon_is_used` on `is_used`: `((0))`
+- `df_member_coupon_received_at` on `received_at`: `(sysdatetime())`
+
+### Indexes
+
+| Name | Unique | Clustered | Key columns | Included columns | Filter |
+| --- | ---: | ---: | --- | --- | --- |
+| `ix_member_coupon_coupon_id` | NO | NO | `coupon_id` ASC |  |  |
+| `ix_member_coupon_member_id` | NO | NO | `member_id` ASC |  |  |
+
+---
+
+## `seller.Seller`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `seller_id` | `int` | NO | YES |  | NO |
+| `member_id` | `int` | NO | NO |  | NO |
+| `store_name` | `nvarchar(100)` | NO | NO |  | NO |
+| `store_description` | `nvarchar(500)` | YES | NO |  | NO |
+| `store_logo_url` | `varchar(255)` | YES | NO |  | NO |
+| `status` | `varchar(30)` | NO | NO |  | NO |
+| `created_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `updated_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `service_start_time` | `time(7)` | YES | NO |  | NO |
+| `service_end_time` | `time(7)` | YES | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_seller`: `seller_id`
+
+### Foreign Keys
+- `fk_seller_member`: `member_id` → `member.Member` (`member_id`)
+
+### Unique Constraints
+- `uq_seller_member`: `member_id`
+
+### Check Constraints
+無。
+
+### Default Constraints
+- `df_seller_created_at` on `created_at`: `(sysdatetime())`
+- `df_seller_updated_at` on `updated_at`: `(sysdatetime())`
+
+### Indexes
+
+| Name | Unique | Clustered | Key columns | Included columns | Filter |
+| --- | ---: | ---: | --- | --- | --- |
+| `uq_seller_store_name` | YES | NO | `store_name` ASC |  |  |
+
+---
+
+## `seller.SellerAiSalesAnalysis`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `analysis_id` | `int` | NO | YES |  | NO |
+| `seller_id` | `int` | NO | NO |  | NO |
+| `analysis_period_start` | `date` | NO | NO |  | NO |
+| `analysis_period_end` | `date` | NO | NO |  | NO |
+| `revenue_amount` | `decimal(12,2)` | NO | NO | ((0)) | NO |
+| `order_count` | `int` | NO | NO | ((0)) | NO |
+| `product_count` | `int` | NO | NO | ((0)) | NO |
+| `used_coupon_count` | `int` | NO | NO | ((0)) | NO |
+| `top_product_summary` | `nvarchar(500)` | YES | NO |  | NO |
+| `coupon_summary` | `nvarchar(500)` | YES | NO |  | NO |
+| `risk_summary` | `nvarchar(500)` | YES | NO |  | NO |
+| `ai_summary` | `nvarchar(1000)` | NO | NO |  | NO |
+| `ai_recommendation` | `nvarchar(1000)` | YES | NO |  | NO |
+| `model_name` | `varchar(100)` | YES | NO |  | NO |
+| `generated_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `created_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `period_type` | `varchar(20)` | YES | NO |  | NO |
+| `period_year` | `int` | YES | NO |  | NO |
+| `period_no` | `int` | YES | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_seller_ai_sales_analysis`: `analysis_id`
+
+### Foreign Keys
+- `fk_seller_ai_sales_analysis_seller`: `seller_id` → `seller.Seller` (`seller_id`)
+
+### Unique Constraints
+- `uq_seller_ai_sales_analysis_period`: `seller_id`, `period_type`, `period_year`, `period_no`
+
+### Check Constraints
+- `ck_seller_ai_sales_analysis_order_count`: `[order_count]>=(0)`
+- `ck_seller_ai_sales_analysis_period`: `[analysis_period_end]>=[analysis_period_start]`
+- `ck_seller_ai_sales_analysis_period_type`: `[period_type]='YEARLY' OR [period_type]='QUARTERLY' OR [period_type]='MONTHLY'`
+- `ck_seller_ai_sales_analysis_product_count`: `[product_count]>=(0)`
+- `ck_seller_ai_sales_analysis_revenue`: `[revenue_amount]>=(0)`
+- `ck_seller_ai_sales_analysis_used_coupon_count`: `[used_coupon_count]>=(0)`
+
+### Default Constraints
+- `df_seller_ai_sales_analysis_created_at` on `created_at`: `(sysdatetime())`
+- `df_seller_ai_sales_analysis_generated_at` on `generated_at`: `(sysdatetime())`
+- `df_seller_ai_sales_analysis_order_count` on `order_count`: `((0))`
+- `df_seller_ai_sales_analysis_product_count` on `product_count`: `((0))`
+- `df_seller_ai_sales_analysis_revenue` on `revenue_amount`: `((0))`
+- `df_seller_ai_sales_analysis_used_coupon_count` on `used_coupon_count`: `((0))`
+
+### Indexes
+
+無。
+
+---
+
+## `seller.SellerApplication`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `application_id` | `int` | NO | YES |  | NO |
+| `member_id` | `int` | NO | NO |  | NO |
+| `store_name` | `nvarchar(100)` | NO | NO |  | NO |
+| `store_description` | `nvarchar(500)` | YES | NO |  | NO |
+| `store_logo_url` | `nvarchar(255)` | YES | NO |  | NO |
+| `status` | `varchar(30)` | NO | NO | ('PENDING') | NO |
+| `reject_reason` | `nvarchar(500)` | YES | NO |  | NO |
+| `reviewed_by` | `int` | YES | NO |  | NO |
+| `reviewed_at` | `datetime2(7)` | YES | NO |  | NO |
+| `created_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `updated_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- ``: `application_id`
+
+### Foreign Keys
+- `fk_seller_application_member`: `member_id` → `member.Member` (`member_id`)
+- `fk_seller_application_reviewer`: `reviewed_by` → `member.Member` (`member_id`)
+
+### Unique Constraints
+無。
+
+### Check Constraints
+- `ck_seller_application_review_consistency`: `[status]='PENDING' AND [reject_reason] IS NULL AND [reviewed_by] IS NULL AND [reviewed_at] IS NULL OR [status]='APPROVED' AND [reject_reason] IS NULL AND [reviewed_by] IS NOT NULL AND [reviewed_at] IS NOT NULL OR [status]='REJECTED' AND [reject_reason] IS NOT NULL AND [reviewed_by] IS NOT NULL AND [reviewed_at] IS NOT NULL`
+- `ck_seller_application_status`: `[status]='REJECTED' OR [status]='APPROVED' OR [status]='PENDING'`
+
+### Default Constraints
+- `` on `created_at`: `(sysdatetime())`
+- `` on `updated_at`: `(sysdatetime())`
+- `df_seller_application_status` on `status`: `('PENDING')`
+
+### Indexes
+
+| Name | Unique | Clustered | Key columns | Included columns | Filter |
+| --- | ---: | ---: | --- | --- | --- |
+| `ix_seller_application_created_at` | NO | NO | `created_at` ASC |  |  |
+| `ix_seller_application_member_id` | NO | NO | `member_id` ASC |  |  |
+| `ix_seller_application_status` | NO | NO | `status` ASC |  |  |
+| `uq_seller_application_member_pending` | YES | NO | `member_id` ASC |  | ([status]='PENDING') |
+
+---
+
+## `seller.withdrawal_request`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `withdrawal_id` | `int` | NO | YES |  | NO |
+| `seller_id` | `int` | NO | NO |  | NO |
+| `amount` | `decimal(12,2)` | NO | NO |  | NO |
+| `status` | `nvarchar(20)` | NO | NO | (N'PROCESSING') | NO |
+| `requested_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_seller_withdrawal_request`: `withdrawal_id`
+
+### Foreign Keys
+- `fk_seller_withdrawal_request_seller`: `seller_id` → `seller.Seller` (`seller_id`)
+
+### Unique Constraints
+無。
+
+### Check Constraints
+- `ck_seller_withdrawal_request_amount`: `[amount]>(0)`
+- `ck_seller_withdrawal_request_status`: `[status]=N'REJECTED' OR [status]=N'PAID' OR [status]=N'PROCESSING'`
+
+### Default Constraints
+- `df_seller_withdrawal_request_requested_at` on `requested_at`: `(sysdatetime())`
+- `df_seller_withdrawal_request_status` on `status`: `(N'PROCESSING')`
+
+### Indexes
+
+| Name | Unique | Clustered | Key columns | Included columns | Filter |
+| --- | ---: | ---: | --- | --- | --- |
+| `ix_seller_withdrawal_request_seller_status` | NO | NO | `seller_id` ASC, `status` ASC |  |  |
+
+---
+
+## `service.Demand`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `demand_id` | `int` | NO | NO |  | NO |
+| `role_name` | `varchar(50)` | NO | NO |  | NO |
+| `subtheme` | `nvarchar(50)` | YES | NO |  | NO |
+| `demand` | `nvarchar(50)` | YES | NO |  | NO |
+| `demand_enter` | `nvarchar(100)` | YES | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_service_demand`: `demand_id`
+
+### Foreign Keys
+無。
+
+### Unique Constraints
+無。
+
+### Check Constraints
+- ``: `[role_name]='seller' OR [role_name]='customer'`
+
+### Default Constraints
+無。
+
+### Indexes
+
+無。
+
+---
+
+## `service.Reply`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `sys_reply_id` | `int` | NO | NO |  | NO |
+| `role_name` | `varchar(50)` | NO | NO |  | NO |
+| `demand` | `nvarchar(50)` | YES | NO |  | NO |
+| `reply` | `nvarchar(100)` | YES | NO |  | NO |
+| `reply_enter` | `nvarchar(100)` | YES | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_service_reply`: `sys_reply_id`
+
+### Foreign Keys
+無。
+
+### Unique Constraints
+無。
+
+### Check Constraints
+- ``: `[role_name]='seller' OR [role_name]='customer'`
+
+### Default Constraints
+無。
+
+### Indexes
+
+無。
+
+---
+
+## `service.Role`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `service_role_id` | `int` | NO | NO |  | NO |
+| `role_name` | `varchar(50)` | NO | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_service_role`: `service_role_id`
+
+### Foreign Keys
+無。
+
+### Unique Constraints
+無。
+
+### Check Constraints
+- ``: `[role_name]='seller' OR [role_name]='customer'`
+
+### Default Constraints
+無。
+
+### Indexes
+
+無。
+
+---
+
+## `service.Subtheme`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `subtheme_id` | `int` | NO | NO |  | NO |
+| `role_name` | `varchar(50)` | NO | NO |  | NO |
+| `topic` | `nvarchar(50)` | YES | NO |  | NO |
+| `subtheme` | `nvarchar(50)` | YES | NO |  | NO |
+| `subtheme_enter` | `nvarchar(100)` | YES | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_service_subtheme`: `subtheme_id`
+
+### Foreign Keys
+無。
+
+### Unique Constraints
+無。
+
+### Check Constraints
+- ``: `[role_name]='seller' OR [role_name]='customer'`
+
+### Default Constraints
+無。
+
+### Indexes
+
+無。
+
+---
+
+## `service.Topic`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `topic_id` | `char(1)` | NO | NO |  | NO |
+| `role_name` | `varchar(50)` | NO | NO |  | NO |
+| `topic` | `nvarchar(50)` | YES | NO |  | NO |
+| `topic_enter` | `nvarchar(100)` | YES | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `pk_service_topic`: `topic_id`
+
+### Foreign Keys
+無。
+
+### Unique Constraints
+無。
+
+### Check Constraints
+- ``: `[role_name]='seller' OR [role_name]='customer'`
+
+### Default Constraints
+無。
+
+### Indexes
+
+無。
+
+---
+
+## `sysmsg.msg_function_sequence`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `prefix` | `varchar(2)` | NO | NO |  | NO |
+| `current_value` | `int` | NO | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `PK_sysmsg_msg_function_sequence`: `prefix`
+
+### Foreign Keys
+無。
+
+### Unique Constraints
+無。
+
+### Check Constraints
+- `CK_sysmsg_msg_function_sequence_prefix`: `[prefix]='SC' OR [prefix]='AS' OR [prefix]='AC' OR [prefix]='OS' OR [prefix]='OC' OR [prefix]='OA'`
+- `CK_sysmsg_msg_function_sequence_value`: `[current_value]>=(1) AND [current_value]<=(999)`
+
+### Default Constraints
+無。
+
+### Indexes
+
+無。
+
+---
+
+## `sysmsg.record`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `record_id` | `int` | NO | YES |  | NO |
+| `send_id` | `int` | NO | NO |  | NO |
+| `msg_function` | `varchar(6)` | NO | NO |  | NO |
+| `msgfrom_seller_id` | `int` | NO | NO |  | NO |
+| `msgto_member_id` | `int` | YES | NO |  | NO |
+| `msgto_seller_id` | `int` | YES | NO |  | NO |
+| `order_id` | `int` | YES | NO |  | NO |
+| `order_status` | `nvarchar(30)` | YES | NO |  | NO |
+| `member_inbox` | `computed` | YES | NO |  | YES |
+| `seller_inbox` | `computed` | YES | NO |  | YES |
+| `record_status` | `nvarchar(10)` | NO | NO | ('UNREAD') | NO |
+| `record_created_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+
+### Computed Columns
+- `member_inbox`: `(case when [msgto_member_id] IS NULL then NULL when left([msg_function],(2))='OC' OR left([msg_function],(2))='OA' then 'SYSTEM_INBOX' when left([msg_function],(2))='AC' then 'ORDER_INBOX' when left([msg_function],(2))='SC' then 'SELLER_INBOX'  end)` (persisted: YES)
+- `seller_inbox`: `(case when [msgto_seller_id] IS NULL then NULL when left([msg_function],(2))='OS' OR left([msg_function],(2))='OA' then 'SYSTEM_NOTICE' when left([msg_function],(2))='AS' AND [order_status]='CANCELLED' then 'CANCELLED_ORDER' when left([msg_function],(2))='AS' then 'NEW_ORDER'  end)` (persisted: YES)
+
+### Primary Key
+- `PK_sysmsg_record`: `record_id`
+
+### Foreign Keys
+- `FK_sysmsg_record_send_function`: `send_id`, `msg_function` → `sysmsg.send` (`send_id`, `msg_function`)
+
+### Unique Constraints
+無。
+
+### Check Constraints
+- `CK_record_msg_function`: `([msg_function]) collate Latin1_General_100_BIN2 like 'OA-[0-9][0-9][0-9]' AND [msg_function]<>'OA-000' OR ([msg_function]) collate Latin1_General_100_BIN2 like 'OC-[0-9][0-9][0-9]' AND [msg_function]<>'OC-000' OR ([msg_function]) collate Latin1_General_100_BIN2 like 'OS-[0-9][0-9][0-9]' AND [msg_function]<>'OS-000' OR ([msg_function]) collate Latin1_General_100_BIN2 like 'AC-[0-9][0-9][0-9]' AND [msg_function]<>'AC-000' OR ([msg_function]) collate Latin1_General_100_BIN2 like 'AS-[0-9][0-9][0-9]' AND [msg_function]<>'AS-000' OR ([msg_function]) collate Latin1_General_100_BIN2 like 'SC-[0-9][0-9][0-9]' AND [msg_function]<>'SC-000'`
+- `CK_record_status`: `[record_status]='DELETE' OR [record_status]='READ' OR [record_status]='UNREAD'`
+- `CK_sysmsg_record_exactly_one_recipient`: `[msgto_member_id] IS NOT NULL AND [msgto_seller_id] IS NULL OR [msgto_member_id] IS NULL AND [msgto_seller_id] IS NOT NULL`
+- `CK_sysmsg_record_order_snapshot`: `[order_id] IS NULL AND [order_status] IS NULL OR [order_id] IS NOT NULL AND ([order_status]='CANCELLED' OR [order_status]='COMPLETED' OR [order_status]='DELIVERED' OR [order_status]='SHIPPED' OR [order_status]='PAID')`
+
+### Default Constraints
+- `DF_sysmsg_record_created_at` on `record_created_at`: `(sysdatetime())`
+- `DF_sysmsg_record_status` on `record_status`: `('UNREAD')`
+
+### Indexes
+
+| Name | Unique | Clustered | Key columns | Included columns | Filter |
+| --- | ---: | ---: | --- | --- | --- |
+| `IX_sysmsg_record_member_category` | NO | NO | `msgto_member_id` ASC, `member_inbox` ASC, `record_status` ASC, `record_created_at` ASC, `record_id` ASC |  |  |
+| `IX_sysmsg_record_msgfrom` | NO | NO | `msgfrom_seller_id` ASC, `msg_function` ASC, `record_status` ASC, `record_created_at` ASC |  |  |
+| `IX_sysmsg_record_seller_category` | NO | NO | `msgto_seller_id` ASC, `seller_inbox` ASC, `record_status` ASC, `record_created_at` ASC, `record_id` ASC |  |  |
+| `IX_sysmsg_record_send_id` | NO | NO | `send_id` ASC |  |  |
+| `UX_sysmsg_record_id_send_id` | YES | NO | `record_id` ASC, `send_id` ASC |  |  |
+| `UX_sysmsg_record_order_member_once` | YES | NO | `order_id` ASC, `order_status` ASC, `msgto_member_id` ASC |  | ([order_id] IS NOT NULL AND [msgto_member_id] IS NOT NULL) |
+| `UX_sysmsg_record_order_seller_once` | YES | NO | `order_id` ASC, `order_status` ASC, `msgto_seller_id` ASC |  | ([order_id] IS NOT NULL AND [msgto_seller_id] IS NOT NULL) |
+
+---
+
+## `sysmsg.record_channel`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `record_channel_id` | `int` | NO | YES |  | NO |
+| `send_id` | `int` | NO | NO |  | NO |
+| `record_id` | `int` | NO | NO |  | NO |
+| `channel_type` | `varchar(10)` | NO | NO |  | NO |
+| `notification_type` | `varchar(20)` | NO | NO |  | NO |
+| `sent_at` | `datetime2(7)` | YES | NO |  | NO |
+| `provider_message_id` | `nvarchar(200)` | YES | NO |  | NO |
+| `error_message` | `nvarchar(1000)` | YES | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `PK_sysmsg_record_channel`: `record_channel_id`
+
+### Foreign Keys
+- `FK_sysmsg_record_channel_record_send`: `record_id`, `send_id` → `sysmsg.record` (`record_id`, `send_id`)
+- `FK_sysmsg_record_channel_send`: `send_id` → `sysmsg.send` (`send_id`)
+
+### Unique Constraints
+- `UX_sysmsg_record_channel_type`: `record_id`, `channel_type`
+
+### Check Constraints
+- `CK_sysmsg_record_channel_notification_type`: `[notification_type]='MARKETING' OR [notification_type]='ORDER'`
+- `CK_sysmsg_record_channel_result`: `NOT ([sent_at] IS NOT NULL AND [error_message] IS NOT NULL) AND ([sent_at] IS NULL AND [provider_message_id] IS NULL OR [sent_at] IS NOT NULL AND len(ltrim(rtrim([provider_message_id])))>(0)) AND ([error_message] IS NULL OR len(ltrim(rtrim([error_message])))>(0))`
+- `CK_sysmsg_record_channel_type`: `[channel_type]='LINE' OR [channel_type]='EMAIL'`
+
+### Default Constraints
+無。
+
+### Indexes
+
+| Name | Unique | Clustered | Key columns | Included columns | Filter |
+| --- | ---: | ---: | --- | --- | --- |
+| `IX_sysmsg_record_channel_pending` | NO | NO | `channel_type` ASC, `record_channel_id` ASC |  | ([sent_at] IS NULL AND [provider_message_id] IS NULL AND [error_message] IS NULL) |
+| `IX_sysmsg_record_channel_send` | NO | NO | `send_id` ASC, `record_id` ASC, `channel_type` ASC |  |  |
+
+---
+
+## `sysmsg.send`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `send_id` | `int` | NO | YES |  | NO |
+| `msgfrom_seller_id` | `int` | NO | NO |  | NO |
+| `msg_function` | `varchar(6)` | NO | NO |  | NO |
+| `msg_label` | `nvarchar(50)` | NO | NO |  | NO |
+| `send_title` | `nvarchar(100)` | NO | NO |  | NO |
+| `send_content` | `nvarchar(1000)` | NO | NO |  | NO |
+| `send_upd_at` | `datetime2(7)` | NO | NO | (sysdatetime()) | NO |
+| `send_status` | `nvarchar(10)` | NO | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `PK_sysmsg_send`: `send_id`
+
+### Foreign Keys
+無。
+
+### Unique Constraints
+無。
+
+### Check Constraints
+- ``: `len(ltrim(rtrim([msg_label])))>(0)`
+- ``: `len(ltrim(rtrim([send_title])))>(0)`
+- ``: `len(ltrim(rtrim([send_content])))>(0)`
+- `CK_send_msg_function`: `([msg_function]) collate Latin1_General_100_BIN2 like 'OA-[0-9][0-9][0-9]' AND [msg_function]<>'OA-000' OR ([msg_function]) collate Latin1_General_100_BIN2 like 'OC-[0-9][0-9][0-9]' AND [msg_function]<>'OC-000' OR ([msg_function]) collate Latin1_General_100_BIN2 like 'OS-[0-9][0-9][0-9]' AND [msg_function]<>'OS-000' OR ([msg_function]) collate Latin1_General_100_BIN2 like 'AC-[0-9][0-9][0-9]' AND [msg_function]<>'AC-000' OR ([msg_function]) collate Latin1_General_100_BIN2 like 'AS-[0-9][0-9][0-9]' AND [msg_function]<>'AS-000' OR ([msg_function]) collate Latin1_General_100_BIN2 like 'SC-[0-9][0-9][0-9]' AND [msg_function]<>'SC-000'`
+- `CK_send_status`: `[send_status]='DELETE' OR [send_status]='SAVE' OR [send_status]='SEND'`
+
+### Default Constraints
+- `DF_sysmsg_send_upd_at` on `send_upd_at`: `(sysdatetime())`
+
+### Indexes
+
+| Name | Unique | Clustered | Key columns | Included columns | Filter |
+| --- | ---: | ---: | --- | --- | --- |
+| `IX_sysmsg_send_owner` | NO | NO | `msgfrom_seller_id` ASC, `send_status` ASC, `send_upd_at` ASC, `send_id` ASC |  |  |
+| `UX_sysmsg_send_id_msg_function` | YES | NO | `send_id` ASC, `msg_function` ASC |  |  |
+| `UX_sysmsg_send_msg_function_save` | YES | NO | `msg_function` ASC |  | ([send_status]='SAVE') |
+
+---
+
+## `sysmsg.send_disorder`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `send_disorder_id` | `int` | NO | NO |  | NO |
+| `order_id` | `int` | NO | NO |  | NO |
+| `order_no` | `nvarchar(30)` | NO | NO |  | NO |
+| `total_amount` | `decimal(12,2)` | NO | NO |  | NO |
+| `payment_method_id` | `int` | YES | NO |  | NO |
+| `method_name` | `nvarchar(50)` | YES | NO |  | NO |
+| `cancel_reason` | `nvarchar(500)` | YES | NO |  | NO |
+| `cancelled_at` | `datetime2(7)` | NO | NO |  | NO |
+| `status` | `nvarchar(30)` | NO | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `PK_sysmsg_send_disorder`: `send_disorder_id`
+
+### Foreign Keys
+- `FK_send_disorder_send`: `send_disorder_id` → `sysmsg.send` (`send_id`)
+
+### Unique Constraints
+無。
+
+### Check Constraints
+- `CK_send_disorder_status`: `[status]='CANCELLED'`
+- `CK_send_disorder_total_amount`: `[total_amount]>=(0)`
+
+### Default Constraints
+無。
+
+### Indexes
+
+無。
+
+---
+
+## `sysmsg.send_order`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `send_order_id` | `int` | NO | NO |  | NO |
+| `order_id` | `int` | NO | NO |  | NO |
+| `order_no` | `nvarchar(30)` | NO | NO |  | NO |
+| `total_amount` | `decimal(12,2)` | NO | NO |  | NO |
+| `payment_method_id` | `int` | YES | NO |  | NO |
+| `method_name` | `nvarchar(50)` | YES | NO |  | NO |
+| `created_at` | `datetime2(7)` | NO | NO |  | NO |
+| `status` | `nvarchar(30)` | NO | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `PK_sysmsg_send_order`: `send_order_id`
+
+### Foreign Keys
+- `FK_send_order_send`: `send_order_id` → `sysmsg.send` (`send_id`)
+
+### Unique Constraints
+無。
+
+### Check Constraints
+- `CK_send_order_status`: `[status]='COMPLETED' OR [status]='DELIVERED' OR [status]='SHIPPED' OR [status]='PAID'`
+- `CK_send_order_total_amount`: `[total_amount]>=(0)`
+
+### Default Constraints
+無。
+
+### Indexes
+
+無。
+
+---
+
+## `sysmsg.send_seller`
+
+### Columns
+
+| Column | SQL Type | Nullable | Identity | Default | Computed |
+| --- | --- | ---: | ---: | --- | ---: |
+| `send_seller_id` | `int` | NO | NO |  | NO |
+| `order_no` | `nvarchar(30)` | YES | NO |  | NO |
+| `img_one` | `varbinary` | YES | NO |  | NO |
+| `img_two` | `varbinary` | YES | NO |  | NO |
+| `img_three` | `varbinary` | YES | NO |  | NO |
+| `send_remark` | `nvarchar(1000)` | YES | NO |  | NO |
+
+### Computed Columns
+無。
+
+### Primary Key
+- `PK_sysmsg_send_seller`: `send_seller_id`
+
+### Foreign Keys
+- `FK_send_seller_send`: `send_seller_id` → `sysmsg.send` (`send_id`)
+
+### Unique Constraints
+無。
+
+### Check Constraints
+無。
+
+### Default Constraints
+無。
+
+### Indexes
+
+無。

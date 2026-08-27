@@ -6,7 +6,7 @@
 
 | 類型 | 文件 | 用途 |
 | --- | --- | --- |
-| Source of Truth | [database-schema.md](database-schema.md) | 正式資料表、欄位、PK/FK、關聯、ownership、DDL。 |
+| Source of Truth | [database-schema.md](database-schema.md) | 由最新 bacpac 產生的實際資料表、欄位、constraint、index 與關聯快照。 |
 | Source of Truth | [team-plan.md](team-plan.md) | 模組分工、每日計畫、時程與驗收。 |
 | Source of Truth | [git-workflow.md](git-workflow.md) | 分支、commit、push、PR、衝突與交付流程。 |
 | 工作規範 | [teacher-code-style.md](teacher-code-style.md) | 老師教材中可重複使用的 coding pattern。 |
@@ -35,7 +35,7 @@
 
 ## 文件維護規則
 
-- DB 結構只更新 `database-schema.md`；未經明確批准不得修改。
+- DB 結構只更新 `database-schema.md`；該檔由實際資料庫 bacpac 產生，禁止依 Entity、舊 ERD 或舊文件推測不存在的結構。若 mapping 不一致，先回報 schema mismatch。
 - 分工與時程只更新 `team-plan.md`；計畫不等於實際完成狀態。
 - Git 操作細節只更新 `git-workflow.md`。
 - 模組 API 改變 URL、HTTP method、request/response 欄位或型別、validation、authorization / role 時，更新對應 `*-api.md` 並通知受影響模組。
