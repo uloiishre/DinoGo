@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -141,6 +142,7 @@ class PaymentServiceTest {
         var response = paymentService.createPayment(
                 10,
                 1,
+                "payment-key-1",
                 new CreatePaymentRequest("CREDIT_CARD"));
 
         assertEquals(new BigDecimal("1000.00"), response.amount());
@@ -163,6 +165,7 @@ class PaymentServiceTest {
                 () -> disabledPaymentService.createPayment(
                         10,
                         1,
+                        "payment-key-2",
                         new CreatePaymentRequest("CREDIT_CARD")));
 
         verify(orderRepository, never()).findForPaymentCreation(any(), any());
@@ -187,6 +190,7 @@ class PaymentServiceTest {
         PaymentResponse response = paymentService.createPayment(
                 10,
                 1,
+                "payment-key-3",
                 new CreatePaymentRequest("CASH_ON_DELIVERY"));
 
         assertEquals(OrderStatus.PROCESSING, order.getStatus());
@@ -208,6 +212,7 @@ class PaymentServiceTest {
         PaymentResponse response = paymentService.createPayment(
                 10,
                 1,
+                "payment-key-4",
                 new CreatePaymentRequest("CASH_ON_DELIVERY"));
 
         assertEquals(pendingPayment.getPaymentId(), response.paymentId());
@@ -228,29 +233,36 @@ class PaymentServiceTest {
                 () -> paymentService.createPayment(
                         10,
                         1,
+                        "payment-key-5",
                         new CreatePaymentRequest("CREDIT_CARD")));
 
         verify(paymentRepository, never()).save(org.mockito.ArgumentMatchers.any(Payment.class));
     }
 
     @Test
-    void createPaymentRetryReturnsExistingPendingPayment() {
+    void createPaymentRetryCreatesNewEcpayTradeForExistingPendingPayment() {
         Order order = pendingOrder();
         Payment pendingPayment = pendingPayment();
         pendingPayment.setPaymentNo("PAY-EXISTING");
         when(orderRepository.findForPaymentCreation(10, 1)).thenReturn(Optional.of(order));
         when(paymentRepository.findFirstByOrderOrderIdAndStatus(10, PaymentStatus.PENDING))
                 .thenReturn(Optional.of(pendingPayment));
+        when(paymentMethodRepository.findByMethodCode("CREDIT_CARD"))
+                .thenReturn(Optional.of(paymentMethod()));
+        when(ecpayPaymentGateway.isEnabled()).thenReturn(true);
+        when(paymentRepository.save(any(Payment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
         var response = paymentService.createPayment(
                 10,
                 1,
+                "payment-key-6",
                 new CreatePaymentRequest("CREDIT_CARD"));
 
-        assertEquals(20, response.paymentId());
-        assertEquals("PAY-EXISTING", response.paymentNo());
-        verify(paymentRepository, never()).save(org.mockito.ArgumentMatchers.any(Payment.class));
-        verify(paymentMethodRepository, never()).findByMethodCode("CREDIT_CARD");
+        assertEquals(PaymentStatus.CANCELLED, pendingPayment.getStatus());
+        assertEquals("Superseded by payment retry", pendingPayment.getFailureReason());
+        assertTrue(!"PAY-EXISTING".equals(response.paymentNo()));
+        verify(paymentRepository, times(2)).save(any(Payment.class));
     }
 
     @Test
@@ -271,6 +283,35 @@ class PaymentServiceTest {
         assertEquals("SIM-EXISTING", response.transactionNo());
         assertEquals(java.time.LocalDateTime.of(2026, 8, 17, 10, 0), response.paidAt());
         verify(paymentRepository, never()).save(payment);
+    }
+
+    @Test
+    void createPaymentWithSameIdempotencyKeyReturnsExistingPayment() {
+        Order order = pendingOrder();
+        Payment existingPayment = pendingPayment();
+        existingPayment.setIdempotencyKey("payment-key-existing");
+        when(orderRepository.findForPaymentCreation(10, 1)).thenReturn(Optional.of(order));
+        when(paymentRepository.findByOrderOrderIdAndIdempotencyKey(10, "payment-key-existing"))
+                .thenReturn(Optional.of(existingPayment));
+
+        PaymentResponse response = paymentService.createPayment(
+                10, 1, "payment-key-existing", new CreatePaymentRequest("CREDIT_CARD"));
+
+        assertEquals(existingPayment.getPaymentId(), response.paymentId());
+        verify(paymentRepository, never()).save(any(Payment.class));
+    }
+
+    @Test
+    void createPaymentRejectsIdempotencyKeyReusedForAnotherMethod() {
+        Order order = pendingOrder();
+        Payment existingPayment = pendingPayment();
+        when(orderRepository.findForPaymentCreation(10, 1)).thenReturn(Optional.of(order));
+        when(paymentRepository.findByOrderOrderIdAndIdempotencyKey(10, "payment-key-existing"))
+                .thenReturn(Optional.of(existingPayment));
+
+        assertThrows(InvalidOrderException.class, () -> paymentService.createPayment(
+                10, 1, "payment-key-existing", new CreatePaymentRequest("CASH_ON_DELIVERY")));
+        verify(paymentRepository, never()).save(any(Payment.class));
     }
 
     @Test

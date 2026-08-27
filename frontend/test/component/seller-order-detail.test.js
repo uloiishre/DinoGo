@@ -5,6 +5,8 @@ import SellerOrderDetailView from '../../src/views/seller/SellerOrderDetailView.
 import {
   createSellerShipment,
   getSellerOrder,
+  getShipmentEvents,
+  simulateTcatEvent,
   updateSellerShipmentTrackingInfo,
   updateSellerShipmentStatus,
 } from '../../src/api/sellerOrderApi.js'
@@ -19,6 +21,8 @@ vi.mock('vue-router', () => ({
 vi.mock('../../src/api/sellerOrderApi.js', () => ({
   createSellerShipment: vi.fn(),
   getSellerOrder: vi.fn(),
+  getShipmentEvents: vi.fn(),
+  simulateTcatEvent: vi.fn(),
   updateSellerShipmentTrackingInfo: vi.fn(),
   updateSellerShipmentStatus: vi.fn(),
 }))
@@ -54,6 +58,7 @@ async function mountView(order = orderFixture()) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  getShipmentEvents.mockResolvedValue({ data: [] })
 })
 
 describe('seller shipment operation flow', () => {
@@ -64,7 +69,7 @@ describe('seller shipment operation flow', () => {
     const wrapper = await mountView()
 
     expect(getSellerOrder).toHaveBeenCalledWith(10)
-    await wrapper.get('[name="carrierName"]').setValue('  黑貓宅急便  ')
+    await wrapper.get('[name="carrierName"]').setValue('黑貓宅急便')
     await wrapper.get('[name="trackingNo"]').setValue(' TRACK-001 ')
     await wrapper.get('form.shipment-form').trigger('submit')
     await flushPromises()
@@ -80,7 +85,7 @@ describe('seller shipment operation flow', () => {
   test('rejects blank shipment fields before calling the API', async () => {
     const wrapper = await mountView()
 
-    await wrapper.get('[name="carrierName"]').setValue('   ')
+    await wrapper.get('[name="carrierName"]').setValue('')
     await wrapper.get('[name="trackingNo"]').setValue('')
     await wrapper.get('form.shipment-form').trigger('submit')
     await flushPromises()
@@ -90,6 +95,23 @@ describe('seller shipment operation flow', () => {
     expect(wrapper.get('[name="carrierName"]').attributes('aria-invalid')).toBe('true')
     expect(wrapper.get('[name="trackingNo"]').attributes('aria-invalid')).toBe('true')
     expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeUndefined()
+  })
+
+  test('offers approved carriers and updates the tracking number template', async () => {
+    const wrapper = await mountView()
+    const carrierSelect = wrapper.get('[name="carrierName"]')
+    const trackingInput = wrapper.get('[name="trackingNo"]')
+
+    expect(carrierSelect.element.tagName).toBe('SELECT')
+    expect(carrierSelect.text()).toContain('黑貓宅急便')
+    expect(carrierSelect.text()).toContain('新竹物流')
+    expect(carrierSelect.text()).toContain('嘉里大榮物流')
+
+    await carrierSelect.setValue('新竹物流')
+    expect(trackingInput.attributes('placeholder')).toBe('範例：1234567890（10 碼）')
+
+    await carrierSelect.setValue('黑貓宅急便')
+    expect(trackingInput.attributes('placeholder')).toBe('範例：1234-5678-9012（12 碼）')
   })
 
   test('confirms shipment through the page controls', async () => {
@@ -115,7 +137,7 @@ describe('seller shipment operation flow', () => {
     expect(wrapper.text()).toContain('已出貨')
   })
 
-  test('advances a cash-on-delivery order to delivered after marking it available for pickup', async () => {
+  test('does not expose a manual available-for-pickup action for cash-on-delivery orders', async () => {
     const shippedShipment = {
       shipmentId: 3,
       status: 'SHIPPED',
@@ -141,12 +163,7 @@ describe('seller shipment operation flow', () => {
 
     let progressItems = wrapper.findAll('.progress-item')
     expect(progressItems[3].classes()).not.toContain('completed')
-    expect(wrapper.get('button.shipment-submit').text()).toBe('標記可取貨')
-
-    await wrapper.get('button.shipment-submit').trigger('click')
-    await flushPromises()
-
-    expect(updateSellerShipmentStatus).toHaveBeenCalledWith(10, 'AVAILABLE_FOR_PICKUP')
+    expect(wrapper.find('button.shipment-submit').exists()).toBe(false)
     progressItems = wrapper.findAll('.progress-item')
     expect(progressItems.map((item) => item.text())).toEqual([
       '訂單成立',
@@ -155,7 +172,8 @@ describe('seller shipment operation flow', () => {
       '已送達',
       '已完成',
     ])
-    expect(progressItems.slice(0, 4).every((item) => item.classes().includes('completed'))).toBe(true)
+    expect(progressItems.slice(0, 3).every((item) => item.classes().includes('completed'))).toBe(true)
+    expect(progressItems[3].classes()).not.toContain('completed')
     expect(progressItems[4].classes()).not.toContain('completed')
   })
 
@@ -212,6 +230,20 @@ describe('seller shipment operation flow', () => {
     const wrapper = await mountView()
 
     expect(wrapper.find('button.accept-button').exists()).toBe(false)
+  })
+
+  test('allows HCT Logistics to simulate shipment progress', async () => {
+    getShipmentEvents.mockResolvedValue({ data: [{ eventType: 'HANDED_OVER' }] })
+    simulateTcatEvent.mockResolvedValue({ data: {} })
+    const wrapper = await mountView(orderFixture({
+      status: 'SHIPPED',
+      shipment: { shipmentId: 3, status: 'SHIPPED', carrierName: '新竹物流', trackingNo: '1234567890' },
+    }))
+
+    await wrapper.get('button.secondary-button').trigger('click')
+    await flushPromises()
+
+    expect(simulateTcatEvent).toHaveBeenCalledWith(10, 'IN_TRANSIT')
   })
 
   test('lets the seller revise tracking information instead of confirming shipment', async () => {

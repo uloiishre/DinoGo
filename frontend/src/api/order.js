@@ -14,8 +14,13 @@ export function cancelOrder(orderId, request) {
 }
 
 export function createPayment(orderId, paymentMethodCode) {
+  const idempotencyKey = crypto.randomUUID()
   return retryPaymentCreationOnce(() =>
-    api.post(`/orders/${orderId}/payments`, { paymentMethodCode }),
+    api.post(
+      `/orders/${orderId}/payments`,
+      { paymentMethodCode },
+      { headers: { 'Idempotency-Key': idempotencyKey } },
+    ),
   )
 }
 

@@ -26,16 +26,16 @@ class PaymentControllerTest {
         AuthenticatedMember member = new AuthenticatedMember(6, "buyer@example.com");
         CreatePaymentRequest request = new CreatePaymentRequest("CREDIT_CARD");
         PaymentResponse serviceResponse = paymentResponse(PaymentStatus.PENDING);
-        when(paymentService.createPayment(10, 6, request)).thenReturn(serviceResponse);
+        when(paymentService.createPayment(10, 6, "payment-key-1", request)).thenReturn(serviceResponse);
 
         var response = new PaymentController(paymentService, true)
-                .createPayment(10, member, request);
+                .createPayment(10, "payment-key-1", member, request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getHeaders().getLocation())
                 .hasToString("/api/orders/10/payments/20");
         assertThat(response.getBody()).isSameAs(serviceResponse);
-        verify(paymentService).createPayment(10, 6, request);
+        verify(paymentService).createPayment(10, 6, "payment-key-1", request);
     }
 
     @Test

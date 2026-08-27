@@ -13,6 +13,8 @@ import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
 
 import com.dinogo.sales.entity.Order;
+import com.dinogo.sales.entity.OrderStatus;
+import java.time.LocalDateTime;
 
 /** 訂單聚合的持久化介面。 */
 public interface OrderRepository extends JpaRepository<Order, Integer> {
@@ -69,4 +71,36 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
     Optional<Order> findForPaymentCreation(
             @Param("orderId") Integer orderId,
             @Param("buyerId") Integer buyerId);
+
+    @Query("""
+            SELECT orders.orderId
+            FROM Order orders
+            WHERE orders.status = :status
+              AND orders.createdAt < :deadline
+            """)
+    List<Integer> findOrderIdsForPaymentExpiry(
+            @Param("status") OrderStatus status,
+            @Param("deadline") LocalDateTime deadline);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    // Fetch only orderItems here. Fetching orderItems and payments together would
+    // join-fetch two List collections and can raise Hibernate's
+    // MultipleBagFetchException. PaymentExpiryService accesses payments inside
+    // the same transaction, so it can be loaded lazily and safely.
+    @EntityGraph(attributePaths = "orderItems")
+    @Query("""
+            SELECT orders
+            FROM Order orders
+            WHERE orders.orderId = :orderId
+            """)
+    Optional<Order> findForPaymentExpiry(@Param("orderId") Integer orderId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = "payments")
+    @Query("""
+            SELECT orders
+            FROM Order orders
+            WHERE orders.orderId = :orderId
+            """)
+    Optional<Order> findForEcpayCallback(@Param("orderId") Integer orderId);
 }

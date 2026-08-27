@@ -3,7 +3,14 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 import OrderDetail from '../../src/views/sales/OrderDetail.vue'
 import OrderList from '../../src/views/sales/OrderList.vue'
-import { cancelOrder, confirmDelivery, getMemberOrders, getOrder } from '../../src/api/order.js'
+import {
+  cancelOrder,
+  confirmDelivery,
+  createPayment,
+  getMemberOrders,
+  getOrder,
+  submitEcpayCheckout,
+} from '../../src/api/order.js'
 
 vi.mock('vue-router', () => ({
   RouterLink: { template: '<a><slot /></a>' },
@@ -13,8 +20,10 @@ vi.mock('vue-router', () => ({
 vi.mock('../../src/api/order.js', () => ({
   cancelOrder: vi.fn(),
   confirmDelivery: vi.fn(),
+  createPayment: vi.fn(),
   getMemberOrders: vi.fn(),
   getOrder: vi.fn(),
+  submitEcpayCheckout: vi.fn(),
 }))
 
 const itemFixture = {
@@ -93,11 +102,10 @@ describe('buyer order list aggregate display status', () => {
       .find((button) => button.text() === '待收貨')
     await pendingReceiptTab.trigger('click')
 
-    const visibleText = wrapper.find('.order-list').text()
-    expect(wrapper.findAll('.order-card')).toHaveLength(2)
-    expect(visibleText).toContain('ORD-IN-TRANSIT')
-    expect(visibleText).toContain('ORD-PICKUP')
-    expect(visibleText).not.toContain('ORD-PROCESSING')
+    const visibleOrderIds = wrapper
+      .findAll('.order-card')
+      .map((card) => card.attributes('data-order-id'))
+    expect(visibleOrderIds).toEqual(['10', '11'])
   })
 })
 
@@ -182,6 +190,33 @@ describe('buyer order detail aggregate display status', () => {
     await flushPromises()
 
     expect(wrapper.get('button.cancel-order-button').text()).toBe('取消訂單')
+    wrapper.unmount()
+  })
+
+  test('retries a pending credit-card payment and redirects to ECPay', async () => {
+    getOrder.mockResolvedValue({
+      data: orderFixture({
+        status: 'PENDING_PAYMENT',
+        shipment: null,
+        payment: {
+          status: 'PENDING',
+          paymentMethodCode: 'CREDIT_CARD',
+          paymentMethodName: '信用卡',
+        },
+      }),
+    })
+    const checkout = { action: 'https://payment.example.test', fields: { MerchantTradeNo: 'PAY-2' } }
+    createPayment.mockResolvedValue({ data: { paymentId: 21, ecpayCheckout: checkout } })
+
+    const wrapper = mount(OrderDetail)
+    await flushPromises()
+
+    expect(wrapper.get('routerlink.payment-back-button').text()).toBe('返回訂單列表')
+    await wrapper.get('button.retry-payment-button').trigger('click')
+    await flushPromises()
+
+    expect(createPayment).toHaveBeenCalledWith(10, 'CREDIT_CARD')
+    expect(submitEcpayCheckout).toHaveBeenCalledWith(checkout)
     wrapper.unmount()
   })
 
