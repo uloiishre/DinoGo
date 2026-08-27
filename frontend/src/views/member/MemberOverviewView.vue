@@ -156,7 +156,6 @@ function buildCouponHint(coupons) {
 }
 
 async function loadOverview() {
-  // A：會員資料 API；updatedAt 是畫面資料更新時間的來源。
   const [ordersResult, profileResult, couponsResult] = await Promise.allSettled([
     // D：會員訂單、物流狀態、商品、數量與金額。
     getMemberOrders(),
@@ -180,7 +179,7 @@ async function loadOverview() {
 
   const overviewTimestamp = activeOrder?.createdAt ?? profile?.updatedAt
   overviewDate.value = formatDate(overviewTimestamp)
-  updatedTime.value = formatTime(profile?.updatedAt ?? overviewTimestamp)
+  updatedTime.value = formatTime(new Date())
 
   const deliveryOrders = orders.filter(isShipped)
   const availableCoupons = coupons.filter((coupon) => coupon.status === 'AVAILABLE')
