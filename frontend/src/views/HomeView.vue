@@ -1,7 +1,10 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import api from '@/api/axios'
+import heroDragonLandscape from '@/assets/images/home/hero-dragon-landscape.png'
+import heroDragonLine from '@/assets/images/home/hero-dragon-line.png'
+import heroDragonMascot from '@/assets/images/home/hero-dragon-mascot.png'
 import { getImageUrl } from '@/utils/imageUrl'
 
 const categories = [
@@ -14,6 +17,13 @@ const categories = [
 
 const products = ref([])
 const productLoading = ref(false)
+const heroSlides = [
+  { src: heroDragonMascot, alt: 'DinoGo 可愛龍頭品牌圖像' },
+  { src: heroDragonLine, alt: 'DinoGo 龍形品牌圖像' },
+  { src: heroDragonLandscape, alt: 'DinoGo 購物龍品牌圖像' },
+]
+const activeHeroSlide = ref(0)
+let heroSlideTimer = null
 
 const loadHotProducts = async () => {
   try {
@@ -42,8 +52,21 @@ const trustItems = [
   { label: '客服協助', icon: 'bi-headset' },
 ]
 
+const showHeroSlide = (index) => {
+  activeHeroSlide.value = index
+}
+
+const showNextHeroSlide = () => {
+  activeHeroSlide.value = (activeHeroSlide.value + 1) % heroSlides.length
+}
+
 onMounted(() => {
   loadHotProducts()
+  heroSlideTimer = window.setInterval(showNextHeroSlide, 5000)
+})
+
+onUnmounted(() => {
+  if (heroSlideTimer !== null) window.clearInterval(heroSlideTimer)
 })
 </script>
 
@@ -57,8 +80,27 @@ onMounted(() => {
           <p class="home-hero__description">低調、耐用、值得信任的日常選物。</p>
           <RouterLink class="home-hero__cta dg-focus-ring" to="/products">探索新品</RouterLink>
         </div>
-        <div class="home-hero__visual" aria-hidden="true">
-          <i class="bi bi-bag home-hero__bag"></i>
+        <div class="home-hero__visual" aria-label="DinoGo 品牌圖像輪播" role="region">
+          <img
+            v-for="(slide, index) in heroSlides"
+            :key="slide.src"
+            :src="slide.src"
+            :alt="slide.alt"
+            :class="['home-hero__slide', { 'is-active': index === activeHeroSlide }]"
+          />
+          <div class="home-hero__pagination" aria-label="選擇品牌圖像">
+            <button
+              v-for="(_, index) in heroSlides"
+              :key="index"
+              :aria-current="index === activeHeroSlide ? 'true' : undefined"
+              :aria-label="`顯示第 ${index + 1} 張品牌圖像`"
+              :class="['home-hero__pagination-button', 'dg-focus-ring', { 'is-active': index === activeHeroSlide }]"
+              type="button"
+              @click="showHeroSlide(index)"
+            >
+              <span aria-hidden="true"></span>
+            </button>
+          </div>
         </div>
       </section>
 
@@ -155,6 +197,7 @@ onMounted(() => {
 }
 .home-hero {
   display: flex;
+  box-sizing: border-box;
   min-height: 230px;
   align-items: center;
   gap: var(--space-5);
@@ -163,10 +206,14 @@ onMounted(() => {
   border-radius: var(--radius-lg);
 }
 .home-hero__copy {
-  flex: 1 1 auto;
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 10px;
 }
 .home-hero__eyebrow {
-  margin: 0 0 10px;
+  margin: 0;
   color: var(--color-primary-700);
   font-size: 10px;
   font-weight: 700;
@@ -175,24 +222,26 @@ onMounted(() => {
 .home-hero__title {
   margin: 0;
   color: var(--color-text);
-  font-family: var(--font-heading);
+  font-family: var(--font-body);
   font-size: 32px;
   font-weight: 700;
   line-height: var(--line-height-heading);
 }
 .home-hero__description {
-  margin: 10px 0;
+  margin: 0;
   color: var(--color-text-muted);
   font-size: 13px;
+  line-height: var(--line-height-base);
 }
 .home-hero__cta {
   display: inline-grid;
   width: 120px;
-  height: 40px;
-  margin-top: 2px;
+  min-height: 40px;
+  padding: 0;
   color: var(--color-surface);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
+  line-height: 1;
   place-items: center;
   border: 1px solid var(--color-primary-700);
   border-radius: var(--radius-md);
@@ -205,17 +254,59 @@ onMounted(() => {
   border-color: var(--color-primary-800);
 }
 .home-hero__visual {
-  display: grid;
+  position: relative;
   width: min(36%, 430px);
   height: 174px;
-  flex: 0 1 430px;
-  color: var(--color-primary);
-  place-items: center;
+  flex: 0 0 min(36%, 430px);
+  overflow: hidden;
   border-radius: var(--radius-md);
   background: var(--color-surface);
 }
-.home-hero__bag {
-  font-size: 48px;
+.home-hero__slide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  opacity: 0;
+  transition: opacity 280ms ease;
+}
+.home-hero__slide.is-active {
+  opacity: 1;
+}
+.home-hero__pagination {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  display: flex;
+  gap: var(--space-1);
+}
+.home-hero__pagination-button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  cursor: pointer;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+}
+.home-hero__pagination-button span {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-300);
+}
+.home-hero__pagination-button.is-active span {
+  background: var(--color-primary-700);
+}
+@media (min-width: 1400px) {
+  .home-hero {
+    width: min(calc(100% + var(--space-4)), calc(100vw - (var(--space-8) * 2)));
+    margin-inline: auto;
+  }
 }
 .home-section {
   display: grid;
@@ -365,6 +456,11 @@ onMounted(() => {
   .home-hero {
     min-height: auto;
     padding: var(--space-5);
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .home-hero__copy {
+    gap: var(--space-3);
   }
   .home-hero__visual {
     display: none;
