@@ -12,7 +12,7 @@
 ## Rules
 
 - 不任意 hardcode 顏色、字級、spacing、radius 或 shadow；優先使用 `frontend/src/assets/styles/design-tokens.css`。
-- 優先使用 Bootstrap 5 class；Bootstrap 尚未列入目前 `frontend/package.json`，安裝需另行決定。
+- 優先使用既有 Bootstrap 5 class；目前已列於 `frontend/package.json`。新增其他 UI library 仍須由任務明確授權。
 - 不使用 Tailwind、React、shadcn component。
 - 不在每個 view 重複寫 Header、Footer 或 Layout。
 - `MemberNav` 只在 `MemberLayout` 使用；`SellerNav` 只在 `SellerLayout` 使用。

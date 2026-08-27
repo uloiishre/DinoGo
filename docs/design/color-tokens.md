@@ -107,8 +107,8 @@
 | `--color-primary-active` | `var(--color-primary-700)` | pressed、selected、current route |
 | `--color-primary-soft` | `var(--color-primary-100)` | active item、focus surface |
 | `--color-primary-notice` | `#BFC9BB` | review notice、process step badge |
-| `--color-text` | `var(--color-text)` | 主要文字 |
-| `--color-text-muted` | `var(--color-text-muted)` | 次要文字、說明 |
-| `--color-text-subtle` | `var(--color-text-subtle)` | caption、meta |
+| `--color-text` | `#1A1F2E` | 主要文字 |
+| `--color-text-muted` | `#66706A` | 次要文字、說明 |
+| `--color-text-subtle` | `#8A8F88` | caption、meta |
 
-> 注意：語意 token 直接指向已定義的文字 token，不另行發明 900 色階。
+> 注意：`--color-text`、`--color-text-muted`、`--color-text-subtle` 是已定義的語意文字 token；不可在 CSS 中再次自我引用。其餘語意 token 依表格指向對應色階，不另行發明 900 色階。

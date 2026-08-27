@@ -1,6 +1,6 @@
 # Component Specification
 
-本階段只規劃必要的 layout shell 與導航元件；細部會員、商品、訂單元件留到頁面需求明確後再建立。
+本文件記錄已建立的共用元件與其責任邊界。新增元件前，先確認是否為跨頁重用或已有明確的頁面責任；設計稿中的候選元件不等於必須立即建立。
 
 | Component | Category | 用途 | 全站 | Vue 檔案位置 | 建議分支 | 狀態規格 |
 |---|---|---|---|---|---|---|
@@ -15,6 +15,9 @@
 | `SellerLayout.vue` | Layout | 商家中心 shell，組合 SellerNav | Shared | `frontend/src/layouts/SellerLayout.vue` | `feature/seller-layout` | default、loading、error |
 | `MemberNav.vue` | Member | 會員中心導覽與 active route | Shared | `frontend/src/components/member/MemberNav.vue` | `feature/member-layout` | default、hover、active、focus、selected、dropdown |
 | `SellerNav.vue` | Seller | 商家中心導覽與 mobile offcanvas | Shared | `frontend/src/components/seller/SellerNav.vue` | `feature/seller-layout` | default、hover、active、focus、selected、disabled |
+| `MemberSummaryCards.vue` | Member | 會員總覽的配送、優惠券、未讀訊息摘要 | No | `frontend/src/components/member/MemberSummaryCards.vue` | `feature/A-member-overview` | default、loading、empty |
+| `MemberOrderProgress.vue` | Member | 會員總覽最近訂單的進度與商品摘要 | No | `frontend/src/components/member/MemberOrderProgress.vue` | `feature/A-member-overview` | default、loading、empty、error |
+| `MemberQuickActions.vue` | Member | 會員總覽常用操作清單 | No | `frontend/src/components/member/MemberQuickActions.vue` | `feature/A-member-overview` | default、hover、focus、disabled |
 
 ## 邊界規則
 
@@ -22,4 +25,5 @@
 - `MemberNav` 只在 `MemberLayout` 使用；`SellerNav` 只在 `SellerLayout` 使用。
 - `SearchBar` 屬 `AppHeader` 的可重用子元件，不在每個頁面另寫搜尋列。
 - 連續出現兩次以上或跨頁共用才抽 component；單頁小區塊先保留在 view。
-- `MemberSummaryCards`、`ProductCard`、`OrderCard` 等元件暫不建立。
+- 已建立的 `MemberSummaryCards`、`MemberOrderProgress`、`MemberQuickActions` 僅服務 A-05 會員總覽；若其他頁面需要相似資訊，先評估資料與視覺責任是否相同，再決定是否共用。
+- 尚未實作的設計稿候選元件（例如 `OrderCard`、`CouponCard`、`MessageList`）不可僅因名稱相同就先建立。
