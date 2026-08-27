@@ -7,25 +7,31 @@ defineProps({
 })
 
 const router = useRouter()
-
+const searchType = ref('product')
 const keyword = ref('')
 
-const searchProducts = () => {
+const handleSearch = () => {
   const value = keyword.value.trim()
 
   if (!value) {
-    router.push({
-      name: 'ProductList',
-    })
     return
   }
 
-  router.push({
-    name: 'ProductList',
-    query: {
-      keyword: value,
-    },
-  })
+  if (searchType.value === 'product') {
+    router.push({
+      path: '/products',
+      query: {
+        keyword: value,
+      },
+    })
+  } else {
+    router.push({
+      path: '/stores',
+      query: {
+        keyword: value,
+      },
+    })
+  }
 }
 </script>
 
@@ -34,22 +40,21 @@ const searchProducts = () => {
     class="search-bar"
     :class="{ 'search-bar--compact': compact }"
     role="search"
-    @submit.prevent="searchProducts"
+    @submit.prevent="handleSearch"
   >
-    <label class="visually-hidden" for="site-search"> 搜尋商品 </label>
+    <label class="visually-hidden" for="site-search"> 搜尋 </label>
 
-    <select class="form-select search-category" aria-label="搜尋分類">
-      <option>全部分類</option>
-      <option>商品</option>
-      <option>品牌</option>
+    <select v-model="searchType" class="search-category">
+      <option value="product">搜尋商品</option>
+      <option value="store">搜尋賣家</option>
     </select>
 
     <input
       id="site-search"
       v-model="keyword"
-      class="form-control search-input"
-      type="search"
-      placeholder="搜尋商品、品牌或關鍵字"
+      class="search-input"
+      type="text"
+      :placeholder="searchType === 'product' ? '搜尋商品' : '搜尋賣家'"
     />
 
     <button class="btn search-submit" type="submit" aria-label="搜尋">
@@ -81,6 +86,7 @@ const searchProducts = () => {
   background-color: var(--color-secondary-100);
 }
 .search-input {
+  flex: 1;
   min-width: 0;
   height: 46px;
   padding-inline: var(--space-4);

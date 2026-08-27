@@ -116,6 +116,8 @@ public class SellerProfileService {
         }
 
         String logoUrl = "/uploads/seller-logos/" + filename;
+        System.out.println("UPLOAD DIR = " + uploadDir.toAbsolutePath());
+        System.out.println("TARGET PATH = " + targetPath.toAbsolutePath());
 
         seller.setStoreLogoUrl(logoUrl);
         seller.setUpdatedAt(LocalDateTime.now());
