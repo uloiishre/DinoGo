@@ -35,17 +35,22 @@ public class SecurityConfig {
                                                 .requestMatchers(HttpMethod.POST, "/api/ecpay/callback").permitAll()
                                                 .requestMatchers(HttpMethod.POST, "/api/ecpay/order-result").permitAll()
                                                 .requestMatchers(HttpMethod.GET,
-                                                                "/api/products/**",
+                                                                "/api/products",
+                                                                "/api/products/{productId:\\d+}",
                                                                 "/api/categories/**",
                                                                 "/api/subcategories/**",
                                                                 "/api/brands/**",
-                                                                "/api/search/**",
-                                                                "/api/stores/**")
+                                                                "/api/coupons/available",
+                                                                "/api/stores/search",
+                                                                "/api/stores/{sellerId:\\d+}",
+                                                                "/uploads/products/**",
+                                                                "/uploads/seller-logos/**")
                                                 .permitAll()
                                                 // 商品與商家評價摘要是公開內容；其他 Review 操作須登入。
                                                 .requestMatchers(HttpMethod.GET,
-                                                                "/api/reviews/products/**",
-                                                                "/api/reviews/sellers/**")
+                                                                "/api/reviews/products/{productId:\\d+}",
+                                                                "/api/reviews/products/{productId:\\d+}/rating-summary",
+                                                                "/api/reviews/sellers/{sellerId:\\d+}/rating-summary")
                                                 .permitAll()
                                                 .requestMatchers("/api/seller/**").hasRole("SELLER")
                                                 .requestMatchers(HttpMethod.POST, "/api/products/**").hasRole("SELLER")
@@ -75,7 +80,8 @@ public class SecurityConfig {
                                                                 "/api/payments/**",
                                                                 // 收件地址包含個資，只允許已登入會員存取。
                                                                 "/api/addresses/**",
-                                                                "/api/member/**")
+                                                                "/api/member/**",
+                                                                "/api/sysmsg/**")
                                                 .authenticated()
                                                 // 評論資格與資料歸屬由 Review 模組以 JWT principal 驗證；
                                                 // 缺少有效 JWT 時由 Security 層統一回傳 401。
@@ -84,7 +90,7 @@ public class SecurityConfig {
                                                                 "/api/reviews/stars/**")
                                                 .authenticated()
                                                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                                                .anyRequest().permitAll())
+                                                .anyRequest().denyAll())
                                 .exceptionHandling(exceptionHandling -> exceptionHandling
                                                 .authenticationEntryPoint((request, response, exception) -> response
                                                                 .sendError(401,
