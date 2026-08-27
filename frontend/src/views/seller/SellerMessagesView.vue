@@ -204,9 +204,6 @@ function openTemplateEditor(item = null) {
     sendContent: item?.sendContent ?? '',
   })
 }
-function editSelectedTemplate() {
-  openTemplateEditor(createTemplates.find((item) => selectedTemplateIds.value.has(item.sendId)))
-}
 function deleteSelectedTemplates() {
   for (let i = createTemplates.length - 1; i >= 0; i--) {
     const item = createTemplates[i]
@@ -310,10 +307,54 @@ function formatTime(value) {
         class="message-panel"
         :class="{ 'message-panel--inbox': !['TEMPLATES', 'CREATE', 'OUTBOX'].includes(activeTab) }"
       >
-        <div v-if="activeTab === 'TEMPLATES'" class="feature-state">
-          <h2>範本管理</h2>
-          <p>管理商家訊息範本與套用內容。</p>
-        </div>
+        <section v-if="activeTab === 'TEMPLATES'" class="template-manager">
+          <header>
+            <h2>範本管理</h2>
+          </header>
+          <div class="template-toolbar">
+            <label
+              ><input
+                type="checkbox"
+                :checked="allTemplatesSelected"
+                @change="toggleAllTemplates"
+              />全選</label
+            >
+            <button type="button" class="template-create-action" @click="openTemplateEditor()">
+              <i class="bi bi-plus-lg" aria-hidden="true"></i>新增範本</button
+            ><button
+              class="template-batch-delete"
+              :disabled="!selectedTemplateIds.size"
+              @click="deleteSelectedTemplates"
+            >
+              批次刪除
+            </button>
+          </div>
+          <article v-for="item in createTemplates" :key="item.sendId">
+            <label class="template-check" @click.stop
+              ><input
+                type="checkbox"
+                :checked="selectedTemplateIds.has(item.sendId)"
+                @change="toggleTemplate(item.sendId)" /></label
+            ><button @click="templateDetail = item">
+              <strong>{{ item.msgLabel }}</strong
+              ><small>{{ item.sendContent }}</small></button
+            ><button
+              class="template-row-action"
+              type="button"
+              aria-label="修改範本"
+              @click="editTemplate(item)"
+            >
+              <i class="bi bi-pencil" aria-hidden="true"></i><span>修改</span></button
+            ><button
+              class="template-row-action template-row-delete"
+              type="button"
+              aria-label="刪除範本"
+              @click="deleteTemplate(item)"
+            >
+              <span aria-hidden="true">×</span><span>刪除</span>
+            </button>
+          </article>
+        </section>
         <form v-else-if="activeTab === 'CREATE'" class="create-message-form" @submit.prevent>
           <header>
             <h2>新增訊息</h2>
@@ -476,51 +517,6 @@ function formatTime(value) {
         >
       </div>
     </div>
-    <section v-if="activeTab === 'TEMPLATES'" class="template-preview-manager">
-      <header>
-        <h2>範本管理</h2>
-      </header>
-      <div class="template-toolbar">
-        <label
-          ><input
-            type="checkbox"
-            :checked="allTemplatesSelected"
-            @change="toggleAllTemplates"
-          />全選</label
-        >
-        <button type="button" @click="openTemplateEditor()">新增範本</button>
-        <button :disabled="selectedTemplateIds.size !== 1" @click="editSelectedTemplate">
-          修改範本</button
-        ><button :disabled="!selectedTemplateIds.size" @click="deleteSelectedTemplates">
-          刪除範本
-        </button>
-      </div>
-      <article v-for="item in createTemplates" :key="item.sendId">
-        <label class="template-check" @click.stop
-          ><input
-            type="checkbox"
-            :checked="selectedTemplateIds.has(item.sendId)"
-            @change="toggleTemplate(item.sendId)" /></label
-        ><button @click="templateDetail = item">
-          <strong>{{ item.msgLabel }}</strong
-          ><small>{{ item.sendContent }}</small></button
-        ><button
-          class="template-row-action"
-          type="button"
-          aria-label="修改範本"
-          @click="editTemplate(item)"
-        >
-          <i class="bi bi-pencil" aria-hidden="true"></i></button
-        ><button
-          class="template-row-action template-row-delete"
-          type="button"
-          aria-label="刪除範本"
-          @click="deleteTemplate(item)"
-        >
-          ×
-        </button>
-      </article>
-    </section>
     <div v-if="outboxDetail" class="template-overlay" @click.self="outboxDetail = null">
       <article class="template-dialog outbox-dialog" role="dialog" aria-modal="true">
         <button class="outbox-dialog__close" aria-label="關閉寄件詳情" @click="outboxDetail = null">
@@ -1018,25 +1014,45 @@ time {
 .create-actions .save-template-button {
   display: none;
 }
-.template-preview-manager {
-  position: absolute;
-  top: 120px;
-  left: 230px;
-  right: 0;
-  z-index: 2;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+.template-manager {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
 }
-.seller-page {
-  position: relative;
-}
-.template-preview-manager > header,
-.template-preview-manager > div {
+.template-manager > header,
+.template-manager > div {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
   padding: var(--space-3);
+}
+.template-toolbar button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding-inline: var(--space-3);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+}
+.template-create-action {
+  color: var(--color-surface);
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+}
+.template-batch-delete {
+  color: var(--color-danger);
+  background: var(--color-surface);
+  border: 1px solid var(--color-danger);
+}
+.template-batch-delete:hover:not(:disabled) {
+  background: var(--color-danger-soft);
+}
+.template-batch-delete:disabled {
+  color: var(--color-text-subtle);
+  background: var(--color-disabled-bg);
+  border-color: var(--color-disabled);
 }
 .template-toolbar label {
   display: inline-flex;
@@ -1046,7 +1062,7 @@ time {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
-.template-preview-manager > header {
+.template-manager > header {
   justify-content: space-between;
 }
 .template-add {
@@ -1059,9 +1075,9 @@ time {
   border: 0;
   border-radius: var(--radius-pill);
 }
-.template-preview-manager article {
+.template-manager article {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 40px 40px;
+  grid-template-columns: 42px minmax(0, 1fr) auto auto;
   border-top: 1px solid var(--color-border);
 }
 .template-check {
@@ -1069,7 +1085,7 @@ time {
   min-height: 65px;
   place-items: center;
 }
-.template-preview-manager article > button:not(.template-row-action) {
+.template-manager article > button:not(.template-row-action) {
   display: grid;
   padding: var(--space-3);
   text-align: left;
@@ -1077,21 +1093,31 @@ time {
   border: 0;
 }
 .template-row-action {
+  display: inline-flex;
   align-self: center;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  color: var(--color-primary-active);
-  background: transparent;
-  border: 0;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  margin-right: var(--space-2);
+  padding: 0 var(--space-3);
+  color: var(--color-surface);
+  font-weight: 600;
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
   border-radius: var(--radius-md);
 }
 .template-row-action:hover {
-  background: var(--color-primary-soft);
+  background: var(--color-primary-hover);
 }
 .template-row-delete {
   color: var(--color-danger);
-  font-size: var(--font-size-lg);
+  background: var(--color-surface);
+  border-color: var(--color-danger);
+  font-size: inherit;
+}
+.template-row-delete:hover {
+  background: var(--color-danger-soft);
 }
 .template-overlay {
   position: fixed;
