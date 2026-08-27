@@ -230,7 +230,7 @@ const isAccountActive = computed(() => accountItems.some((item) => item.routeNam
 .dg-member-account-button {
   min-height: 40px;
   align-self: center;
-  justify-content: flex-start;
+  justify-content: center;
   padding-inline: var(--space-3);
   background: var(--color-bg);
   border: 0;
@@ -247,7 +247,7 @@ const isAccountActive = computed(() => accountItems.some((item) => item.routeNam
 }
 
 .dg-member-account-arrow {
-  margin-left: auto;
+  margin-left: var(--space-2);
   color: var(--color-text-subtle);
   font-size: var(--font-size-sm);
   transition: transform 160ms ease;
@@ -285,11 +285,16 @@ const isAccountActive = computed(() => accountItems.some((item) => item.routeNam
   display: flex;
   min-height: 44px;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3);
+  justify-content: center;
+  width: calc(100% - var(--space-2));
+  gap: var(--space-1);
+  margin-right: auto;
+  margin-left: auto;
+  padding: var(--space-3) var(--space-2);
   color: var(--color-text-muted);
   font-size: var(--font-size-base);
   line-height: var(--line-height-base);
+  border: 2px solid transparent;
   border-radius: var(--radius-md);
 }
 
@@ -302,9 +307,19 @@ const isAccountActive = computed(() => accountItems.some((item) => item.routeNam
 
 .dg-member-account-item.is-active {
   color: var(--color-primary-active);
-  font-weight: 500;
-  background: var(--color-primary-soft);
-  box-shadow: inset 0 0 0 1px var(--color-primary-400);
+  font-weight: 700;
+  background: transparent;
+  border-top-color: var(--color-primary-active);
+  border-right-color: transparent;
+  border-bottom-color: var(--color-primary-active);
+  border-left-color: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.dg-member-account-item.is-active:hover,
+.dg-member-account-item.is-active:focus {
+  background: transparent;
 }
 
 /* Tablet 以水平捲動保留單列導覽，避免項目換行而拉高 MemberNav。 */
