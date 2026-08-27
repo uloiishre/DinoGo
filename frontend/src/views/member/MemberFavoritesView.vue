@@ -34,7 +34,15 @@ const loadFavorites = async () => {
 
     const response = await api.get('/favorites')
 
-    favorites.value = response.data || []
+    favorites.value = (response.data || []).sort((a, b) => {
+      // 1. 可購買商品排前面
+      if (a.available !== b.available) {
+        return a.available ? -1 : 1
+      }
+
+      // 2. 同樣狀態下，按照 productId 小到大
+      return Number(a.productId) - Number(b.productId)
+    })
   } catch (error) {
     logSafeError('取得收藏失敗：', error)
 
