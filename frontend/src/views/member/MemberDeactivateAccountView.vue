@@ -84,7 +84,7 @@ h1 {
 }
 .card > p {
   color: var(--color-primary-active);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
 }
 h1 {
@@ -102,6 +102,15 @@ h1 {
   color: var(--color-danger);
   background: var(--color-danger-soft);
 }
+.notice strong {
+  font-size: var(--font-size-md);
+  line-height: 1.4;
+}
+.notice span {
+  color: var(--color-text-700);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
+}
 form {
   display: grid;
   gap: 16px;
@@ -109,7 +118,7 @@ form {
 label {
   display: grid;
   gap: 6px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
 }
 input[type='password'] {
@@ -118,12 +127,15 @@ input[type='password'] {
   border-radius: var(--radius-md);
   padding: 0 12px;
   font: inherit;
+  font-size: var(--font-size-base);
 }
 .check {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   font-weight: 400;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
 }
 .check input {
   margin-top: 4px;
@@ -144,6 +156,8 @@ button {
   padding: 0 16px;
   border-radius: var(--radius-md);
   font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
 }
 a {
   display: inline-flex;

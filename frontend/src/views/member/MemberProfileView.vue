@@ -324,7 +324,8 @@ onMounted(loadProfile)
 .profile-page-header p {
   margin: 0;
   color: var(--color-text-muted);
-  font-size: 13px;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
 }
 
 .profile-edit-button,
@@ -332,7 +333,7 @@ onMounted(loadProfile)
 .profile-cancel-button {
   min-height: 42px;
   padding: 0 var(--space-4);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   border-radius: var(--radius-md);
 }
@@ -373,7 +374,7 @@ onMounted(loadProfile)
 .profile-status-card h2 {
   margin: 0 0 14px;
   color: var(--color-text);
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 700;
 }
 
@@ -390,7 +391,7 @@ onMounted(loadProfile)
   flex-direction: column;
   gap: 5px;
   color: var(--color-text);
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 600;
 }
 
@@ -403,7 +404,7 @@ onMounted(loadProfile)
   height: 40px;
   padding: 0 11px;
   color: var(--color-text);
-  font-size: 11px;
+  font-size: var(--font-size-base);
   font-weight: 400;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -450,7 +451,8 @@ onMounted(loadProfile)
 .profile-email-preferences__hint {
   margin: 0 0 2px;
   color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
 }
 
 .profile-checkbox-field {
@@ -490,7 +492,7 @@ onMounted(loadProfile)
 
 .profile-checkbox-field small {
   color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   line-height: 1.5;
 }
 
@@ -521,13 +523,13 @@ onMounted(loadProfile)
 /* 會員帳戶狀態。 */
 .profile-status-badge {
   display: inline-flex;
-  min-height: 28px;
+  min-height: 32px;
   align-items: center;
   gap: 7px;
   margin: 0;
-  padding: 0 10px;
+  padding: 0 var(--space-3);
   color: var(--color-success);
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   background: var(--color-success-soft);
   border-radius: var(--radius-sm);
@@ -543,7 +545,7 @@ onMounted(loadProfile)
 .profile-member-meta {
   margin: 14px 0 0;
   color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   line-height: 1.7;
 }
 
