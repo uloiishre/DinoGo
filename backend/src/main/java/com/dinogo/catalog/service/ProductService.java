@@ -7,11 +7,10 @@ import java.util.List;
 import java.util.Objects;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.util.UUID;
+import java.util.Map;
+
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 
 import org.springframework.web.multipart.MultipartFile;
 
@@ -62,6 +61,7 @@ public class ProductService {
         private final ProductSkuRepository productSkuRepository;
         private final ProductImageRepository productImageRepository;
         private final CurrentSellerService currentSellerService;
+        private final Cloudinary cloudinary;
 
         private ProductResponse toProductResponse(Product product) {
 
@@ -952,22 +952,8 @@ public class ProductService {
                         throw new RuntimeException("請至少上傳一張圖片");
                 }
 
-                // uploads/products/
-                Path uploadPath = Paths.get(
-                                "uploads",
-                                "products").toAbsolutePath().normalize();
-
-                try {
-                        Files.createDirectories(uploadPath);
-                } catch (IOException e) {
-                        throw new RuntimeException(
-                                        "建立圖片資料夾失敗",
-                                        e);
-                }
-
                 // 找目前最大的 sortOrder
-                List<ProductImage> existingImages = productImageRepository
-                                .findByProductProductId(productId);
+                List<ProductImage> existingImages = productImageRepository.findByProductProductId(productId);
 
                 int maxSortOrder = existingImages.stream()
                                 .map(ProductImage::getSortOrder)
@@ -989,57 +975,51 @@ public class ProductService {
                         if (contentType == null ||
                                         !contentType.startsWith("image/")) {
 
-                                throw new RuntimeException(
-                                                "只能上傳圖片檔案");
+                                throw new RuntimeException("只能上傳圖片檔案");
                         }
-
-                        // 取得副檔名
-                        String originalFilename = file.getOriginalFilename();
-
-                        String extension = "";
-
-                        if (originalFilename != null &&
-                                        originalFilename.contains(".")) {
-
-                                extension = originalFilename.substring(
-                                                originalFilename.lastIndexOf("."));
-                        }
-
-                        // UUID 避免檔名重複
-                        String filename = UUID.randomUUID() + extension;
-
-                        Path targetPath = uploadPath.resolve(filename);
 
                         try {
-                                Files.copy(
-                                                file.getInputStream(),
-                                                targetPath,
-                                                StandardCopyOption.REPLACE_EXISTING);
+
+                                // =========================
+                                // 上傳圖片到 Cloudinary
+                                // =========================
+                                Map<?, ?> uploadResult = cloudinary.uploader().upload(
+                                                file.getBytes(),
+                                                ObjectUtils.asMap(
+                                                                "folder", "dinogo/products",
+                                                                "resource_type", "image"));
+
+                                // 取得 Cloudinary HTTPS 圖片網址
+                                String imageUrl = uploadResult.get("secure_url").toString();
+
+                                maxSortOrder++;
+
+                                // =========================
+                                // 將 Cloudinary URL 存進 DB
+                                // =========================
+                                ProductImage image = ProductImage.builder()
+                                                .product(product)
+                                                .imageUrl(imageUrl)
+                                                .sortOrder(maxSortOrder)
+                                                .isMain(false)
+                                                .build();
+
+                                ProductImage saved = productImageRepository.save(image);
+
+                                responses.add(
+                                                ProductImageResponse.builder()
+                                                                .imageId(saved.getImageId())
+                                                                .imageUrl(saved.getImageUrl())
+                                                                .sortOrder(saved.getSortOrder())
+                                                                .isMain(saved.getIsMain())
+                                                                .build());
+
                         } catch (IOException e) {
+
                                 throw new RuntimeException(
-                                                "圖片儲存失敗",
+                                                "Cloudinary 圖片上傳失敗",
                                                 e);
                         }
-
-                        maxSortOrder++;
-
-                        ProductImage image = ProductImage.builder()
-                                        .product(product)
-                                        .imageUrl(
-                                                        "/uploads/products/" + filename)
-                                        .sortOrder(maxSortOrder)
-                                        .isMain(false)
-                                        .build();
-
-                        ProductImage saved = productImageRepository.save(image);
-
-                        responses.add(
-                                        ProductImageResponse.builder()
-                                                        .imageId(saved.getImageId())
-                                                        .imageUrl(saved.getImageUrl())
-                                                        .sortOrder(saved.getSortOrder())
-                                                        .isMain(saved.getIsMain())
-                                                        .build());
                 }
 
                 return responses;
