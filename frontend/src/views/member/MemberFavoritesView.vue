@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import api from '@/api/axios'
 import { logSafeError } from '@/utils/safeError'
 import { getImageUrl } from '@/utils/imageUrl'
+import { useCartStore } from '@/stores/cart'
 
 // ================================
 // 收藏商品
@@ -15,6 +16,7 @@ const errorMessage = ref('')
 const removingId = ref(null)
 const addingCartId = ref(null)
 const showCartSuccess = ref(false)
+const cartStore = useCartStore()
 // ================================
 // 規格選擇
 // ================================
@@ -209,6 +211,9 @@ const addToCart = async () => {
       skuId: Number(selectedSku.skuId),
       quantity: 1,
     })
+
+    // 同步更新 Header 購物車數量
+    await cartStore.fetchCart()
 
     // 先結束加入購物車狀態
     addingCartId.value = null
