@@ -6,12 +6,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.dinogo.member.entity.Member;
-import com.dinogo.member.entity.MemberRole;
-import com.dinogo.member.entity.MemberRoleId;
-import com.dinogo.member.entity.Role;
-import com.dinogo.member.repository.MemberRoleRepository;
 import com.dinogo.member.repository.MemberRepository;
-import com.dinogo.member.repository.RoleRepository;
+import com.dinogo.member.service.MemberService;
 import com.dinogo.seller.entity.Seller;
 import com.dinogo.seller.repository.SellerRepository;
 
@@ -22,18 +18,15 @@ public class SellerService {
 
     private final SellerRepository sellerRepository;
     private final MemberRepository memberRepository;
-    private final MemberRoleRepository memberRoleRepository;
-    private final RoleRepository roleRepository;
+    private final MemberService memberService;
 
     public SellerService(
             SellerRepository sellerRepository,
             MemberRepository memberRepository,
-            MemberRoleRepository memberRoleRepository,
-            RoleRepository roleRepository) {
+            MemberService memberService) {
         this.sellerRepository = sellerRepository;
         this.memberRepository = memberRepository;
-        this.memberRoleRepository = memberRoleRepository;
-        this.roleRepository = roleRepository;
+        this.memberService = memberService;
     }
 
     @Transactional
@@ -48,8 +41,6 @@ public class SellerService {
 
         Member member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new IllegalArgumentException("找不到會員"));
-        Role sellerRole = roleRepository.findByRoleName("seller")
-                .orElseThrow(() -> new IllegalStateException("Default role 'seller' is not configured"));
 
         LocalDateTime now = LocalDateTime.now();
 
@@ -64,16 +55,8 @@ public class SellerService {
 
         Seller savedSeller = sellerRepository.save(seller);
 
-        if (!memberRoleRepository.existsByMemberMemberIdAndRoleRoleId(memberId, sellerRole.getRoleId())) {
-            MemberRole memberRole = new MemberRole();
-            memberRole.setId(new MemberRoleId(memberId, sellerRole.getRoleId()));
-            memberRole.setMember(member);
-            memberRole.setRole(sellerRole);
-            memberRoleRepository.save(memberRole);
-        }
-
-        member.setAuthVersion(member.getAuthVersion() + 1);
-        memberRepository.save(member);
+        memberService.grantSellerRole(memberId);
+        memberService.increaseAuthVersion(memberId);
         return savedSeller;
     }
 

@@ -40,10 +40,10 @@ public class Address {
     @Column(name = "postal_code", length = 10)
     private String postalCode;
 
-    @Column(name = "city", nullable = false, length = 50)
+    @Column(name = "city", nullable = false, length = 10)
     private String city;
 
-    @Column(name = "district", nullable = false, length = 50)
+    @Column(name = "district", nullable = false, length = 10)
     private String district;
 
     @Column(name = "detail_address", nullable = false, length = 255)

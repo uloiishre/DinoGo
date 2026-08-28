@@ -19,11 +19,11 @@ public record AddressRequest(
         String postalCode,
 
         @NotBlank(message = "縣市不可為空")
-        @Size(max = 50, message = "縣市不可超過 50 個字")
+        @Size(max = 10, message = "縣市不可超過 10 個字")
         String city,
 
         @NotBlank(message = "行政區不可為空")
-        @Size(max = 50, message = "行政區不可超過 50 個字")
+        @Size(max = 10, message = "行政區不可超過 10 個字")
         String district,
 
         @NotBlank(message = "詳細地址不可為空")

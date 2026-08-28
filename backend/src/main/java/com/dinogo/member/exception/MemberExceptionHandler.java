@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
 import com.dinogo.member.controller.AddressController;
+import com.dinogo.member.controller.AdminMemberController;
 import com.dinogo.member.controller.LoginController;
 import com.dinogo.member.controller.MemberController;
 import com.dinogo.member.controller.RegisterController;
@@ -24,7 +25,8 @@ import jakarta.validation.ConstraintViolationException;
         RegisterController.class,
         LoginController.class,
         MemberController.class,
-        AddressController.class
+        AddressController.class,
+        AdminMemberController.class
 })
 public class MemberExceptionHandler {
 

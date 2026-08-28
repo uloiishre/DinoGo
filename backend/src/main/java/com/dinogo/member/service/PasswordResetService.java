@@ -49,6 +49,7 @@ public class PasswordResetService {
         if (!request.newPassword().equals(request.confirmNewPassword())) {
             throw new IllegalArgumentException("新密碼與確認密碼不一致");
         }
+        PasswordPolicy.validate(request.newPassword(), "新密碼");
 
         PasswordResetToken token = passwordResetTokenService.parse(request.token());
         int updatedRows = memberRepository.resetPasswordIfTokenIsValid(
