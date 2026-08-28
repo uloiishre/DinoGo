@@ -2,7 +2,7 @@ export const ORDER_DISPLAY_STATUS = Object.freeze({
   PENDING_PAYMENT: Object.freeze({ key: 'PENDING_PAYMENT', label: '待付款' }),
   PENDING_SHIPMENT: Object.freeze({ key: 'PENDING_SHIPMENT', label: '待出貨' }),
   IN_TRANSIT: Object.freeze({ key: 'IN_TRANSIT', label: '運送中' }),
-  PENDING_PICKUP: Object.freeze({ key: 'PENDING_PICKUP', label: '待取貨' }),
+  PENDING_PICKUP: Object.freeze({ key: 'PENDING_PICKUP', label: '待收貨' }),
   COMPLETED: Object.freeze({ key: 'COMPLETED', label: '已完成' }),
   CANCELLED: Object.freeze({ key: 'CANCELLED', label: '不成立' }),
 })
@@ -12,7 +12,7 @@ export function getOrderDisplayStatus(order) {
   if (order?.status === 'COMPLETED') return ORDER_DISPLAY_STATUS.COMPLETED
 
   if (order?.status === 'SHIPPED') {
-    if (order.shipment?.status === 'AVAILABLE_FOR_PICKUP') {
+    if (['AVAILABLE_FOR_PICKUP', 'DELIVERED'].includes(order.shipment?.status)) {
       return ORDER_DISPLAY_STATUS.PENDING_PICKUP
     }
     return ORDER_DISPLAY_STATUS.IN_TRANSIT

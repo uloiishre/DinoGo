@@ -14,7 +14,7 @@ const cases = [
   [
     { status: 'SHIPPED', shipment: { status: 'AVAILABLE_FOR_PICKUP' } },
     'PENDING_PICKUP',
-    '待取貨',
+    '待收貨',
   ],
   [{ status: 'COMPLETED', shipment: { status: 'DELIVERED' } }, 'COMPLETED', '已完成'],
   [{ status: 'CANCELLED', shipment: { status: 'SHIPPED' } }, 'CANCELLED', '不成立'],
@@ -30,7 +30,7 @@ for (const [order, expectedKey, expectedLabel] of cases) {
 }
 
 test('pending receipt groups every active delivery state', () => {
-  for (const status of ['SHIPPED', 'AVAILABLE_FOR_PICKUP']) {
+  for (const status of ['SHIPPED', 'AVAILABLE_FOR_PICKUP', 'DELIVERED']) {
     assert.equal(
       isOrderInDisplayGroup(
         { status: 'SHIPPED', shipment: { status } },

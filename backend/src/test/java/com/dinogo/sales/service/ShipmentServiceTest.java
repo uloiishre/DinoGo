@@ -358,21 +358,16 @@ class ShipmentServiceTest {
         }
 
         @Test
-        void tcatDeliveryCompletesShipmentAndOrder() {
+        void tcatDeliveryMarksShipmentDeliveredAndWaitsForBuyerCompletion() {
                 Shipment shipment = shipment(order(10, 6, 30, OrderStatus.SHIPPED));
                 shipment.setShipmentId(20);
                 shipment.setStatus(ShipmentStatus.SHIPPED);
-                Payment payment = new Payment();
-                payment.setStatus(PaymentStatus.PENDING);
                 when(seller.getSellerId()).thenReturn(30);
                 when(seller.getStatus()).thenReturn("ACTIVE");
                 when(sellerRepository.findByMember_MemberId(8)).thenReturn(Optional.of(seller));
                 when(shipmentRepository.findForStatusUpdate(10, 30)).thenReturn(Optional.of(shipment));
                 when(shipmentEventRepository.findByShipmentShipmentIdOrderByOccurredAtAsc(20))
                                 .thenReturn(List.of(event(shipment, ShipmentEventType.OUT_FOR_DELIVERY)));
-                when(paymentRepository.findFirstByOrderOrderIdAndStatusAndPaymentMethodMethodCode(
-                                10, PaymentStatus.PENDING, "CASH_ON_DELIVERY"))
-                                .thenReturn(Optional.of(payment));
                 when(shipmentRepository.save(shipment)).thenReturn(shipment);
 
                 var response = shipmentService.simulateTcatEvent(
@@ -380,9 +375,11 @@ class ShipmentServiceTest {
 
                 assertEquals(ShipmentStatus.DELIVERED, response.status());
                 assertNotNull(shipment.getDeliveredAt());
-                assertEquals(OrderStatus.COMPLETED, shipment.getOrder().getStatus());
-                assertNotNull(shipment.getOrder().getCompletedAt());
-                assertEquals(PaymentStatus.SUCCESS, payment.getStatus());
+                assertEquals(OrderStatus.SHIPPED, shipment.getOrder().getStatus());
+                assertNull(shipment.getOrder().getCompletedAt());
+                verify(paymentRepository, never())
+                                .findFirstByOrderOrderIdAndStatusAndPaymentMethodMethodCode(
+                                                any(), any(), any());
                 ArgumentCaptor<ShipmentEvent> eventCaptor = ArgumentCaptor.forClass(ShipmentEvent.class);
                 verify(shipmentEventRepository).save(eventCaptor.capture());
                 assertEquals(ShipmentEventType.DELIVERED, eventCaptor.getValue().getEventType());
@@ -390,7 +387,7 @@ class ShipmentServiceTest {
         }
 
         @Test
-        void buyerCannotConfirmDeliveryBeforeShipmentIsAvailableForPickup() {
+        void buyerCannotCompleteOrderBeforeShipmentIsDeliveredOrAvailableForPickup() {
                 Shipment shipment = shipment(order(10, 6, 30, OrderStatus.SHIPPED));
                 shipment.setStatus(ShipmentStatus.SHIPPED);
                 when(shipmentRepository.findForDeliveryConfirmation(10, 6))
@@ -401,7 +398,7 @@ class ShipmentServiceTest {
                                 () -> shipmentService.confirmDelivery(10, 6));
 
                 assertEquals(
-                                "Only shipments available for pickup can be confirmed as delivered",
+                                "Only delivered or available-for-pickup shipments can be completed",
                                 exception.getMessage());
                 assertEquals(OrderStatus.SHIPPED, shipment.getOrder().getStatus());
                 assertEquals(ShipmentStatus.SHIPPED, shipment.getStatus());

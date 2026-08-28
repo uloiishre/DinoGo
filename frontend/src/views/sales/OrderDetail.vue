@@ -74,6 +74,11 @@ const progressSteps = [
   },
   { label: '賣家處理', statuses: ['PAID', 'PROCESSING', 'SHIPPED', 'COMPLETED'] },
   { label: '商品出貨', statuses: ['SHIPPED', 'COMPLETED'] },
+  {
+    label: '待收貨',
+    statuses: ['COMPLETED'],
+    shipmentStatuses: ['DELIVERED'],
+  },
   { label: '完成訂單', statuses: ['COMPLETED'] },
 ]
 
@@ -216,7 +221,9 @@ async function handleRetryCreditCardPayment() {
 }
 
 function isStepComplete(step) {
-  return order.value && step.statuses.includes(order.value.status)
+  if (!order.value) return false
+  if (step.shipmentStatuses?.includes(order.value.shipment?.status)) return true
+  return step.statuses.includes(order.value.status)
 }
 
 function formatCurrency(value) {
@@ -447,13 +454,13 @@ onUnmounted(() => {
                   </li>
                 </ol>
                 <button
-                  v-if="order.shipment.status === 'AVAILABLE_FOR_PICKUP'"
+                  v-if="order.status === 'SHIPPED' && ['AVAILABLE_FOR_PICKUP', 'DELIVERED'].includes(order.shipment.status)"
                   class="btn btn-primary mt-2"
                   type="button"
                   :disabled="confirmingDelivery"
                   @click="handleConfirmDelivery"
                 >
-                  {{ confirmingDelivery ? '確認中...' : '確認收貨' }}
+                  {{ confirmingDelivery ? '確認中...' : '完成訂單' }}
                 </button>
                 <p v-if="deliveryErrorMessage" class="text-danger mt-2" role="alert">
                   {{ deliveryErrorMessage }}
@@ -728,7 +735,7 @@ onUnmounted(() => {
 .progress-card {
   display: grid;
   min-height: 130px;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: center;
   gap: 18px;
   margin-top: var(--space-5);

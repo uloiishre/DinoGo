@@ -206,9 +206,10 @@ public class ShipmentService {
             completeCashOnDeliveryPayment(orderId, completedAt);
             return toResponse(shipment);
         }
-        if (shipment.getStatus() != ShipmentStatus.AVAILABLE_FOR_PICKUP) {
+        if (shipment.getStatus() != ShipmentStatus.AVAILABLE_FOR_PICKUP
+                && shipment.getStatus() != ShipmentStatus.DELIVERED) {
             throw new InvalidOrderException(
-                    "Only shipments available for pickup can be confirmed as delivered");
+                    "Only delivered or available-for-pickup shipments can be completed");
         }
 
         Order order = shipment.getOrder();
@@ -283,10 +284,6 @@ public class ShipmentService {
             LocalDateTime now = LocalDateTime.now();
             shipment.setStatus(ShipmentStatus.DELIVERED);
             shipment.setDeliveredAt(now);
-            shipment.getOrder().setStatus(OrderStatus.COMPLETED);
-            shipment.getOrder().setCompletedAt(now);
-            increaseSoldCount(shipment.getOrder());
-            completeCashOnDeliveryPayment(orderId, now);
         }
         return toResponse(shipmentRepository.save(shipment));
     }
