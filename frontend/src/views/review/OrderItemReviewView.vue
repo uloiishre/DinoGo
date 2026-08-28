@@ -211,13 +211,14 @@ onBeforeUnmount(revokeLocalUrls)
     <div class="review-panel" role="dialog" :aria-modal="modal ? 'true' : undefined" aria-labelledby="review-title">
       <header class="review-header">
         <div>
+          <p>完成的訂單 · 單項產品</p>
           <h1 id="review-title">商品評價</h1>
         </div>
         <button type="button" class="close-button" aria-label="關閉且不做變更" @click="closeWithoutChanges">×</button>
       </header>
 
       <label v-if="order?.items?.length" class="review-item-select">
-        <span>變更評價商品</span>
+        <span>評價對象</span>
         <select v-model.number="selectedOrderItemId" @change="selectReviewItem">
           <option v-for="candidate in order.items" :key="candidate.orderItemId" :value="candidate.orderItemId">
             {{ candidate.productName }} 

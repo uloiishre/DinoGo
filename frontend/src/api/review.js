@@ -17,15 +17,13 @@ export function clearStar(starId) {
 }
 
 /** 產品明細頁使用：以後端 Keyset Cursor 每次載入 10 筆公開評價。 */
-export function getProductReviews(productId, cursor = null) {
+export function getProductReviews(productId, page = 1, filters = {}) {
   return api.get(`/reviews/products/${productId}`, {
-    params: cursor
-      ? {
-          lastReviewPriority: cursor.reviewPriority,
-          lastStarUpdAt: cursor.starUpdAt,
-          lastStarId: cursor.starId,
-        }
-      : undefined,
+    params: {
+      page,
+      rating: filters.rating || undefined,
+      content: filters.content === 'ALL' ? undefined : filters.content,
+    },
   })
 }
 //review-end，總共1次修改，第1次//
