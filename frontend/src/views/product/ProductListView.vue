@@ -992,4 +992,16 @@ const formatStoreTime = (time) => {
   font-size: 14px;
   box-sizing: border-box;
 }
+/* Chrome、Edge、Safari：隱藏 number 上下箭頭 */
+.price-input::-webkit-outer-spin-button,
+.price-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+.price-input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
 </style>
