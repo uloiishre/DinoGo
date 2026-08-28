@@ -227,11 +227,9 @@ const routes = [
       { path: 'messages', name: 'AdminMessages', component: () => import('@/views/admin/AdminMessagesView.vue') },
     ],
   },
-  {
-    path: '/:pathMatch(.*)*',
-    name: 'NotFound',
-    component: () => import('@/views/NotFoundView.vue'),
-  },
+  { path: '/403', name: 'Forbidden', component: () => import('@/views/ForbiddenView.vue') },
+  { path: '/500', name: 'ServerError', component: () => import('@/views/ServerErrorView.vue') },
+  { path: '/:pathMatch(.*)*', name: 'NotFound', component: () => import('@/views/NotFoundView.vue') },
 ]
 
 const router = createRouter({
@@ -250,7 +248,13 @@ router.beforeEach((to) => {
   }
 
   if (to.meta.requiresRole && !authStore.hasRole(to.meta.requiresRole)) {
-    return { name: 'MemberOverview' }
+    return { name: 'Forbidden' }
+  }
+})
+
+router.onError(() => {
+  if (router.currentRoute.value.name !== 'ServerError') {
+    router.replace({ name: 'ServerError' })
   }
 })
 

@@ -41,7 +41,10 @@ class ReviewRouteSecurityTest {
         mockMvc.perform(get("/api/reviews/products/1"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/reviews/sellers/1"))
+        mockMvc.perform(get("/api/reviews/products/1/rating-summary"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/reviews/sellers/1/rating-summary"))
                 .andExpect(status().isOk());
     }
 
@@ -61,8 +64,12 @@ class ReviewRouteSecurityTest {
         void getProductReviews() {
         }
 
-        @GetMapping("/api/reviews/sellers/{sellerId}")
-        void getSellerReviews() {
+        @GetMapping("/api/reviews/products/{productId}/rating-summary")
+        void getProductRatingSummary() {
+        }
+
+        @GetMapping("/api/reviews/sellers/{sellerId}/rating-summary")
+        void getSellerRatingSummary() {
         }
 
         @GetMapping("/api/reviews/orders/{orderId}")
