@@ -8,32 +8,14 @@ import MemberOrderProgress from '@/components/member/MemberOrderProgress.vue'
 import MemberQuickActions from '@/components/member/MemberQuickActions.vue'
 import MemberSummaryCards from '@/components/member/MemberSummaryCards.vue'
 
-// D：訂單／物流 API 尚無資料或載入失敗時的視覺 fallback。
-const MOCK_ORDER = {
-  id: null,
-  number: 'DG-20260809-0182',
-  date: '2026 / 08 / 09',
-  status: '配送中',
-  productName: '日常機能托特包 · 苔綠',
-  sellerName: '森日選物',
-  quantity: 1,
-  amount: 'NT$ 1,280',
-  progress: [
-    { label: '訂單成立', time: '08/09 10:06', icon: 'bi-check-lg', complete: true },
-    { label: '商家出貨', time: '08/09 17:42', icon: 'bi-box-seam', complete: true },
-    { label: '配送中', time: '預計 08/11', icon: 'bi-truck', complete: true },
-    { label: '完成取貨', time: '等待完成', icon: 'bi-house', complete: false },
-  ],
-}
-
-const overviewDate = ref(MOCK_ORDER.date)
-const updatedTime = ref('10:24')
-const latestOrder = ref(MOCK_ORDER)
+const overviewDate = ref('—')
+const updatedTime = ref('—')
+const latestOrder = ref(null)
+const orderState = ref('loading')
 const summaries = ref([
-  { value: '2', label: '配送中的訂單', hint: '預計 8/11 前送達', icon: 'bi-box-seam' },
-  { value: '3', label: '可使用優惠券', hint: '1 張將於 7 天內到期', icon: 'bi-ticket-perforated' },
-  // F：會員訊息頁與未讀數 API 尚未提供；暫以設計稿 mock，待 F 模組完成 MemberMessagesView 與 API 後替換。
-  { value: '1', label: '未讀平台訊息', hint: '商家已更新出貨狀態', icon: 'bi-envelope' },
+  { value: '—', label: '配送中的訂單', hint: '訂單資料載入中', icon: 'bi-box-seam' },
+  { value: '—', label: '可使用優惠券', hint: '優惠券資料載入中', icon: 'bi-ticket-perforated' },
+  { value: '—', label: '未讀平台訊息', hint: '通知功能尚未提供', icon: 'bi-envelope' },
 ])
 
 function toDate(value) {
@@ -43,7 +25,7 @@ function toDate(value) {
 
 function formatDate(value) {
   const date = toDate(value)
-  if (!date) return MOCK_ORDER.date
+  if (!date) return '—'
   return new Intl.DateTimeFormat('zh-TW', {
     year: 'numeric',
     month: '2-digit',
@@ -55,7 +37,7 @@ function formatDate(value) {
 
 function formatTime(value) {
   const date = toDate(value)
-  if (!date) return '10:24'
+  if (!date) return '—'
   return new Intl.DateTimeFormat('zh-TW', {
     hour: '2-digit',
     minute: '2-digit',
@@ -86,7 +68,7 @@ function formatCurrency(value) {
 }
 
 function isShipped(order) {
-  return order.status === 'SHIPPED' || order.status === 'COMPLETED'
+  return order.status === 'SHIPPED'
 }
 
 function buildProgress(order) {
@@ -173,31 +155,46 @@ async function loadOverview() {
     couponsResult.status === 'fulfilled' && Array.isArray(couponsResult.value.data)
       ? couponsResult.value.data
       : []
-  const activeOrder = orders.find((order) => isShipped(order)) ?? orders[0]
+  const activeOrder = orders.find(isShipped) ?? orders[0] ?? null
 
-  if (activeOrder) latestOrder.value = buildOrderOverview(activeOrder)
+  latestOrder.value = activeOrder ? buildOrderOverview(activeOrder) : null
+  orderState.value =
+    ordersResult.status !== 'fulfilled' ? 'error' : latestOrder.value ? 'ready' : 'empty'
 
   const overviewTimestamp = activeOrder?.createdAt ?? profile?.updatedAt
   overviewDate.value = formatDate(overviewTimestamp)
-  updatedTime.value = formatTime(new Date())
+  updatedTime.value = formatTime(profile?.updatedAt)
 
   const deliveryOrders = orders.filter(isShipped)
   const availableCoupons = coupons.filter((coupon) => coupon.status === 'AVAILABLE')
   summaries.value = [
-    {
-      value: String(deliveryOrders.length),
-      label: '配送中的訂單',
-      hint: latestOrder.value.deliveryHint ?? '目前沒有配送中的訂單',
-      icon: 'bi-box-seam',
-    },
-    {
-      value: String(availableCoupons.length),
-      label: '可使用優惠券',
-      hint: buildCouponHint(availableCoupons),
-      icon: 'bi-ticket-perforated',
-    },
-    // F：API 未完成時保留 mock，避免跨模組頁面失去摘要內容。
-    summaries.value[2],
+    ordersResult.status === 'fulfilled'
+      ? {
+          value: String(deliveryOrders.length),
+          label: '配送中的訂單',
+          hint: latestOrder.value?.deliveryHint ?? '目前沒有配送中的訂單',
+          icon: 'bi-box-seam',
+        }
+      : {
+          value: '—',
+          label: '配送中的訂單',
+          hint: '訂單資料暫時無法載入',
+          icon: 'bi-box-seam',
+        },
+    couponsResult.status === 'fulfilled'
+      ? {
+          value: String(availableCoupons.length),
+          label: '可使用優惠券',
+          hint: buildCouponHint(availableCoupons),
+          icon: 'bi-ticket-perforated',
+        }
+      : {
+          value: '—',
+          label: '可使用優惠券',
+          hint: '優惠券資料暫時無法載入',
+          icon: 'bi-ticket-perforated',
+        },
+    { value: '—', label: '未讀平台訊息', hint: '通知功能尚未提供', icon: 'bi-envelope' },
   ]
 }
 
@@ -221,7 +218,7 @@ onMounted(loadOverview)
       <MemberSummaryCards :summaries="summaries" />
 
       <div class="member-overview__content">
-        <MemberOrderProgress :order="latestOrder" />
+        <MemberOrderProgress :order="latestOrder" :state="orderState" />
         <MemberQuickActions />
       </div>
     </div>
