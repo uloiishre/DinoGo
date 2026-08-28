@@ -2,12 +2,14 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import api from '@/api/axios'
+import { useCartStore } from '@/stores/cart'
 import { logSafeError } from '@/utils/safeError'
 import { getImageUrl } from '@/utils/imageUrl'
 
 const pageTitle = '購物車'
 const router = useRouter()
 const route = useRoute()
+const cartStore = useCartStore()
 const cart = ref(null)
 const loading = ref(false)
 const errorMessage = ref('')
@@ -207,8 +209,11 @@ const deleteUnavailableItems = async () => {
       await api.delete(`/cart/items/${cartItemId}`)
     }
 
-    // 重新取得購物車
+    // 重新取得目前 CartView
     await fetchCart()
+
+    // ★★★ 同步 Header 購物車數字 ★★★
+    await cartStore.fetchCart()
 
     // 清除這些商品的勾選
     selectedCartItemIds.value = selectedCartItemIds.value.filter((id) => !ids.includes(id))
@@ -525,11 +530,16 @@ const confirmRemoveItem = async () => {
 
     await api.delete(`/cart/items/${item.cartItemId}`)
 
+    // 更新目前購物車畫面
     cart.value.items = cart.value.items.filter(
       (cartItem) => cartItem.cartItemId !== item.cartItemId,
     )
 
+    // 清除選取狀態
     selectedCartItemIds.value = selectedCartItemIds.value.filter((id) => id !== item.cartItemId)
+
+    // ★★★ 同步更新 Header 購物車數字 ★★★
+    await cartStore.fetchCart()
 
     closeRemoveModal()
   } catch (error) {
@@ -569,6 +579,11 @@ const deleteSelectedItems = async () => {
     }
 
     await fetchCart()
+
+    // ★★★ 更新 Header 購物車數字 ★★★
+    await cartStore.fetchCart()
+
+    selectedCartItemIds.value = []
 
     selectedCartItemIds.value = []
   } catch (error) {

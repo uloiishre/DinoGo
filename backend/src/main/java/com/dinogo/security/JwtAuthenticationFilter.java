@@ -68,8 +68,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             Integer memberId = jwtTokenUtil.extractMemberId(token);
             int tokenAuthVersion = jwtTokenUtil.extractAuthVersion(token);
             List<GrantedAuthority> authorities = jwtTokenUtil.extractRoles(token).stream()
-                    .<GrantedAuthority>map(role ->
-                            new SimpleGrantedAuthority("ROLE_" + role.toUpperCase(Locale.ROOT)))
+                    .<GrantedAuthority>map(role -> new SimpleGrantedAuthority("ROLE_" + role.toUpperCase(Locale.ROOT)))
                     .toList();
             if (memberId == null) {
                 logger.debug("JWT memberId claim is missing in token");
@@ -87,8 +86,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
                 AuthenticatedMember principal = new AuthenticatedMember(memberId, subject);
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(principal, null, authorities);
+                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(principal,
+                        null, authorities);
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
