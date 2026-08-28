@@ -2,8 +2,9 @@ package com.dinogo.cart.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.springframework.stereotype.Service;
@@ -15,10 +16,9 @@ import com.dinogo.cart.dto.CheckoutPreviewResponse;
 import com.dinogo.catalog.entity.Product;
 import com.dinogo.catalog.entity.ProductSku;
 import com.dinogo.catalog.repository.ProductSkuRepository;
-import com.dinogo.coupon.entity.Coupon;
-import com.dinogo.coupon.entity.MemberCoupon;
-import com.dinogo.coupon.repository.CouponRepository;
-import com.dinogo.coupon.repository.MemberCouponRepository;
+import com.dinogo.coupon.service.CouponUsageService;
+import com.dinogo.coupon.service.CouponUsageService.AppliedCoupon;
+import com.dinogo.coupon.service.CouponUsageService.CouponItem;
 import com.dinogo.member.entity.Address;
 import com.dinogo.member.repository.AddressRepository;
 
@@ -30,19 +30,16 @@ public class CheckoutService {
 
         private final ProductSkuRepository productSkuRepository;
         private final AddressRepository addressRepository;
-        private final CouponRepository couponRepository;
-        private final MemberCouponRepository memberCouponRepository;
+        private final CouponUsageService couponUsageService;
 
         public CheckoutService(
                         ProductSkuRepository productSkuRepository,
                         AddressRepository addressRepository,
-                        CouponRepository couponRepository,
-                        MemberCouponRepository memberCouponRepository) {
+                        CouponUsageService couponUsageService) {
 
                 this.productSkuRepository = productSkuRepository;
                 this.addressRepository = addressRepository;
-                this.couponRepository = couponRepository;
-                this.memberCouponRepository = memberCouponRepository;
+                this.couponUsageService = couponUsageService;
         }
 
         // =========================================================
@@ -82,6 +79,7 @@ public class CheckoutService {
                 Set<Integer> skuIds = new HashSet<>();
 
                 BigDecimal subtotal = BigDecimal.ZERO;
+                List<CouponItem> couponItems = new ArrayList<>();
 
                 // 用來確認這次結帳是哪一個賣家
                 Integer checkoutSellerId = null;
@@ -202,6 +200,7 @@ public class CheckoutService {
                                                         BigDecimal.valueOf(item.quantity()));
 
                         subtotal = subtotal.add(itemSubtotal);
+                        couponItems.add(new CouponItem(product, itemSubtotal));
                 }
 
                 // =====================================================
@@ -217,11 +216,13 @@ public class CheckoutService {
                 BigDecimal discount = BigDecimal.ZERO;
                 if (request.memberCouponId() != null) {
 
-                        discount = calculateCouponDiscount(
+                        AppliedCoupon appliedCoupon = couponUsageService.validateAndCalculate(
                                         request.memberCouponId(),
                                         memberId,
                                         checkoutSellerId,
-                                        subtotal);
+                                        subtotal,
+                                        couponItems);
+                        discount = appliedCoupon.discount();
                 }
 
                 // =====================================================
@@ -246,176 +247,5 @@ public class CheckoutService {
                                 shippingFee.setScale(0, RoundingMode.HALF_UP),
                                 discount.setScale(0, RoundingMode.HALF_UP),
                                 totalAmount.setScale(0, RoundingMode.HALF_UP));
-        }
-
-        // =========================================================
-        // 計算優惠券折扣
-        // =========================================================
-
-        private BigDecimal calculateCouponDiscount(
-                        Integer memberCouponId,
-                        Integer memberId,
-                        Integer checkoutSellerId,
-                        BigDecimal subtotal) {
-
-                // =====================================================
-                // 1. 查會員優惠券
-                // =====================================================
-
-                MemberCoupon memberCoupon = memberCouponRepository
-                                .findById(memberCouponId)
-                                .orElseThrow(() -> new RuntimeException(
-                                                "會員優惠券不存在"));
-
-                // =====================================================
-                // 2. 確認優惠券屬於目前會員
-                // =====================================================
-
-                if (memberCoupon.getMemberId() == null
-                                || !memberCoupon.getMemberId().equals(memberId)) {
-
-                        throw new RuntimeException(
-                                        "您無權使用此優惠券");
-                }
-
-                // =====================================================
-                // 3. 確認優惠券尚未使用
-                // =====================================================
-
-                if (Boolean.TRUE.equals(memberCoupon.getUsed())) {
-
-                        throw new RuntimeException(
-                                        "此優惠券已使用");
-                }
-
-                // =====================================================
-                // 4. 取得真正的 Coupon
-                // =====================================================
-
-                Coupon coupon = couponRepository
-                                .findById(memberCoupon.getCouponId())
-                                .orElseThrow(() -> new RuntimeException(
-                                                "優惠券不存在"));
-
-                // =====================================================
-                // 5. 優惠券狀態
-                // =====================================================
-
-                if (!"ACTIVE".equalsIgnoreCase(coupon.getStatus())) {
-
-                        throw new RuntimeException(
-                                        "此優惠券目前無法使用");
-                }
-
-                // =====================================================
-                // 6. 有效期限
-                // =====================================================
-
-                LocalDateTime now = LocalDateTime.now();
-
-                if (coupon.getStartAt() != null
-                                && coupon.getStartAt().isAfter(now)) {
-
-                        throw new RuntimeException(
-                                        "此優惠券尚未開始");
-                }
-
-                if (coupon.getEndAt() != null
-                                && coupon.getEndAt().isBefore(now)) {
-
-                        throw new RuntimeException(
-                                        "此優惠券已過期");
-                }
-
-                // =====================================================
-                // Debug
-                // =====================================================
-
-                System.out.println("================ COUPON DEBUG ================");
-                System.out.println("memberCouponId = " + memberCouponId);
-                System.out.println("memberId = " + memberId);
-                System.out.println("memberCoupon.memberId = " + memberCoupon.getMemberId());
-                System.out.println("memberCoupon.couponId = " + memberCoupon.getCouponId());
-                System.out.println("checkoutSellerId = " + checkoutSellerId);
-                System.out.println("couponId = " + coupon.getCouponId());
-                System.out.println("coupon.sellerId = " + coupon.getSellerId());
-                System.out.println("coupon.status = " + coupon.getStatus());
-                System.out.println("coupon.discountType = " + coupon.getDiscountType());
-                System.out.println("coupon.discountValue = " + coupon.getDiscountValue());
-                System.out.println("coupon.minPurchaseAmount = " + coupon.getMinPurchaseAmount());
-                System.out.println("memberCoupon.used = " + memberCoupon.getUsed());
-                System.out.println("subtotal = " + subtotal);
-                System.out.println("===============================================");
-
-                // =====================================================
-                // 7. 確認優惠券屬於目前結帳賣家
-                // =====================================================
-
-                if (coupon.getSellerId() == null
-                                || checkoutSellerId == null
-                                || !coupon.getSellerId().equals(checkoutSellerId)) {
-
-                        throw new RuntimeException(
-                                        "此優惠券不適用於目前商品");
-                }
-
-                // =====================================================
-                // 8. 最低消費
-                // =====================================================
-
-                if (coupon.getMinPurchaseAmount() != null
-                                && subtotal.compareTo(
-                                                coupon.getMinPurchaseAmount()) < 0) {
-
-                        throw new RuntimeException(
-                                        "此優惠券需滿 NT$ "
-                                                        + coupon.getMinPurchaseAmount()
-                                                        + " 才能使用");
-                }
-
-                // =====================================================
-                // 9. 計算折扣
-                // =====================================================
-
-                BigDecimal discount = BigDecimal.ZERO;
-
-                String discountType = coupon.getDiscountType();
-
-                // 固定金額
-                if ("AMOUNT".equalsIgnoreCase(discountType)
-                                || "FIXED".equalsIgnoreCase(discountType)) {
-
-                        discount = coupon.getDiscountValue()
-                                        .setScale(0, RoundingMode.DOWN);
-                }
-
-                // 百分比
-                else if ("PERCENT".equalsIgnoreCase(discountType)
-                                || "PERCENTAGE".equalsIgnoreCase(discountType)) {
-
-                        discount = subtotal
-                                        .multiply(coupon.getDiscountValue())
-                                        .divide(
-                                                        BigDecimal.valueOf(100),
-                                                        0,
-                                                        RoundingMode.DOWN);
-                }
-
-                else {
-
-                        throw new RuntimeException(
-                                        "不支援的優惠券折扣類型："
-                                                        + discountType);
-                }
-
-                // =====================================================
-                // 10. 折扣不可超過商品小計
-                // =====================================================
-
-                if (discount.compareTo(subtotal) > 0) {
-                        discount = subtotal;
-                }
-
-                return discount;
         }
 }

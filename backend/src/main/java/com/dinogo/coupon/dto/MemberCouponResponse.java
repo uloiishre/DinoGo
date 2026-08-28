@@ -20,6 +20,7 @@ public record MemberCouponResponse(
         String scopeType,
         Integer categoryId,
         Integer productId,
+        String perMemberUsagePolicy,
         LocalDateTime receivedAt,
         LocalDateTime usedAt,
         String status) {
@@ -30,17 +31,17 @@ public record MemberCouponResponse(
             String sellerName) {
         String status;
 
-        if (Boolean.TRUE.equals(memberCoupon.getUsed())) {
+        if (Boolean.TRUE.equals(memberCoupon.getUsed())
+                && !"REPEAT".equals(coupon.getPerMemberUsagePolicy())) {
             status = "USED";
         } else if (coupon.getEndAt().isBefore(now)) {
             status = "EXPIRED";
         } else if ("DISABLED".equals(coupon.getStatus())) {
             status = "DISABLED";
-        } else if ("DRAFT".equals(coupon.getStatus())) {
-            status = "NOT_AVAILABLE";
         } else if (coupon.getStartAt().isAfter(now)) {
             status = "NOT_STARTED";
-        } else if ("ACTIVE".equals(coupon.getStatus())) {
+        } else if ("ACTIVE".equals(coupon.getStatus())
+                || "DRAFT".equals(coupon.getStatus())) {
             status = "AVAILABLE";
         } else {
             status = "NOT_AVAILABLE";
@@ -61,6 +62,7 @@ public record MemberCouponResponse(
                 coupon.getScopeType(),
                 coupon.getCategoryId(),
                 coupon.getProductId(),
+                coupon.getPerMemberUsagePolicy(),
                 memberCoupon.getReceivedAt(),
                 memberCoupon.getUsedAt(),
                 status);

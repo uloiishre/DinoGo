@@ -98,7 +98,7 @@ class MemberCouponServiceTest {
 
         assertThatThrownBy(() -> memberCouponService.claimCoupon(7, 100))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("此優惠券尚未啟用");
+                .hasMessage("此優惠券已取消");
 
         verify(memberCouponRepository, never()).existsByMemberIdAndCouponId(any(), any());
     }
@@ -125,6 +125,47 @@ class MemberCouponServiceTest {
         assertThat(response.getFirst().status()).isEqualTo("USED");
     }
 
+    @Test
+    void getMemberCouponsKeepsRepeatCouponAvailableAfterUse() {
+        Coupon coupon = activeCoupon(100);
+        coupon.setPerMemberUsagePolicy("REPEAT");
+        MemberCoupon memberCoupon = new MemberCoupon();
+        memberCoupon.setMemberCouponId(10);
+        memberCoupon.setMemberId(7);
+        memberCoupon.setCouponId(100);
+        memberCoupon.setUsed(true);
+        memberCoupon.setUsedAt(LocalDateTime.now().minusHours(1));
+        when(memberCouponRepository.findByMemberIdOrderByReceivedAtDesc(7))
+                .thenReturn(List.of(memberCoupon));
+        when(couponRepository.findById(100)).thenReturn(Optional.of(coupon));
+        when(sellerRepository.findById(3)).thenReturn(Optional.of(seller("店鋪 A")));
+
+        List<MemberCouponResponse> response = memberCouponService.getMemberCoupons(7);
+
+        assertThat(response).hasSize(1);
+        assertThat(response.getFirst().status()).isEqualTo("AVAILABLE");
+    }
+
+    @Test
+    void getMemberCouponsMapsStartedDraftCouponAsAvailable() {
+        Coupon coupon = activeCoupon(100);
+        coupon.setStatus("DRAFT");
+        MemberCoupon memberCoupon = new MemberCoupon();
+        memberCoupon.setMemberCouponId(10);
+        memberCoupon.setMemberId(7);
+        memberCoupon.setCouponId(100);
+        memberCoupon.setUsed(false);
+        when(memberCouponRepository.findByMemberIdOrderByReceivedAtDesc(7))
+                .thenReturn(List.of(memberCoupon));
+        when(couponRepository.findById(100)).thenReturn(Optional.of(coupon));
+        when(sellerRepository.findById(3)).thenReturn(Optional.of(seller("店鋪 A")));
+
+        List<MemberCouponResponse> response = memberCouponService.getMemberCoupons(7);
+
+        assertThat(response).hasSize(1);
+        assertThat(response.getFirst().status()).isEqualTo("AVAILABLE");
+    }
+
     private Coupon activeCoupon(Integer couponId) {
         Coupon coupon = new Coupon();
         coupon.setCouponId(couponId);
@@ -138,6 +179,7 @@ class MemberCouponServiceTest {
         coupon.setStartAt(LocalDateTime.now().minusDays(1));
         coupon.setEndAt(LocalDateTime.now().plusDays(1));
         coupon.setUsedCount(0);
+        coupon.setPerMemberUsagePolicy("ONCE");
         return coupon;
     }
 

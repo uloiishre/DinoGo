@@ -24,6 +24,13 @@ const cartStore = useCartStore()
 const seller = ref(null)
 const sellerLoading = ref(false)
 const sellerCoupons = ref([])
+const memberCoupons = ref([])
+const claimingCouponId = ref(null)
+const couponMessage = ref('')
+const couponErrorMessage = ref('')
+const claimedCouponIds = computed(
+  () => new Set(memberCoupons.value.map((coupon) => Number(coupon.couponId))),
+)
 
 // Review 檢視版：使用本地展示資料，不呼叫尚未整合的 Review 後端。
 const activeDetailTab = ref('description')
@@ -474,15 +481,21 @@ const fetchSellerCoupons = async () => {
   if (!product.value?.sellerId) return
 
   try {
-    const response = await api.get('/coupons/available', {
+    const publicRequest = api.get('/coupons/available', {
       params: {
         sellerId: product.value.sellerId,
       },
     })
+    const memberRequest = authStore.isAuthenticated
+      ? api.get('/member/coupons')
+      : Promise.resolve({ data: [] })
+    const [publicResponse, memberResponse] = await Promise.all([publicRequest, memberRequest])
 
-    sellerCoupons.value = response.data
+    sellerCoupons.value = publicResponse.data || []
+    memberCoupons.value = memberResponse.data || []
   } catch (error) {
     console.error('取得賣家優惠券失敗：', error)
+    sellerCoupons.value = []
   }
 }
 const getStoreLogoUrl = (url) => {
@@ -504,21 +517,39 @@ const goToStore = (sellerId) => {
   })
 }
 const claimCoupon = async (couponId) => {
+  if (!authStore.isAuthenticated) {
+    await router.push({
+      name: 'Login',
+      query: {
+        redirect: route.fullPath,
+      },
+    })
+    return
+  }
+
+  claimingCouponId.value = couponId
+  couponMessage.value = ''
+  couponErrorMessage.value = ''
   try {
     await api.post(`/member/coupons/${couponId}/claim`)
 
-    alert('優惠券領取成功')
+    couponMessage.value = '優惠券已領取。'
+    await fetchSellerCoupons()
   } catch (error) {
     console.error('領取優惠券失敗：', error)
 
     if (error.response?.status === 401) {
-      router.push({
+      await router.push({
         name: 'Login',
         query: {
           redirect: route.fullPath,
         },
       })
+    } else {
+      couponErrorMessage.value = error.response?.data?.message || '優惠券領取失敗'
     }
+  } finally {
+    claimingCouponId.value = null
   }
 }
 /**
@@ -888,6 +919,9 @@ onUnmounted(() => {
               <section class="seller-coupon-card">
                 <h2 class="sidebar-title">該賣家可使用的優惠券</h2>
 
+                <p v-if="couponMessage" class="coupon-message success">{{ couponMessage }}</p>
+                <p v-if="couponErrorMessage" class="coupon-message error">{{ couponErrorMessage }}</p>
+
                 <div v-if="sellerCoupons.length === 0" class="coupon-empty">
                   目前尚無可使用的優惠券
                 </div>
@@ -915,9 +949,16 @@ onUnmounted(() => {
                     <button
                       type="button"
                       class="coupon-claim-button"
+                      :disabled="claimedCouponIds.has(Number(coupon.couponId)) || claimingCouponId === coupon.couponId"
                       @click.stop="claimCoupon(coupon.couponId)"
                     >
-                      領取
+                      {{
+                        claimedCouponIds.has(Number(coupon.couponId))
+                          ? '已領取'
+                          : claimingCouponId === coupon.couponId
+                            ? '領取中...'
+                            : '領取'
+                      }}
                     </button>
                   </div>
                 </div>
@@ -1789,6 +1830,30 @@ onUnmounted(() => {
 
 .coupon-claim-button:hover {
   opacity: 0.9;
+}
+
+.coupon-claim-button:disabled {
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
+  cursor: default;
+  opacity: 1;
+}
+
+.coupon-message {
+  margin: 0 0 var(--space-3);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.coupon-message.success {
+  background: #ecfdf3;
+  color: #166534;
+}
+
+.coupon-message.error {
+  background: #fff1f2;
+  color: #b42318;
 }
 
 .coupon-empty {

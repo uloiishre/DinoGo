@@ -6,6 +6,9 @@ import com.dinogo.coupon.dto.CouponResponse;
 import com.dinogo.coupon.dto.CouponUpdateRequest;
 import com.dinogo.coupon.entity.Coupon;
 import com.dinogo.coupon.repository.CouponRepository;
+import com.dinogo.coupon.repository.MemberCouponRepository;
+import com.dinogo.catalog.entity.Product;
+import com.dinogo.catalog.repository.ProductRepository;
 import com.dinogo.seller.repository.SellerRepository;
 import java.util.List;
 import java.util.Set;
@@ -18,15 +21,22 @@ public class CouponService {
 
     private static final Set<String> DISCOUNT_TYPES = Set.of("PERCENT", "AMOUNT");
     private static final Set<String> SCOPE_TYPES = Set.of("STORE", "ALL", "CATEGORY", "PRODUCT");
+    private static final Set<String> PER_MEMBER_USAGE_POLICIES = Set.of("ONCE", "REPEAT");
 
     private final CouponRepository couponRepository;
+    private final MemberCouponRepository memberCouponRepository;
     private final SellerRepository sellerRepository;
+    private final ProductRepository productRepository;
 
     public CouponService(
             CouponRepository couponRepository,
-            SellerRepository sellerRepository) {
+            MemberCouponRepository memberCouponRepository,
+            SellerRepository sellerRepository,
+            ProductRepository productRepository) {
         this.couponRepository = couponRepository;
+        this.memberCouponRepository = memberCouponRepository;
         this.sellerRepository = sellerRepository;
+        this.productRepository = productRepository;
     }
 
     @Transactional(readOnly = true)
@@ -41,8 +51,11 @@ public class CouponService {
     public List<PublicCouponResponse> getAvailableCoupons(Integer sellerId) {
         LocalDateTime now = LocalDateTime.now();
 
-        return couponRepository.findByStatusOrderByCouponIdDesc("ACTIVE")
+        return couponRepository.findAllByOrderByCouponIdDesc()
                 .stream()
+
+                // 只排除已取消，DRAFT 優惠券只要已到可用時間也可讓買家領取。
+                .filter(coupon -> !"DISABLED".equals(coupon.getStatus()))
 
                 // 有傳 sellerId → 只顯示該賣家的優惠券
                 // 沒傳 sellerId → 顯示所有賣家的優惠券
@@ -57,7 +70,7 @@ public class CouponService {
 
                 // 沒有限量，或尚未被領完
                 .filter(coupon -> coupon.getLimitCount() == null
-                        || coupon.getUsedCount() < coupon.getLimitCount())
+                        || memberCouponRepository.countByCouponId(coupon.getCouponId()) < coupon.getLimitCount())
 
                 .map(this::toPublicResponse)
                 .toList();
@@ -73,6 +86,9 @@ public class CouponService {
         validateTimeRange(request.startAt(), request.endAt());
         validateDiscountType(request.discountType());
         validateScopeType(request.scopeType(), request.categoryId(), request.productId());
+        validatePerMemberUsagePolicy(resolvePerMemberUsagePolicy(request.perMemberUsagePolicy()));
+        validateProductDiscount(sellerId, request.scopeType(), request.productId(),
+                request.discountType(), request.discountValue());
 
         couponRepository.findBySellerIdAndCouponCode(sellerId, request.couponCode())
                 .ifPresent(coupon -> {
@@ -90,6 +106,7 @@ public class CouponService {
         coupon.setEndAt(request.endAt());
         coupon.setLimitCount(request.limitCount());
         coupon.setUsedCount(0);
+        coupon.setPerMemberUsagePolicy(resolvePerMemberUsagePolicy(request.perMemberUsagePolicy()));
         coupon.setScopeType(request.scopeType());
         coupon.setCategoryId(request.categoryId());
         coupon.setProductId(request.productId());
@@ -103,6 +120,9 @@ public class CouponService {
         validateTimeRange(request.startAt(), request.endAt());
         validateDiscountType(request.discountType());
         validateScopeType(request.scopeType(), request.categoryId(), request.productId());
+        validatePerMemberUsagePolicy(resolvePerMemberUsagePolicy(request.perMemberUsagePolicy()));
+        validateProductDiscount(sellerId, request.scopeType(), request.productId(),
+                request.discountType(), request.discountValue());
 
         Coupon coupon = findSellerCoupon(sellerId, couponId);
         coupon.setCouponName(request.couponName());
@@ -112,6 +132,7 @@ public class CouponService {
         coupon.setStartAt(request.startAt());
         coupon.setEndAt(request.endAt());
         coupon.setLimitCount(request.limitCount());
+        coupon.setPerMemberUsagePolicy(resolvePerMemberUsagePolicy(request.perMemberUsagePolicy()));
         coupon.setScopeType(request.scopeType());
         coupon.setCategoryId(request.categoryId());
         coupon.setProductId(request.productId());
@@ -153,14 +174,51 @@ public class CouponService {
     }
 
     private void validateTimeRange(java.time.LocalDateTime startAt, java.time.LocalDateTime endAt) {
+        if (startAt == null || endAt == null) {
+            throw new IllegalArgumentException("開始與結束時間不可為空");
+        }
+        if (startAt.isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("開始時間不可早於目前時間");
+        }
         if (!endAt.isAfter(startAt)) {
             throw new IllegalArgumentException("結束時間必須在開始時間之後");
+        }
+    }
+
+    private void validateProductDiscount(
+            Integer sellerId,
+            String scopeType,
+            Integer productId,
+            String discountType,
+            java.math.BigDecimal discountValue) {
+        if (!"PRODUCT".equals(scopeType) || productId == null || !"AMOUNT".equals(discountType)) {
+            return;
+        }
+
+        Product product = productRepository.findBySeller_SellerIdAndProductId(sellerId, productId)
+                .orElseThrow(() -> new IllegalArgumentException("找不到此賣家的適用商品"));
+
+        if (discountValue.compareTo(product.getBasePrice()) >= 0) {
+            throw new IllegalArgumentException("固定折扣金額必須小於商品價格");
         }
     }
 
     private void validateDiscountType(String discountType) {
         if (!DISCOUNT_TYPES.contains(discountType)) {
             throw new IllegalArgumentException("無效的折扣類型，請選擇 PERCENT 或 AMOUNT");
+        }
+    }
+
+    private String resolvePerMemberUsagePolicy(String perMemberUsagePolicy) {
+        if (perMemberUsagePolicy == null || perMemberUsagePolicy.isBlank()) {
+            return "ONCE";
+        }
+        return perMemberUsagePolicy;
+    }
+
+    private void validatePerMemberUsagePolicy(String perMemberUsagePolicy) {
+        if (!PER_MEMBER_USAGE_POLICIES.contains(perMemberUsagePolicy)) {
+            throw new IllegalArgumentException("無效的會員使用次數設定，請選擇 ONCE 或 REPEAT");
         }
     }
 

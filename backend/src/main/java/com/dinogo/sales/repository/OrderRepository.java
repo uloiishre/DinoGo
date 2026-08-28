@@ -58,7 +58,15 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
     @EntityGraph(attributePaths = "orderItems")
     List<Order> findBySellerIdOrderByCreatedAtDesc(Integer sellerId);
 
+    @EntityGraph(attributePaths = "orderItems")
+    List<Order> findBySellerIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
+            Integer sellerId,
+            LocalDateTime startAt,
+            LocalDateTime endAt);
+
     boolean existsByBuyerIdAndStatusIn(Integer buyerId, Collection<com.dinogo.sales.entity.OrderStatus> statuses);
+
+    long countByBuyerIdAndMemberCouponId(Integer buyerId, Integer memberCouponId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @EntityGraph(attributePaths = "payments")

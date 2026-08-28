@@ -13,6 +13,7 @@ public record PublicCouponResponse(
         BigDecimal minPurchaseAmount,
         LocalDateTime endAt,
         String scopeType,
+        String perMemberUsagePolicy,
         String status
 ) {
     public static PublicCouponResponse from(Coupon coupon, String sellerName) {
@@ -25,6 +26,7 @@ public record PublicCouponResponse(
                 coupon.getMinPurchaseAmount(),
                 coupon.getEndAt(),
                 coupon.getScopeType(),
+                coupon.getPerMemberUsagePolicy(),
                 coupon.getStatus()
         );
     }

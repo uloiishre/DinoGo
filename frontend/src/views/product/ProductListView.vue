@@ -1,13 +1,15 @@
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import api from '@/api/axios'
 import { logSafeError } from '@/utils/safeError'
 import ProductCard from '@/views/product/ProductCard.vue'
 import { getPublicStore, resolveSellerLogoUrl } from '@/api/sellerProfileApi'
+import { useAuthStore } from '@/stores/auth'
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
 const sort = ref(route.query.sort || '')
 const products = ref([])
@@ -16,6 +18,11 @@ const errorMessage = ref('')
 const currentPage = ref(0)
 const pageSize = ref(12)
 const storeProfile = ref(null)
+const storeCoupons = ref([])
+const memberCoupons = ref([])
+const claimingCouponId = ref(null)
+const couponMessage = ref('')
+const couponErrorMessage = ref('')
 const categories = ref([])
 const brands = ref([])
 
@@ -28,6 +35,26 @@ const subcategories = ref([])
 const selectedCategoryId = ref(route.query.categoryId || '')
 const selectedSubcategoryId = ref(route.query.subcategoryId || '')
 const selectedBrandId = ref(route.query.brandId || '')
+const claimedCouponIds = computed(
+  () => new Set(memberCoupons.value.map((coupon) => Number(coupon.couponId))),
+)
+
+function discountText(coupon) {
+  if (coupon.discountType === 'PERCENT') {
+    return `${Number(coupon.discountValue)}% 折扣`
+  }
+  return `折 NT$ ${Number(coupon.discountValue || 0).toLocaleString('zh-TW')}`
+}
+
+function requirementText(coupon) {
+  const minimum = Number(coupon.minPurchaseAmount || 0)
+  return minimum > 0 ? `滿 NT$ ${minimum.toLocaleString('zh-TW')} 可使用` : '不限最低消費'
+}
+
+function expiryText(endAt) {
+  return new Date(endAt).toLocaleDateString('zh-TW')
+}
+
 const fetchCategories = async () => {
   try {
     const response = await api.get('/categories')
@@ -117,6 +144,51 @@ const loadStoreProfile = async () => {
     storeProfile.value = null
   }
 }
+
+const loadStoreCoupons = async () => {
+  if (!route.query.sellerId) {
+    storeCoupons.value = []
+    memberCoupons.value = []
+    return
+  }
+
+  couponErrorMessage.value = ''
+  try {
+    const publicRequest = api.get('/coupons/available', {
+      params: { sellerId: route.query.sellerId },
+    })
+    const memberRequest = authStore.isAuthenticated
+      ? api.get('/member/coupons')
+      : Promise.resolve({ data: [] })
+    const [publicResponse, memberResponse] = await Promise.all([publicRequest, memberRequest])
+    storeCoupons.value = publicResponse.data || []
+    memberCoupons.value = memberResponse.data || []
+  } catch (error) {
+    console.error('Load store coupons failed:', error)
+    storeCoupons.value = []
+    couponErrorMessage.value = error.response?.data?.message || '無法取得店鋪優惠券'
+  }
+}
+
+const claimCoupon = async (couponId) => {
+  if (!authStore.isAuthenticated) {
+    await router.push({ name: 'Login', query: { redirect: route.fullPath } })
+    return
+  }
+
+  claimingCouponId.value = couponId
+  couponMessage.value = ''
+  couponErrorMessage.value = ''
+  try {
+    await api.post(`/member/coupons/${couponId}/claim`)
+    couponMessage.value = '優惠券已領取。'
+    await loadStoreCoupons()
+  } catch (error) {
+    couponErrorMessage.value = error.response?.data?.message || '優惠券領取失敗'
+  } finally {
+    claimingCouponId.value = null
+  }
+}
 const totalPages = ref(0)
 const totalElements = ref(0)
 
@@ -202,10 +274,13 @@ watch(
     route.query.minPrice,
     route.query.maxPrice,
     route.query.sort,
+    route.query.sellerId,
   ],
   () => {
     currentPage.value = 0
     sort.value = route.query.sort || ''
+    loadStoreProfile()
+    loadStoreCoupons()
     fetchProducts()
   },
 )
@@ -231,6 +306,7 @@ const changeSort = () => {
 // 第一次進入頁面時取得商品
 onMounted(async () => {
   loadStoreProfile()
+  loadStoreCoupons()
   await fetchCategories()
   await fetchBrands()
 
@@ -281,6 +357,49 @@ const formatStoreTime = (time) => {
 
           <span v-else> 商品持續更新 </span>
         </div>
+      </section>
+
+      <section v-if="route.query.sellerId" class="store-coupon-section">
+        <div class="store-coupon-heading">
+          <div>
+            <h2>店鋪優惠券</h2>
+            <p>領取後可在結帳時選用</p>
+          </div>
+          <RouterLink
+            :to="{ name: 'CouponCenter', query: { sellerId: route.query.sellerId } }"
+          >
+            此店所有優惠券
+          </RouterLink>
+        </div>
+
+        <p v-if="couponMessage" class="coupon-notice coupon-notice--success">{{ couponMessage }}</p>
+        <p v-if="couponErrorMessage" class="coupon-notice coupon-notice--error">{{ couponErrorMessage }}</p>
+
+        <div v-if="storeCoupons.length" class="store-coupon-list">
+          <article v-for="coupon in storeCoupons" :key="coupon.couponId" class="store-coupon-card">
+            <strong>{{ discountText(coupon) }}</strong>
+            <div>
+              <h3>{{ coupon.couponName }}</h3>
+              <p>{{ requirementText(coupon) }}</p>
+              <small>有效期限至 {{ expiryText(coupon.endAt) }}</small>
+            </div>
+            <button
+              type="button"
+              :disabled="claimedCouponIds.has(Number(coupon.couponId)) || claimingCouponId === coupon.couponId"
+              @click="claimCoupon(coupon.couponId)"
+            >
+              {{
+                claimedCouponIds.has(Number(coupon.couponId))
+                  ? '已領取'
+                  : claimingCouponId === coupon.couponId
+                    ? '領取中...'
+                    : '領取'
+              }}
+            </button>
+          </article>
+        </div>
+
+        <p v-else class="store-coupon-empty">目前沒有可領取的店鋪優惠券。</p>
       </section>
 
       <!-- =========================
@@ -557,6 +676,118 @@ const formatStoreTime = (time) => {
 
 .store-meta strong {
   color: var(--color-success);
+}
+
+.store-coupon-section {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  background: var(--color-surface);
+}
+
+.store-coupon-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.store-coupon-heading h2,
+.store-coupon-heading p,
+.store-coupon-card h3,
+.store-coupon-card p {
+  margin: 0;
+}
+
+.store-coupon-heading h2 {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+}
+
+.store-coupon-heading p,
+.store-coupon-card p,
+.store-coupon-card small,
+.store-coupon-empty {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.store-coupon-heading a {
+  color: var(--color-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.store-coupon-list {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  padding-bottom: var(--space-2);
+  scroll-snap-type: x proximity;
+}
+
+.store-coupon-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  flex: 0 0 min(360px, 88vw);
+  align-items: center;
+  gap: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: var(--color-primary-50);
+  scroll-snap-align: start;
+}
+
+.store-coupon-card > strong {
+  color: var(--color-primary);
+  font-size: var(--font-size-md);
+}
+
+.store-coupon-card h3 {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.store-coupon-card button {
+  min-height: 36px;
+  border: 0;
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  background: var(--color-primary);
+  color: #fff;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.store-coupon-card button:disabled {
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
+.coupon-notice {
+  margin: 0;
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.coupon-notice--success {
+  background: #ecfdf3;
+  color: #166534;
+}
+
+.coupon-notice--error {
+  background: #fff1f2;
+  color: #b42318;
 }
 
 .error-message {
@@ -966,6 +1197,13 @@ const formatStoreTime = (time) => {
     margin-left: 0;
     border-left: 0;
     padding-left: 0;
+  }
+
+  .store-coupon-heading,
+  .store-coupon-card {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+    flex-direction: column;
   }
 }
 .store-avatar-image {

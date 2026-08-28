@@ -48,6 +48,9 @@ public class Coupon {
     @Column(name = "used_count", nullable = false)
     private Integer usedCount = 0;
 
+    @Column(name = "per_member_usage_policy", nullable = false, length = 20)
+    private String perMemberUsagePolicy = "ONCE";
+
     @Column(name = "scope_type", nullable = false, length = 30)
     private String scopeType;
 
@@ -146,6 +149,14 @@ public class Coupon {
 
     public void setUsedCount(Integer usedCount) {
         this.usedCount = usedCount;
+    }
+
+    public String getPerMemberUsagePolicy() {
+        return perMemberUsagePolicy;
+    }
+
+    public void setPerMemberUsagePolicy(String perMemberUsagePolicy) {
+        this.perMemberUsagePolicy = perMemberUsagePolicy;
     }
 
     public String getScopeType() {
