@@ -36,6 +36,13 @@ const isItemAvailable = (item) => {
 const isSkuAvailable = (sku) => {
   return Number(sku.status) === 1
 }
+const hasSkuOptions = (item) => {
+  if (!item?.skus?.length) {
+    return false
+  }
+
+  return item.skus.some((sku) => sku.spec1Name || sku.spec1Value || sku.spec2Name || sku.spec2Value)
+}
 // ================================
 // 取得購物車
 // ================================
@@ -880,7 +887,7 @@ onMounted(() => {
                 </div>
                 <!-- SKU -->
 
-                <div class="item-sku-select">
+                <div v-if="hasSkuOptions(item)" class="item-sku-select">
                   <label class="sku-label">規格</label>
 
                   <select
@@ -1067,7 +1074,7 @@ onMounted(() => {
 
                 <!-- SKU -->
 
-                <div class="item-sku-select">
+                <div v-if="hasSkuOptions(item)" class="item-sku-select">
                   <label class="sku-label"> 規格 </label>
 
                   <select :value="item.skuId" disabled>

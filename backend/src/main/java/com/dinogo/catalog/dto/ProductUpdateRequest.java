@@ -23,4 +23,6 @@ public class ProductUpdateRequest {
 
     @DecimalMin(value = "1")
     private BigDecimal basePrice;
+
+    private Byte status;
 }

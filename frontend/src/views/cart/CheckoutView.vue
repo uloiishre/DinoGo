@@ -23,6 +23,13 @@ const submitting = ref(false)
 const couponLoading = ref(false)
 const errorMessage = ref('')
 const couponErrorMessage = ref('')
+const hasSkuOptions = (item) => {
+  if (!item?.skus?.length) {
+    return false
+  }
+
+  return item.skus.some((sku) => sku.spec1Name || sku.spec1Value || sku.spec2Name || sku.spec2Value)
+}
 // ========================================
 // 商品購買狀態
 // ========================================
@@ -809,7 +816,7 @@ onMounted(() => {
                     {{ item.productName }}
                   </h3>
 
-                  <div v-if="item.skus && item.skus.length > 0" class="item-sku-select">
+                  <div v-if="hasSkuOptions(item)" class="item-sku-select">
                     <label class="sku-label">規格</label>
 
                     <span class="sku-name">

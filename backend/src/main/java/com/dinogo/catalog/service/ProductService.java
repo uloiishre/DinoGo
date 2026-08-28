@@ -564,7 +564,10 @@ public class ProductService {
                 if (request.getBasePrice() != null) {
                         product.setBasePrice(request.getBasePrice());
                 }
-
+                // 修改狀態
+                if (request.getStatus() != null) {
+                        product.setStatus(request.getStatus());
+                }
                 Product updatedProduct = productRepository.save(product);
 
                 return toProductResponse(updatedProduct);
@@ -656,6 +659,35 @@ public class ProductService {
                 for (int i = 0; i < requests.size(); i++) {
 
                         ProductSkuCreateRequest request = requests.get(i);
+                        boolean noSpec = request.getSpec1Name() == null &&
+                                        request.getSpec1Value() == null &&
+                                        request.getSpec2Name() == null &&
+                                        request.getSpec2Value() == null;
+
+                        if (!noSpec) {
+
+                                // 有規格時，規格一名稱和值必須都有
+                                if (request.getSpec1Name() == null ||
+                                                request.getSpec1Name().isBlank() ||
+                                                request.getSpec1Value() == null ||
+                                                request.getSpec1Value().isBlank()) {
+
+                                        throw new IllegalArgumentException(
+                                                        "有規格商品必須提供規格一名稱與規格值");
+                                }
+
+                                // spec2Name / spec2Value 必須同時存在
+                                boolean hasSpec2Name = request.getSpec2Name() != null &&
+                                                !request.getSpec2Name().isBlank();
+
+                                boolean hasSpec2Value = request.getSpec2Value() != null &&
+                                                !request.getSpec2Value().isBlank();
+
+                                if (hasSpec2Name != hasSpec2Value) {
+                                        throw new IllegalArgumentException(
+                                                        "規格二名稱與規格值必須同時提供");
+                                }
+                        }
 
                         // 檢查是否與資料庫既有 SKU 重複
                         boolean duplicateExisting = existingSkus.stream().anyMatch(sku -> Objects.equals(
