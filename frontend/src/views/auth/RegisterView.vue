@@ -25,6 +25,9 @@ function validate() {
   if (!form.value.password) errors.password = '請輸入密碼。'
   else if (form.value.password.length < 8) errors.password = '密碼至少需要 8 個字元。'
   else if (!isPasswordWithinUtf8ByteLimit(form.value.password)) errors.password = '密碼不可超過 72 個 UTF-8 位元組。'
+  else if (!/[A-Za-z]/.test(form.value.password) || !/\d/.test(form.value.password)) {
+    errors.password = '密碼須包含英文與數字。'
+  }
   if (!form.value.confirmPassword) errors.confirmPassword = '請再次輸入密碼。'
   else if (form.value.password !== form.value.confirmPassword) {
     errors.confirmPassword = '兩次輸入的密碼不一致。'
@@ -128,7 +131,7 @@ async function submit() {
             :class="{ 'is-invalid': fieldErrors.password }"
             type="password"
             autocomplete="new-password"
-            placeholder="至少 8 個字元"
+            placeholder="至少 8 個字元，包含英文與數字"
             @input="delete fieldErrors.password"
           />
           <div v-if="fieldErrors.password" class="invalid-feedback">{{ fieldErrors.password }}</div>

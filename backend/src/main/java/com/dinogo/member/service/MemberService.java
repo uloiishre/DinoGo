@@ -2,7 +2,6 @@ package com.dinogo.member.service;
 
 import java.util.Locale;
 import java.util.NoSuchElementException;
-import java.nio.charset.StandardCharsets;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -49,7 +48,7 @@ public class MemberService {
         if (!request.password().equals(request.confirmPassword())) {
             throw new IllegalArgumentException("密碼與確認密碼不一致");
         }
-        validatePasswordByteLength(request.password());
+        PasswordPolicy.validate(request.password(), "密碼");
 
         String email = request.email().trim().toLowerCase(Locale.ROOT);
         if (memberRepository.existsByEmailIgnoreCase(email)) {
@@ -117,11 +116,19 @@ public class MemberService {
         if (!request.newPassword().equals(request.confirmNewPassword())) {
             throw new IllegalArgumentException("新密碼與確認密碼不一致");
         }
-        validatePasswordByteLength(request.newPassword());
+        PasswordPolicy.validate(request.newPassword(), "新密碼");
+        if (passwordEncoder.matches(request.newPassword(), member.getPasswordHash())) {
+            throw new IllegalArgumentException("新密碼不可與目前密碼相同");
+        }
 
-        member.setPasswordHash(passwordEncoder.encode(request.newPassword()));
-        member.setAuthVersion(Math.incrementExact(member.getAuthVersion()));
-        memberRepository.saveAndFlush(member);
+        int updatedRows = memberRepository.changePasswordIfCurrent(
+                memberId,
+                member.getPasswordHash(),
+                member.getAuthVersion(),
+                passwordEncoder.encode(request.newPassword()));
+        if (updatedRows != 1) {
+            throw new IllegalArgumentException("帳號狀態已變更，請重新登入後再試");
+        }
     }
 
     /**
@@ -171,9 +178,4 @@ public class MemberService {
                 .orElseThrow(() -> new IllegalArgumentException("Member not found"));
     }
 
-    private void validatePasswordByteLength(String password) {
-        if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
-            throw new IllegalArgumentException("密碼不可超過 72 個 UTF-8 位元組");
-        }
-    }
 }

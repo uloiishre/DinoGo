@@ -46,8 +46,7 @@ public class MemberAccountService {
         if (memberId.equals(adminId)) throw new IllegalArgumentException("不可停權自己的帳號");
         Member member = findMember(memberId);
         if (!"ACTIVE".equals(member.getStatus())) throw new IllegalArgumentException("只有正常帳號可以停權");
-        changeStatus(member, "SUSPENDED", reason.trim(), adminId);
-        return AdminMemberResponse.from(member);
+        return AdminMemberResponse.from(changeStatus(member, "SUSPENDED", reason.trim(), adminId));
     }
 
     @Transactional
@@ -55,8 +54,7 @@ public class MemberAccountService {
         if (memberId.equals(adminId)) throw new IllegalArgumentException("不可操作自己的帳號");
         Member member = findMember(memberId);
         if (!"SUSPENDED".equals(member.getStatus())) throw new IllegalArgumentException("只有已停權帳號可以恢復");
-        changeStatus(member, "ACTIVE", "管理員恢復帳號", adminId);
-        return AdminMemberResponse.from(member);
+        return AdminMemberResponse.from(changeStatus(member, "ACTIVE", "管理員恢復帳號", adminId));
     }
 
     @Transactional
@@ -69,14 +67,16 @@ public class MemberAccountService {
         changeStatus(member, "DEACTIVATED", "會員自行註銷帳號", memberId);
     }
 
-    private void changeStatus(Member member, String nextStatus, String reason, Integer changedBy) {
+    private Member changeStatus(Member member, String nextStatus, String reason, Integer changedBy) {
         String previousStatus = member.getStatus();
-        member.setStatus(nextStatus);
-        member.setAuthVersion(Math.incrementExact(member.getAuthVersion()));
+        if (memberRepository.updateStatusIfCurrent(member.getMemberId(), previousStatus, nextStatus) != 1) {
+            throw new IllegalArgumentException("帳號狀態已變更，請重新操作");
+        }
         MemberAccountStatusHistory history = new MemberAccountStatusHistory();
         history.setMemberId(member.getMemberId()); history.setPreviousStatus(previousStatus); history.setNewStatus(nextStatus);
         history.setReason(reason); history.setChangedBy(changedBy); history.setChangedAt(LocalDateTime.now());
         historyRepository.save(history);
+        return findMember(member.getMemberId());
     }
     private Member findMember(Integer memberId) { return memberRepository.findById(memberId).orElseThrow(() -> new IllegalArgumentException("Member not found")); }
     private boolean matches(Member member, String keyword) { return (member.getEmail() + " " + member.getLastName() + member.getFirstName() + " " + member.getMemberId()).toLowerCase(Locale.ROOT).contains(keyword); }

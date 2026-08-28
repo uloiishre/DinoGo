@@ -3,6 +3,7 @@ package com.dinogo.member.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -236,16 +237,19 @@ class MemberServiceTest {
         member.setPasswordHash("old-hash");
         member.setAuthVersion(4);
         ChangePasswordRequest request = new ChangePasswordRequest(
-                "current-password", "new-password", "new-password");
+                "current-password", "new-password1", "new-password1");
         when(memberRepository.findById(1)).thenReturn(Optional.of(member));
         when(passwordEncoder.matches("current-password", "old-hash")).thenReturn(true);
-        when(passwordEncoder.encode("new-password")).thenReturn("new-hash");
+        when(passwordEncoder.matches("new-password1", "old-hash")).thenReturn(false);
+        when(passwordEncoder.encode("new-password1")).thenReturn("new-hash");
+        when(memberRepository.changePasswordIfCurrent(1, "old-hash", 4, "new-hash")).thenReturn(1);
 
         memberService.changePassword(1, request);
 
-        assertThat(member.getPasswordHash()).isEqualTo("new-hash");
-        assertThat(member.getAuthVersion()).isEqualTo(5);
-        verify(memberRepository).saveAndFlush(member);
+        assertThat(member.getPasswordHash()).isEqualTo("old-hash");
+        assertThat(member.getAuthVersion()).isEqualTo(4);
+        verify(memberRepository).changePasswordIfCurrent(1, "old-hash", 4, "new-hash");
+        verify(memberRepository, never()).saveAndFlush(member);
     }
 
     @Test
@@ -254,7 +258,7 @@ class MemberServiceTest {
         member.setMemberId(1);
         member.setPasswordHash("old-hash");
         ChangePasswordRequest request = new ChangePasswordRequest(
-                "wrong-password", "new-password", "new-password");
+                "wrong-password", "new-password1", "new-password1");
         when(memberRepository.findById(1)).thenReturn(Optional.of(member));
         when(passwordEncoder.matches("wrong-password", "old-hash")).thenReturn(false);
 
@@ -262,6 +266,43 @@ class MemberServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("目前密碼錯誤");
         verify(passwordEncoder, never()).encode(any());
+        verify(memberRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void changePasswordRejectsPasswordWithoutEnglishAndNumber() {
+        Member member = new Member();
+        member.setMemberId(1);
+        member.setPasswordHash("old-hash");
+        ChangePasswordRequest request = new ChangePasswordRequest(
+                "current-password", "12345678", "12345678");
+        when(memberRepository.findById(1)).thenReturn(Optional.of(member));
+        when(passwordEncoder.matches("current-password", "old-hash")).thenReturn(true);
+
+        assertThatThrownBy(() -> memberService.changePassword(1, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("新密碼須包含英文與數字");
+
+        verify(memberRepository, never()).changePasswordIfCurrent(any(), any(), anyInt(), any());
+    }
+
+    @Test
+    void changePasswordRejectsWhenAccountChangedAfterCurrentPasswordCheck() {
+        Member member = new Member();
+        member.setMemberId(1);
+        member.setPasswordHash("old-hash");
+        member.setAuthVersion(4);
+        ChangePasswordRequest request = new ChangePasswordRequest(
+                "current-password", "new-password1", "new-password1");
+        when(memberRepository.findById(1)).thenReturn(Optional.of(member));
+        when(passwordEncoder.matches("current-password", "old-hash")).thenReturn(true);
+        when(passwordEncoder.matches("new-password1", "old-hash")).thenReturn(false);
+        when(passwordEncoder.encode("new-password1")).thenReturn("new-hash");
+        when(memberRepository.changePasswordIfCurrent(1, "old-hash", 4, "new-hash")).thenReturn(0);
+
+        assertThatThrownBy(() -> memberService.changePassword(1, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("帳號狀態已變更，請重新登入後再試");
         verify(memberRepository, never()).saveAndFlush(any());
     }
 

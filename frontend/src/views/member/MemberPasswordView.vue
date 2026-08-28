@@ -152,6 +152,10 @@ async function savePassword() {
               <i class="bi" :class="hasEnglishAndNumber ? 'bi-check-circle-fill' : 'bi-circle'" aria-hidden="true"></i>
               <span>包含英文與數字</span>
             </li>
+            <li :class="{ 'is-satisfied': isWithinMaximumLength }">
+              <i class="bi" :class="isWithinMaximumLength ? 'bi-check-circle-fill' : 'bi-circle'" aria-hidden="true"></i>
+              <span>最多 72 個 UTF-8 位元組</span>
+            </li>
             <li :class="{ 'is-satisfied': isDifferentFromCurrent }">
               <i class="bi" :class="isDifferentFromCurrent ? 'bi-check-circle-fill' : 'bi-circle'" aria-hidden="true"></i>
               <span>不可與舊密碼相同</span>

@@ -5,11 +5,14 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.dinogo.member.entity.Member;
+
+import jakarta.persistence.LockModeType;
 
 public interface MemberRepository extends JpaRepository<Member, Integer> {
 
@@ -52,6 +55,47 @@ public interface MemberRepository extends JpaRepository<Member, Integer> {
              where member.memberId = :memberId
             """)
     int increaseAuthVersion(@Param("memberId") Integer memberId);
+
+    /**
+     * Changes a password without flushing a previously loaded Member entity back to the database.
+     * The current hash and auth version make concurrent password or account-state changes fail safely.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update Member member
+               set member.passwordHash = :newPasswordHash,
+                   member.authVersion = member.authVersion + 1,
+                   member.updatedAt = CURRENT_TIMESTAMP
+             where member.memberId = :memberId
+               and member.passwordHash = :currentPasswordHash
+               and member.authVersion = :authVersion
+               and member.status = 'ACTIVE'
+            """)
+    int changePasswordIfCurrent(
+            @Param("memberId") Integer memberId,
+            @Param("currentPasswordHash") String currentPasswordHash,
+            @Param("authVersion") int authVersion,
+            @Param("newPasswordHash") String newPasswordHash);
+
+    /** Updates account state only when it still matches the state that was validated. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update Member member
+               set member.status = :nextStatus,
+                   member.authVersion = member.authVersion + 1,
+                   member.updatedAt = CURRENT_TIMESTAMP
+             where member.memberId = :memberId
+               and member.status = :expectedStatus
+            """)
+    int updateStatusIfCurrent(
+            @Param("memberId") Integer memberId,
+            @Param("expectedStatus") String expectedStatus,
+            @Param("nextStatus") String nextStatus);
+
+    /** Serializes address writes for one member, including the first-address decision. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select member from Member member where member.memberId = :memberId")
+    Optional<Member> findByIdForAddressWrite(@Param("memberId") Integer memberId);
 
     /**
      * Atomically updates a password only while the reset token's member state is still current.

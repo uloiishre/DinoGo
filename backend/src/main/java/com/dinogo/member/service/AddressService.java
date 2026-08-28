@@ -47,8 +47,7 @@ public class AddressService {
     /** 建立地址；第一筆地址一定會成為預設地址。 */
     @Transactional
     public AddressResponse createAddress(Integer memberId, AddressRequest request) {
-        Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new IllegalArgumentException("Member not found"));
+        Member member = lockMemberForAddressWrite(memberId);
 
         // 使用者指定新預設地址時，先取消目前的預設地址。
         boolean isFirstAddress = !addressRepository.existsByMemberMemberId(memberId);
@@ -71,6 +70,7 @@ public class AddressService {
     /** 修改地址；取消預設時會將另一筆地址設為新預設。 */
     @Transactional
     public AddressResponse updateAddress(Integer memberId, Integer addressId, AddressRequest request) {
+        lockMemberForAddressWrite(memberId);
         Address address = findOwnedAddress(memberId, addressId);
         boolean wasDefault = Boolean.TRUE.equals(address.getIsDefault());
         Boolean requestedDefault = request.isDefault();
@@ -107,6 +107,7 @@ public class AddressService {
     /** 刪除地址；已被歷史訂單引用時轉成可辨識的業務例外。 */
     @Transactional
     public void deleteAddress(Integer memberId, Integer addressId) {
+        lockMemberForAddressWrite(memberId);
         Address address = findOwnedAddress(memberId, addressId);
         boolean wasDefault = Boolean.TRUE.equals(address.getIsDefault());
 
@@ -155,6 +156,12 @@ public class AddressService {
                     return true;
                 })
                 .orElse(false);
+    }
+
+    /** Locks the member row so one member's address writes cannot race on the default-address index. */
+    private Member lockMemberForAddressWrite(Integer memberId) {
+        return memberRepository.findByIdForAddressWrite(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("Member not found"));
     }
 
     private boolean hasAnotherAddress(Integer memberId, Integer excludedAddressId) {

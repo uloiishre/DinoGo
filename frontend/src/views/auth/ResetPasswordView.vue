@@ -29,6 +29,10 @@ async function submit() {
     errorMessage.value = '新密碼須至少 8 個字元，且不可超過 72 個 UTF-8 位元組。'
     return
   }
+  if (!/[A-Za-z]/.test(form.value.newPassword) || !/\d/.test(form.value.newPassword)) {
+    errorMessage.value = '新密碼須包含英文與數字。'
+    return
+  }
   if (!passwordsMatch.value) {
     errorMessage.value = '新密碼與確認密碼不一致。'
     return
@@ -52,7 +56,7 @@ async function submit() {
     <section class="auth-card dg-card mx-auto p-4 p-md-5" aria-labelledby="reset-password-title">
       <p class="auth-eyebrow mb-2">DINO-GO MEMBER</p>
       <h1 id="reset-password-title" class="dg-heading mb-2">設定新密碼</h1>
-      <p class="text-muted mb-4">請設定 8 至 72 個字元的新密碼。</p>
+      <p class="text-muted mb-4">請設定至少 8 個字元、包含英文與數字的新密碼。</p>
 
       <div v-if="isSubmitted" class="alert alert-success" role="status">
         密碼已更新，正在帶您返回登入頁。

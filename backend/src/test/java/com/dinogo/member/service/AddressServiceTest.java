@@ -80,7 +80,7 @@ class AddressServiceTest {
 
     @Test
     void createAddressMakesFirstAddressDefault() {
-        when(memberRepository.findById(1)).thenReturn(Optional.of(member));
+        mockAddressWriteMember();
         when(addressRepository.existsByMemberMemberId(1)).thenReturn(false);
         when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> {
             Address address = invocation.getArgument(0);
@@ -99,9 +99,9 @@ class AddressServiceTest {
 
     @Test
     void createDefaultAddressClearsPreviousDefault() {
+        mockAddressWriteMember();
         Address previousDefault = address(1, true);
         AddressRequest defaultRequest = request(true);
-        when(memberRepository.findById(1)).thenReturn(Optional.of(member));
         when(addressRepository.existsByMemberMemberId(1)).thenReturn(true);
         when(addressRepository.findByMemberMemberIdOrderByIsDefaultDescAddressIdAsc(1))
                 .thenReturn(List.of(previousDefault));
@@ -119,6 +119,7 @@ class AddressServiceTest {
     // 修改預設地址規則測試。
     @Test
     void updateDefaultAddressToFalsePromotesAnotherAddress() {
+        mockAddressWriteMember();
         Address currentDefault = address(1, true);
         Address nextAddress = address(2, false);
         when(addressRepository.findByAddressIdAndMemberMemberId(1, 1))
@@ -137,6 +138,7 @@ class AddressServiceTest {
 
     @Test
     void updateOnlyDefaultAddressToFalseKeepsItDefault() {
+        mockAddressWriteMember();
         Address currentDefault = address(1, true);
         when(addressRepository.findByAddressIdAndMemberMemberId(1, 1))
                 .thenReturn(Optional.of(currentDefault));
@@ -151,6 +153,7 @@ class AddressServiceTest {
 
     @Test
     void updateAddressWithoutIsDefaultKeepsCurrentDefaultState() {
+        mockAddressWriteMember();
         Address currentDefault = address(1, true);
         AddressRequest requestWithoutDefault = new AddressRequest(
                 "王小明",
@@ -173,6 +176,7 @@ class AddressServiceTest {
 
     @Test
     void updateAddressToDefaultClearsOtherDefaults() {
+        mockAddressWriteMember();
         Address previousDefault = address(1, true);
         Address updatedAddress = address(2, false);
         when(addressRepository.findByAddressIdAndMemberMemberId(2, 1))
@@ -193,6 +197,7 @@ class AddressServiceTest {
     // 刪除與資料完整性測試。
     @Test
     void deleteDefaultAddressPromotesNextAddress() {
+        mockAddressWriteMember();
         Address defaultAddress = address(1, true);
         Address nextAddress = address(2, false);
         when(addressRepository.findByAddressIdAndMemberMemberId(1, 1))
@@ -210,6 +215,7 @@ class AddressServiceTest {
 
     @Test
     void deleteAddressReferencedByOrderReturnsAddressInUseError() {
+        mockAddressWriteMember();
         Address usedAddress = address(1, true);
         when(addressRepository.findByAddressIdAndMemberMemberId(1, 1))
                 .thenReturn(Optional.of(usedAddress));
@@ -236,7 +242,7 @@ class AddressServiceTest {
 
     @Test
     void createAddressRejectsMissingMember() {
-        when(memberRepository.findById(1)).thenReturn(Optional.empty());
+        when(memberRepository.findByIdForAddressWrite(1)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> addressService.createAddress(1, request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -255,6 +261,10 @@ class AddressServiceTest {
                 request.district(),
                 request.detailAddress(),
                 isDefault);
+    }
+
+    private void mockAddressWriteMember() {
+        when(memberRepository.findByIdForAddressWrite(1)).thenReturn(Optional.of(member));
     }
 
     private Address address(Integer addressId, boolean isDefault) {
