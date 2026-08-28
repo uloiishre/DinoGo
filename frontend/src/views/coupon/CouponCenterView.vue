@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { useAuthStore } from '@/stores/auth'
@@ -15,12 +15,14 @@ const message = ref('')
 const errorMessage = ref('')
 
 const claimedCouponIds = computed(
-  () => new Set(memberCoupons.value.map((coupon) => coupon.couponId)),
+  () => new Set(memberCoupons.value.map((coupon) => Number(coupon.couponId))),
 )
+
+const isStoreCouponCenter = computed(() => Boolean(route.query.sellerId))
 
 function discountText(coupon) {
   if (coupon.discountType === 'PERCENT') {
-    return `${100 - Number(coupon.discountValue)} 折`
+    return `${Number(coupon.discountValue)}% 折扣`
   }
   return `折 NT$ ${Number(coupon.discountValue || 0).toLocaleString('zh-TW')}`
 }
@@ -38,7 +40,9 @@ async function loadCoupons() {
   loading.value = true
   errorMessage.value = ''
   try {
-    const publicRequest = api.get('/coupons/available')
+    const publicRequest = api.get('/coupons/available', {
+      params: route.query.sellerId ? { sellerId: route.query.sellerId } : {},
+    })
     const memberRequest = authStore.isAuthenticated
       ? api.get('/member/coupons')
       : Promise.resolve({ data: [] })
@@ -73,6 +77,13 @@ async function claimCoupon(couponId) {
 }
 
 onMounted(loadCoupons)
+
+watch(
+  () => route.query.sellerId,
+  () => {
+    loadCoupons()
+  },
+)
 </script>
 
 <template>
@@ -80,7 +91,7 @@ onMounted(loadCoupons)
     <header class="coupon-center__header">
       <div>
         <p>Coupon Center</p>
-        <h1>優惠券中心</h1>
+        <h1>{{ isStoreCouponCenter ? '店鋪優惠券' : '優惠券中心' }}</h1>
         <span>先領取，結帳時才能使用</span>
       </div>
       <RouterLink v-if="authStore.isAuthenticated" to="/member/coupons" class="my-coupons-link">
@@ -103,11 +114,11 @@ onMounted(loadCoupons)
         </div>
         <button
           type="button"
-          :disabled="claimedCouponIds.has(coupon.couponId) || claimingCouponId === coupon.couponId"
+          :disabled="claimedCouponIds.has(Number(coupon.couponId)) || claimingCouponId === coupon.couponId"
           @click="claimCoupon(coupon.couponId)"
         >
           {{
-            claimedCouponIds.has(coupon.couponId)
+            claimedCouponIds.has(Number(coupon.couponId))
               ? '已領取'
               : claimingCouponId === coupon.couponId
                 ? '領取中...'

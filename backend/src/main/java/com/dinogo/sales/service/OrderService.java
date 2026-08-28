@@ -3,6 +3,7 @@ package com.dinogo.sales.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.ArrayList;
@@ -165,6 +166,7 @@ public class OrderService {
                     subtotalAmount,
                     couponItems);
             discountAmount = appliedCoupon.discount();
+            order.setMemberCouponId(request.memberCouponId());
         }
         order.setSellerId(sellerId);
         subtotalAmount = roundToWholeTwd(subtotalAmount);
@@ -248,6 +250,29 @@ public class OrderService {
     public List<SellerOrderListResponse> getSellerOrders(Integer memberId) {
         Seller seller = getSellerByMemberId(memberId);
         return orderRepository.findBySellerIdOrderByCreatedAtDesc(seller.getSellerId()).stream()
+                .map(this::toSellerListResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<SellerOrderListResponse> getSellerOrders(
+            Integer memberId,
+            LocalDate startDate,
+            LocalDate endDate) {
+        if (startDate == null && endDate == null) {
+            return getSellerOrders(memberId);
+        }
+        if (startDate == null || endDate == null || endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException("查詢結束日期不可早於開始日期，且日期不可為空");
+        }
+
+        Seller seller = getSellerByMemberId(memberId);
+        return orderRepository
+                .findBySellerIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtDesc(
+                        seller.getSellerId(),
+                        startDate.atStartOfDay(),
+                        endDate.plusDays(1).atStartOfDay())
+                .stream()
                 .map(this::toSellerListResponse)
                 .toList();
     }

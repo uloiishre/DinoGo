@@ -301,15 +301,32 @@ const loadCoupons = async () => {
     couponLoading.value = false
   }
 }
+
+const getCouponApplicableSubtotal = (coupon) => {
+  const itemSubtotal = (item) => Number(item.price || 0) * Number(item.quantity || 0)
+
+  if (coupon.scopeType === 'PRODUCT') {
+    return checkoutItems.value
+      .filter((item) => Number(item.productId) === Number(coupon.productId))
+      .reduce((sum, item) => sum + itemSubtotal(item), 0)
+  }
+
+  return checkoutItems.value.reduce((sum, item) => sum + itemSubtotal(item), 0)
+}
+
 const getCouponUnavailableReason = (coupon) => {
   // 不同賣家
   if (Number(coupon.sellerId) !== Number(checkoutSellerId.value)) {
     return '此優惠券不適用於目前商品'
   }
 
+  if (coupon.scopeType === 'PRODUCT' && getCouponApplicableSubtotal(coupon) <= 0) {
+    return '此商品優惠券不適用於本次商品'
+  }
+
   // 最低消費
   const minPurchaseAmount = Number(coupon.minPurchaseAmount ?? 0)
-  const currentSubtotal = Number(subtotal.value ?? 0)
+  const currentSubtotal = getCouponApplicableSubtotal(coupon)
 
   if (currentSubtotal < minPurchaseAmount) {
     return `未滿 NT$ ${formatPrice(minPurchaseAmount)}，不可使用`
@@ -320,9 +337,11 @@ const getCouponUnavailableReason = (coupon) => {
 //判斷是否該賣家的優惠券
 const isCouponAvailable = (coupon) => {
   const sameSeller = Number(coupon.sellerId) === Number(checkoutSellerId.value)
+  const hasApplicableProduct =
+    coupon.scopeType !== 'PRODUCT' || getCouponApplicableSubtotal(coupon) > 0
 
   const minPurchaseAmount = Number(coupon.minPurchaseAmount ?? 0)
-  const currentSubtotal = Number(subtotal.value ?? 0)
+  const currentSubtotal = getCouponApplicableSubtotal(coupon)
 
   // console.log('優惠券判斷：', {
   //   couponName: coupon.couponName,
@@ -333,7 +352,7 @@ const isCouponAvailable = (coupon) => {
   //   result: sameSeller && currentSubtotal >= minPurchaseAmount,
   // })
 
-  return sameSeller && currentSubtotal >= minPurchaseAmount
+  return sameSeller && hasApplicableProduct && currentSubtotal >= minPurchaseAmount
 }
 const getCouponSellerName = (coupon) => {
   return coupon.sellerName || `賣家 #${coupon.sellerId}`
@@ -457,6 +476,11 @@ const changeCoupon = async () => {
 
   console.log('選擇優惠券 ID：', selectedMemberCouponId.value)
   console.log('選擇優惠券：', selectedCoupon.value)
+
+  if (!selectedAddressId.value) {
+    couponErrorMessage.value = '請先新增或選擇收件地址，再套用優惠券。'
+    return
+  }
 
   await loadCheckoutPreview()
 }

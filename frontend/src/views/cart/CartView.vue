@@ -694,6 +694,8 @@ const goToCheckout = () => {
 
         quantity: Number(item.quantity),
 
+        productId: item.productId,
+
         productName: item.productName,
 
         price: item.price,

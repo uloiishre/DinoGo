@@ -95,9 +95,9 @@ public class MemberCouponService {
     private void validateCouponCanBeClaimed(Coupon coupon) {
         LocalDateTime now = LocalDateTime.now();
 
-        if (!"ACTIVE".equals(coupon.getStatus())) {
+        if ("DISABLED".equals(coupon.getStatus())) {
             throw new IllegalArgumentException(
-                    "此優惠券尚未啟用");
+                    "此優惠券已取消");
         }
 
         if (coupon.getStartAt().isAfter(now)

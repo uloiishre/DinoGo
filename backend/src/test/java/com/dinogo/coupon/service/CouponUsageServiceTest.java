@@ -7,10 +7,12 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.dinogo.catalog.entity.Product;
 import com.dinogo.coupon.entity.Coupon;
 import com.dinogo.coupon.entity.MemberCoupon;
 import com.dinogo.coupon.repository.CouponRepository;
 import com.dinogo.coupon.repository.MemberCouponRepository;
+import com.dinogo.sales.repository.OrderRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -30,13 +32,17 @@ class CouponUsageServiceTest {
     @Mock
     private MemberCouponRepository memberCouponRepository;
 
+    @Mock
+    private OrderRepository orderRepository;
+
     private CouponUsageService couponUsageService;
 
     @BeforeEach
     void setUp() {
         couponUsageService = new CouponUsageService(
                 couponRepository,
-                memberCouponRepository);
+                memberCouponRepository,
+                orderRepository);
     }
 
     @Test
@@ -78,22 +84,47 @@ class CouponUsageServiceTest {
     @Test
     void rejectsUsedCoupon() {
         MemberCoupon memberCoupon = memberCoupon(10, 7, true);
+        Coupon coupon = coupon("ACTIVE", "ALL", "AMOUNT", "50", 100);
         when(memberCouponRepository.findByMemberCouponIdAndMemberId(10, 7))
                 .thenReturn(Optional.of(memberCoupon));
+        when(couponRepository.findById(100)).thenReturn(Optional.of(coupon));
 
         assertThatThrownBy(() -> couponUsageService.validateAndCalculate(
                 10, 7, 3, new BigDecimal("500.00"), List.of()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("此優惠券已使用");
 
-        verify(couponRepository, never()).findById(any());
+        verify(orderRepository).countByBuyerIdAndMemberCouponId(7, 10);
+    }
+
+    @Test
+    void allowsRepeatCouponAfterPreviousUse() {
+        MemberCoupon memberCoupon = memberCoupon(10, 7, true);
+        Coupon coupon = coupon("ACTIVE", "ALL", "AMOUNT", "50", 100);
+        coupon.setPerMemberUsagePolicy("REPEAT");
+        when(memberCouponRepository.findByMemberCouponIdAndMemberId(10, 7))
+                .thenReturn(Optional.of(memberCoupon));
+        when(couponRepository.findById(100)).thenReturn(Optional.of(coupon));
+
+        CouponUsageService.AppliedCoupon applied = couponUsageService.validateAndCalculate(
+                10,
+                7,
+                3,
+                new BigDecimal("500.00"),
+                List.of(new CouponUsageService.CouponItem(null, new BigDecimal("500.00"))));
+
+        assertThat(applied.discount()).isEqualByComparingTo("50.00");
+        verify(orderRepository, never()).countByBuyerIdAndMemberCouponId(any(), any());
     }
 
     @Test
     void rejectsCouponBelowMinimumPurchaseAmount() {
         MemberCoupon memberCoupon = memberCoupon(10, 7, false);
-        Coupon coupon = coupon("ACTIVE", "ALL", "AMOUNT", "50", 100);
+        Coupon coupon = coupon("ACTIVE", "PRODUCT", "AMOUNT", "50", 100);
+        coupon.setProductId(200);
         coupon.setMinPurchaseAmount(new BigDecimal("500.00"));
+        Product product = new Product();
+        product.setProductId(200);
         when(memberCouponRepository.findByMemberCouponIdAndMemberId(10, 7))
                 .thenReturn(Optional.of(memberCoupon));
         when(couponRepository.findById(100)).thenReturn(Optional.of(coupon));
@@ -102,10 +133,37 @@ class CouponUsageServiceTest {
                 10,
                 7,
                 3,
-                new BigDecimal("499.99"),
-                List.of(new CouponUsageService.CouponItem(null, new BigDecimal("499.99")))))
+                new BigDecimal("600.00"),
+                List.of(
+                        new CouponUsageService.CouponItem(product, new BigDecimal("499.99")),
+                        new CouponUsageService.CouponItem(null, new BigDecimal("100.01")))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("尚未達到優惠券最低消費金額");
+    }
+
+    @Test
+    void productCouponDiscountsOnlyMatchingProductAmount() {
+        MemberCoupon memberCoupon = memberCoupon(10, 7, false);
+        Coupon coupon = coupon("ACTIVE", "PRODUCT", "PERCENT", "10", 100);
+        coupon.setProductId(200);
+        Product matchingProduct = new Product();
+        matchingProduct.setProductId(200);
+        Product otherProduct = new Product();
+        otherProduct.setProductId(201);
+        when(memberCouponRepository.findByMemberCouponIdAndMemberId(10, 7))
+                .thenReturn(Optional.of(memberCoupon));
+        when(couponRepository.findById(100)).thenReturn(Optional.of(coupon));
+
+        CouponUsageService.AppliedCoupon applied = couponUsageService.validateAndCalculate(
+                10,
+                7,
+                3,
+                new BigDecimal("1000.00"),
+                List.of(
+                        new CouponUsageService.CouponItem(matchingProduct, new BigDecimal("300.00")),
+                        new CouponUsageService.CouponItem(otherProduct, new BigDecimal("700.00"))));
+
+        assertThat(applied.discount()).isEqualByComparingTo("30.00");
     }
 
     @Test
@@ -170,6 +228,7 @@ class CouponUsageServiceTest {
         coupon.setStartAt(LocalDateTime.now().minusDays(1));
         coupon.setEndAt(LocalDateTime.now().plusDays(1));
         coupon.setUsedCount(0);
+        coupon.setPerMemberUsagePolicy("ONCE");
         return coupon;
     }
 }

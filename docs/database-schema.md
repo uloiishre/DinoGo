@@ -889,9 +889,7 @@
 
 ### Indexes
 
-| Name | Unique | Clustered | Key columns | Included columns | Filter |
-| --- | ---: | ---: | --- | --- | --- |
-| `uq_orders_member_coupon` | YES | NO | `member_coupon_id` ASC |  | ([member_coupon_id] IS NOT NULL) |
+無。
 
 ---
 
@@ -1084,6 +1082,7 @@
 | `end_at` | `datetime2(7)` | NO | NO |  | NO |
 | `limit_count` | `int` | YES | NO |  | NO |
 | `used_count` | `int` | NO | NO | ((0)) | NO |
+| `per_member_usage_policy` | `varchar(20)` | NO | NO | ('ONCE') | NO |
 | `scope_type` | `varchar(30)` | NO | NO |  | NO |
 | `category_id` | `int` | YES | NO |  | NO |
 | `product_id` | `int` | YES | NO |  | NO |
@@ -1112,14 +1111,16 @@
 - `ck_coupon_discount_value`: `[discount_value]>(0)`
 - `ck_coupon_limit_count`: `[limit_count] IS NULL OR [limit_count]>(0)`
 - `ck_coupon_percent_range`: `[discount_type]<>'PERCENT' OR [discount_value]<=(100)`
+- `ck_coupon_per_member_usage_policy`: `[per_member_usage_policy]='REPEAT' OR [per_member_usage_policy]='ONCE'`
 - `ck_coupon_scope_fields_v2`: `[scope_type]='STORE' AND [category_id] IS NULL AND [subcategory_id] IS NULL AND [product_id] IS NULL OR [scope_type]='CATEGORY' AND [category_id] IS NOT NULL AND [subcategory_id] IS NULL AND [product_id] IS NULL OR [scope_type]='SUBCATEGORY' AND [category_id] IS NULL AND [subcategory_id] IS NOT NULL AND [product_id] IS NULL OR [scope_type]='PRODUCT' AND [category_id] IS NULL AND [subcategory_id] IS NULL AND [product_id] IS NOT NULL`
 - `ck_coupon_scope_type_v2`: `[scope_type]='PRODUCT' OR [scope_type]='SUBCATEGORY' OR [scope_type]='CATEGORY' OR [scope_type]='STORE'`
 - `ck_coupon_status`: `[status]='EXPIRED' OR [status]='DISABLED' OR [status]='ACTIVE' OR [status]='DRAFT'`
-- `ck_coupon_usage`: `([min_purchase_amount] IS NULL OR [min_purchase_amount]>=(0)) AND [used_count]>=(0) AND ([limit_count] IS NULL OR [used_count]<=[limit_count])`
+- `ck_coupon_usage`: `([min_purchase_amount] IS NULL OR [min_purchase_amount]>=(0)) AND [used_count]>=(0)`
 - `ck_coupon_valid_time`: `[end_at]>[start_at]`
 
 ### Default Constraints
 - `df_coupon_created_at` on `created_at`: `(sysdatetime())`
+- `df_coupon_per_member_usage_policy` on `per_member_usage_policy`: `('ONCE')`
 - `df_coupon_updated_at` on `updated_at`: `(sysdatetime())`
 - `df_coupon_used_count` on `used_count`: `((0))`
 

@@ -15,6 +15,7 @@ public record CouponCreateRequest(
         @NotNull LocalDateTime startAt,
         @NotNull LocalDateTime endAt,
         Integer limitCount,
+        String perMemberUsagePolicy,
         @NotBlank String scopeType,
         Integer categoryId,
         Integer productId

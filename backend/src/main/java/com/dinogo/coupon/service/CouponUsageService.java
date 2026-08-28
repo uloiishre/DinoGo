@@ -5,6 +5,7 @@ import com.dinogo.coupon.entity.Coupon;
 import com.dinogo.coupon.entity.MemberCoupon;
 import com.dinogo.coupon.repository.CouponRepository;
 import com.dinogo.coupon.repository.MemberCouponRepository;
+import com.dinogo.sales.repository.OrderRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
@@ -16,12 +17,15 @@ public class CouponUsageService {
 
     private final CouponRepository couponRepository;
     private final MemberCouponRepository memberCouponRepository;
+    private final OrderRepository orderRepository;
 
     public CouponUsageService(
             CouponRepository couponRepository,
-            MemberCouponRepository memberCouponRepository) {
+            MemberCouponRepository memberCouponRepository,
+            OrderRepository orderRepository) {
         this.couponRepository = couponRepository;
         this.memberCouponRepository = memberCouponRepository;
+        this.orderRepository = orderRepository;
     }
 
     public AppliedCoupon validateAndCalculate(
@@ -34,15 +38,12 @@ public class CouponUsageService {
                 .findByMemberCouponIdAndMemberId(memberCouponId, memberId)
                 .orElseThrow(() -> new IllegalArgumentException("您尚未領取此優惠券"));
 
-        if (Boolean.TRUE.equals(memberCoupon.getUsed())) {
-            throw new IllegalArgumentException("此優惠券已使用");
-        }
-
         Coupon coupon = couponRepository.findById(memberCoupon.getCouponId())
                 .orElseThrow(() -> new IllegalArgumentException("優惠券不存在"));
+        validatePerMemberUsage(memberCoupon, coupon, memberId);
         LocalDateTime now = LocalDateTime.now();
 
-        if (!"ACTIVE".equals(coupon.getStatus())) {
+        if ("DISABLED".equals(coupon.getStatus())) {
             throw new IllegalArgumentException("此優惠券目前無法使用");
         }
         if (coupon.getStartAt().isAfter(now)) {
@@ -51,14 +52,14 @@ public class CouponUsageService {
         if (coupon.getEndAt().isBefore(now)) {
             throw new IllegalArgumentException("優惠券已過期");
         }
-        if (coupon.getMinPurchaseAmount() != null
-                && subtotal.compareTo(coupon.getMinPurchaseAmount()) < 0) {
-            throw new IllegalArgumentException("尚未達到優惠券最低消費金額");
-        }
 
         BigDecimal applicableAmount = findApplicableAmount(coupon, sellerId, items);
         if (applicableAmount.signum() <= 0) {
             throw new IllegalArgumentException("此優惠券不適用於本次訂單商品");
+        }
+        if (coupon.getMinPurchaseAmount() != null
+                && applicableAmount.compareTo(coupon.getMinPurchaseAmount()) < 0) {
+            throw new IllegalArgumentException("尚未達到優惠券最低消費金額");
         }
 
         BigDecimal discount = calculateDiscount(coupon, applicableAmount);
@@ -69,8 +70,10 @@ public class CouponUsageService {
         MemberCoupon memberCoupon = appliedCoupon.memberCoupon();
         Coupon coupon = appliedCoupon.coupon();
 
-        memberCoupon.setUsed(true);
-        memberCoupon.setUsedAt(LocalDateTime.now());
+        if (!Boolean.TRUE.equals(memberCoupon.getUsed())) {
+            memberCoupon.setUsed(true);
+            memberCoupon.setUsedAt(LocalDateTime.now());
+        }
         coupon.setUsedCount((coupon.getUsedCount() == null ? 0 : coupon.getUsedCount()) + 1);
 
         memberCouponRepository.save(memberCoupon);
@@ -81,31 +84,56 @@ public class CouponUsageService {
             Coupon coupon,
             Integer sellerId,
             List<CouponItem> items) {
+        if (coupon.getSellerId() == null
+                || sellerId == null
+                || !coupon.getSellerId().equals(sellerId)) {
+            return BigDecimal.ZERO;
+        }
+
         return switch (coupon.getScopeType()) {
             case "ALL" -> items.stream()
                     .map(CouponItem::subtotal)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             case "STORE" -> {
-                if (!coupon.getSellerId().equals(sellerId)) {
-                    yield BigDecimal.ZERO;
-                }
                 yield items.stream()
                         .map(CouponItem::subtotal)
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
             }
             case "CATEGORY" -> items.stream()
-                    .filter(item -> item.product().getSubcategory() != null
+                    .filter(item -> item.product() != null
+                            && item.product().getSubcategory() != null
                             && item.product().getSubcategory().getCategory() != null
                             && coupon.getCategoryId().equals(
                                     item.product().getSubcategory().getCategory().getCategoryId()))
                     .map(CouponItem::subtotal)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             case "PRODUCT" -> items.stream()
-                    .filter(item -> coupon.getProductId().equals(item.product().getProductId()))
+                    .filter(item -> item.product() != null
+                            && coupon.getProductId().equals(item.product().getProductId()))
                     .map(CouponItem::subtotal)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             default -> throw new IllegalArgumentException("不支援的優惠券適用範圍");
         };
+    }
+
+    private void validatePerMemberUsage(
+            MemberCoupon memberCoupon,
+            Coupon coupon,
+            Integer memberId) {
+        String usagePolicy = coupon.getPerMemberUsagePolicy() == null
+                ? "ONCE"
+                : coupon.getPerMemberUsagePolicy();
+
+        if ("REPEAT".equals(usagePolicy)) {
+            return;
+        }
+
+        long usedTimes = orderRepository.countByBuyerIdAndMemberCouponId(
+                memberId,
+                memberCoupon.getMemberCouponId());
+        if (Boolean.TRUE.equals(memberCoupon.getUsed()) || usedTimes > 0) {
+            throw new IllegalArgumentException("此優惠券已使用");
+        }
     }
 
     private BigDecimal calculateDiscount(Coupon coupon, BigDecimal applicableAmount) {

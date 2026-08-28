@@ -34,10 +34,10 @@ class SellerOrderControllerTest {
         AuthenticatedMember member = new AuthenticatedMember(6, "seller@example.com");
         when(orderService.getSellerOrders(6)).thenReturn(List.of());
 
-        var result = controller.getSellerOrders(member);
+        var result = controller.getSellerOrders(member, null, null);
 
         org.assertj.core.api.Assertions.assertThat(result.getBody()).isEmpty();
-        verify(orderService).getSellerOrders(6);
+        verify(orderService).getSellerOrders(6, null, null);
     }
 
     @Test

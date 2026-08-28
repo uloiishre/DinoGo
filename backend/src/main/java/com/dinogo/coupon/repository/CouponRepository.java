@@ -13,5 +13,7 @@ public interface CouponRepository extends JpaRepository<Coupon, Integer> {
 
     Optional<Coupon> findBySellerIdAndCouponCode(Integer sellerId, String couponCode);
 
+    List<Coupon> findAllByOrderByCouponIdDesc();
+
     List<Coupon> findByStatusOrderByCouponIdDesc(String status);
 }

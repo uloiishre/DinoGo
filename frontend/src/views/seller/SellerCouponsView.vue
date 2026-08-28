@@ -2,6 +2,16 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import flatpickr from 'flatpickr'
 import { MandarinTraditional } from 'flatpickr/dist/l10n/zh-tw'
+import { Line } from 'vue-chartjs'
+import {
+  CategoryScale,
+  Chart as ChartJS,
+  Filler,
+  LinearScale,
+  LineElement,
+  PointElement,
+  Tooltip,
+} from 'chart.js'
 import 'flatpickr/dist/flatpickr.css'
 import '@/assets/styles/seller-flatpickr.css'
 import {
@@ -13,6 +23,8 @@ import {
 import { getSellerProducts } from '@/api/sellerProductApi'
 import { getSellerOrders } from '@/api/sellerOrderApi'
 import { getCurrentSellerId } from '@/utils/seller-session'
+
+ChartJS.register(CategoryScale, Filler, LinearScale, LineElement, PointElement, Tooltip)
 
 const sellerId = computed(() => getCurrentSellerId())
 const selectedStatus = ref('ALL')
@@ -29,6 +41,12 @@ const createDiscountUnit = computed(() => (createDiscountType.value === 'PERCENT
 const editingCouponId = ref(null)
 const sellerProducts = ref([])
 const sellerOrders = ref([])
+const performanceStartDate = ref('')
+const performanceEndDate = ref('')
+const performanceStartInput = ref(null)
+const performanceEndInput = ref(null)
+let performanceStartPicker = null
+let performanceEndPicker = null
 const isProductPickerOpen = ref(false)
 const startAtInput = ref(null)
 const endAtInput = ref(null)
@@ -36,10 +54,10 @@ let startAtPicker = null
 let endAtPicker = null
 
 const fallbackProducts = [
-  { productId: 101, productName: '恐龍造型保溫杯', status: 'ACTIVE' },
-  { productId: 102, productName: 'DINO-GO 經典帆布袋', status: 'ACTIVE' },
-  { productId: 103, productName: '森日選物香氛蠟燭', status: 'ACTIVE' },
-  { productId: 104, productName: '露營折疊收納箱', status: 'ACTIVE' },
+  { productId: 101, productName: '恐龍造型保溫杯', basePrice: 300, status: 'ACTIVE' },
+  { productId: 102, productName: 'DINO-GO 經典帆布袋', basePrice: 1000, status: 'ACTIVE' },
+  { productId: 103, productName: '森日選物香氛蠟燭', basePrice: 650, status: 'ACTIVE' },
+  { productId: 104, productName: '露營折疊收納箱', basePrice: 1200, status: 'ACTIVE' },
 ]
 
 const couponForm = reactive({
@@ -51,6 +69,7 @@ const couponForm = reactive({
   startAt: '',
   endAt: '',
   limitCount: '',
+  perMemberUsagePolicy: 'ONCE',
   productId: '',
 })
 
@@ -68,6 +87,21 @@ const fallbackCoupons = [
 ]
 
 const coupons = ref([])
+
+const toDateInput = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const initializePerformanceDateRange = () => {
+  const today = new Date()
+  const start = new Date(today)
+  start.setDate(today.getDate() - 29)
+  performanceStartDate.value = toDateInput(start)
+  performanceEndDate.value = toDateInput(today)
+}
 
 const creationCards = [
   { title: '賣場優惠券', description: '適用賣場所有商品，可有效提升全店銷售額', icon: 'bi-shop-window' },
@@ -100,6 +134,7 @@ const normalizeCoupon = (coupon) => ({
   endAt: coupon.endAt,
   limitCount: Number(coupon.limitCount ?? 0),
   usedCount: Number(coupon.usedCount ?? 0),
+  perMemberUsagePolicy: coupon.perMemberUsagePolicy || 'ONCE',
   status: coupon.status,
 })
 
@@ -151,23 +186,71 @@ const metrics = computed(() => {
   ]
 })
 
-const countStatus = (status) => coupons.value.filter((coupon) => coupon.status === status).length
+const performanceChartData = computed(() => {
+  const labels = []
+  const salesByDate = new Map()
+  const start = new Date(`${performanceStartDate.value}T00:00:00`)
+  const end = new Date(`${performanceEndDate.value}T00:00:00`)
+
+  for (const date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+    const dateKey = toDateInput(date)
+    labels.push(dateKey.slice(5).replace('-', '/'))
+    salesByDate.set(dateKey, 0)
+  }
+
+  const paidStatuses = ['PAID', 'PROCESSING', 'SHIPPED', 'COMPLETED']
+  sellerOrders.value
+    .filter((order) => paidStatuses.includes(order.status) && Number(order.discountAmount) > 0)
+    .forEach((order) => {
+      const dateKey = order.createdAt?.slice(0, 10)
+      if (salesByDate.has(dateKey)) {
+        salesByDate.set(dateKey, salesByDate.get(dateKey) + Number(order.totalAmount || 0))
+      }
+    })
+
+  return {
+    labels,
+    datasets: [
+      {
+        label: '優惠券訂單銷售額',
+        data: [...salesByDate.values()],
+        borderColor: '#5f786a',
+        backgroundColor: 'rgba(95, 120, 106, 0.12)',
+        fill: true,
+        tension: 0.25,
+      },
+    ],
+  }
+})
+
+const performanceChartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+  scales: { y: { beginAtZero: true } },
+}
+
+const performanceRangeLabel = computed(
+  () => `${performanceStartDate.value.replaceAll('-', '/')} - ${performanceEndDate.value.replaceAll('-', '/')}`,
+)
 
 const statusTabs = computed(() => [
   { label: '全部', value: 'ALL', count: coupons.value.length },
-  { label: '進行中', value: 'ACTIVE', count: countStatus('ACTIVE') },
-  { label: '接下來的活動', value: 'DRAFT', count: countStatus('DRAFT') },
-  { label: '已結束', value: 'ENDED', count: countStatus('DISABLED') + countStatus('EXPIRED') },
+  { label: '進行中', value: 'ACTIVE', count: coupons.value.filter((coupon) => displayStatus(coupon) === '進行中').length },
+  { label: '接下來的活動', value: 'DRAFT', count: coupons.value.filter((coupon) => displayStatus(coupon) === '接下來').length },
+  { label: '已結束', value: 'ENDED', count: coupons.value.filter((coupon) => ['已結束', '已取消'].includes(displayStatus(coupon))).length },
 ])
 
 const filteredCoupons = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase()
 
   return coupons.value.filter((coupon) => {
+    const currentStatus = displayStatus(coupon)
     const matchesStatus =
       selectedStatus.value === 'ALL' ||
-      coupon.status === selectedStatus.value ||
-      (selectedStatus.value === 'ENDED' && ['DISABLED', 'EXPIRED'].includes(coupon.status))
+      (selectedStatus.value === 'ACTIVE' && currentStatus === '進行中') ||
+      (selectedStatus.value === 'DRAFT' && currentStatus === '接下來') ||
+      (selectedStatus.value === 'ENDED' && ['已結束', '已取消'].includes(currentStatus))
     const matchesKeyword =
       !keyword ||
       coupon.couponCode.toLowerCase().includes(keyword) ||
@@ -205,7 +288,7 @@ const formatCurrency = (value) => `NT$${Number(value).toLocaleString()}`
 
 const discountText = (coupon) =>
   coupon.discountType === 'PERCENT'
-    ? `${100 - Number(coupon.discountValue)} 折`
+    ? `${Number(coupon.discountValue)}% 折扣`
     : `折 ${formatCurrency(coupon.discountValue)}`
 
 const productScopeText = (coupon) => {
@@ -216,6 +299,9 @@ const productScopeText = (coupon) => {
   return product?.productName || '尚未選擇商品'
 }
 
+const perMemberUsageText = (coupon) =>
+  coupon.perMemberUsagePolicy === 'REPEAT' ? '可重複使用' : '每人限用 1 次'
+
 const formatDateTime = (value) =>
   new Date(value).toLocaleString('zh-TW', {
     year: 'numeric',
@@ -225,17 +311,18 @@ const formatDateTime = (value) =>
     minute: '2-digit',
   })
 
-const statusText = (status) => {
-  if (status === 'ACTIVE') return '進行中'
-  if (status === 'DRAFT') return '接下來'
-  if (status === 'DISABLED') return '已停用'
-  return '已結束'
+const statusClass = (status) => {
+  if (status === '進行中') return 'is-active'
+  if (status === '接下來') return 'is-draft'
+  return 'is-ended'
 }
 
-const statusClass = (status) => {
-  if (status === 'ACTIVE') return 'is-active'
-  if (status === 'DRAFT') return 'is-draft'
-  return 'is-ended'
+const displayStatus = (coupon) => {
+  if (coupon.status === 'DISABLED') return '已取消'
+  const now = Date.now()
+  if (new Date(coupon.endAt).getTime() <= now) return '已結束'
+  if (new Date(coupon.startAt).getTime() > now) return '接下來'
+  return '進行中'
 }
 
 const toggleSort = (key) => {
@@ -323,6 +410,7 @@ const buildCouponPayload = () => {
     startAt: couponForm.startAt ? `${couponForm.startAt}:00` : '',
     endAt: couponForm.endAt ? `${couponForm.endAt}:00` : '',
     limitCount,
+    perMemberUsagePolicy: couponForm.perMemberUsagePolicy,
     scopeType: isProductCoupon ? 'PRODUCT' : 'STORE',
     categoryId: null,
     productId: isProductCoupon ? Number(couponForm.productId) : null,
@@ -338,6 +426,12 @@ const validateForm = () => {
   if (!Number.isFinite(discountValue) || discountValue <= 0) return '折扣額度必須大於 0。'
   if (createDiscountType.value === 'PERCENT' && discountValue > 100) return '百分比折扣不可超過 100%。'
 
+  if (createDiscountType.value === 'AMOUNT' && selectedCouponType.value === '商品優惠券') {
+    const productPrice = Number(selectedProduct.value?.minSkuPrice ?? selectedProduct.value?.basePrice)
+    if (!Number.isFinite(productPrice)) return '目前無法取得商品價格，請稍後再試。'
+    if (discountValue >= productPrice) return '固定折扣金額必須小於商品價格。'
+  }
+
   if (couponForm.minPurchaseAmount !== '') {
     const minPurchaseAmount = Number(couponForm.minPurchaseAmount)
     if (!Number.isFinite(minPurchaseAmount) || minPurchaseAmount < 0) return '使用門檻不可小於 0。'
@@ -349,6 +443,7 @@ const validateForm = () => {
   }
 
   if (!couponForm.startAt || !couponForm.endAt) return '請設定開始與結束時間。'
+  if (new Date(couponForm.startAt) < new Date()) return '開始時間不可早於目前時間。'
   if (new Date(couponForm.endAt) <= new Date(couponForm.startAt)) return '結束時間必須晚於開始時間。'
 
   return ''
@@ -364,6 +459,7 @@ const resetForm = (type = '賣場優惠券') => {
   couponForm.startAt = ''
   couponForm.endAt = ''
   couponForm.limitCount = ''
+  couponForm.perMemberUsagePolicy = 'ONCE'
   couponForm.productId = type === '商品優惠券' ? String(productOptions.value[0]?.productId || '') : ''
   createDiscountType.value = 'AMOUNT'
 }
@@ -388,6 +484,7 @@ const editCoupon = (coupon) => {
   couponForm.startAt = toInputDateTime(coupon.startAt)
   couponForm.endAt = toInputDateTime(coupon.endAt)
   couponForm.limitCount = String(coupon.limitCount)
+  couponForm.perMemberUsagePolicy = coupon.perMemberUsagePolicy || 'ONCE'
   couponForm.productId = coupon.productId ? String(coupon.productId) : ''
   createDiscountType.value = coupon.discountType
   isCreateDrawerOpen.value = true
@@ -492,14 +589,78 @@ const loadSellerProducts = async () => {
 
 const loadSellerOrders = async () => {
   try {
-    const response = await getSellerOrders()
+    const response = await getSellerOrders({
+      startDate: performanceStartDate.value,
+      endDate: performanceEndDate.value,
+    })
     sellerOrders.value = Array.isArray(response.data) ? response.data : []
   } catch (error) {
     sellerOrders.value = []
   }
 }
 
+const applyPerformanceDateRange = async () => {
+  if (!performanceStartDate.value || !performanceEndDate.value) return
+  if (performanceEndDate.value < performanceStartDate.value) {
+    message.value = '結束日期不可早於開始日期。'
+    return
+  }
+  message.value = ''
+  await loadSellerOrders()
+}
+
+const selectPerformancePreset = async (preset) => {
+  const end = new Date()
+  const start = new Date(end)
+  if (preset === '7') start.setDate(end.getDate() - 6)
+  if (preset === '30') start.setDate(end.getDate() - 29)
+  if (preset === 'month') start.setDate(1)
+  performanceStartDate.value = toDateInput(start)
+  performanceEndDate.value = toDateInput(end)
+  performanceStartPicker?.setDate(performanceStartDate.value, false)
+  performanceEndPicker?.setDate(performanceEndDate.value, false)
+  await applyPerformanceDateRange()
+}
+
+const createPerformanceDatePicker = (input, field, defaultDate) =>
+  flatpickr(input, {
+    altInput: true,
+    altInputClass: 'seller-flatpickr-input coupon-date-input',
+    altFormat: 'Y/m/d',
+    dateFormat: 'Y-m-d',
+    defaultDate,
+    disableMobile: true,
+    locale: MandarinTraditional,
+    onChange: (_, dateString) => {
+      if (field === 'start') {
+        performanceStartDate.value = dateString
+        performanceEndPicker?.set('minDate', dateString)
+      }
+      if (field === 'end') {
+        performanceEndDate.value = dateString
+        performanceStartPicker?.set('maxDate', dateString)
+      }
+      void applyPerformanceDateRange()
+    },
+    onReady: (_, __, instance) => instance.calendarContainer.classList.add('seller-module-flatpickr'),
+  })
+
+const initializePerformanceDatePickers = () => {
+  performanceStartPicker?.destroy()
+  performanceEndPicker?.destroy()
+  performanceStartPicker = performanceStartInput.value
+    ? createPerformanceDatePicker(performanceStartInput.value, 'start', performanceStartDate.value)
+    : null
+  performanceEndPicker = performanceEndInput.value
+    ? createPerformanceDatePicker(performanceEndInput.value, 'end', performanceEndDate.value)
+    : null
+  performanceEndPicker?.set('minDate', performanceStartDate.value)
+  performanceStartPicker?.set('maxDate', performanceEndDate.value)
+}
+
 onMounted(() => {
+  initializePerformanceDateRange()
+  void nextTick(initializePerformanceDatePickers)
   void loadSellerProducts()
   void loadCoupons()
   void loadSellerOrders()
@@ -516,6 +677,8 @@ watch(isCreateDrawerOpen, (isOpen) => {
 
 onUnmounted(() => {
   destroyCouponDateTimePickers()
+  performanceStartPicker?.destroy()
+  performanceEndPicker?.destroy()
 })
 </script>
 
@@ -535,7 +698,6 @@ onUnmounted(() => {
           <h1>建立優惠券</h1>
           <p>建立優惠券可吸引買家下單。</p>
         </div>
-        <button type="button" class="link-button" @click="fakeAction('了解更多')">了解更多</button>
       </div>
 
       <div>
@@ -556,8 +718,27 @@ onUnmounted(() => {
     <section class="performance-panel">
       <div class="section-heading compact">
         <h2>優惠券表現</h2>
-        <span>2026年08月18日 00:00 - 2026年08月25日 23:59 GMT+8</span>
+        <span>{{ performanceRangeLabel }}</span>
         <button type="button" class="link-button" @click="fakeAction('查看更多')">查看更多</button>
+      </div>
+
+      <div class="performance-filter" aria-label="優惠券表現日期篩選">
+        <div class="performance-presets">
+          <button type="button" @click="selectPerformancePreset('7')">近 7 天</button>
+          <button type="button" @click="selectPerformancePreset('30')">近 30 天</button>
+          <button type="button" @click="selectPerformancePreset('month')">本月</button>
+        </div>
+        <div class="performance-dates">
+          <label>
+            開始日期
+            <input ref="performanceStartInput" type="text" />
+          </label>
+          <span aria-hidden="true">至</span>
+          <label>
+            結束日期
+            <input ref="performanceEndInput" type="text" />
+          </label>
+        </div>
       </div>
 
       <div class="metric-grid">
@@ -571,6 +752,10 @@ onUnmounted(() => {
           <strong>{{ metric.value }}</strong>
           <small>{{ metric.compare }}</small>
         </article>
+      </div>
+
+      <div class="performance-chart">
+        <Line :data="performanceChartData" :options="performanceChartOptions" />
       </div>
     </section>
 
@@ -609,6 +794,7 @@ onUnmounted(() => {
             <span>適用商品</span>
             <span>折扣額度</span>
             <span>可使用數量</span>
+            <span>買家使用限制</span>
             <span>已使用</span>
             <button type="button" class="sort-button" @click="toggleSort('status')">
               使用狀態 <i class="bi" :class="sortIcon('status')" aria-hidden="true"></i>
@@ -639,10 +825,11 @@ onUnmounted(() => {
               <small>滿 {{ formatCurrency(coupon.minPurchaseAmount) }} 可用</small>
             </strong>
             <span>{{ coupon.limitCount }}</span>
+            <span>{{ perMemberUsageText(coupon) }}</span>
             <span>{{ coupon.usedCount }}</span>
             <span>
-              <span class="status-badge" :class="statusClass(coupon.status)">
-                {{ statusText(coupon.status) }}
+              <span class="status-badge" :class="statusClass(displayStatus(coupon))">
+                {{ displayStatus(coupon) }}
               </span>
             </span>
             <span class="date-cell">
@@ -732,6 +919,13 @@ onUnmounted(() => {
               <input v-model="couponForm.limitCount" placeholder="100" />
             </label>
           </div>
+          <label>
+            買家使用限制
+            <select v-model="couponForm.perMemberUsagePolicy">
+              <option value="ONCE">每位買家限用 1 次</option>
+              <option value="REPEAT">每位買家可重複使用</option>
+            </select>
+          </label>
           <div class="form-row">
             <label>
               開始時間
@@ -786,7 +980,7 @@ onUnmounted(() => {
             </span>
             <span>
               <strong>{{ product.productName }}</strong>
-              <small>{{ formatCurrency(product.basePrice || 0) }} · 庫存 {{ product.stock ?? 0 }}</small>
+              <small>{{ formatCurrency(product.minSkuPrice ?? product.basePrice ?? 0) }}</small>
             </span>
             <i class="bi bi-check2" aria-hidden="true"></i>
           </button>
@@ -861,6 +1055,66 @@ onUnmounted(() => {
 
 .section-heading.compact .link-button {
   margin-left: auto;
+}
+
+.performance-filter {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 2px 0;
+}
+
+.performance-presets,
+.performance-dates {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.performance-presets button {
+  min-height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 0 12px;
+  background: var(--color-surface);
+  color: var(--color-text-800);
+  font: inherit;
+  cursor: pointer;
+}
+
+.performance-presets button:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.performance-dates label {
+  display: grid;
+  gap: 4px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.performance-dates input {
+  width: 132px;
+  min-height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 0 8px;
+  font: inherit;
+}
+
+.performance-dates > span {
+  padding-bottom: 8px;
+  color: var(--color-text-muted);
+}
+
+.performance-chart {
+  height: 220px;
+  min-height: 220px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 14px;
 }
 
 h1,
@@ -1132,12 +1386,12 @@ h2 {
 }
 
 .coupon-table-wrap {
-  overflow: hidden;
+  overflow-x: auto;
   border: 1px solid var(--color-border);
 }
 
 .coupon-table {
-  min-width: 0;
+  min-width: 1120px;
 }
 
 .coupon-table-head,
@@ -1145,7 +1399,7 @@ h2 {
   display: grid;
   grid-template-columns:
     minmax(190px, 1.5fr) minmax(82px, 0.62fr) minmax(84px, 0.62fr) minmax(100px, 0.72fr)
-    minmax(82px, 0.55fr) minmax(64px, 0.42fr) minmax(86px, 0.55fr) minmax(170px, 1.05fr)
+    minmax(82px, 0.55fr) minmax(112px, 0.75fr) minmax(64px, 0.42fr) minmax(86px, 0.55fr) minmax(170px, 1.05fr)
     minmax(96px, 0.55fr);
   align-items: stretch;
 }
@@ -1550,6 +1804,15 @@ select:focus-visible {
 }
 
 @media (max-width: 900px) {
+  .performance-filter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .performance-dates {
+    justify-content: space-between;
+  }
+
   .creation-grid,
   .metric-grid {
     grid-template-columns: 1fr;
