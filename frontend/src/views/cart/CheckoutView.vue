@@ -647,24 +647,34 @@ const submitOrder = async () => {
 }
 
 const finalizeCreatedOrder = async () => {
-  try {
-    await clearCheckoutItemsFromCart()
-  } catch (cartError) {
-    logSafeError('購物車商品移除失敗：', cartError)
-  }
-
   localStorage.removeItem('checkoutData')
   checkoutItems.value = []
 }
 
 const clearCheckoutItemsFromCart = async () => {
+  console.log('========== 清除結帳購物車 ==========')
+  console.log('checkoutItems:', checkoutItems.value)
+
   const cartItemIds = checkoutItems.value.map((item) => item.cartItemId).filter((id) => id != null)
 
+  console.log('準備刪除 cartItemIds:', cartItemIds)
+
   if (cartItemIds.length === 0) {
+    console.log('沒有 cartItemId，不需要刪除')
     return
   }
 
-  await Promise.all(cartItemIds.map((cartItemId) => api.delete(`/cart/items/${cartItemId}`)))
+  await Promise.all(
+    cartItemIds.map(async (cartItemId) => {
+      console.log(`準備 DELETE /cart/items/${cartItemId}`)
+
+      const response = await api.delete(`/cart/items/${cartItemId}`)
+
+      console.log(`DELETE /cart/items/${cartItemId} 成功`, response.data)
+
+      return response
+    }),
+  )
 }
 // ========================================
 // 初始化
