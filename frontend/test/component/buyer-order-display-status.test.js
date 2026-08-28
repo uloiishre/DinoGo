@@ -91,7 +91,7 @@ describe('buyer order list aggregate display status', () => {
     const badges = wrapper.findAll('.status-badge')
     expect(badges.map((badge) => badge.text())).toEqual([
       '運送中',
-      '待取貨',
+      '待收貨',
       '待出貨',
     ])
     expect(badges[0].classes()).toContain('status-in_transit')
@@ -114,7 +114,7 @@ describe('buyer order detail aggregate display status', () => {
     getOrder.mockResolvedValue({
       data: orderFixture({
         shipment: {
-          status: 'AVAILABLE_FOR_PICKUP',
+          status: 'DELIVERED',
           carrierName: '黑貓宅急便',
           trackingNo: 'TRACK-001',
         },
@@ -126,10 +126,10 @@ describe('buyer order detail aggregate display status', () => {
 
     expect(getOrder).toHaveBeenCalledWith(10)
     const badge = wrapper.get('.status-badge')
-    expect(badge.text()).toBe('待取貨')
+    expect(badge.text()).toBe('待收貨')
     expect(badge.classes()).toContain('status-pending_pickup')
-    expect(wrapper.text()).toContain('可取貨')
-    expect(wrapper.get('button.btn-primary').text()).toBe('確認收貨')
+    expect(wrapper.text()).toContain('已送達')
+    expect(wrapper.get('button.btn-primary').text()).toBe('完成訂單')
     wrapper.unmount()
   })
 

@@ -87,19 +87,15 @@ test('failed shipment update preserves state and exposes the API error', async (
   assert.equal(state.updatingShipment.value, false)
 })
 
-test('shipped shipment can be marked available for pickup without changing order status', async () => {
+test('shipped shipment does not expose a manual available-for-pickup action', async () => {
   const state = setup({
     status: 'SHIPPED',
     shipment: { shipmentId: 3, status: 'SHIPPED' },
   })
 
-  assert.equal(state.shipmentAction.value?.status, 'AVAILABLE_FOR_PICKUP')
-  assert.equal(state.shipmentAction.value?.label, '標記可取貨')
-
-  await state.updateShipmentStatus()
-
-  assert.deepEqual(state.calls, ['AVAILABLE_FOR_PICKUP'])
-  assert.equal(state.order.value.shipment.status, 'AVAILABLE_FOR_PICKUP')
-  assert.equal(state.order.value.status, 'SHIPPED')
   assert.equal(state.shipmentAction.value, null)
+  await state.updateShipmentStatus()
+  assert.deepEqual(state.calls, [])
+  assert.equal(state.order.value.shipment.status, 'SHIPPED')
+  assert.equal(state.order.value.status, 'SHIPPED')
 })
