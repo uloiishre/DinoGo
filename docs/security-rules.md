@@ -48,7 +48,7 @@
 
 Security matcher 必須同時考慮實際 method。若商品寫入需 seller，POST、PUT、PATCH、DELETE 都必須受到保護；不可只補其中幾種，讓其他 method 落入 fallback。
 
-目前 fallback 是 `.anyRequest().permitAll()`，所以新增受保護 endpoint 時一定要先新增 matcher。若要改為預設拒絕，必須先由全組確認所有公開 API 與 `/uploads/**` 等公開資源，不能自行切換。
+目前 fallback 是 `.anyRequest().denyAll()`。新增 endpoint 必須先在 `SecurityConfig` 明確列出其公開、登入或角色規則；未列出的 route 會被拒絕。公開靜態資源也只能列出實際需要公開的子路徑，不可直接開放整個 `/uploads/**`。
 
 ## 5. 前端規則
 
