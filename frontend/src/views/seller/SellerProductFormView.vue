@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import api from '@/api/axios'
 import {
   createSellerProduct,
   getProductDetail,
@@ -36,6 +37,52 @@ const selectedImageFiles = ref([])
 const newImagePreviews = ref([])
 const selectedNewMainIndex = ref(null)
 const selectedNewImageIndex = ref(0)
+const categories = ref([])
+const subcategories = ref([])
+const brands = ref([])
+
+const selectedCategoryId = ref('')
+
+const loadCategories = async () => {
+  try {
+    const response = await api.get('/categories')
+    categories.value = response.data
+  } catch (error) {
+    logSafeError('Load categories failed:', error)
+  }
+}
+
+const loadSubcategories = async () => {
+  try {
+    const response = await api.get('/subcategories')
+    subcategories.value = response.data
+  } catch (error) {
+    logSafeError('Load subcategories failed:', error)
+  }
+}
+
+const loadBrands = async () => {
+  try {
+    const response = await api.get('/brands')
+    brands.value = response.data
+  } catch (error) {
+    logSafeError('Load brands failed:', error)
+  }
+}
+
+const filteredSubcategories = computed(() => {
+  if (!selectedCategoryId.value) {
+    return []
+  }
+
+  return subcategories.value.filter(
+    (subcategory) => Number(subcategory.categoryId) === Number(selectedCategoryId.value),
+  )
+})
+
+const handleCategoryChange = () => {
+  form.subcategoryId = ''
+}
 
 const pageTitle = computed(() => (isEditMode.value ? '編輯商品' : '新增商品'))
 const pageDescription = computed(() =>
@@ -446,7 +493,16 @@ const buildCreatePayload = (status = null) => ({
 const fillProductForm = (product) => {
   form.productName = product.productName ?? ''
 
+  // 設定目前商品的子分類
   form.subcategoryId = product.subcategoryId ? String(product.subcategoryId) : ''
+
+  // 根據子分類找到它所屬的大分類
+  const currentSubcategory = subcategories.value.find(
+    (subcategory) => Number(subcategory.subcategoryId) === Number(product.subcategoryId),
+  )
+
+  // 編輯商品時，自動選回原本的大分類
+  selectedCategoryId.value = currentSubcategory ? String(currentSubcategory.categoryId) : ''
 
   form.brandId = product.brandId ? String(product.brandId) : ''
 
@@ -879,7 +935,11 @@ const removeExistingImage = async () => {
     errorMessage.value = '刪除圖片失敗。'
   }
 }
-onMounted(loadProduct)
+onMounted(async () => {
+  await Promise.all([loadCategories(), loadSubcategories(), loadBrands()])
+
+  await loadProduct()
+})
 </script>
 
 <template>
@@ -898,27 +958,46 @@ onMounted(loadProduct)
 
       <div class="product-main-fields">
         <label class="form-field">
-          商品名稱
-          <input v-model="form.productName" type="text" placeholder="請輸入商品名稱" />
+          商品分類
+
+          <select v-model="selectedCategoryId" @change="handleCategoryChange">
+            <option value="">請選擇商品分類</option>
+
+            <option
+              v-for="category in categories"
+              :key="category.categoryId"
+              :value="category.categoryId"
+            >
+              {{ category.categoryName }}
+            </option>
+          </select>
         </label>
 
         <label class="form-field">
-          商品分類
-          <select v-model="form.subcategoryId">
-            <option value="">請選擇分類</option>
-            <option value="1">手機</option>
-            <option value="2">筆電</option>
-            <option value="3">周邊配件</option>
+          子分類
+
+          <select v-model="form.subcategoryId" :disabled="!selectedCategoryId">
+            <option value="">請選擇子分類</option>
+
+            <option
+              v-for="subcategory in filteredSubcategories"
+              :key="subcategory.subcategoryId"
+              :value="subcategory.subcategoryId"
+            >
+              {{ subcategory.subcategoryName }}
+            </option>
           </select>
         </label>
 
         <label class="form-field">
           品牌
+
           <select v-model="form.brandId">
             <option value="">請選擇品牌</option>
-            <option value="1">Apple</option>
-            <option value="2">Samsung</option>
-            <option value="3">ASUS</option>
+
+            <option v-for="brand in brands" :key="brand.brandId" :value="brand.brandId">
+              {{ brand.brandName }}
+            </option>
           </select>
         </label>
 
