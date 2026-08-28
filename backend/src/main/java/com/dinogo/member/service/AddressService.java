@@ -55,6 +55,8 @@ public class AddressService {
         boolean wantsDefault = Boolean.TRUE.equals(request.isDefault());
         if (wantsDefault) {
             clearDefaultAddresses(memberId, null);
+            // SQL Server 的 filtered unique index 要先看見舊預設已取消。
+            addressRepository.flush();
         }
 
         // 將 request 欄位寫入新 Entity。
@@ -76,6 +78,8 @@ public class AddressService {
         // 設定新預設地址時，取消其他地址的預設狀態。
         if (Boolean.TRUE.equals(requestedDefault)) {
             clearDefaultAddresses(memberId, addressId);
+            // 在將此地址設為預設前，先寫入其他地址的 false。
+            addressRepository.flush();
         }
 
         // 更新一般地址欄位。
@@ -88,8 +92,12 @@ public class AddressService {
             // 唯一預設被取消時，優先把其他第一筆設為預設；沒有其他地址則保留原預設。
             if (wasDefault
                     && !requestedDefault
-                    && !promoteAnotherDefaultAddress(memberId, addressId)) {
+                    && !hasAnotherAddress(memberId, addressId)) {
                 address.setIsDefault(true);
+            } else if (wasDefault && !requestedDefault) {
+                // 先取消目前預設並寫入，再提升另一筆，避免 unique index 2601。
+                addressRepository.flush();
+                promoteAnotherDefaultAddress(memberId, addressId);
             }
         }
 
@@ -147,6 +155,13 @@ public class AddressService {
                     return true;
                 })
                 .orElse(false);
+    }
+
+    private boolean hasAnotherAddress(Integer memberId, Integer excludedAddressId) {
+        return addressRepository
+                .findByMemberMemberIdOrderByIsDefaultDescAddressIdAsc(memberId)
+                .stream()
+                .anyMatch(address -> !excludedAddressId.equals(address.getAddressId()));
     }
 
     /** 將 request 中可編輯的欄位套用到 Address Entity。 */

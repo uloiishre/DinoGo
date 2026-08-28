@@ -20,6 +20,7 @@ import com.dinogo.member.entity.Role;
 import com.dinogo.member.repository.MemberRoleRepository;
 import com.dinogo.member.repository.MemberRepository;
 import com.dinogo.member.repository.RoleRepository;
+import com.dinogo.member.service.MemberService;
 import com.dinogo.seller.entity.Seller;
 import com.dinogo.seller.repository.SellerRepository;
 
@@ -38,6 +39,9 @@ class SellerServiceTest {
     @Mock
     private RoleRepository roleRepository;
 
+    @Mock
+    private MemberService memberService;
+
     @InjectMocks
     private SellerService sellerService;
 
@@ -50,13 +54,6 @@ class SellerServiceTest {
                 .thenReturn(false);
         when(memberRepository.findById(1))
                 .thenReturn(Optional.of(member));
-        Role sellerRole = new Role();
-        sellerRole.setRoleId(2);
-        sellerRole.setRoleName("seller");
-        when(roleRepository.findByRoleName("seller"))
-                .thenReturn(Optional.of(sellerRole));
-        when(memberRoleRepository.existsByMemberMemberIdAndRoleRoleId(1, 2))
-                .thenReturn(false);
         when(sellerRepository.save(any(Seller.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -78,8 +75,8 @@ class SellerServiceTest {
         verify(sellerRepository).existsByMember_MemberId(1);
         verify(memberRepository).findById(1);
         verify(sellerRepository).save(any(Seller.class));
-        verify(memberRoleRepository).save(any());
-        verify(memberRepository).save(member);
+        verify(memberService).grantSellerRole(1);
+        verify(memberService).increaseAuthVersion(1);
     }
 
     @Test

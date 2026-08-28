@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -109,6 +111,9 @@ class AddressServiceTest {
 
         assertThat(previousDefault.getIsDefault()).isFalse();
         assertThat(response.isDefault()).isTrue();
+        InOrder inOrder = inOrder(addressRepository);
+        inOrder.verify(addressRepository).flush();
+        inOrder.verify(addressRepository).save(any(Address.class));
     }
 
     // 修改預設地址規則測試。
@@ -126,6 +131,7 @@ class AddressServiceTest {
 
         assertThat(response.isDefault()).isFalse();
         assertThat(nextAddress.getIsDefault()).isTrue();
+        verify(addressRepository).flush();
         verify(addressRepository).save(nextAddress);
     }
 
@@ -179,6 +185,9 @@ class AddressServiceTest {
 
         assertThat(previousDefault.getIsDefault()).isFalse();
         assertThat(response.isDefault()).isTrue();
+        InOrder inOrder = inOrder(addressRepository);
+        inOrder.verify(addressRepository).flush();
+        inOrder.verify(addressRepository).save(updatedAddress);
     }
 
     // 刪除與資料完整性測試。

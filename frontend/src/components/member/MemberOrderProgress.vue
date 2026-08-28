@@ -5,12 +5,16 @@ import { RouterLink } from 'vue-router'
 const props = defineProps({
   order: {
     type: Object,
-    required: true,
+    default: null,
+  },
+  state: {
+    type: String,
+    default: 'ready',
   },
 })
 
 const orderLink = computed(() =>
-  props.order.id
+  props.order?.id
     ? { name: 'MemberOrderDetail', params: { id: props.order.id } }
     : { name: 'MemberOrders' },
 )
@@ -18,6 +22,17 @@ const orderLink = computed(() =>
 
 <template>
   <section class="order-progress" aria-labelledby="order-progress-title">
+    <div v-if="state !== 'ready' || !order" class="order-progress__empty" :role="state === 'error' ? 'alert' : 'status'">
+      <i class="bi bi-inbox" aria-hidden="true"></i>
+      <div>
+        <h2 id="order-progress-title">最近訂單進度</h2>
+        <p v-if="state === 'error'">訂單資料暫時無法載入，請稍後再試。</p>
+        <p v-else-if="state === 'loading'">訂單資料載入中。</p>
+        <p v-else>目前沒有可顯示的訂單。</p>
+      </div>
+      <RouterLink class="order-progress__view" :to="orderLink">查看訂單</RouterLink>
+    </div>
+    <template v-else>
     <header class="order-progress__header">
       <div>
         <h2 id="order-progress-title">最近訂單進度</h2>
@@ -66,6 +81,7 @@ const orderLink = computed(() =>
         ><RouterLink class="order-progress__view" :to="orderLink">查看訂單</RouterLink>
       </div>
     </footer>
+    </template>
   </section>
 </template>
 
@@ -83,6 +99,33 @@ const orderLink = computed(() =>
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
+}
+.order-progress__empty {
+  display: flex;
+  min-height: 180px;
+  align-items: center;
+  gap: var(--space-4);
+  color: var(--color-text-muted);
+}
+.order-progress__empty > i {
+  color: var(--color-text-subtle);
+  font-size: 42px;
+}
+.order-progress__empty h2,
+.order-progress__empty p {
+  margin: 0;
+}
+.order-progress__empty h2 {
+  color: var(--color-text);
+  font-size: 19px;
+  font-weight: 700;
+}
+.order-progress__empty p {
+  margin-top: var(--space-1);
+  font-size: var(--font-size-sm);
+}
+.order-progress__empty .order-progress__view {
+  margin-left: auto;
 }
 .order-progress__header h2,
 .order-progress__header p,
@@ -285,6 +328,15 @@ const orderLink = computed(() =>
   .order-progress__header {
     align-items: flex-start;
     flex-direction: column;
+  }
+  .order-progress__empty {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .order-progress__empty .order-progress__view {
+    width: 100%;
+    justify-content: center;
+    margin-left: 0;
   }
   .order-progress__product {
     display: grid;

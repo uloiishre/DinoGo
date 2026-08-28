@@ -1,6 +1,7 @@
 package com.dinogo.member.service;
 
 import java.util.Locale;
+import java.nio.charset.StandardCharsets;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -48,6 +49,9 @@ public class PasswordResetService {
     public void resetPassword(ResetPasswordRequest request) {
         if (!request.newPassword().equals(request.confirmNewPassword())) {
             throw new IllegalArgumentException("新密碼與確認密碼不一致");
+        }
+        if (request.newPassword().getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new IllegalArgumentException("新密碼不可超過 72 個 UTF-8 位元組");
         }
 
         PasswordResetToken token = passwordResetTokenService.parse(request.token());

@@ -33,8 +33,8 @@ public class MemberAccountService {
 
     @Transactional(readOnly = true)
     public List<AdminMemberResponse> listMembers(String status, String keyword) {
-        String normalizedStatus = normalizeOptional(status);
-        String normalizedKeyword = normalizeOptional(keyword);
+        String normalizedStatus = normalizeStatus(status);
+        String normalizedKeyword = normalizeKeyword(keyword);
         return memberRepository.findAllByOrderByCreatedAtDesc().stream()
                 .filter(member -> normalizedStatus == null || normalizedStatus.equals(member.getStatus()))
                 .filter(member -> normalizedKeyword == null || matches(member, normalizedKeyword))
@@ -80,5 +80,6 @@ public class MemberAccountService {
     }
     private Member findMember(Integer memberId) { return memberRepository.findById(memberId).orElseThrow(() -> new IllegalArgumentException("Member not found")); }
     private boolean matches(Member member, String keyword) { return (member.getEmail() + " " + member.getLastName() + member.getFirstName() + " " + member.getMemberId()).toLowerCase(Locale.ROOT).contains(keyword); }
-    private String normalizeOptional(String value) { return value == null || value.isBlank() ? null : value.trim().toUpperCase(Locale.ROOT); }
+    private String normalizeStatus(String value) { return value == null || value.isBlank() ? null : value.trim().toUpperCase(Locale.ROOT); }
+    private String normalizeKeyword(String value) { return value == null || value.isBlank() ? null : value.trim().toLowerCase(Locale.ROOT); }
 }

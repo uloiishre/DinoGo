@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { resetPassword } from '@/api/auth'
+import { isPasswordWithinUtf8ByteLimit } from '@/utils/password'
 
 const route = useRoute()
 const router = useRouter()
@@ -24,8 +25,8 @@ async function submit() {
     errorMessage.value = '重設連結無效或已過期，請重新申請。'
     return
   }
-  if (form.value.newPassword.length < 8 || form.value.newPassword.length > 72) {
-    errorMessage.value = '新密碼須為 8 至 72 個字元。'
+  if (form.value.newPassword.length < 8 || !isPasswordWithinUtf8ByteLimit(form.value.newPassword)) {
+    errorMessage.value = '新密碼須至少 8 個字元，且不可超過 72 個 UTF-8 位元組。'
     return
   }
   if (!passwordsMatch.value) {

@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { register } from '@/api/auth'
+import { isPasswordWithinUtf8ByteLimit } from '@/utils/password'
 
 const router = useRouter()
 const form = ref({
@@ -23,6 +24,7 @@ function validate() {
   else if (!/^\S+@\S+\.\S+$/.test(form.value.email)) errors.email = '請輸入有效的 Email。'
   if (!form.value.password) errors.password = '請輸入密碼。'
   else if (form.value.password.length < 8) errors.password = '密碼至少需要 8 個字元。'
+  else if (!isPasswordWithinUtf8ByteLimit(form.value.password)) errors.password = '密碼不可超過 72 個 UTF-8 位元組。'
   if (!form.value.confirmPassword) errors.confirmPassword = '請再次輸入密碼。'
   else if (form.value.password !== form.value.confirmPassword) {
     errors.confirmPassword = '兩次輸入的密碼不一致。'

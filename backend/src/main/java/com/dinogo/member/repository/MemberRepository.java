@@ -21,6 +21,38 @@ public interface MemberRepository extends JpaRepository<Member, Integer> {
 
     public boolean existsByEmailIgnoreCase(String email);
 
+    /** Updates only self-service profile fields so security state cannot be overwritten. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update Member member
+               set member.lastName = :lastName,
+                   member.firstName = :firstName,
+                   member.birthDate = :birthDate,
+                   member.phone = :phone,
+                   member.emailOrderNotifications = coalesce(:emailOrderNotifications, member.emailOrderNotifications),
+                   member.emailMarketingNotifications = coalesce(:emailMarketingNotifications, member.emailMarketingNotifications),
+                   member.updatedAt = CURRENT_TIMESTAMP
+             where member.memberId = :memberId
+            """)
+    int updateProfileFields(
+            @Param("memberId") Integer memberId,
+            @Param("lastName") String lastName,
+            @Param("firstName") String firstName,
+            @Param("birthDate") java.time.LocalDate birthDate,
+            @Param("phone") String phone,
+            @Param("emailOrderNotifications") Boolean emailOrderNotifications,
+            @Param("emailMarketingNotifications") Boolean emailMarketingNotifications);
+
+    /** Invalidates existing JWTs without writing unrelated Member columns. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update Member member
+               set member.authVersion = member.authVersion + 1,
+                   member.updatedAt = CURRENT_TIMESTAMP
+             where member.memberId = :memberId
+            """)
+    int increaseAuthVersion(@Param("memberId") Integer memberId);
+
     /**
      * Atomically updates a password only while the reset token's member state is still current.
      * A return value of zero means the token was already consumed or is no longer valid.
