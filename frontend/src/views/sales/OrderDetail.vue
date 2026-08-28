@@ -74,6 +74,11 @@ const progressSteps = [
   },
   { label: '賣家處理', statuses: ['PAID', 'PROCESSING', 'SHIPPED', 'COMPLETED'] },
   { label: '商品出貨', statuses: ['SHIPPED', 'COMPLETED'] },
+  {
+    label: '待收貨',
+    statuses: ['COMPLETED'],
+    shipmentStatuses: ['DELIVERED'],
+  },
   { label: '完成訂單', statuses: ['COMPLETED'] },
 ]
 
@@ -216,7 +221,9 @@ async function handleRetryCreditCardPayment() {
 }
 
 function isStepComplete(step) {
-  return order.value && step.statuses.includes(order.value.status)
+  if (!order.value) return false
+  if (step.shipmentStatuses?.includes(order.value.shipment?.status)) return true
+  return step.statuses.includes(order.value.status)
 }
 
 function formatCurrency(value) {
@@ -377,6 +384,7 @@ onUnmounted(() => {
                 <i v-if="!isItemReviewed(item)" class="bi bi-star-fill" aria-hidden="true"></i>
                 <!-- //review-已評價// -->
                 <i v-else class="bi bi-star" aria-hidden="true"></i>
+                <span>評價</span>
               </button>
             </article>
 
@@ -447,13 +455,13 @@ onUnmounted(() => {
                   </li>
                 </ol>
                 <button
-                  v-if="order.shipment.status === 'AVAILABLE_FOR_PICKUP'"
+                  v-if="order.status === 'SHIPPED' && ['AVAILABLE_FOR_PICKUP', 'DELIVERED'].includes(order.shipment.status)"
                   class="btn btn-primary mt-2"
                   type="button"
                   :disabled="confirmingDelivery"
                   @click="handleConfirmDelivery"
                 >
-                  {{ confirmingDelivery ? '確認中...' : '確認收貨' }}
+                  {{ confirmingDelivery ? '確認中...' : '完成訂單' }}
                 </button>
                 <p v-if="deliveryErrorMessage" class="text-danger mt-2" role="alert">
                   {{ deliveryErrorMessage }}
@@ -728,7 +736,7 @@ onUnmounted(() => {
 .progress-card {
   display: grid;
   min-height: 130px;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: center;
   gap: 18px;
   margin-top: var(--space-5);
@@ -905,8 +913,11 @@ onUnmounted(() => {
 
 .review-endcap {
   display: grid;
+  grid-template-rows: auto auto;
   min-width: calc(var(--space-7) + var(--space-2));
   align-self: stretch;
+  align-content: center;
+  gap: var(--space-1);
   place-items: center;
   margin-block: calc(var(--space-3) * -1);
   font-size: var(--font-size-lg);
@@ -916,6 +927,12 @@ onUnmounted(() => {
   border-left: 1px solid var(--color-border);
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
   box-shadow: none;
+}
+
+.review-endcap span {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  line-height: 1;
 }
 /* 未評價：強烈主視覺綠色 */
 .review-endcap--pending {

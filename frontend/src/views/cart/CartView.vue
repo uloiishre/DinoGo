@@ -44,6 +44,14 @@ const hasSkuOptions = (item) => {
   return item.skus.some((sku) => sku.spec1Name || sku.spec1Value || sku.spec2Name || sku.spec2Value)
 }
 // ================================
+// 判斷商品是否有規格
+// ================================
+const hasSkuOptions = (item) => {
+  return item.skus?.some(
+    (sku) => sku.skuName !== null && sku.skuName !== undefined && sku.skuName !== '',
+  )
+}
+// ================================
 // 取得購物車
 // ================================
 const fetchCart = async () => {
@@ -905,8 +913,8 @@ onMounted(() => {
                       "
                     >
                       {{ sku.skuName }}
-                      <template v-if="!isSkuAvailable(sku)"> （停用） </template>
-                      <template v-else-if="Number(sku.stock) <= 0"> （缺貨） </template>
+                      <template v-if="!isSkuAvailable(sku)">（停用）</template>
+                      <template v-else-if="Number(sku.stock) <= 0">（缺貨）</template>
                     </option>
                   </select>
 
@@ -973,9 +981,7 @@ onMounted(() => {
                 <div class="item-total">
                   <span class="item-total-label">小計</span>
 
-                  <strong>
-                    {{ formatPrice(getItemSubtotal(item)) }}
-                  </strong>
+                  <strong> NT$ {{ formatPrice(getItemSubtotal(item)) }} </strong>
 
                   <span
                     v-if="!isItemAvailable(item) && item.stock !== null"

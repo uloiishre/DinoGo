@@ -37,6 +37,15 @@ const hasSkuOptions = (item) => {
 const stockErrorMessage = ref('')
 const stockErrorItems = ref([])
 // ========================================
+// 判斷商品是否有規格
+// ========================================
+
+const hasSkuOptions = (item) => {
+  return item.skus?.some(
+    (sku) => sku.skuName !== null && sku.skuName !== undefined && sku.skuName !== '',
+  )
+}
+// ========================================
 // 結帳商品
 // ========================================
 
@@ -821,8 +830,7 @@ onMounted(() => {
 
                     <span class="sku-name">
                       {{
-                        item.skus.find((sku) => Number(sku.skuId) === Number(item.skuId))
-                          ?.skuName || '未指定規格'
+                        item.skus.find((sku) => Number(sku.skuId) === Number(item.skuId))?.skuName
                       }}
                     </span>
                   </div>
@@ -833,13 +841,10 @@ onMounted(() => {
                 <!-- 商品價格 -->
 
                 <div class="item-price">
-                  <span class="unit-price">
-                    NT$
-                    {{ formatPrice(item.price) }}
-                  </span>
+                  <span class="unit-price"> 單價 NT$ {{ formatPrice(item.price) }} </span>
 
-                  <strong>
-                    NT$
+                  <strong class="item-subtotal">
+                    商品小計 NT$
                     {{ formatPrice(Number(item.price || 0) * Number(item.quantity || 0)) }}
                   </strong>
                 </div>
@@ -1592,6 +1597,13 @@ onMounted(() => {
   color: var(--color-text-muted);
 
   font-size: var(--font-size-xs);
+}
+
+.item-subtotal {
+  color: var(--color-text);
+
+  font-size: var(--font-size-base);
+  font-weight: 700;
 }
 
 .item-price strong {
