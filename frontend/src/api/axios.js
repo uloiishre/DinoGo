@@ -20,22 +20,13 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const requestUrl = error.config?.url || ''
-    const status = error.response?.status
 
-    console.error('========== API ERROR ==========')
-    console.error('URL:', requestUrl)
-    console.error('METHOD:', error.config?.method)
-    console.error('STATUS:', status)
-    console.error('DATA:', error.response?.data)
-    console.error('TOKEN:', getPersistedToken())
-    console.error('================================')
-
-    if (status === 401 && !requestUrl.startsWith('/auth/')) {
-      console.error('⚠️ 發生 401，但暫時不自動登出')
-
-      // ⭐ 暫時註解掉
-      // clearPersistedAuth()
-      // window.location.href = '/login'
+    if (
+      error.response?.status === 401 &&
+      !requestUrl.startsWith('/auth/')
+    ) {
+      clearPersistedAuth()
+      window.location.href = '/login'
     }
 
     return Promise.reject(error)

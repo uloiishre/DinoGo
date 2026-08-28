@@ -5,6 +5,7 @@ import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,7 +23,6 @@ import com.dinogo.catalog.dto.ProductCreateRequest;
 import com.dinogo.catalog.dto.ProductDetailResponse;
 import com.dinogo.catalog.dto.ProductImageResponse;
 import com.dinogo.catalog.dto.ProductImageSortUpdateRequest;
-import com.dinogo.catalog.dto.ProductImageUpdateRequest;
 import com.dinogo.catalog.dto.ProductMainImageUpdateRequest;
 import com.dinogo.catalog.dto.ProductResponse;
 import com.dinogo.catalog.dto.ProductSkuCreateRequest;
@@ -176,11 +176,26 @@ public class ProductController {
 
     @PostMapping("/{productId}/images/upload")
     public List<ProductImageResponse> uploadProductImages(
-            @AuthenticationPrincipal AuthenticatedMember member,
             @PathVariable Integer productId,
-            @RequestParam("files") MultipartFile[] files) {
+            @RequestParam("files") MultipartFile[] files,
+            @AuthenticationPrincipal AuthenticatedMember principal) {
 
-        return productService.uploadProductImages(productId, files, member.memberId());
+        System.out.println("=== upload image debug ===");
+        System.out.println("principal = " + principal);
+
+        if (principal == null) {
+            throw new RuntimeException("找不到登入會員 principal");
+        }
+
+        Integer memberId = principal.memberId();
+
+        System.out.println("memberId = " + memberId);
+        System.out.println("files length = " + files.length);
+
+        return productService.uploadProductImages(
+                productId,
+                files,
+                memberId);
     }
 
     // 商品軟刪除
