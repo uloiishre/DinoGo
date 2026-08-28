@@ -3,6 +3,7 @@ package com.dinogo.member.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -71,7 +72,7 @@ class MemberServiceTest {
         when(memberRepository.existsByEmailIgnoreCase(request.email())).thenReturn(false);
         when(roleRepository.findByRoleName("buyer")).thenReturn(Optional.of(buyerRole));
         when(passwordEncoder.encode(request.password())).thenReturn("$2a$hashed-password");
-        when(memberRepository.save(any(Member.class))).thenAnswer(invocation -> {
+        when(memberRepository.saveAndFlush(any(Member.class))).thenAnswer(invocation -> {
             Member member = invocation.getArgument(0);
             member.setMemberId(1);
             return member;
@@ -80,7 +81,7 @@ class MemberServiceTest {
         RegisterResponse response = memberService.register(request);
 
         ArgumentCaptor<Member> captor = ArgumentCaptor.forClass(Member.class);
-        verify(memberRepository).save(captor.capture());
+        verify(memberRepository).saveAndFlush(captor.capture());
         assertThat(captor.getValue().getPasswordHash()).isEqualTo("$2a$hashed-password");
         assertThat(captor.getValue().getPasswordHash()).isNotEqualTo(request.password());
         assertThat(response.member().memberId()).isEqualTo(1);
@@ -104,7 +105,7 @@ class MemberServiceTest {
                 .hasMessage("Default role 'buyer' is not configured");
 
         verify(passwordEncoder, never()).encode(any());
-        verify(memberRepository, never()).save(any(Member.class));
+        verify(memberRepository, never()).saveAndFlush(any(Member.class));
         verify(memberRoleRepository, never()).save(any(MemberRole.class));
     }
 
@@ -129,7 +130,7 @@ class MemberServiceTest {
         when(memberRepository.existsByEmailIgnoreCase("user@example.com")).thenReturn(false);
         when(roleRepository.findByRoleName("buyer")).thenReturn(Optional.of(buyerRole()));
         when(passwordEncoder.encode(mixedCaseRequest.password())).thenReturn("hashed-password");
-        when(memberRepository.save(any(Member.class))).thenAnswer(invocation -> {
+        when(memberRepository.saveAndFlush(any(Member.class))).thenAnswer(invocation -> {
             Member member = invocation.getArgument(0);
             member.setMemberId(1);
             return member;
@@ -138,7 +139,7 @@ class MemberServiceTest {
         memberService.register(mixedCaseRequest);
 
         ArgumentCaptor<Member> captor = ArgumentCaptor.forClass(Member.class);
-        verify(memberRepository).save(captor.capture());
+        verify(memberRepository).saveAndFlush(captor.capture());
         assertThat(captor.getValue().getEmail()).isEqualTo("user@example.com");
     }
 
@@ -154,7 +155,7 @@ class MemberServiceTest {
 
         verify(memberRepository, never()).existsByEmailIgnoreCase(any());
         verify(passwordEncoder, never()).encode(any());
-        verify(memberRepository, never()).save(any(Member.class));
+        verify(memberRepository, never()).saveAndFlush(any(Member.class));
         verify(roleRepository, never()).findByRoleName(any());
         verify(memberRoleRepository, never()).save(any(MemberRole.class));
     }
@@ -184,7 +185,7 @@ class MemberServiceTest {
     }
 
     @Test
-    void updateProfileChangesOnlyEditableFields() {
+    void updateProfileUsesLimitedColumnUpdateAndReturnsFreshMemberState() {
         Member member = new Member();
         member.setMemberId(1);
         member.setEmail("user@example.com");
@@ -193,17 +194,25 @@ class MemberServiceTest {
         member.setFirstName("小明");
         member.setCreatedAt(LocalDateTime.of(2025, 8, 18, 10, 0));
         member.setUpdatedAt(LocalDateTime.of(2025, 8, 20, 9, 30));
-        // 更新資料時同樣使用 JWT 的 memberId，不使用 email 查詢。
-        when(memberRepository.findById(member.getMemberId()))
-                .thenReturn(Optional.of(member));
-        when(memberRepository.saveAndFlush(any(Member.class))).thenAnswer(invocation -> {
-            Member savedMember = invocation.getArgument(0);
-            savedMember.setUpdatedAt(LocalDateTime.of(2026, 8, 14, 15, 10));
-            return savedMember;
-        });
-
         MemberUpdateRequest request = new MemberUpdateRequest(
                 "林", "小美", LocalDate.of(1998, 2, 3), "0987654321", false, true);
+        Member updatedMember = new Member();
+        updatedMember.setMemberId(1);
+        updatedMember.setEmail("user@example.com");
+        updatedMember.setPasswordHash("hashed-password");
+        updatedMember.setStatus("SUSPENDED");
+        updatedMember.setAuthVersion(5);
+        updatedMember.setLastName(request.lastName());
+        updatedMember.setFirstName(request.firstName());
+        updatedMember.setBirthDate(request.birthDate());
+        updatedMember.setPhone(request.phone());
+        updatedMember.setEmailOrderNotifications(false);
+        updatedMember.setEmailMarketingNotifications(true);
+        updatedMember.setCreatedAt(LocalDateTime.of(2025, 8, 18, 10, 0));
+        updatedMember.setUpdatedAt(LocalDateTime.of(2026, 8, 14, 15, 10));
+        when(memberRepository.updateProfileFields(
+                1, "林", "小美", request.birthDate(), "0987654321", false, true)).thenReturn(1);
+        when(memberRepository.findById(1)).thenReturn(Optional.of(updatedMember));
 
         MemberResponse response = memberService.updateProfile(member.getMemberId(), request);
 
@@ -215,9 +224,10 @@ class MemberServiceTest {
         assertThat(response.emailMarketingNotifications()).isTrue();
         assertThat(response.createdAt()).isEqualTo(LocalDateTime.of(2025, 8, 18, 10, 0));
         assertThat(response.updatedAt()).isEqualTo(LocalDateTime.of(2026, 8, 14, 15, 10));
-        assertThat(member.getEmail()).isEqualTo("user@example.com");
-        assertThat(member.getPasswordHash()).isEqualTo("hashed-password");
-        verify(memberRepository).saveAndFlush(member);
+        assertThat(response.status()).isEqualTo("SUSPENDED");
+        verify(memberRepository).updateProfileFields(
+                1, "林", "小美", request.birthDate(), "0987654321", false, true);
+        verify(memberRepository).findById(1);
     }
 
     @Test
@@ -227,16 +237,19 @@ class MemberServiceTest {
         member.setPasswordHash("old-hash");
         member.setAuthVersion(4);
         ChangePasswordRequest request = new ChangePasswordRequest(
-                "current-password", "new-password", "new-password");
+                "current-password", "new-password1", "new-password1");
         when(memberRepository.findById(1)).thenReturn(Optional.of(member));
         when(passwordEncoder.matches("current-password", "old-hash")).thenReturn(true);
-        when(passwordEncoder.encode("new-password")).thenReturn("new-hash");
+        when(passwordEncoder.matches("new-password1", "old-hash")).thenReturn(false);
+        when(passwordEncoder.encode("new-password1")).thenReturn("new-hash");
+        when(memberRepository.changePasswordIfCurrent(1, "old-hash", 4, "new-hash")).thenReturn(1);
 
         memberService.changePassword(1, request);
 
-        assertThat(member.getPasswordHash()).isEqualTo("new-hash");
-        assertThat(member.getAuthVersion()).isEqualTo(5);
-        verify(memberRepository).saveAndFlush(member);
+        assertThat(member.getPasswordHash()).isEqualTo("old-hash");
+        assertThat(member.getAuthVersion()).isEqualTo(4);
+        verify(memberRepository).changePasswordIfCurrent(1, "old-hash", 4, "new-hash");
+        verify(memberRepository, never()).saveAndFlush(member);
     }
 
     @Test
@@ -245,7 +258,7 @@ class MemberServiceTest {
         member.setMemberId(1);
         member.setPasswordHash("old-hash");
         ChangePasswordRequest request = new ChangePasswordRequest(
-                "wrong-password", "new-password", "new-password");
+                "wrong-password", "new-password1", "new-password1");
         when(memberRepository.findById(1)).thenReturn(Optional.of(member));
         when(passwordEncoder.matches("wrong-password", "old-hash")).thenReturn(false);
 
@@ -253,6 +266,43 @@ class MemberServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("目前密碼錯誤");
         verify(passwordEncoder, never()).encode(any());
+        verify(memberRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void changePasswordRejectsPasswordWithoutEnglishAndNumber() {
+        Member member = new Member();
+        member.setMemberId(1);
+        member.setPasswordHash("old-hash");
+        ChangePasswordRequest request = new ChangePasswordRequest(
+                "current-password", "12345678", "12345678");
+        when(memberRepository.findById(1)).thenReturn(Optional.of(member));
+        when(passwordEncoder.matches("current-password", "old-hash")).thenReturn(true);
+
+        assertThatThrownBy(() -> memberService.changePassword(1, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("新密碼須包含英文與數字");
+
+        verify(memberRepository, never()).changePasswordIfCurrent(any(), any(), anyInt(), any());
+    }
+
+    @Test
+    void changePasswordRejectsWhenAccountChangedAfterCurrentPasswordCheck() {
+        Member member = new Member();
+        member.setMemberId(1);
+        member.setPasswordHash("old-hash");
+        member.setAuthVersion(4);
+        ChangePasswordRequest request = new ChangePasswordRequest(
+                "current-password", "new-password1", "new-password1");
+        when(memberRepository.findById(1)).thenReturn(Optional.of(member));
+        when(passwordEncoder.matches("current-password", "old-hash")).thenReturn(true);
+        when(passwordEncoder.matches("new-password1", "old-hash")).thenReturn(false);
+        when(passwordEncoder.encode("new-password1")).thenReturn("new-hash");
+        when(memberRepository.changePasswordIfCurrent(1, "old-hash", 4, "new-hash")).thenReturn(0);
+
+        assertThatThrownBy(() -> memberService.changePassword(1, request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("帳號狀態已變更，請重新登入後再試");
         verify(memberRepository, never()).saveAndFlush(any());
     }
 
@@ -302,14 +352,11 @@ class MemberServiceTest {
 
     @Test
     void increaseAuthVersionInvalidatesExistingTokensAfterCommit() {
-        Member member = member(1);
-        member.setAuthVersion(4);
-        when(memberRepository.findById(1)).thenReturn(Optional.of(member));
+        when(memberRepository.increaseAuthVersion(1)).thenReturn(1);
 
         memberService.increaseAuthVersion(1);
 
-        assertThat(member.getAuthVersion()).isEqualTo(5);
-        verify(memberRepository).save(member);
+        verify(memberRepository).increaseAuthVersion(1);
     }
 
     private Member member(Integer memberId) {

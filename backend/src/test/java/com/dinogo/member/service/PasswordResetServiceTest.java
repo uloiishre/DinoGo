@@ -68,10 +68,10 @@ class PasswordResetServiceTest {
 
     @Test
     void resetChangesPasswordAndInvalidatesExistingTokens() {
-        ResetPasswordRequest request = new ResetPasswordRequest("reset-token", "new-password", "new-password");
+        ResetPasswordRequest request = new ResetPasswordRequest("reset-token", "new-password1", "new-password1");
         when(passwordResetTokenService.parse("reset-token"))
                 .thenReturn(new PasswordResetToken(1, "user@example.com", 4));
-        when(passwordEncoder.encode("new-password")).thenReturn("new-hash");
+        when(passwordEncoder.encode("new-password1")).thenReturn("new-hash");
         when(memberRepository.resetPasswordIfTokenIsValid(
                 1, "user@example.com", 4, "new-hash"))
                 .thenReturn(1);
@@ -86,17 +86,27 @@ class PasswordResetServiceTest {
     void resetRejectsTokenAlreadyUsedByAnotherRequest() {
         when(passwordResetTokenService.parse("reset-token"))
                 .thenReturn(new PasswordResetToken(1, "user@example.com", 4));
-        when(passwordEncoder.encode("new-password")).thenReturn("new-hash");
+        when(passwordEncoder.encode("new-password1")).thenReturn("new-hash");
         when(memberRepository.resetPasswordIfTokenIsValid(
                 eq(1), eq("user@example.com"), eq(4), eq("new-hash")))
                 .thenReturn(0);
 
         assertThatThrownBy(() -> passwordResetService.resetPassword(
-                new ResetPasswordRequest("reset-token", "new-password", "new-password")))
+                new ResetPasswordRequest("reset-token", "new-password1", "new-password1")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("重設連結無效或已過期");
         verify(memberRepository).resetPasswordIfTokenIsValid(
                 1, "user@example.com", 4, "new-hash");
+    }
+
+    @Test
+    void resetRejectsPasswordWithoutEnglishAndNumber() {
+        assertThatThrownBy(() -> passwordResetService.resetPassword(
+                new ResetPasswordRequest("reset-token", "12345678", "12345678")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("新密碼須包含英文與數字");
+
+        verify(passwordResetTokenService, never()).parse(any());
     }
 
     private Member member(int memberId, int authVersion) {

@@ -4,6 +4,7 @@ import java.util.Locale;
 import java.util.NoSuchElementException;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +48,7 @@ public class MemberService {
         if (!request.password().equals(request.confirmPassword())) {
             throw new IllegalArgumentException("密碼與確認密碼不一致");
         }
+        PasswordPolicy.validate(request.password(), "密碼");
 
         String email = request.email().trim().toLowerCase(Locale.ROOT);
         if (memberRepository.existsByEmailIgnoreCase(email)) {
@@ -65,7 +67,12 @@ public class MemberService {
         member.setBirthDate(request.birthDate());
         member.setPhone(request.phone());
 
-        Member savedMember = memberRepository.save(member);
+        Member savedMember;
+        try {
+            savedMember = memberRepository.saveAndFlush(member);
+        } catch (DataIntegrityViolationException exception) {
+            throw new IllegalArgumentException("Email 已被註冊");
+        }
 
         MemberRole memberRole = new MemberRole();
         memberRole.setId(new MemberRoleId(savedMember.getMemberId(), buyerRole.getRoleId()));
@@ -84,20 +91,18 @@ public class MemberService {
 
     @Transactional
     public MemberResponse updateProfile(Integer memberId, MemberUpdateRequest request) {
-        Member member = findMemberById(memberId);
-        member.setLastName(request.lastName());
-        member.setFirstName(request.firstName());
-        member.setBirthDate(request.birthDate());
-        member.setPhone(request.phone());
-        if (request.emailOrderNotifications() != null) {
-            member.setEmailOrderNotifications(request.emailOrderNotifications());
+        int updated = memberRepository.updateProfileFields(
+                memberId,
+                request.lastName(),
+                request.firstName(),
+                request.birthDate(),
+                request.phone(),
+                request.emailOrderNotifications(),
+                request.emailMarketingNotifications());
+        if (updated == 0) {
+            throw new IllegalArgumentException("Member not found");
         }
-        if (request.emailMarketingNotifications() != null) {
-            member.setEmailMarketingNotifications(request.emailMarketingNotifications());
-        }
-
-        // 先 flush 觸發 Member 的 @PreUpdate，再將最新修改時間回傳給前端。
-        return MemberResponse.from(memberRepository.saveAndFlush(member));
+        return MemberResponse.from(findMemberById(memberId));
     }
 
     @Transactional
@@ -111,10 +116,19 @@ public class MemberService {
         if (!request.newPassword().equals(request.confirmNewPassword())) {
             throw new IllegalArgumentException("新密碼與確認密碼不一致");
         }
+        PasswordPolicy.validate(request.newPassword(), "新密碼");
+        if (passwordEncoder.matches(request.newPassword(), member.getPasswordHash())) {
+            throw new IllegalArgumentException("新密碼不可與目前密碼相同");
+        }
 
-        member.setPasswordHash(passwordEncoder.encode(request.newPassword()));
-        member.setAuthVersion(Math.incrementExact(member.getAuthVersion()));
-        memberRepository.saveAndFlush(member);
+        int updatedRows = memberRepository.changePasswordIfCurrent(
+                memberId,
+                member.getPasswordHash(),
+                member.getAuthVersion(),
+                passwordEncoder.encode(request.newPassword()));
+        if (updatedRows != 1) {
+            throw new IllegalArgumentException("帳號狀態已變更，請重新登入後再試");
+        }
     }
 
     /**
@@ -148,9 +162,9 @@ public class MemberService {
      */
     @Transactional
     public void increaseAuthVersion(Integer memberId) {
-        Member member = findMemberById(memberId);
-        member.setAuthVersion(Math.incrementExact(member.getAuthVersion()));
-        memberRepository.save(member);
+        if (memberRepository.increaseAuthVersion(memberId) == 0) {
+            throw new IllegalArgumentException("Member not found");
+        }
     }
 
     // 先保留，其他功能若仍需要 email 可以使用
@@ -163,4 +177,5 @@ public class MemberService {
         return memberRepository.findById(memberId)
                 .orElseThrow(() -> new IllegalArgumentException("Member not found"));
     }
+
 }

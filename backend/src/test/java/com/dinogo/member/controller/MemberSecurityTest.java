@@ -119,8 +119,9 @@ class MemberSecurityTest {
 
     private static Stream<Arguments> invalidPasswordChanges() {
         return Stream.of(
-                Arguments.of("blank current password", passwordJson("", "new-password", "new-password"), "currentPassword"),
-                Arguments.of("short new password", passwordJson("current-password", "short", "short"), "newPassword"));
+                Arguments.of("blank current password", passwordJson("", "new-password1", "new-password1"), "currentPassword"),
+                Arguments.of("short new password", passwordJson("current-password", "short", "short"), "newPassword"),
+                Arguments.of("new password without English", passwordJson("current-password", "12345678", "12345678"), "newPassword"));
     }
 
     private static String validUpdateJson() {
@@ -128,7 +129,7 @@ class MemberSecurityTest {
     }
 
     private static String validPasswordJson() {
-        return passwordJson("current-password", "new-password", "new-password");
+        return passwordJson("current-password", "new-password1", "new-password1");
     }
 
     private static String updateJson(String lastName, String firstName) {

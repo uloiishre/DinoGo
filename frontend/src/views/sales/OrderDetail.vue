@@ -377,6 +377,7 @@ onUnmounted(() => {
                 <i v-if="!isItemReviewed(item)" class="bi bi-star-fill" aria-hidden="true"></i>
                 <!-- //review-已評價// -->
                 <i v-else class="bi bi-star" aria-hidden="true"></i>
+                <span>評價</span>
               </button>
             </article>
 
@@ -905,8 +906,11 @@ onUnmounted(() => {
 
 .review-endcap {
   display: grid;
+  grid-template-rows: auto auto;
   min-width: calc(var(--space-7) + var(--space-2));
   align-self: stretch;
+  align-content: center;
+  gap: var(--space-1);
   place-items: center;
   margin-block: calc(var(--space-3) * -1);
   font-size: var(--font-size-lg);
@@ -916,6 +920,12 @@ onUnmounted(() => {
   border-left: 1px solid var(--color-border);
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
   box-shadow: none;
+}
+
+.review-endcap span {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  line-height: 1;
 }
 /* 未評價：強烈主視覺綠色 */
 .review-endcap--pending {

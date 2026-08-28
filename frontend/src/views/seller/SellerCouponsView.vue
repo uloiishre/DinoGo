@@ -1,5 +1,9 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import flatpickr from 'flatpickr'
+import { MandarinTraditional } from 'flatpickr/dist/l10n/zh-tw'
+import 'flatpickr/dist/flatpickr.css'
+import '@/assets/styles/seller-flatpickr.css'
 import {
   createSellerCoupon,
   disableSellerCoupon,
@@ -26,6 +30,10 @@ const editingCouponId = ref(null)
 const sellerProducts = ref([])
 const sellerOrders = ref([])
 const isProductPickerOpen = ref(false)
+const startAtInput = ref(null)
+const endAtInput = ref(null)
+let startAtPicker = null
+let endAtPicker = null
 
 const fallbackProducts = [
   { productId: 101, productName: '恐龍造型保溫杯', status: 'ACTIVE' },
@@ -255,6 +263,50 @@ const chooseProduct = (product) => {
 
 const toInputDateTime = (value) => value?.slice(0, 16) || ''
 
+const destroyCouponDateTimePickers = () => {
+  startAtPicker?.destroy()
+  endAtPicker?.destroy()
+  startAtPicker = null
+  endAtPicker = null
+}
+
+const createCouponDateTimePicker = (input, field, calendarClass) =>
+  flatpickr(input, {
+    altInput: true,
+    altInputClass: 'seller-flatpickr-input coupon-date-time-input',
+    altFormat: 'Y/m/d H:i',
+    allowInput: false,
+    dateFormat: 'Y-m-d\\TH:i',
+    defaultDate: couponForm[field] || null,
+    disableMobile: true,
+    enableTime: true,
+    locale: MandarinTraditional,
+    minuteIncrement: 1,
+    monthSelectorType: 'dropdown',
+    time_24hr: true,
+    onChange: (_, dateString) => {
+      couponForm[field] = dateString
+    },
+    onReady: (_, __, instance) => {
+      instance.calendarContainer.classList.add('seller-module-flatpickr', calendarClass)
+    },
+  })
+
+const initializeCouponDateTimePickers = async () => {
+  await nextTick()
+  destroyCouponDateTimePickers()
+  if (startAtInput.value) {
+    startAtPicker = createCouponDateTimePicker(
+      startAtInput.value,
+      'startAt',
+      'seller-coupon-start-calendar',
+    )
+  }
+  if (endAtInput.value) {
+    endAtPicker = createCouponDateTimePicker(endAtInput.value, 'endAt', 'seller-coupon-end-calendar')
+  }
+}
+
 const buildCouponPayload = () => {
   const isProductCoupon = selectedCouponType.value === '商品優惠券'
   const discountValue = Number(couponForm.discountValue)
@@ -342,6 +394,7 @@ const editCoupon = (coupon) => {
   isProductPickerOpen.value = false
   message.value = ''
   formError.value = ''
+  void initializeCouponDateTimePickers()
 }
 
 const loadCoupons = async () => {
@@ -451,10 +504,31 @@ onMounted(() => {
   void loadCoupons()
   void loadSellerOrders()
 })
+
+watch(isCreateDrawerOpen, (isOpen) => {
+  if (isOpen) {
+    void initializeCouponDateTimePickers()
+    return
+  }
+
+  destroyCouponDateTimePickers()
+})
+
+onUnmounted(() => {
+  destroyCouponDateTimePickers()
+})
 </script>
 
 <template>
   <section class="seller-page coupon-page">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">優惠券管理</p>
+        <h1>優惠券管理</h1>
+        <p class="page-description">建立、追蹤與管理店鋪優惠券，掌握買家使用狀態。</p>
+      </div>
+    </header>
+
     <section class="creation-panel">
       <div class="section-heading">
         <div>
@@ -661,11 +735,11 @@ onMounted(() => {
           <div class="form-row">
             <label>
               開始時間
-              <input v-model="couponForm.startAt" type="datetime-local" />
+              <input ref="startAtInput" v-model="couponForm.startAt" type="text" />
             </label>
             <label>
               結束時間
-              <input v-model="couponForm.endAt" type="datetime-local" />
+              <input ref="endAtInput" v-model="couponForm.endAt" type="text" />
             </label>
           </div>
           <button type="button" class="submit-button" :disabled="isSubmitting" @click="saveCoupon">
@@ -727,9 +801,38 @@ onMounted(() => {
   display: grid;
   width: 100%;
   max-width: 100%;
-  gap: 12px;
+  gap: var(--space-5);
   color: var(--color-text-800);
   font-size: 13px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.eyebrow,
+.page-description {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.eyebrow {
+  margin: 0 0 var(--space-1);
+}
+
+.page-description {
+  margin-top: var(--space-1);
+}
+
+.page-header h1 {
+  margin: 0;
+  color: var(--color-text-900);
+  font-family: var(--font-heading);
+  font-size: var(--font-size-xl);
+  font-weight: 700;
 }
 
 .creation-panel,
