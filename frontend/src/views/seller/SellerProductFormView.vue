@@ -34,7 +34,7 @@ const selectedImageIndex = ref(null)
 const selectedImageId = ref(null)
 const selectedImageFiles = ref([])
 const newImagePreviews = ref([])
-const selectedNewMainIndex = ref(0)
+const selectedNewMainIndex = ref(null)
 const selectedNewImageIndex = ref(0)
 
 const pageTitle = computed(() => (isEditMode.value ? '編輯商品' : '新增商品'))
@@ -45,12 +45,14 @@ const submitText = computed(() => (isEditMode.value ? '儲存變更' : '送出�
 const sellerRequiredMessage = '尚未取得賣家身分，請重新登入賣家帳號後再操作。'
 
 const createEmptySku = () => ({
-  spec1Name: '',
-  spec1Value: '',
-  spec2Name: '',
-  spec2Value: '',
+  skuId: null,
+  spec1Name: null,
+  spec1Value: null,
+  spec2Name: null,
+  spec2Value: null,
   price: '',
   stock: '',
+  enabled: true,
   status: 1,
 })
 
@@ -67,6 +69,11 @@ const form = reactive({
   // 商品既有圖片
   images: [],
 })
+
+// 是否使用商品規格
+// false = 無規格商品
+// true = 有規格商品
+const hasVariants = ref(false)
 
 // 規格設定
 const spec1Name = ref('')
@@ -119,6 +126,47 @@ const removeSpec2Value = (index) => {
 
   spec2Values.value.splice(index, 1)
   generateSkuList()
+}
+
+const changeVariantMode = (useVariants) => {
+  hasVariants.value = useVariants
+
+  if (!useVariants) {
+    // 切成無規格
+    const existingNoSpecSku = form.skus.find(
+      (sku) => !sku.spec1Name && !sku.spec1Value && !sku.spec2Name && !sku.spec2Value,
+    )
+
+    form.skus = [
+      {
+        skuId: existingNoSpecSku?.skuId ?? null,
+        spec1Name: null,
+        spec1Value: null,
+        spec2Name: null,
+        spec2Value: null,
+        price: form.basePrice,
+        stock: existingNoSpecSku?.stock ?? '',
+        enabled: true,
+        status: existingNoSpecSku?.status ?? 1,
+      },
+    ]
+
+    spec1Name.value = ''
+    spec1Values.value = ['']
+    hasSpec2.value = false
+    spec2Name.value = ''
+    spec2Values.value = ['']
+
+    return
+  }
+
+  // 切成有規格
+  form.skus = []
+  spec1Name.value = ''
+  spec1Values.value = ['']
+  hasSpec2.value = false
+  spec2Name.value = ''
+  spec2Values.value = ['']
 }
 
 // 自動產生 SKU
@@ -195,7 +243,6 @@ const handleImageSelect = (event) => {
     return
   }
 
-  // 清除之前建立的預覽 URL
   newImagePreviews.value.forEach((preview) => {
     URL.revokeObjectURL(preview.url)
   })
@@ -207,10 +254,20 @@ const handleImageSelect = (event) => {
     url: URL.createObjectURL(file),
   }))
 
-  // 上方大圖先預覽第一張
   imagePreviewUrl.value = newImagePreviews.value[0]?.url ?? ''
 
   selectedImageName.value = files.length === 1 ? files[0].name : `已選擇 ${files.length} 張圖片`
+
+  selectedNewImageIndex.value = 0
+
+  // 新增商品：預設第一張為主圖
+  // 編輯商品且已經有主圖：新圖片不要自動變主圖
+  // 編輯商品但完全沒有圖片：第一張預設當主圖
+  if (!isEditMode.value || form.images.length === 0) {
+    selectedNewMainIndex.value = 0
+  } else {
+    selectedNewMainIndex.value = null
+  }
 }
 
 const moveNewImage = (index, direction) => {
@@ -352,28 +409,34 @@ const toFormStatus = (status) => {
 }
 
 // 商品基本資料
-const buildProductPayload = () => ({
+const buildProductPayload = (status = null) => ({
   sellerId: sellerId.value,
   subcategoryId: Number(form.subcategoryId),
   brandId: Number(form.brandId),
   productName: form.productName.trim(),
   description: form.description.trim(),
   basePrice: Number(form.basePrice),
-  status: form.status === 'ACTIVE' ? 1 : 2,
-})
 
+  status: status !== null ? status : form.status === 'ACTIVE' ? 1 : 2,
+})
 // 建立商品使用
-const buildCreatePayload = () => ({
-  ...buildProductPayload(),
+const buildCreatePayload = (status = null) => ({
+  ...buildProductPayload(status),
 
   skus: form.skus
     .filter((sku) => sku.enabled)
     .map((sku) => ({
-      spec1Name: sku.spec1Name.trim(),
-      spec1Value: sku.spec1Value.trim(),
-      spec2Name: sku.spec2Name?.trim() || null,
-      spec2Value: sku.spec2Value?.trim() || null,
-      price: Number(sku.price),
+      spec1Name: hasVariants.value ? sku.spec1Name?.trim() || null : null,
+
+      spec1Value: hasVariants.value ? sku.spec1Value?.trim() || null : null,
+
+      spec2Name: hasVariants.value && hasSpec2.value ? sku.spec2Name?.trim() || null : null,
+
+      spec2Value: hasVariants.value && hasSpec2.value ? sku.spec2Value?.trim() || null : null,
+
+      // 無規格商品直接使用基本售價
+      price: hasVariants.value ? Number(sku.price) : Number(form.basePrice),
+
       stock: Number(sku.stock),
     })),
 
@@ -414,37 +477,77 @@ const fillProductForm = (product) => {
   // SKU
   const skus = product.skus ?? []
 
-  form.skus = skus.length
-    ? skus.map((sku) => ({
-        skuId: sku.skuId,
-        spec1Name: sku.spec1Name ?? '',
-        spec1Value: sku.spec1Value ?? '',
-        spec2Name: sku.spec2Name ?? null,
-        spec2Value: sku.spec2Value ?? null,
+  // 判斷是不是無規格商品：
+  // 只有一筆 SKU，而且所有規格欄位都是空的
+  const noVariantSku =
+    skus.length === 1 &&
+    !skus[0].spec1Name &&
+    !skus[0].spec1Value &&
+    !skus[0].spec2Name &&
+    !skus[0].spec2Value
 
-        enabled: (sku.status ?? 1) === 1,
+  if (noVariantSku) {
+    hasVariants.value = false
 
-        price: sku.price ?? '',
-        stock: sku.stock ?? '',
-        status: sku.status ?? 1,
-      }))
-    : []
+    form.skus = [
+      {
+        skuId: skus[0].skuId,
+        spec1Name: null,
+        spec1Value: null,
+        spec2Name: null,
+        spec2Value: null,
+        price: skus[0].price ?? product.basePrice ?? '',
+        stock: skus[0].stock ?? '',
+        enabled: (skus[0].status ?? 1) === 1,
+        status: skus[0].status ?? 1,
+      },
+    ]
 
-  if (skus.length === 0) {
     spec1Name.value = ''
     spec1Values.value = ['']
     hasSpec2.value = false
     spec2Name.value = ''
     spec2Values.value = ['']
+
     return
   }
 
-  // 還原規格一
+  // 沒有任何 SKU
+  if (skus.length === 0) {
+    hasVariants.value = false
+
+    form.skus = [createEmptySku()]
+
+    spec1Name.value = ''
+    spec1Values.value = ['']
+    hasSpec2.value = false
+    spec2Name.value = ''
+    spec2Values.value = ['']
+
+    return
+  }
+
+  // 有規格商品
+  hasVariants.value = true
+
+  form.skus = skus.map((sku) => ({
+    skuId: sku.skuId,
+    spec1Name: sku.spec1Name ?? '',
+    spec1Value: sku.spec1Value ?? '',
+    spec2Name: sku.spec2Name ?? null,
+    spec2Value: sku.spec2Value ?? null,
+    enabled: (sku.status ?? 1) === 1,
+    price: sku.price ?? '',
+    stock: sku.stock ?? '',
+    status: sku.status ?? 1,
+  }))
+
+  // 規格一
   spec1Name.value = skus[0].spec1Name ?? ''
 
   spec1Values.value = [...new Set(skus.map((sku) => sku.spec1Value).filter((value) => value))]
 
-  // 判斷是否有第二規格
+  // 是否有第二規格
   hasSpec2.value = skus.some((sku) => sku.spec2Name && sku.spec2Value)
 
   if (hasSpec2.value) {
@@ -495,12 +598,18 @@ const saveProductSkus = async () => {
   // ① 修改既有 SKU
   for (const sku of existingSkus) {
     await updateSellerProductSku(productId.value, sku.skuId, {
-      spec1Name: sku.spec1Name,
-      spec1Value: sku.spec1Value,
-      spec2Name: sku.spec2Name || null,
-      spec2Value: sku.spec2Value || null,
-      price: Number(sku.price),
+      spec1Name: hasVariants.value ? sku.spec1Name || null : null,
+
+      spec1Value: hasVariants.value ? sku.spec1Value || null : null,
+
+      spec2Name: hasVariants.value && hasSpec2.value ? sku.spec2Name || null : null,
+
+      spec2Value: hasVariants.value && hasSpec2.value ? sku.spec2Value || null : null,
+
+      price: hasVariants.value ? Number(sku.price) : Number(form.basePrice),
+
       stock: Number(sku.stock),
+
       status: 1,
     })
   }
@@ -509,12 +618,18 @@ const saveProductSkus = async () => {
   if (newSkus.length > 0) {
     await createSellerProductSkus(
       productId.value,
+
       newSkus.map((sku) => ({
-        spec1Name: sku.spec1Name,
-        spec1Value: sku.spec1Value,
-        spec2Name: sku.spec2Name || null,
-        spec2Value: sku.spec2Value || null,
-        price: Number(sku.price),
+        spec1Name: hasVariants.value ? sku.spec1Name || null : null,
+
+        spec1Value: hasVariants.value ? sku.spec1Value || null : null,
+
+        spec2Name: hasVariants.value && hasSpec2.value ? sku.spec2Name || null : null,
+
+        spec2Value: hasVariants.value && hasSpec2.value ? sku.spec2Value || null : null,
+
+        price: hasVariants.value ? Number(sku.price) : Number(form.basePrice),
+
         stock: Number(sku.stock),
       })),
     )
@@ -523,6 +638,69 @@ const saveProductSkus = async () => {
   // ③ 停用取消販售的 SKU
   for (const sku of disabledSkus) {
     await disableSellerProductSku(productId.value, sku.skuId)
+  }
+}
+const handleSaveDraft = async () => {
+  if (!sellerId.value) {
+    errorMessage.value = sellerRequiredMessage
+    return
+  }
+
+  if (!form.productName.trim()) {
+    errorMessage.value = '儲存草稿前請至少輸入商品名稱。'
+    return
+  }
+
+  if (!form.subcategoryId || !form.brandId) {
+    errorMessage.value = '請選擇商品分類與品牌。'
+    return
+  }
+
+  if (Number(form.basePrice) < 1) {
+    errorMessage.value = '商品價格不可小於 1 元。'
+    return
+  }
+
+  errorMessage.value = ''
+
+  try {
+    isSubmitting.value = true
+
+    if (isEditMode.value) {
+      // 編輯既有商品
+      await updateSellerProduct(productId.value, buildProductPayload(0))
+
+      await saveProductSkus()
+    } else {
+      // 建立草稿商品
+      const response = await createSellerProduct(buildCreatePayload(0))
+
+      const newProductId = response.data.productId
+
+      if (newProductId && selectedImageFiles.value.length > 0) {
+        const uploadResponse = await uploadSellerProductImages(
+          newProductId,
+          selectedImageFiles.value,
+        )
+
+        const uploadedImages = uploadResponse.data
+
+        if (selectedNewMainIndex.value !== null) {
+          const mainImage = uploadedImages[selectedNewMainIndex.value]
+
+          if (mainImage) {
+            await updateSellerProductMainImage(newProductId, mainImage.imageId)
+          }
+        }
+      }
+    }
+
+    router.push('/seller/products')
+  } catch (error) {
+    logSafeError('Save product draft failed:', error)
+    errorMessage.value = '儲存草稿失敗，請稍後再試。'
+  } finally {
+    isSubmitting.value = false
   }
 }
 
@@ -555,14 +733,27 @@ const handleSubmit = async () => {
   // 只驗證目前有勾選販售的 SKU
   const activeSkus = form.skus.filter((sku) => sku.enabled)
 
-  if (!isEditMode.value && activeSkus.length === 0) {
-    errorMessage.value = '新增商品至少需要一個販售規格。'
+  if (activeSkus.length === 0) {
+    errorMessage.value = '商品至少需要一筆可販售的庫存資料。'
     return
   }
 
-  if (activeSkus.some((sku) => Number(sku.price) < 1 || Number(sku.stock) < 0)) {
-    errorMessage.value = 'SKU 價格不可小於 1 元，庫存不可小於 0。'
-    return
+  // 無規格商品
+  if (!hasVariants.value) {
+    const sku = activeSkus[0]
+
+    if (sku.stock === '' || Number(sku.stock) < 0) {
+      errorMessage.value = '請輸入正確的商品庫存。'
+      return
+    }
+  }
+
+  // 有規格商品
+  if (hasVariants.value) {
+    if (activeSkus.some((sku) => Number(sku.price) < 1 || Number(sku.stock) < 0)) {
+      errorMessage.value = 'SKU 價格不可小於 1 元，庫存不可小於 0。'
+      return
+    }
   }
 
   errorMessage.value = ''
@@ -589,7 +780,22 @@ const handleSubmit = async () => {
       }
       // 上傳新選擇的商品圖片
       if (selectedImageFiles.value.length > 0) {
-        await uploadSellerProductImages(productId.value, selectedImageFiles.value)
+        const uploadResponse = await uploadSellerProductImages(
+          productId.value,
+          selectedImageFiles.value,
+        )
+
+        const uploadedImages = uploadResponse.data
+
+        // 使用者有指定新上傳圖片為主圖
+        if (selectedNewMainIndex.value !== null) {
+          const newMainImage = uploadedImages[selectedNewMainIndex.value]
+
+          if (newMainImage) {
+            await updateSellerProductMainImage(productId.value, newMainImage.imageId)
+          }
+        }
+
         newImagePreviews.value.forEach((preview) => {
           URL.revokeObjectURL(preview.url)
         })
@@ -598,6 +804,9 @@ const handleSubmit = async () => {
         newImagePreviews.value = []
         imagePreviewUrl.value = ''
         selectedImageName.value = ''
+
+        selectedNewMainIndex.value = null
+        selectedNewImageIndex.value = null
       }
     } else {
       // ① 先建立商品
@@ -727,9 +936,32 @@ onMounted(loadProduct)
           <div class="section-header">
             <h2>商品規格 SKU</h2>
           </div>
+          <div class="variant-mode">
+            <label class="variant-option">
+              <input type="radio" :checked="!hasVariants" @change="changeVariantMode(false)" />
+              無規格
+            </label>
+
+            <label class="variant-option">
+              <input type="radio" :checked="hasVariants" @change="changeVariantMode(true)" />
+              有規格
+            </label>
+          </div>
+          <!-- 無規格商品 -->
+          <div v-if="!hasVariants" class="spec-block">
+            <div class="spec-title">
+              <strong>商品庫存</strong>
+            </div>
+
+            <label class="form-field">
+              庫存數量
+
+              <input v-model="form.skus[0].stock" type="number" min="0" placeholder="請輸入庫存" />
+            </label>
+          </div>
 
           <!-- 規格一 -->
-          <div class="spec-block">
+          <div v-if="hasVariants" class="spec-block">
             <div class="spec-title">
               <strong>規格一</strong>
             </div>
@@ -767,12 +999,17 @@ onMounted(loadProduct)
           </div>
 
           <!-- 新增第二規格 -->
-          <button v-if="!hasSpec2" type="button" class="add-spec-button" @click="addSpec2">
+          <button
+            v-if="hasVariants && !hasSpec2"
+            type="button"
+            class="add-spec-button"
+            @click="addSpec2"
+          >
             ＋ 新增第二規格
           </button>
 
           <!-- 規格二 -->
-          <div v-if="hasSpec2" class="spec-block">
+          <div v-if="hasVariants && hasSpec2" class="spec-block">
             <div class="spec-title">
               <strong>規格二</strong>
 
@@ -812,7 +1049,7 @@ onMounted(loadProduct)
           </div>
 
           <!-- 自動產生 SKU 組合 -->
-          <div v-if="form.skus.length > 0" class="sku-combination-section">
+          <div v-if="hasVariants && form.skus.length > 0" class="sku-combination-section">
             <h3>規格組合</h3>
 
             <div class="sku-table-wrapper">
@@ -1037,7 +1274,14 @@ onMounted(loadProduct)
         </section>
 
         <div class="form-actions side-actions">
-          <button type="button">儲存草稿</button>
+          <button
+            v-if="!isEditMode"
+            type="button"
+            :disabled="isSubmitting"
+            @click="handleSaveDraft"
+          >
+            {{ isSubmitting ? '儲存中...' : '儲存草稿' }}
+          </button>
           <button
             class="primary-button"
             type="button"
@@ -1531,5 +1775,32 @@ button {
   .form-actions button {
     width: 100%;
   }
+}
+.variant-mode {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.variant-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.variant-option input[type='radio'] {
+  width: 16px;
+  height: 16px;
+  min-height: auto;
+  margin: 0;
+}
+
+.no-spec-hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
 }
 </style>

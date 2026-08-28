@@ -176,8 +176,21 @@ const spec2Values = computed(() => {
  * 目前選中的 SKU
  */
 const selectedSku = computed(() => {
-  if (!product.value?.skus?.length) {
+  const skus = product.value?.skus ?? []
+
+  if (skus.length === 0) {
     return null
+  }
+
+  // =========================
+  // 無規格商品
+  // =========================
+  const noVariantSku = skus.find(
+    (sku) => !sku.spec1Name && !sku.spec1Value && !sku.spec2Name && !sku.spec2Value,
+  )
+
+  if (noVariantSku) {
+    return noVariantSku
   }
 
   // =========================
@@ -185,7 +198,7 @@ const selectedSku = computed(() => {
   // =========================
   if (hasSpec2.value) {
     return (
-      product.value.skus.find(
+      skus.find(
         (sku) => sku.spec1Value === selectedSpec1.value && sku.spec2Value === selectedSpec2.value,
       ) || null
     )
@@ -194,7 +207,7 @@ const selectedSku = computed(() => {
   // =========================
   // 單規格商品
   // =========================
-  return product.value.skus.find((sku) => sku.spec1Value === selectedSpec1.value) || null
+  return skus.find((sku) => sku.spec1Value === selectedSpec1.value) || null
 })
 
 /**
@@ -217,7 +230,11 @@ const selectSpec1 = (value) => {
 
   selectedSpec2.value = firstMatchingSku?.spec2Value || ''
 }
+const hasVariants = computed(() => {
+  const skus = product.value?.skus ?? []
 
+  return skus.some((sku) => sku.spec1Name || sku.spec1Value || sku.spec2Name || sku.spec2Value)
+})
 /**
  * 點擊規格二
  */

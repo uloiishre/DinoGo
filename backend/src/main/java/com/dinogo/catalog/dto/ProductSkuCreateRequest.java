@@ -13,10 +13,8 @@ import lombok.Setter;
 @Setter
 public class ProductSkuCreateRequest {
 
-    @NotBlank
     private String spec1Name;
 
-    @NotBlank
     private String spec1Value;
 
     private String spec2Name;
