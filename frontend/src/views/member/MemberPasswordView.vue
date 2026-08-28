@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { changePassword } from '@/api/member'
 import { useAuthStore } from '@/stores/auth'
+import { isPasswordWithinUtf8ByteLimit } from '@/utils/password'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -17,7 +18,9 @@ const submitted = ref(false)
 
 const hasMinimumLength = computed(() => form.value.newPassword.length >= 8)
 const isWithinMaximumLength = computed(
-  () => form.value.newPassword.length <= 72 && form.value.confirmNewPassword.length <= 72,
+  () =>
+    isPasswordWithinUtf8ByteLimit(form.value.newPassword) &&
+    isPasswordWithinUtf8ByteLimit(form.value.confirmNewPassword),
 )
 const hasEnglishAndNumber = computed(
   () => /[A-Za-z]/.test(form.value.newPassword) && /\d/.test(form.value.newPassword),
@@ -148,6 +151,10 @@ async function savePassword() {
             <li :class="{ 'is-satisfied': hasEnglishAndNumber }">
               <i class="bi" :class="hasEnglishAndNumber ? 'bi-check-circle-fill' : 'bi-circle'" aria-hidden="true"></i>
               <span>包含英文與數字</span>
+            </li>
+            <li :class="{ 'is-satisfied': isWithinMaximumLength }">
+              <i class="bi" :class="isWithinMaximumLength ? 'bi-check-circle-fill' : 'bi-circle'" aria-hidden="true"></i>
+              <span>最多 72 個 UTF-8 位元組</span>
             </li>
             <li :class="{ 'is-satisfied': isDifferentFromCurrent }">
               <i class="bi" :class="isDifferentFromCurrent ? 'bi-check-circle-fill' : 'bi-circle'" aria-hidden="true"></i>

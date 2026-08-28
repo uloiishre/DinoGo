@@ -47,14 +47,15 @@ public class AddressService {
     /** 建立地址；第一筆地址一定會成為預設地址。 */
     @Transactional
     public AddressResponse createAddress(Integer memberId, AddressRequest request) {
-        Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new IllegalArgumentException("Member not found"));
+        Member member = lockMemberForAddressWrite(memberId);
 
         // 使用者指定新預設地址時，先取消目前的預設地址。
         boolean isFirstAddress = !addressRepository.existsByMemberMemberId(memberId);
         boolean wantsDefault = Boolean.TRUE.equals(request.isDefault());
         if (wantsDefault) {
             clearDefaultAddresses(memberId, null);
+            // SQL Server 的 filtered unique index 要先看見舊預設已取消。
+            addressRepository.flush();
         }
 
         // 將 request 欄位寫入新 Entity。
@@ -69,6 +70,7 @@ public class AddressService {
     /** 修改地址；取消預設時會將另一筆地址設為新預設。 */
     @Transactional
     public AddressResponse updateAddress(Integer memberId, Integer addressId, AddressRequest request) {
+        lockMemberForAddressWrite(memberId);
         Address address = findOwnedAddress(memberId, addressId);
         boolean wasDefault = Boolean.TRUE.equals(address.getIsDefault());
         Boolean requestedDefault = request.isDefault();
@@ -76,6 +78,8 @@ public class AddressService {
         // 設定新預設地址時，取消其他地址的預設狀態。
         if (Boolean.TRUE.equals(requestedDefault)) {
             clearDefaultAddresses(memberId, addressId);
+            // 在將此地址設為預設前，先寫入其他地址的 false。
+            addressRepository.flush();
         }
 
         // 更新一般地址欄位。
@@ -88,8 +92,12 @@ public class AddressService {
             // 唯一預設被取消時，優先把其他第一筆設為預設；沒有其他地址則保留原預設。
             if (wasDefault
                     && !requestedDefault
-                    && !promoteAnotherDefaultAddress(memberId, addressId)) {
+                    && !hasAnotherAddress(memberId, addressId)) {
                 address.setIsDefault(true);
+            } else if (wasDefault && !requestedDefault) {
+                // 先取消目前預設並寫入，再提升另一筆，避免 unique index 2601。
+                addressRepository.flush();
+                promoteAnotherDefaultAddress(memberId, addressId);
             }
         }
 
@@ -99,6 +107,7 @@ public class AddressService {
     /** 刪除地址；已被歷史訂單引用時轉成可辨識的業務例外。 */
     @Transactional
     public void deleteAddress(Integer memberId, Integer addressId) {
+        lockMemberForAddressWrite(memberId);
         Address address = findOwnedAddress(memberId, addressId);
         boolean wasDefault = Boolean.TRUE.equals(address.getIsDefault());
 
@@ -147,6 +156,19 @@ public class AddressService {
                     return true;
                 })
                 .orElse(false);
+    }
+
+    /** Locks the member row so one member's address writes cannot race on the default-address index. */
+    private Member lockMemberForAddressWrite(Integer memberId) {
+        return memberRepository.findByIdForAddressWrite(memberId)
+                .orElseThrow(() -> new IllegalArgumentException("Member not found"));
+    }
+
+    private boolean hasAnotherAddress(Integer memberId, Integer excludedAddressId) {
+        return addressRepository
+                .findByMemberMemberIdOrderByIsDefaultDescAddressIdAsc(memberId)
+                .stream()
+                .anyMatch(address -> !excludedAddressId.equals(address.getAddressId()));
     }
 
     /** 將 request 中可編輯的欄位套用到 Address Entity。 */

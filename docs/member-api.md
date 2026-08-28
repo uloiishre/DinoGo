@@ -93,8 +93,8 @@ Request：
 | 欄位 | 必填 | 規則 |
 | --- | --- | --- |
 | `email` | 是 | Email 格式，最長 100 字 |
-| `password` | 是 | 8～72 字 |
-| `confirmPassword` | 是 | 8～72 字，且必須與 `password` 相同 |
+| `password` | 是 | 至少 8 字元、須包含英文與數字、最多 72 個 UTF-8 位元組 |
+| `confirmPassword` | 是 | 至少 8 字元、須包含英文與數字、最多 72 個 UTF-8 位元組，且必須與 `password` 相同 |
 | `lastName` | 是 | 最長 50 字 |
 | `firstName` | 是 | 最長 50 字 |
 | `birthDate` | 否 | `YYYY-MM-DD` |
@@ -253,8 +253,8 @@ Request：
 | 欄位 | 必填 | 規則 |
 | --- | --- | --- |
 | `token` | 是 | Email 重設連結提供的 token。 |
-| `newPassword` | 是 | 8～72 字。 |
-| `confirmNewPassword` | 是 | 8～72 字，且必須與 `newPassword` 相同。 |
+| `newPassword` | 是 | 至少 8 字元、須包含英文與數字、最多 72 個 UTF-8 位元組。 |
+| `confirmNewPassword` | 是 | 至少 8 字元、須包含英文與數字、最多 72 個 UTF-8 位元組，且必須與 `newPassword` 相同。 |
 
 成功：`204 No Content`。成功後該會員所有既有 JWT 及所有先前重設連結均立即失效。
 
@@ -344,8 +344,8 @@ Request：
 | 欄位 | 必填 | 規則 |
 | --- | --- | --- |
 | `currentPassword` | 是 | 不可空白 |
-| `newPassword` | 是 | 8～72 字 |
-| `confirmNewPassword` | 是 | 8～72 字，且必須與 `newPassword` 相同 |
+| `newPassword` | 是 | 至少 8 字元、須包含英文與數字、最多 72 個 UTF-8 位元組，且不可與目前密碼相同 |
+| `confirmNewPassword` | 是 | 至少 8 字元、須包含英文與數字、最多 72 個 UTF-8 位元組，且必須與 `newPassword` 相同 |
 
 成功：`204 No Content`。成功後系統會讓該會員全部裝置上的既有 JWT 立即失效，前端應清除目前保存的 token 並導回登入頁。
 
@@ -374,8 +374,8 @@ Request：
 | `receiverName` | 是 | 最長 100 字 |
 | `receiverPhone` | 是 | 最長 20 字 |
 | `postalCode` | 否 | 最長 10 字 |
-| `city` | 是 | 最長 50 字 |
-| `district` | 是 | 最長 50 字 |
+| `city` | 是 | 最長 10 字 |
+| `district` | 是 | 最長 10 字 |
 | `detailAddress` | 是 | 最長 255 字 |
 | `isDefault` | 否 | `true`、`false` 或省略 |
 
