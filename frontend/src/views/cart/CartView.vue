@@ -37,6 +37,14 @@ const isSkuAvailable = (sku) => {
   return Number(sku.status) === 1
 }
 // ================================
+// 判斷商品是否有規格
+// ================================
+const hasSkuOptions = (item) => {
+  return item.skus?.some(
+    (sku) => sku.skuName !== null && sku.skuName !== undefined && sku.skuName !== '',
+  )
+}
+// ================================
 // 取得購物車
 // ================================
 const fetchCart = async () => {
@@ -880,7 +888,7 @@ onMounted(() => {
                 </div>
                 <!-- SKU -->
 
-                <div class="item-sku-select">
+                <div v-if="item.skus?.some((sku) => sku.skuName)" class="item-sku-select">
                   <label class="sku-label">規格</label>
 
                   <select
@@ -898,8 +906,8 @@ onMounted(() => {
                       "
                     >
                       {{ sku.skuName }}
-                      <template v-if="!isSkuAvailable(sku)"> （停用） </template>
-                      <template v-else-if="Number(sku.stock) <= 0"> （缺貨） </template>
+                      <template v-if="!isSkuAvailable(sku)">（停用）</template>
+                      <template v-else-if="Number(sku.stock) <= 0">（缺貨）</template>
                     </option>
                   </select>
 
@@ -966,9 +974,7 @@ onMounted(() => {
                 <div class="item-total">
                   <span class="item-total-label">小計</span>
 
-                  <strong>
-                    {{ formatPrice(getItemSubtotal(item)) }}
-                  </strong>
+                  <strong> NT$ {{ formatPrice(getItemSubtotal(item)) }} </strong>
 
                   <span
                     v-if="!isItemAvailable(item) && item.stock !== null"
@@ -1067,8 +1073,8 @@ onMounted(() => {
 
                 <!-- SKU -->
 
-                <div class="item-sku-select">
-                  <label class="sku-label"> 規格 </label>
+                <div v-if="hasSkuOptions(item)" class="item-sku-select">
+                  <label class="sku-label">規格</label>
 
                   <select :value="item.skuId" disabled>
                     <option v-for="sku in item.skus" :key="sku.skuId" :value="sku.skuId">
