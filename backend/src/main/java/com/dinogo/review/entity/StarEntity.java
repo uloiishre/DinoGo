@@ -115,7 +115,7 @@ public class StarEntity {
     @Column(name = "five_star")
     private Integer fiveStar;
 
-    // SQL Server computed column：依 feedback 與 img_one 計算 0～2，JPA 僅讀取。
+    // 產品明細排序用：feedback 與三張評論圖片任一張計算 0～2，JPA 僅讀取。
     @Generated(event = {EventType.INSERT, EventType.UPDATE})
     @JdbcTypeCode(Types.TINYINT)
     @Column(name = "review_priority", insertable = false, updatable = false)
