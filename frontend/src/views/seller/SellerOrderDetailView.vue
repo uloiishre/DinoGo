@@ -97,9 +97,9 @@ const canCreateShipment = computed(
 const nextTcatEvent = computed(() => {
   if (order.value?.shipment?.status !== 'SHIPPED') return null
   const previous = shipmentEvents.value.at(-1)?.eventType
-  if (previous === 'HANDED_OVER') return { type: 'IN_TRANSIT', label: '模擬運送中' }
-  if (previous === 'IN_TRANSIT') return { type: 'OUT_FOR_DELIVERY', label: '模擬配送中' }
-  if (previous === 'OUT_FOR_DELIVERY') return { type: 'DELIVERED', label: '模擬已送達' }
+  if (previous === 'HANDED_OVER') return { type: 'IN_TRANSIT', label: '運送中' }
+  if (previous === 'IN_TRANSIT') return { type: 'OUT_FOR_DELIVERY', label: '配送中' }
+  if (previous === 'OUT_FOR_DELIVERY') return { type: 'DELIVERED', label: '已送達' }
   return null
 })
 const { shipmentAction, shipmentActionError, updatingShipment, updateShipmentStatus } =
