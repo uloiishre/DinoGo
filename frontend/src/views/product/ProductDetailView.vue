@@ -5,7 +5,7 @@ import api from '@/api/axios'
 import { logSafeError } from '@/utils/safeError'
 import { getImageUrl } from '@/utils/imageUrl'
 import { useAuthStore } from '@/stores/auth'
-
+import { useCartStore } from '@/stores/cart'
 const route = useRoute()
 const router = useRouter()
 const product = ref(null)
@@ -20,6 +20,7 @@ const isFavorite = ref(false)
 const favoriteLoading = ref(false)
 const favoriteMessage = ref('')
 const authStore = useAuthStore()
+const cartStore = useCartStore()
 const seller = ref(null)
 const sellerLoading = ref(false)
 const sellerCoupons = ref([])
@@ -230,6 +231,9 @@ const addToCart = async () => {
       quantity: quantity.value,
     })
 
+    // 同步更新 Header 購物車數量
+    await cartStore.fetchCart()
+
     // 只加入購物車，不跳頁
     cartMessage.value = '已加入購物車！'
   } catch (error) {
@@ -266,7 +270,9 @@ const buyNow = async () => {
       quantity: quantity.value,
     })
 
-    // 取得剛加入購物車的 cartItemId
+    // 同步更新 Header
+    await cartStore.fetchCart()
+
     const cartItemId = response.data?.cartItemId
 
     if (cartItemId) {
