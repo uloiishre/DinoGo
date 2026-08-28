@@ -1,23 +1,20 @@
 package com.dinogo.seller.service;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import com.dinogo.seller.dto.SellerProfileRequest;
 import com.dinogo.seller.dto.SellerProfileResponse;
 import com.dinogo.seller.entity.Seller;
 import com.dinogo.seller.repository.SellerRepository;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.UUID;
-
-import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class SellerProfileService {
@@ -25,9 +22,11 @@ public class SellerProfileService {
     private static final long MAX_LOGO_SIZE_BYTES = 5 * 1024 * 1024;
 
     private final SellerRepository sellerRepository;
+    private final Cloudinary cloudinary;
 
-    public SellerProfileService(SellerRepository sellerRepository) {
+    public SellerProfileService(SellerRepository sellerRepository, Cloudinary cloudinary) {
         this.sellerRepository = sellerRepository;
+        this.cloudinary = cloudinary;
     }
 
     @Transactional(readOnly = true)
@@ -97,29 +96,19 @@ public class SellerProfileService {
         Seller seller = sellerRepository.findByMember_MemberId(memberId)
                 .orElseThrow(() -> new IllegalArgumentException("Seller not found."));
 
-        String extension = "";
-
-        if (originalFilename != null && originalFilename.contains(".")) {
-            extension = originalFilename.substring(originalFilename.lastIndexOf("."));
-        }
-
-        String filename = "seller-" + seller.getSellerId() + "-" + UUID.randomUUID() + extension;
-
-        Path uploadDir = Path.of("uploads", "seller-logos");
-        Path targetPath = uploadDir.resolve(filename);
-
         try {
-            Files.createDirectories(uploadDir);
-            Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
+            Map<?, ?> uploadResult = cloudinary.uploader().upload(
+                    file.getBytes(),
+                    ObjectUtils.asMap(
+                            "folder", "dinogo/seller-logos",
+                            "resource_type", "image"));
+
+            String logoUrl = uploadResult.get("secure_url").toString();
+            seller.setStoreLogoUrl(logoUrl);
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to upload seller logo.", exception);
         }
 
-        String logoUrl = "/uploads/seller-logos/" + filename;
-        System.out.println("UPLOAD DIR = " + uploadDir.toAbsolutePath());
-        System.out.println("TARGET PATH = " + targetPath.toAbsolutePath());
-
-        seller.setStoreLogoUrl(logoUrl);
         seller.setUpdatedAt(LocalDateTime.now());
 
         return SellerProfileResponse.from(sellerRepository.save(seller));

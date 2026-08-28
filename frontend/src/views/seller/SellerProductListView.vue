@@ -240,6 +240,62 @@ onMounted(loadProducts)
     </section>
 
     <Teleport to="body">
+      <div v-if="pendingStatusProduct" class="modal-backdrop" @click.self="closeStatusDialog">
+        <section
+          class="status-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="status-modal-title"
+        >
+          <div
+            class="modal-icon"
+            :class="pendingStatusProduct.status === 'ACTIVE' ? 'is-danger' : 'is-primary'"
+          >
+            <i
+              class="bi"
+              :class="pendingStatusProduct.status === 'ACTIVE' ? 'bi-box-arrow-down' : 'bi-shop'"
+              aria-hidden="true"
+            ></i>
+          </div>
+
+          <div class="modal-copy">
+            <h2 id="status-modal-title">{{ statusDialogTitle(pendingStatusProduct) }}</h2>
+
+            <p>
+              確定要{{ statusActionLabel(pendingStatusProduct.status) }}「{{
+                pendingStatusProduct.productName
+              }}」嗎？
+              {{ statusDialogDescription(pendingStatusProduct) }}
+            </p>
+          </div>
+
+          <div class="modal-actions">
+            <button
+              class="confirm-action"
+              :class="pendingStatusProduct.status === 'ACTIVE' ? 'is-danger' : 'is-primary'"
+              type="button"
+              :disabled="isChangingStatus"
+              @click="confirmStatusChange"
+            >
+              {{
+                isChangingStatus
+                  ? `${statusActionLabel(pendingStatusProduct.status)}中...`
+                  : `確認${statusActionLabel(pendingStatusProduct.status)}`
+              }}
+            </button>
+
+            <button
+              class="ghost-action"
+              type="button"
+              :disabled="isChangingStatus"
+              @click="closeStatusDialog"
+            >
+              取消
+            </button>
+          </div>
+        </section>
+      </div>
+
       <div v-if="pendingDeleteProduct" class="modal-backdrop" @click.self="closeDeleteDialog">
         <section
           class="status-modal"

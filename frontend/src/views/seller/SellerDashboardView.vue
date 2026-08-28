@@ -1,5 +1,9 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import flatpickr from 'flatpickr'
+import { MandarinTraditional } from 'flatpickr/dist/l10n/zh-tw'
+import 'flatpickr/dist/flatpickr.css'
+import '@/assets/styles/seller-flatpickr.css'
 import { Line } from 'vue-chartjs'
 import {
   CategoryScale,
@@ -38,6 +42,7 @@ const chartPalette = ref({
   surface: '#ffffff',
 })
 let dashboardRefreshTimer = null
+let dashboardDatePicker = null
 
 async function loadDashboardData() {
   try {
@@ -408,7 +413,7 @@ function toggleTrendKey(key) {
 }
 
 function openDatePicker() {
-  dateInput.value?.showPicker?.()
+  dashboardDatePicker?.open()
   dateInput.value?.focus()
 }
 
@@ -552,8 +557,34 @@ function toAlpha(color, alpha) {
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`
 }
 
+function initializeDashboardDatePicker() {
+  if (!dateInput.value) return
+
+  dashboardDatePicker = flatpickr(dateInput.value, {
+    altInput: true,
+    altInputClass: 'seller-flatpickr-input seller-dashboard-date-input',
+    altFormat: 'Y/m/d',
+    allowInput: false,
+    dateFormat: 'Y-m-d',
+    defaultDate: selectedDate.value,
+    disableMobile: true,
+    locale: MandarinTraditional,
+    monthSelectorType: 'dropdown',
+    onChange: (_, dateString) => {
+      selectedDate.value = dateString
+    },
+    onReady: (_, __, instance) => {
+      instance.calendarContainer.classList.add(
+        'seller-module-flatpickr',
+        'seller-dashboard-date-calendar',
+      )
+    },
+  })
+}
+
 onMounted(() => {
   loadChartPalette()
+  initializeDashboardDatePicker()
   loadDashboardData()
   dashboardRefreshTimer = window.setInterval(loadDashboardData, 5 * 60 * 1000)
 })
@@ -562,15 +593,25 @@ onUnmounted(() => {
   if (dashboardRefreshTimer) {
     window.clearInterval(dashboardRefreshTimer)
   }
+  dashboardDatePicker?.destroy()
+  dashboardDatePicker = null
 })
 </script>
 
 <template>
   <section class="seller-dashboard">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">賣家中心</p>
+        <h1>營運總覽</h1>
+        <p class="page-description">追蹤關鍵營運指標、銷售趨勢與商品表現。</p>
+      </div>
+    </header>
+
     <section class="filter-bar">
       <label class="date-filter" @click="openDatePicker">
         選擇日期
-        <input ref="dateInput" v-model="selectedDate" type="date" aria-label="選擇營運資料日期" />
+        <input ref="dateInput" v-model="selectedDate" type="text" aria-label="選擇營運資料日期" />
       </label>
       <button class="export-link" type="button" @click="exportDashboardCsv">
         <i class="bi bi-download" aria-hidden="true"></i>
@@ -693,8 +734,37 @@ onUnmounted(() => {
 <style scoped>
 .seller-dashboard {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-5);
   width: min(100%, 1480px);
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.eyebrow,
+.page-description {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.eyebrow {
+  margin: 0 0 var(--space-1);
+}
+
+.page-description {
+  margin: var(--space-1) 0 0;
+}
+
+.page-header h1 {
+  margin: 0;
+  color: var(--color-text-900);
+  font-family: var(--font-heading);
+  font-size: var(--font-size-xl);
+  font-weight: 700;
 }
 
 .filter-bar,
