@@ -2,6 +2,7 @@
 import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/api/axios'
+import { getImageUrl } from '@/utils/imageUrl'
 
 const route = useRoute()
 const router = useRouter()
@@ -42,16 +43,6 @@ const goToStore = (sellerId) => {
 onMounted(() => {
   fetchStores()
 })
-const getStoreLogoUrl = (url) => {
-  if (!url) return ''
-
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url
-  }
-
-  return `http://localhost:8080${url}`
-}
-
 watch(
   () => route.query.keyword,
   () => {
@@ -86,7 +77,7 @@ watch(
           <div class="store-logo-wrapper">
             <img
               v-if="store.storeLogoUrl"
-              :src="getStoreLogoUrl(store.storeLogoUrl)"
+              :src="getImageUrl(store.storeLogoUrl)"
               :alt="store.storeName"
               class="store-logo"
             />
