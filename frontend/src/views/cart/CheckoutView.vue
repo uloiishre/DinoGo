@@ -23,13 +23,6 @@ const submitting = ref(false)
 const couponLoading = ref(false)
 const errorMessage = ref('')
 const couponErrorMessage = ref('')
-const hasSkuOptions = (item) => {
-  if (!item?.skus?.length) {
-    return false
-  }
-
-  return item.skus.some((sku) => sku.spec1Name || sku.spec1Value || sku.spec2Name || sku.spec2Value)
-}
 // ========================================
 // 商品購買狀態
 // ========================================
