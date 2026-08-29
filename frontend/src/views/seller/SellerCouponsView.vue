@@ -3,15 +3,6 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import flatpickr from 'flatpickr'
 import { MandarinTraditional } from 'flatpickr/dist/l10n/zh-tw'
 import { Line } from 'vue-chartjs'
-import {
-  CategoryScale,
-  Chart as ChartJS,
-  Filler,
-  LinearScale,
-  LineElement,
-  PointElement,
-  Tooltip,
-} from 'chart.js'
 import 'flatpickr/dist/flatpickr.css'
 import '@/assets/styles/seller-flatpickr.css'
 import {
@@ -23,8 +14,15 @@ import {
 import { getSellerProducts } from '@/api/sellerProductApi'
 import { getSellerOrders } from '@/api/sellerOrderApi'
 import { getCurrentSellerId } from '@/utils/seller-session'
+import {
+  createSellerChartPalette,
+  createSellerLineChartOptions,
+  createSellerLineDataset,
+  formatFullDateLabel,
+  registerSellerLineChart,
+} from './useSellerLineChart'
 
-ChartJS.register(CategoryScale, Filler, LinearScale, LineElement, PointElement, Tooltip)
+registerSellerLineChart()
 
 const sellerId = computed(() => getCurrentSellerId())
 const selectedStatus = ref('ALL')
@@ -45,6 +43,7 @@ const performanceStartDate = ref('')
 const performanceEndDate = ref('')
 const performanceStartInput = ref(null)
 const performanceEndInput = ref(null)
+const chartPalette = ref(createSellerChartPalette())
 let performanceStartPicker = null
 let performanceEndPicker = null
 const isProductPickerOpen = ref(false)
@@ -74,16 +73,156 @@ const couponForm = reactive({
 })
 
 const fallbackCoupons = [
-  { couponId: 1, couponCode: 'AUG25-120', couponName: '八月新品滿額折抵', type: '賣場優惠券', productScope: '所有商品', discountType: 'AMOUNT', discountValue: 120, minPurchaseAmount: 999, startAt: '2026-08-25T10:00:00', endAt: '2026-09-08T23:59:00', limitCount: 300, usedCount: 18, status: 'ACTIVE' },
-  { couponId: 2, couponCode: 'SUMMER88', couponName: '夏末精選 88 折', type: '商品優惠券', productId: 101, discountType: 'PERCENT', discountValue: 12, minPurchaseAmount: 1500, startAt: '2026-08-28T12:00:00', endAt: '2026-09-15T23:59:00', limitCount: 180, usedCount: 7, status: 'ACTIVE' },
-  { couponId: 3, couponCode: 'HOME500', couponName: '居家大物折五百', type: '賣場優惠券', productScope: '所有商品', discountType: 'AMOUNT', discountValue: 500, minPurchaseAmount: 5000, startAt: '2026-09-01T09:00:00', endAt: '2026-09-30T23:59:00', limitCount: 80, usedCount: 2, status: 'ACTIVE' },
-  { couponId: 4, couponCode: 'SNACK95', couponName: '零食補貨 95 折', type: '商品優惠券', productId: 102, discountType: 'PERCENT', discountValue: 5, minPurchaseAmount: 699, startAt: '2026-09-03T08:00:00', endAt: '2026-09-10T23:59:00', limitCount: 500, usedCount: 46, status: 'ACTIVE' },
-  { couponId: 5, couponCode: 'VIP900', couponName: 'VIP 專屬折抵 900', type: '賣場優惠券', productScope: '所有商品', discountType: 'AMOUNT', discountValue: 900, minPurchaseAmount: 8000, startAt: '2026-09-06T00:00:00', endAt: '2026-10-06T23:59:00', limitCount: 50, usedCount: 4, status: 'ACTIVE' },
-  { couponId: 6, couponCode: 'MIDSEP92', couponName: '九月中旬會員 92 折', type: '賣場優惠券', productScope: '所有商品', discountType: 'PERCENT', discountValue: 8, minPurchaseAmount: 2200, startAt: '2026-09-12T10:30:00', endAt: '2026-09-22T23:59:00', limitCount: 220, usedCount: 0, status: 'DRAFT' },
-  { couponId: 7, couponCode: 'FALL250', couponName: '初秋選物折 250', type: '賣場優惠券', productScope: '所有商品', discountType: 'AMOUNT', discountValue: 250, minPurchaseAmount: 1800, startAt: '2026-09-20T11:00:00', endAt: '2026-10-12T23:59:00', limitCount: 160, usedCount: 0, status: 'DRAFT' },
-  { couponId: 8, couponCode: 'SELECT85', couponName: '精選商品 85 折', type: '商品優惠券', productId: 103, discountType: 'PERCENT', discountValue: 15, minPurchaseAmount: 1200, startAt: '2026-09-26T14:00:00', endAt: '2026-10-20T23:59:00', limitCount: 90, usedCount: 0, status: 'ACTIVE' },
-  { couponId: 9, couponCode: 'FLASH80', couponName: '限時快閃折 80', type: '商品優惠券', productId: 104, discountType: 'AMOUNT', discountValue: 80, minPurchaseAmount: 599, startAt: '2026-08-20T10:00:00', endAt: '2026-08-31T23:59:00', limitCount: 1000, usedCount: 132, status: 'DISABLED' },
-  { couponId: 10, couponCode: 'SEASON90', couponName: '換季結清 9 折', type: '賣場優惠券', productScope: '換季商品', discountType: 'PERCENT', discountValue: 10, minPurchaseAmount: 1000, startAt: '2026-07-15T09:00:00', endAt: '2026-08-15T23:59:00', limitCount: 120, usedCount: 120, status: 'EXPIRED' },
+  {
+    couponId: 1,
+    couponCode: 'AUG25-120',
+    couponName: '八月新品滿額折抵',
+    type: '賣場優惠券',
+    productScope: '所有商品',
+    discountType: 'AMOUNT',
+    discountValue: 120,
+    minPurchaseAmount: 999,
+    startAt: '2026-08-25T10:00:00',
+    endAt: '2026-09-08T23:59:00',
+    limitCount: 300,
+    usedCount: 18,
+    status: 'ACTIVE',
+  },
+  {
+    couponId: 2,
+    couponCode: 'SUMMER88',
+    couponName: '夏末精選 88 折',
+    type: '商品優惠券',
+    productId: 101,
+    discountType: 'PERCENT',
+    discountValue: 12,
+    minPurchaseAmount: 1500,
+    startAt: '2026-08-28T12:00:00',
+    endAt: '2026-09-15T23:59:00',
+    limitCount: 180,
+    usedCount: 7,
+    status: 'ACTIVE',
+  },
+  {
+    couponId: 3,
+    couponCode: 'HOME500',
+    couponName: '居家大物折五百',
+    type: '賣場優惠券',
+    productScope: '所有商品',
+    discountType: 'AMOUNT',
+    discountValue: 500,
+    minPurchaseAmount: 5000,
+    startAt: '2026-09-01T09:00:00',
+    endAt: '2026-09-30T23:59:00',
+    limitCount: 80,
+    usedCount: 2,
+    status: 'ACTIVE',
+  },
+  {
+    couponId: 4,
+    couponCode: 'SNACK95',
+    couponName: '零食補貨 95 折',
+    type: '商品優惠券',
+    productId: 102,
+    discountType: 'PERCENT',
+    discountValue: 5,
+    minPurchaseAmount: 699,
+    startAt: '2026-09-03T08:00:00',
+    endAt: '2026-09-10T23:59:00',
+    limitCount: 500,
+    usedCount: 46,
+    status: 'ACTIVE',
+  },
+  {
+    couponId: 5,
+    couponCode: 'VIP900',
+    couponName: 'VIP 專屬折抵 900',
+    type: '賣場優惠券',
+    productScope: '所有商品',
+    discountType: 'AMOUNT',
+    discountValue: 900,
+    minPurchaseAmount: 8000,
+    startAt: '2026-09-06T00:00:00',
+    endAt: '2026-10-06T23:59:00',
+    limitCount: 50,
+    usedCount: 4,
+    status: 'ACTIVE',
+  },
+  {
+    couponId: 6,
+    couponCode: 'MIDSEP92',
+    couponName: '九月中旬會員 92 折',
+    type: '賣場優惠券',
+    productScope: '所有商品',
+    discountType: 'PERCENT',
+    discountValue: 8,
+    minPurchaseAmount: 2200,
+    startAt: '2026-09-12T10:30:00',
+    endAt: '2026-09-22T23:59:00',
+    limitCount: 220,
+    usedCount: 0,
+    status: 'DRAFT',
+  },
+  {
+    couponId: 7,
+    couponCode: 'FALL250',
+    couponName: '初秋選物折 250',
+    type: '賣場優惠券',
+    productScope: '所有商品',
+    discountType: 'AMOUNT',
+    discountValue: 250,
+    minPurchaseAmount: 1800,
+    startAt: '2026-09-20T11:00:00',
+    endAt: '2026-10-12T23:59:00',
+    limitCount: 160,
+    usedCount: 0,
+    status: 'DRAFT',
+  },
+  {
+    couponId: 8,
+    couponCode: 'SELECT85',
+    couponName: '精選商品 85 折',
+    type: '商品優惠券',
+    productId: 103,
+    discountType: 'PERCENT',
+    discountValue: 15,
+    minPurchaseAmount: 1200,
+    startAt: '2026-09-26T14:00:00',
+    endAt: '2026-10-20T23:59:00',
+    limitCount: 90,
+    usedCount: 0,
+    status: 'ACTIVE',
+  },
+  {
+    couponId: 9,
+    couponCode: 'FLASH80',
+    couponName: '限時快閃折 80',
+    type: '商品優惠券',
+    productId: 104,
+    discountType: 'AMOUNT',
+    discountValue: 80,
+    minPurchaseAmount: 599,
+    startAt: '2026-08-20T10:00:00',
+    endAt: '2026-08-31T23:59:00',
+    limitCount: 1000,
+    usedCount: 132,
+    status: 'DISABLED',
+  },
+  {
+    couponId: 10,
+    couponCode: 'SEASON90',
+    couponName: '換季結清 9 折',
+    type: '賣場優惠券',
+    productScope: '換季商品',
+    discountType: 'PERCENT',
+    discountValue: 10,
+    minPurchaseAmount: 1000,
+    startAt: '2026-07-15T09:00:00',
+    endAt: '2026-08-15T23:59:00',
+    limitCount: 120,
+    usedCount: 120,
+    status: 'EXPIRED',
+  },
 ]
 
 const coupons = ref([])
@@ -104,8 +243,16 @@ const initializePerformanceDateRange = () => {
 }
 
 const creationCards = [
-  { title: '賣場優惠券', description: '適用賣場所有商品，可有效提升全店銷售額', icon: 'bi-shop-window' },
-  { title: '商品優惠券', description: '適用指定商品，可設定特定商品導購活動', icon: 'bi-bag-check' },
+  {
+    title: '賣場優惠券',
+    description: '適用賣場所有商品，可有效提升全店銷售額',
+    icon: 'bi-shop-window',
+  },
+  {
+    title: '商品優惠券',
+    description: '適用指定商品，可設定特定商品導購活動',
+    icon: 'bi-bag-check',
+  },
 ]
 
 const productOptions = computed(() => {
@@ -116,7 +263,9 @@ const productOptions = computed(() => {
 const drawerTitle = computed(() => (editingCouponId.value ? '編輯優惠券' : '建立優惠券'))
 const drawerActionText = computed(() => (editingCouponId.value ? '儲存修改' : '建立'))
 const selectedProduct = computed(() =>
-  productOptions.value.find((product) => String(product.productId) === String(couponForm.productId)),
+  productOptions.value.find(
+    (product) => String(product.productId) === String(couponForm.productId),
+  ),
 )
 
 const normalizeCoupon = (coupon) => ({
@@ -194,7 +343,7 @@ const performanceChartData = computed(() => {
 
   for (const date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
     const dateKey = toDateInput(date)
-    labels.push(dateKey.slice(5).replace('-', '/'))
+    labels.push(dateKey)
     salesByDate.set(dateKey, 0)
   }
 
@@ -211,34 +360,47 @@ const performanceChartData = computed(() => {
   return {
     labels,
     datasets: [
-      {
-        label: '優惠券訂單銷售額',
-        data: [...salesByDate.values()],
-        borderColor: '#5f786a',
-        backgroundColor: 'rgba(95, 120, 106, 0.12)',
-        fill: true,
-        tension: 0.25,
-      },
+      createSellerLineDataset(
+        { key: 'sales', label: '優惠券訂單銷售額' },
+        [...salesByDate.values()],
+        chartPalette.value,
+        true,
+      ),
     ],
   }
 })
 
-const performanceChartOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: { legend: { display: false } },
-  scales: { y: { beginAtZero: true } },
-}
+const performanceChartOptions = computed(() =>
+  createSellerLineChartOptions({
+    palette: chartPalette.value,
+    formatTooltipTitle: formatFullDateLabel,
+    formatValue: formatCurrency,
+  }),
+)
 
 const performanceRangeLabel = computed(
-  () => `${performanceStartDate.value.replaceAll('-', '/')} - ${performanceEndDate.value.replaceAll('-', '/')}`,
+  () =>
+    `${performanceStartDate.value.replaceAll('-', '/')} - ${performanceEndDate.value.replaceAll('-', '/')}`,
 )
 
 const statusTabs = computed(() => [
   { label: '全部', value: 'ALL', count: coupons.value.length },
-  { label: '進行中', value: 'ACTIVE', count: coupons.value.filter((coupon) => displayStatus(coupon) === '進行中').length },
-  { label: '接下來的活動', value: 'DRAFT', count: coupons.value.filter((coupon) => displayStatus(coupon) === '接下來').length },
-  { label: '已結束', value: 'ENDED', count: coupons.value.filter((coupon) => ['已結束', '已取消'].includes(displayStatus(coupon))).length },
+  {
+    label: '進行中',
+    value: 'ACTIVE',
+    count: coupons.value.filter((coupon) => displayStatus(coupon) === '進行中').length,
+  },
+  {
+    label: '接下來的活動',
+    value: 'DRAFT',
+    count: coupons.value.filter((coupon) => displayStatus(coupon) === '接下來').length,
+  },
+  {
+    label: '已結束',
+    value: 'ENDED',
+    count: coupons.value.filter((coupon) => ['已結束', '已取消'].includes(displayStatus(coupon)))
+      .length,
+  },
 ])
 
 const filteredCoupons = computed(() => {
@@ -390,7 +552,11 @@ const initializeCouponDateTimePickers = async () => {
     )
   }
   if (endAtInput.value) {
-    endAtPicker = createCouponDateTimePicker(endAtInput.value, 'endAt', 'seller-coupon-end-calendar')
+    endAtPicker = createCouponDateTimePicker(
+      endAtInput.value,
+      'endAt',
+      'seller-coupon-end-calendar',
+    )
   }
 }
 
@@ -424,10 +590,13 @@ const validateForm = () => {
 
   const discountValue = Number(couponForm.discountValue)
   if (!Number.isFinite(discountValue) || discountValue <= 0) return '折扣額度必須大於 0。'
-  if (createDiscountType.value === 'PERCENT' && discountValue > 100) return '百分比折扣不可超過 100%。'
+  if (createDiscountType.value === 'PERCENT' && discountValue > 100)
+    return '百分比折扣不可超過 100%。'
 
   if (createDiscountType.value === 'AMOUNT' && selectedCouponType.value === '商品優惠券') {
-    const productPrice = Number(selectedProduct.value?.minSkuPrice ?? selectedProduct.value?.basePrice)
+    const productPrice = Number(
+      selectedProduct.value?.minSkuPrice ?? selectedProduct.value?.basePrice,
+    )
     if (!Number.isFinite(productPrice)) return '目前無法取得商品價格，請稍後再試。'
     if (discountValue >= productPrice) return '固定折扣金額必須小於商品價格。'
   }
@@ -444,7 +613,8 @@ const validateForm = () => {
 
   if (!couponForm.startAt || !couponForm.endAt) return '請設定開始與結束時間。'
   if (new Date(couponForm.startAt) < new Date()) return '開始時間不可早於目前時間。'
-  if (new Date(couponForm.endAt) <= new Date(couponForm.startAt)) return '結束時間必須晚於開始時間。'
+  if (new Date(couponForm.endAt) <= new Date(couponForm.startAt))
+    return '結束時間必須晚於開始時間。'
 
   return ''
 }
@@ -460,7 +630,8 @@ const resetForm = (type = '賣場優惠券') => {
   couponForm.endAt = ''
   couponForm.limitCount = ''
   couponForm.perMemberUsagePolicy = 'ONCE'
-  couponForm.productId = type === '商品優惠券' ? String(productOptions.value[0]?.productId || '') : ''
+  couponForm.productId =
+    type === '商品優惠券' ? String(productOptions.value[0]?.productId || '') : ''
   createDiscountType.value = 'AMOUNT'
 }
 
@@ -533,7 +704,11 @@ const saveCoupon = async () => {
   formError.value = ''
   try {
     if (editingCouponId.value) {
-      const response = await updateSellerCoupon(sellerId.value, editingCouponId.value, updatePayload)
+      const response = await updateSellerCoupon(
+        sellerId.value,
+        editingCouponId.value,
+        updatePayload,
+      )
       const updatedCoupon = normalizeCoupon(response.data)
       coupons.value = coupons.value.map((coupon) =>
         coupon.couponId === updatedCoupon.couponId ? updatedCoupon : coupon,
@@ -642,7 +817,8 @@ const createPerformanceDatePicker = (input, field, defaultDate) =>
       }
       void applyPerformanceDateRange()
     },
-    onReady: (_, __, instance) => instance.calendarContainer.classList.add('seller-module-flatpickr'),
+    onReady: (_, __, instance) =>
+      instance.calendarContainer.classList.add('seller-module-flatpickr'),
   })
 
 const initializePerformanceDatePickers = () => {
@@ -659,6 +835,7 @@ const initializePerformanceDatePickers = () => {
 }
 
 onMounted(() => {
+  chartPalette.value = createSellerChartPalette()
   initializePerformanceDateRange()
   void nextTick(initializePerformanceDatePickers)
   void loadSellerProducts()
@@ -837,9 +1014,7 @@ onUnmounted(() => {
               <small>至 {{ formatDateTime(coupon.endAt) }}</small>
             </span>
             <div class="row-actions">
-              <button type="button" @click="editCoupon(coupon)">
-                編輯活動
-              </button>
+              <button type="button" @click="editCoupon(coupon)">編輯活動</button>
               <button
                 type="button"
                 class="cancel-action"
@@ -861,7 +1036,12 @@ onUnmounted(() => {
             <span>{{ drawerTitle }}</span>
             <h2>{{ selectedCouponType }}</h2>
           </div>
-          <button type="button" class="icon-button" aria-label="關閉" @click="isCreateDrawerOpen = false">
+          <button
+            type="button"
+            class="icon-button"
+            aria-label="關閉"
+            @click="isCreateDrawerOpen = false"
+          >
             <i class="bi bi-x-lg" aria-hidden="true"></i>
           </button>
         </header>
@@ -877,7 +1057,11 @@ onUnmounted(() => {
           </label>
           <label>
             優惠券代碼
-            <input v-model="couponForm.couponCode" placeholder="AUG2026" :disabled="Boolean(editingCouponId)" />
+            <input
+              v-model="couponForm.couponCode"
+              placeholder="AUG2026"
+              :disabled="Boolean(editingCouponId)"
+            />
           </label>
           <label v-if="selectedCouponType === '商品優惠券'">
             適用商品
@@ -1263,7 +1447,9 @@ h2 {
   opacity: 0;
   pointer-events: none;
   transform: translateX(-50%) translateY(4px);
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
 }
 
 .metric-info::before {
@@ -1399,7 +1585,10 @@ h2 {
   display: grid;
   grid-template-columns:
     minmax(190px, 1.5fr) minmax(82px, 0.62fr) minmax(84px, 0.62fr) minmax(100px, 0.72fr)
-    minmax(82px, 0.55fr) minmax(112px, 0.75fr) minmax(64px, 0.42fr) minmax(86px, 0.55fr) minmax(170px, 1.05fr)
+    minmax(82px, 0.55fr) minmax(112px, 0.75fr) minmax(64px, 0.42fr) minmax(86px, 0.55fr) minmax(
+      170px,
+      1.05fr
+    )
     minmax(96px, 0.55fr);
   align-items: stretch;
 }

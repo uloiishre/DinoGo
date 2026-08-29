@@ -1,48 +1,44 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import flatpickr from 'flatpickr'
 import { MandarinTraditional } from 'flatpickr/dist/l10n/zh-tw'
 import 'flatpickr/dist/flatpickr.css'
 import '@/assets/styles/seller-flatpickr.css'
 import { Line } from 'vue-chartjs'
-import {
-  CategoryScale,
-  Chart as ChartJS,
-  Filler,
-  Legend,
-  LinearScale,
-  LineElement,
-  PointElement,
-  Tooltip,
-} from 'chart.js'
 import { getSellerOrders } from '@/api/sellerOrderApi'
 import { getSellerProducts } from '@/api/sellerProductApi'
 import { getSellerWalletTransactions } from '@/api/sellerWalletApi'
 import { getCurrentSellerId } from '@/utils/seller-session'
+import {
+  createSellerChartPalette,
+  createSellerLineChartOptions,
+  createSellerLineDataset,
+  formatFullDateLabel,
+  registerSellerLineChart,
+} from './useSellerLineChart'
 
-ChartJS.register(CategoryScale, Filler, Legend, LinearScale, LineElement, PointElement, Tooltip)
+registerSellerLineChart()
 
 const walletTransactions = ref([])
 const sellerOrders = ref([])
 const sellerProducts = ref([])
+const trendWalletTransactions = ref([])
+const trendSellerOrders = ref([])
 const dashboardLoading = ref(false)
 const dashboardError = ref('')
 const dateInput = ref(null)
+const trendStartDate = ref('')
+const trendEndDate = ref('')
+const trendStartInput = ref(null)
+const trendEndInput = ref(null)
 const selectedDate = ref(toDateKey(new Date()))
 const selectedCategory = ref('ALL')
 const selectedTrendKeys = ref(['sales', 'orders'])
-const chartPalette = ref({
-  sales: '#657a6d',
-  orders: '#9a7b42',
-  cancelled: '#c73e3a',
-  quantity: '#64748b',
-  text: '#38423d',
-  muted: '#66706a',
-  border: '#e8e6e1',
-  surface: '#ffffff',
-})
+const chartPalette = ref(createSellerChartPalette())
 let dashboardRefreshTimer = null
 let dashboardDatePicker = null
+let trendStartPicker = null
+let trendEndPicker = null
 
 async function loadDashboardData() {
   try {
@@ -69,8 +65,30 @@ async function loadDashboardData() {
   }
 }
 
+async function loadTrendData() {
+  if (!trendStartDate.value || !trendEndDate.value) return
+
+  const params = {
+    startDate: trendStartDate.value,
+    endDate: trendEndDate.value,
+  }
+
+  const [walletResponse, orderResponse] = await Promise.all([
+    getSellerWalletTransactions(params),
+    getSellerOrders(params),
+  ])
+
+  trendWalletTransactions.value = walletResponse.data || []
+  trendSellerOrders.value = Array.isArray(orderResponse.data) ? orderResponse.data : []
+}
+
 const incomeTransactions = computed(() =>
   walletTransactions.value.filter(
+    (item) => item.status === 'AVAILABLE' && item.direction === 'income',
+  ),
+)
+const trendIncomeTransactions = computed(() =>
+  trendWalletTransactions.value.filter(
     (item) => item.status === 'AVAILABLE' && item.direction === 'income',
   ),
 )
@@ -222,44 +240,54 @@ const productInsightRows = computed(() => {
 const trendMetricOptions = [
   { key: 'sales', label: '銷售額' },
   { key: 'orders', label: '訂單數' },
-  { key: 'cancelled', label: '取消訂單' },
+  { key: 'averageOrderValue', label: '平均客單價' },
   { key: 'quantity', label: '銷售件數' },
 ]
 
-const hourlyTrendBuckets = computed(() => {
-  const buckets = Array.from({ length: 12 }, (_, index) => {
-    const startHour = index * 2
-    return {
-      label: `${String(startHour).padStart(2, '0')}:00`,
+const trendDateBuckets = computed(() => {
+  const buckets = new Map()
+  const start = new Date(`${trendStartDate.value}T00:00:00`)
+  const end = new Date(`${trendEndDate.value}T00:00:00`)
+
+  for (const date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+    const dateKey = toDateKey(date)
+    buckets.set(dateKey, {
+      label: dateKey,
       sales: 0,
       orders: 0,
-      cancelled: 0,
+      averageOrderValue: 0,
       quantity: 0,
-    }
-  })
-
-  incomeTransactions.value
-    .filter((item) => item.occurredAt?.slice(0, 10) === selectedDate.value)
-    .forEach((item) => {
-      const hour = new Date(item.occurredAt).getHours()
-      const bucketIndex = Math.min(Math.floor(hour / 2), buckets.length - 1)
-      buckets[bucketIndex].sales += Number(item.amount || 0)
     })
+  }
 
-  selectedDateOrders.value.forEach((order) => {
-    if (!order.createdAt) return
-    const hour = new Date(order.createdAt).getHours()
-    const bucketIndex = Math.min(Math.floor(hour / 2), buckets.length - 1)
-    buckets[bucketIndex].orders += 1
-    buckets[bucketIndex].quantity += getSoldQuantity([order])
-
-    if (order.status === 'CANCELLED') {
-      buckets[bucketIndex].cancelled += 1
+  trendIncomeTransactions.value.forEach((item) => {
+    const dateKey = item.occurredAt?.slice(0, 10)
+    if (buckets.has(dateKey)) {
+      buckets.get(dateKey).sales += Number(item.amount || 0)
     }
   })
 
-  return buckets
+  trendSellerOrders.value.forEach((order) => {
+    const dateKey = order.createdAt?.slice(0, 10)
+    if (!buckets.has(dateKey)) return
+
+    const bucket = buckets.get(dateKey)
+    bucket.orders += 1
+    bucket.quantity += getSoldQuantity([order])
+  })
+
+  buckets.forEach((bucket) => {
+    bucket.averageOrderValue = bucket.orders ? Math.round(bucket.sales / bucket.orders) : 0
+  })
+
+  return [...buckets.values()]
 })
+
+const trendRangeLabel = computed(() =>
+  trendStartDate.value && trendEndDate.value
+    ? `${trendStartDate.value.replaceAll('-', '/')} - ${trendEndDate.value.replaceAll('-', '/')}`
+    : '',
+)
 
 const trendChartData = computed(() => {
   const enabledOptions = trendMetricOptions.filter((option) =>
@@ -267,74 +295,29 @@ const trendChartData = computed(() => {
   )
 
   return {
-    labels: hourlyTrendBuckets.value.map((bucket) => bucket.label),
-    datasets: enabledOptions.map((option) => ({
-      label: option.label,
-      data: hourlyTrendBuckets.value.map((bucket) => bucket[option.key]),
-      borderColor: chartPalette.value[option.key],
-      backgroundColor: toAlpha(chartPalette.value[option.key], 0.12),
-      pointBackgroundColor: chartPalette.value.surface,
-      pointBorderColor: chartPalette.value[option.key],
-      pointHoverBackgroundColor: chartPalette.value[option.key],
-      pointHoverBorderColor: chartPalette.value.surface,
-      pointRadius: 3,
-      pointHoverRadius: 5,
-      borderWidth: 2,
-      tension: 0.36,
-      fill: option.key === 'sales',
-    })),
+    labels: trendDateBuckets.value.map((bucket) => bucket.label),
+    datasets: enabledOptions.map((option, index) =>
+      createSellerLineDataset(
+        option,
+        trendDateBuckets.value.map((bucket) => bucket[option.key]),
+        chartPalette.value,
+        index === 0,
+      ),
+    ),
   }
 })
 
-const trendChartOptions = computed(() => ({
-  responsive: true,
-  maintainAspectRatio: false,
-  interaction: {
-    intersect: false,
-    mode: 'index',
-  },
-  plugins: {
-    legend: {
-      display: false,
+const trendChartOptions = computed(() =>
+  createSellerLineChartOptions({
+    palette: chartPalette.value,
+    formatTooltipTitle: formatFullDateLabel,
+    formatValue(value, label) {
+      return ['銷售額', '平均客單價'].includes(label)
+        ? formatCurrency(value)
+        : value.toLocaleString('zh-TW')
     },
-    tooltip: {
-      backgroundColor: chartPalette.value.text,
-      displayColors: true,
-      padding: 12,
-      callbacks: {
-        label(context) {
-          const value = Number(context.raw || 0)
-          return context.dataset.label === '銷售額'
-            ? `${context.dataset.label}: ${formatCurrency(value)}`
-            : `${context.dataset.label}: ${value.toLocaleString('zh-TW')}`
-        },
-      },
-    },
-  },
-  scales: {
-    x: {
-      grid: {
-        display: false,
-      },
-      ticks: {
-        color: chartPalette.value.muted,
-        maxRotation: 0,
-        autoSkip: true,
-        autoSkipPadding: 18,
-      },
-    },
-    y: {
-      beginAtZero: true,
-      grid: {
-        color: chartPalette.value.border,
-      },
-      ticks: {
-        color: chartPalette.value.muted,
-        precision: 0,
-      },
-    },
-  },
-}))
+  }),
+)
 
 function toDateKey(date) {
   const year = date.getFullYear()
@@ -415,6 +398,46 @@ function toggleTrendKey(key) {
 function openDatePicker() {
   dashboardDatePicker?.open()
   dateInput.value?.focus()
+}
+
+function initializeTrendDateRange() {
+  const today = new Date()
+  const start = new Date(today)
+  start.setDate(today.getDate() - 6)
+  trendStartDate.value = toDateKey(start)
+  trendEndDate.value = toDateKey(today)
+}
+
+async function applyTrendDateRange() {
+  if (!trendStartDate.value || !trendEndDate.value) return
+  if (trendEndDate.value < trendStartDate.value) {
+    dashboardError.value = '結束日期不可早於開始日期。'
+    return
+  }
+
+  try {
+    dashboardError.value = ''
+    await loadTrendData()
+  } catch {
+    dashboardError.value = '無法載入關鍵指標分析資料，請稍後再試。'
+    trendWalletTransactions.value = []
+    trendSellerOrders.value = []
+  }
+}
+
+async function selectTrendPreset(preset) {
+  const end = new Date()
+  const start = new Date(end)
+  if (preset === '7') start.setDate(end.getDate() - 6)
+  if (preset === '30') start.setDate(end.getDate() - 29)
+  if (preset === 'month') start.setDate(1)
+  trendStartDate.value = toDateKey(start)
+  trendEndDate.value = toDateKey(end)
+  trendStartPicker?.setDate(trendStartDate.value, false)
+  trendEndPicker?.setDate(trendEndDate.value, false)
+  trendEndPicker?.set('minDate', trendStartDate.value)
+  trendStartPicker?.set('maxDate', trendEndDate.value)
+  await applyTrendDateRange()
 }
 
 function exportDashboardCsv() {
@@ -523,38 +546,7 @@ function escapeCsvCell(value) {
 }
 
 function loadChartPalette() {
-  const styles = window.getComputedStyle(document.documentElement)
-  chartPalette.value = {
-    sales: getCssColor(styles, '--color-primary-600', chartPalette.value.sales),
-    orders: getCssColor(styles, '--color-warning', chartPalette.value.orders),
-    cancelled: getCssColor(styles, '--color-danger', chartPalette.value.cancelled),
-    quantity: getCssColor(styles, '--color-info', chartPalette.value.quantity),
-    text: getCssColor(styles, '--color-text-700', chartPalette.value.text),
-    muted: getCssColor(styles, '--color-text-muted', chartPalette.value.muted),
-    border: getCssColor(styles, '--color-border', chartPalette.value.border),
-    surface: getCssColor(styles, '--color-surface', chartPalette.value.surface),
-  }
-}
-
-function getCssColor(styles, token, fallback) {
-  return styles.getPropertyValue(token).trim() || fallback
-}
-
-function toAlpha(color, alpha) {
-  const normalized = color.trim()
-  if (!normalized.startsWith('#') || ![4, 7].includes(normalized.length)) {
-    return normalized
-  }
-
-  const hex =
-    normalized.length === 4
-      ? `#${normalized[1]}${normalized[1]}${normalized[2]}${normalized[2]}${normalized[3]}${normalized[3]}`
-      : normalized
-  const red = Number.parseInt(hex.slice(1, 3), 16)
-  const green = Number.parseInt(hex.slice(3, 5), 16)
-  const blue = Number.parseInt(hex.slice(5, 7), 16)
-
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`
+  chartPalette.value = createSellerChartPalette()
 }
 
 function initializeDashboardDatePicker() {
@@ -582,11 +574,61 @@ function initializeDashboardDatePicker() {
   })
 }
 
+function createTrendDatePicker(input, field, defaultDate) {
+  return flatpickr(input, {
+    altInput: true,
+    altInputClass: 'seller-flatpickr-input coupon-date-input',
+    altFormat: 'Y/m/d',
+    allowInput: false,
+    dateFormat: 'Y-m-d',
+    defaultDate,
+    disableMobile: true,
+    locale: MandarinTraditional,
+    monthSelectorType: 'dropdown',
+    onChange: (_, dateString) => {
+      if (field === 'start') {
+        trendStartDate.value = dateString
+        trendEndPicker?.set('minDate', dateString)
+      }
+      if (field === 'end') {
+        trendEndDate.value = dateString
+        trendStartPicker?.set('maxDate', dateString)
+      }
+      void applyTrendDateRange()
+    },
+    onReady: (_, __, instance) => {
+      instance.calendarContainer.classList.add('seller-module-flatpickr')
+    },
+  })
+}
+
+function initializeTrendDatePickers() {
+  trendStartPicker?.destroy()
+  trendEndPicker?.destroy()
+  trendStartPicker = trendStartInput.value
+    ? createTrendDatePicker(trendStartInput.value, 'start', trendStartDate.value)
+    : null
+  trendEndPicker = trendEndInput.value
+    ? createTrendDatePicker(trendEndInput.value, 'end', trendEndDate.value)
+    : null
+  trendEndPicker?.set('minDate', trendStartDate.value)
+  trendStartPicker?.set('maxDate', trendEndDate.value)
+}
+
 onMounted(() => {
   loadChartPalette()
+  initializeTrendDateRange()
   initializeDashboardDatePicker()
+  void nextTick(initializeTrendDatePickers)
   loadDashboardData()
-  dashboardRefreshTimer = window.setInterval(loadDashboardData, 5 * 60 * 1000)
+  void applyTrendDateRange()
+  dashboardRefreshTimer = window.setInterval(
+    () => {
+      void loadDashboardData()
+      void applyTrendDateRange()
+    },
+    5 * 60 * 1000,
+  )
 })
 
 onUnmounted(() => {
@@ -594,7 +636,11 @@ onUnmounted(() => {
     window.clearInterval(dashboardRefreshTimer)
   }
   dashboardDatePicker?.destroy()
+  trendStartPicker?.destroy()
+  trendEndPicker?.destroy()
   dashboardDatePicker = null
+  trendStartPicker = null
+  trendEndPicker = null
 })
 </script>
 
@@ -646,10 +692,32 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <section class="hourly-sales-panel">
-      <div class="panel-heading">
-        <h2>今日趨勢</h2>
-        <span>已選擇 {{ selectedTrendKeys.length }} / {{ trendMetricOptions.length }}</span>
+    <section class="performance-panel dashboard-performance-panel">
+      <div class="section-heading compact">
+        <h2>關鍵指標分析</h2>
+        <span>{{ trendRangeLabel }}</span>
+        <span class="trend-count"
+          >已選擇 {{ selectedTrendKeys.length }} / {{ trendMetricOptions.length }}</span
+        >
+      </div>
+
+      <div class="performance-filter" aria-label="關鍵指標分析日期篩選">
+        <div class="performance-presets">
+          <button type="button" @click="selectTrendPreset('7')">近 7 天</button>
+          <button type="button" @click="selectTrendPreset('30')">近 30 天</button>
+          <button type="button" @click="selectTrendPreset('month')">本月</button>
+        </div>
+        <div class="performance-dates">
+          <label>
+            開始日期
+            <input ref="trendStartInput" type="text" />
+          </label>
+          <span aria-hidden="true">至</span>
+          <label>
+            結束日期
+            <input ref="trendEndInput" type="text" />
+          </label>
+        </div>
       </div>
 
       <div class="trend-selector" aria-label="選擇趨勢指標">
@@ -666,7 +734,7 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <div class="chart-frame chart-frame--line" aria-label="分時指標趨勢">
+      <div class="performance-chart" aria-label="關鍵指標日期趨勢">
         <Line :data="trendChartData" :options="trendChartOptions" />
       </div>
     </section>
@@ -769,7 +837,6 @@ onUnmounted(() => {
 
 .filter-bar,
 .metric-panel,
-.hourly-sales-panel,
 .product-performance-panel {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -824,9 +891,18 @@ onUnmounted(() => {
 }
 
 .metric-panel,
-.hourly-sales-panel,
 .product-performance-panel {
   padding: var(--space-5);
+}
+
+.performance-panel {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 18px 20px;
+  background: var(--color-surface);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .panel-heading {
@@ -852,15 +928,92 @@ onUnmounted(() => {
 }
 
 .panel-heading span,
+.section-heading span,
 .metric-label,
 .metric-compare span {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
 
+.section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-heading.compact {
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.section-heading h2 {
+  margin: 0;
+  color: var(--color-text-900);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.trend-count {
+  margin-left: auto;
+}
+
+.performance-filter {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 2px 0;
+}
+
+.performance-presets,
+.performance-dates {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.performance-presets button {
+  min-height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 0 12px;
+  background: var(--color-surface);
+  color: var(--color-text-800);
+  font: inherit;
+  cursor: pointer;
+}
+
+.performance-presets button:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.performance-dates label {
+  display: grid;
+  gap: 4px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.performance-dates input {
+  width: 132px;
+  min-height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 0 8px;
+  font: inherit;
+}
+
+.performance-dates > span {
+  padding-bottom: 8px;
+  color: var(--color-text-muted);
+}
+
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
   gap: var(--space-2);
   margin-top: var(--space-3);
 }
@@ -869,7 +1022,7 @@ onUnmounted(() => {
   position: relative;
   display: grid;
   min-width: 0;
-  min-height: 112px;
+  min-height: 116px;
   grid-template-rows: auto 1fr auto;
   gap: var(--space-2);
   border: 1px solid var(--color-border);
@@ -952,17 +1105,16 @@ onUnmounted(() => {
 
 .metric-card strong {
   min-width: 0;
-  overflow: hidden;
   color: var(--color-text-900);
-  font-size: 28px;
+  font-size: clamp(1.25rem, 1rem + 1.1vw, 1.75rem);
+  font-variant-numeric: tabular-nums;
   line-height: 1;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .metric-compare {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) max-content;
   gap: var(--space-2);
   align-items: end;
   border-top: 1px solid var(--color-border);
@@ -1001,15 +1153,9 @@ onUnmounted(() => {
   color: var(--color-text-muted);
 }
 
-.hourly-sales-panel {
-  display: grid;
-  gap: var(--space-4);
-  align-content: start;
-}
-
 .trend-selector {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1052,16 +1198,11 @@ onUnmounted(() => {
   box-shadow: var(--shadow-focus);
 }
 
-.chart-frame {
-  position: relative;
-  min-width: 0;
-  border-radius: var(--radius-md);
-  background: var(--color-bg-muted);
-  padding: var(--space-4);
-}
-
-.chart-frame--line {
-  height: 320px;
+.performance-chart {
+  height: 220px;
+  min-height: 220px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 14px;
 }
 
 .product-performance-panel {
@@ -1192,7 +1333,22 @@ onUnmounted(() => {
 
 @media (max-width: 1180px) {
   .metric-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .performance-filter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .performance-dates {
+    justify-content: space-between;
+  }
+
+  .trend-selector {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1201,8 +1357,17 @@ onUnmounted(() => {
     overflow-x: auto;
   }
 
+  .trend-selector {
+    grid-template-columns: 1fr;
+  }
+
   .metric-grid {
     grid-template-columns: 1fr;
+  }
+
+  .panel-heading {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .product-toolbar {

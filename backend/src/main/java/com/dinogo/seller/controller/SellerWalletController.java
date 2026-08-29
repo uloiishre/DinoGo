@@ -1,11 +1,13 @@
 package com.dinogo.seller.controller;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dinogo.security.AuthenticatedMember;
@@ -31,8 +33,10 @@ public class SellerWalletController {
 
     @GetMapping("/transactions")
     public List<SellerWalletTransactionResponse> getTransactions(
-            @AuthenticationPrincipal AuthenticatedMember member) {
-        return sellerWalletService.getTransactions(member.memberId());
+            @AuthenticationPrincipal AuthenticatedMember member,
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate) {
+        return sellerWalletService.getTransactions(member.memberId(), startDate, endDate);
     }
 
     @PostMapping("/withdrawals")

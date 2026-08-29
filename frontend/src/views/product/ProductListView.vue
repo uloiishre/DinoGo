@@ -5,7 +5,11 @@ import { useRoute, useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { logSafeError } from '@/utils/safeError'
 import ProductCard from '@/views/product/ProductCard.vue'
-import { getPublicStore, resolveSellerLogoUrl } from '@/api/sellerProfileApi'
+import {
+  getPublicStore,
+  getPublicStoreSummary,
+  resolveSellerLogoUrl,
+} from '@/api/sellerProfileApi'
 import { useAuthStore } from '@/stores/auth'
 const route = useRoute()
 const router = useRouter()
@@ -18,6 +22,7 @@ const errorMessage = ref('')
 const currentPage = ref(0)
 const pageSize = ref(12)
 const storeProfile = ref(null)
+const storeSummary = ref(null)
 const storeCoupons = ref([])
 const memberCoupons = ref([])
 const claimingCouponId = ref(null)
@@ -38,6 +43,7 @@ const selectedBrandId = ref(route.query.brandId || '')
 const claimedCouponIds = computed(
   () => new Set(memberCoupons.value.map((coupon) => Number(coupon.couponId))),
 )
+const featuredStoreCoupons = computed(() => storeCoupons.value.slice(0, 4))
 
 function discountText(coupon) {
   if (coupon.discountType === 'PERCENT') {
@@ -133,15 +139,21 @@ const resetFilters = () => {
 const loadStoreProfile = async () => {
   if (!route.query.sellerId) {
     storeProfile.value = null
+    storeSummary.value = null
     return
   }
 
   try {
-    const response = await getPublicStore(route.query.sellerId)
-    storeProfile.value = response.data
+    const [profileResponse, summaryResponse] = await Promise.all([
+      getPublicStore(route.query.sellerId),
+      getPublicStoreSummary(route.query.sellerId),
+    ])
+    storeProfile.value = profileResponse.data
+    storeSummary.value = summaryResponse.data
   } catch (error) {
     console.error('Load public store failed:', error)
     storeProfile.value = null
+    storeSummary.value = null
   }
 }
 
@@ -316,13 +328,6 @@ onMounted(async () => {
 
   fetchProducts()
 })
-const formatStoreTime = (time) => {
-  if (!time) {
-    return ''
-  }
-
-  return time.slice(0, 5)
-}
 </script>
 
 <template>
@@ -330,32 +335,46 @@ const formatStoreTime = (time) => {
     <div class="container py-5">
       <!-- 賣家資訊 -->
       <section v-if="route.query.sellerId && storeProfile" class="store-banner">
-        <img
-          v-if="storeProfile.storeLogoUrl"
-          class="store-avatar-image"
-          :src="resolveSellerLogoUrl(storeProfile.storeLogoUrl)"
-          :alt="`${storeProfile.storeName} Logo`"
-        />
+        <div class="store-identity">
+          <img
+            v-if="storeProfile.storeLogoUrl"
+            class="store-avatar-image"
+            :src="resolveSellerLogoUrl(storeProfile.storeLogoUrl)"
+            :alt="`${storeProfile.storeName} Logo`"
+          />
+          <div v-else class="store-avatar-placeholder" aria-hidden="true">
+            <i class="bi bi-shop"></i>
+          </div>
 
-        <div class="store-copy">
-          <span>品牌與商家</span>
-          <h1>{{ storeProfile.storeName }}</h1>
-          <p>{{ storeProfile.storeDescription }}</p>
+          <div class="store-copy">
+            <h1>{{ storeProfile.storeName }}</h1>
+            <p>{{ storeProfile.storeDescription || '店鋪尚未提供介紹。' }}</p>
+          </div>
         </div>
 
-        <div class="store-meta">
-          <strong>
-            {{ storeProfile.status === 'ACTIVE' ? '營運中' : '暫停接單' }}
-          </strong>
-
-          <span v-if="storeProfile.serviceStartTime && storeProfile.serviceEndTime">
-            營業時間
-            {{ formatStoreTime(storeProfile.serviceStartTime) }}
-            -
-            {{ formatStoreTime(storeProfile.serviceEndTime) }}
-          </span>
-
-          <span v-else> 商品持續更新 </span>
+        <div v-if="storeSummary" class="store-stats" aria-label="店鋪統計">
+          <div class="store-stat">
+            <i class="bi bi-star-fill"></i>
+            <span>店鋪評價</span>
+            <strong>
+              {{ storeSummary.ratingCount ? `${storeSummary.averageRating} / 5` : '尚無評價' }}
+            </strong>
+          </div>
+          <div class="store-stat">
+            <i class="bi bi-box-seam"></i>
+            <span>上架商品</span>
+            <strong>{{ Number(storeSummary.activeProductCount).toLocaleString('zh-TW') }}</strong>
+          </div>
+          <div class="store-stat">
+            <i class="bi bi-cart-check"></i>
+            <span>累計已售</span>
+            <strong>{{ Number(storeSummary.soldCount).toLocaleString('zh-TW') }}</strong>
+          </div>
+          <div class="store-stat">
+            <i class="bi bi-ticket-perforated"></i>
+            <span>可領優惠券</span>
+            <strong>{{ Number(storeSummary.availableCouponCount).toLocaleString('zh-TW') }}</strong>
+          </div>
         </div>
       </section>
 
@@ -366,17 +385,21 @@ const formatStoreTime = (time) => {
             <p>領取後可在結帳時選用</p>
           </div>
           <RouterLink
-            :to="{ name: 'CouponCenter', query: { sellerId: route.query.sellerId } }"
+            :to="{ name: 'StoreCouponCenter', params: { sellerId: route.query.sellerId } }"
           >
-            此店所有優惠券
+            此店鋪所有優惠券 <i class="bi bi-chevron-right" aria-hidden="true"></i>
           </RouterLink>
         </div>
 
         <p v-if="couponMessage" class="coupon-notice coupon-notice--success">{{ couponMessage }}</p>
         <p v-if="couponErrorMessage" class="coupon-notice coupon-notice--error">{{ couponErrorMessage }}</p>
 
-        <div v-if="storeCoupons.length" class="store-coupon-list">
-          <article v-for="coupon in storeCoupons" :key="coupon.couponId" class="store-coupon-card">
+        <div v-if="featuredStoreCoupons.length" class="store-coupon-list">
+          <article
+            v-for="coupon in featuredStoreCoupons"
+            :key="coupon.couponId"
+            class="store-coupon-card"
+          >
             <strong>{{ discountText(coupon) }}</strong>
             <div>
               <h3>{{ coupon.couponName }}</h3>
@@ -618,8 +641,7 @@ const formatStoreTime = (time) => {
 }
 
 .store-banner {
-  display: flex;
-  align-items: center;
+  display: grid;
   gap: var(--space-4);
   margin-bottom: var(--space-5);
   border: 1px solid var(--color-border);
@@ -628,18 +650,23 @@ const formatStoreTime = (time) => {
   background: var(--color-surface);
 }
 
-.store-avatar {
-  width: 64px;
-  height: 64px;
+.store-identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.store-avatar-placeholder {
+  width: 80px;
+  height: 80px;
   flex: 0 0 auto;
   display: grid;
   place-items: center;
   border-radius: var(--radius-md);
-  background: var(--color-primary);
-  color: var(--color-surface);
-  font-family: var(--font-heading);
-  font-size: var(--font-size-xl);
-  font-weight: 800;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
+  font-size: 28px;
 }
 
 .store-copy {
@@ -648,9 +675,7 @@ const formatStoreTime = (time) => {
   min-width: 0;
 }
 
-.store-copy span,
-.store-copy p,
-.store-meta span {
+.store-copy p {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
@@ -666,16 +691,46 @@ const formatStoreTime = (time) => {
   font-size: var(--font-size-xl);
 }
 
-.store-meta {
+.store-stats {
   display: grid;
-  gap: 2px;
-  margin-left: auto;
-  border-left: 1px solid var(--color-border);
-  padding-left: var(--space-4);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-4);
 }
 
-.store-meta strong {
-  color: var(--color-success);
+.store-stat {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 2px var(--space-2);
+  min-width: 0;
+  padding-inline: var(--space-4);
+  border-right: 1px solid var(--color-border);
+}
+
+.store-stat:first-child {
+  padding-left: 0;
+}
+
+.store-stat:last-child {
+  padding-right: 0;
+  border-right: 0;
+}
+
+.store-stat i {
+  grid-row: 1 / span 2;
+  color: var(--color-primary);
+  font-size: var(--font-size-lg);
+}
+
+.store-stat span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.store-stat strong {
+  color: var(--color-text-900);
+  font-size: var(--font-size-md);
 }
 
 .store-coupon-section {
@@ -723,18 +778,14 @@ const formatStoreTime = (time) => {
 }
 
 .store-coupon-list {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-3);
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  padding-bottom: var(--space-2);
-  scroll-snap-type: x proximity;
 }
 
 .store-coupon-card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  flex: 0 0 min(360px, 88vw);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
   border: 1px solid var(--color-border);
@@ -742,10 +793,10 @@ const formatStoreTime = (time) => {
   border-radius: var(--radius-md);
   padding: var(--space-3);
   background: var(--color-primary-50);
-  scroll-snap-align: start;
 }
 
 .store-coupon-card > strong {
+  grid-column: 1 / -1;
   color: var(--color-primary);
   font-size: var(--font-size-md);
 }
@@ -1155,6 +1206,21 @@ const formatStoreTime = (time) => {
    ========================= */
 
 @media (max-width: 991.98px) {
+  .store-stats,
+  .store-coupon-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .store-stat:nth-child(2) {
+    border-right: 0;
+  }
+
+  .store-stat:nth-child(n + 3) {
+    margin-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--space-3);
+  }
+
   .product-list-layout {
     grid-template-columns: 1fr;
   }
@@ -1188,27 +1254,38 @@ const formatStoreTime = (time) => {
   }
 }
 @media (max-width: 680px) {
-  .store-banner {
+  .store-identity {
     align-items: flex-start;
     flex-direction: column;
   }
 
-  .store-meta {
-    margin-left: 0;
-    border-left: 0;
-    padding-left: 0;
+  .store-stats,
+  .store-coupon-list {
+    grid-template-columns: 1fr;
   }
 
-  .store-coupon-heading,
-  .store-coupon-card {
+  .store-stat,
+  .store-stat:first-child,
+  .store-stat:last-child {
+    margin-top: 0;
+    border-top: 1px solid var(--color-border);
+    border-right: 0;
+    padding: var(--space-3) 0 0;
+  }
+
+  .store-stat:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .store-coupon-heading {
     align-items: stretch;
-    grid-template-columns: 1fr;
     flex-direction: column;
   }
 }
 .store-avatar-image {
-  width: 64px;
-  height: 64px;
+  width: 80px;
+  height: 80px;
   flex: 0 0 auto;
   border-radius: var(--radius-md);
   object-fit: cover;
