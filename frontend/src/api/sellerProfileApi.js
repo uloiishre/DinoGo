@@ -11,6 +11,10 @@ export const updateSellerProfile = (payload) => {
 export const getPublicStore = (sellerId) => {
   return api.get(`/stores/${sellerId}`)
 }
+
+export const getPublicStoreSummary = (sellerId) => {
+  return api.get(`/stores/${sellerId}/summary`)
+}
 export const uploadSellerLogo = (file) => {
   const formData = new FormData()
   formData.append('file', file)

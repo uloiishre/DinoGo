@@ -1,7 +1,8 @@
 <script setup>
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useSellerProfileStore } from '@/stores/sellerProfile'
 import { getCurrentSellerId } from '@/utils/seller-session'
 
 // 沒有 sellerId 時，不要自動變成 1
@@ -10,6 +11,7 @@ const sellerId = computed(() => getCurrentSellerId())
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const sellerProfileStore = useSellerProfileStore()
 
 const navItems = [
   { label: '營運總覽', to: '/seller/dashboard', icon: 'bi-speedometer2' },
@@ -44,6 +46,14 @@ function logout() {
   authStore.signOut()
   router.replace({ name: 'Login' })
 }
+
+onMounted(async () => {
+  try {
+    await sellerProfileStore.fetchProfile()
+  } catch (error) {
+    console.error('Load seller profile for sidebar failed:', error)
+  }
+})
 </script>
 
 <template>
@@ -68,7 +78,7 @@ function logout() {
     <section class="seller-card">
       <span class="seller-card-icon">店</span>
       <div>
-        <strong>森日選物</strong>
+        <strong>{{ sellerProfileStore.storeName }}</strong>
         <span>今日營運狀態</span>
       </div>
     </section>

@@ -44,6 +44,7 @@ public class SecurityConfig {
                                                                 "/api/coupons/available",
                                                                 "/api/stores/search",
                                                                 "/api/stores/{sellerId:\\d+}",
+                                                                "/api/stores/{sellerId:\\d+}/summary",
                                                                 "/uploads/products/**",
                                                                 "/uploads/seller-logos/**")
                                                 .permitAll()
