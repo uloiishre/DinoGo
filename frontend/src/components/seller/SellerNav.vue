@@ -28,8 +28,6 @@ const navItems = [
   { label: '店鋪資料', to: '/seller/profile', icon: 'bi-shop' },
 ]
 
-const plannedItems = [{ label: '銷售分析', icon: 'bi-graph-up-arrow' }]
-
 const isItemActive = (item) => {
   if (item.to === '/seller/products') {
     return route.path.startsWith('/seller/products')
@@ -98,17 +96,6 @@ onMounted(async () => {
         </RouterLink>
       </div>
 
-      <div
-        v-for="item in plannedItems"
-        :key="item.label"
-        class="seller-nav-link is-planned"
-        :title="`${item.label}功能規劃中`"
-        aria-disabled="true"
-      >
-        <i class="nav-mark bi" :class="item.icon" aria-hidden="true"></i>
-        <span>{{ item.label }}</span>
-        <small>規劃中</small>
-      </div>
     </nav>
 
     <div class="seller-nav-footer">
@@ -238,11 +225,6 @@ onMounted(async () => {
   margin-left: auto;
   color: var(--color-text-200);
   font-size: var(--font-size-xs);
-}
-
-.seller-nav-link.is-planned {
-  cursor: not-allowed;
-  opacity: 0.58;
 }
 
 .store-link {
