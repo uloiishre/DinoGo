@@ -123,7 +123,7 @@ onMounted(redirectWhenApplicationIsActive)
               v-model="storeLogoUrl"
               name="storeLogoUrl"
               type="url"
-              placeholder="https://example.com/store-logo.png"
+              placeholder="https://res.cloudinary.com/demo/image/upload/sample.jpg"
             />
           </label>
 

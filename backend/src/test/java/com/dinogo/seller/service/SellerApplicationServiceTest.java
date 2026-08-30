@@ -48,7 +48,7 @@ class SellerApplicationServiceTest {
         application.setMember(member);
         application.setStoreName("森野選物所");
         application.setStoreDescription("自然選物");
-        application.setStoreLogoUrl("https://example.com/logo.png");
+        application.setStoreLogoUrl("https://res.cloudinary.com/demo/image/upload/logo.png");
         application.setStatus(SellerApplicationStatus.PENDING);
 
         when(sellerApplicationRepository.findById(11)).thenReturn(Optional.of(application));
@@ -65,7 +65,7 @@ class SellerApplicationServiceTest {
                 7,
                 "森野選物所",
                 "自然選物",
-                "https://example.com/logo.png");
+                "https://res.cloudinary.com/demo/image/upload/logo.png");
         verify(sellerApplicationRepository).save(application);
     }
 }
