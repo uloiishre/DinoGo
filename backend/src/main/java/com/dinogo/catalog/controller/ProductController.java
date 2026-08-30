@@ -53,7 +53,8 @@ public class ProductController {
             @RequestParam(defaultValue = "12") Integer size,
             @RequestParam(required = false) String sort,
             @RequestParam(required = false) BigDecimal minPrice,
-            @RequestParam(required = false) BigDecimal maxPrice) {
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) Double minRating) {
 
         return productService.getProducts(
                 keyword,
@@ -63,6 +64,7 @@ public class ProductController {
                 sellerId,
                 minPrice,
                 maxPrice,
+                minRating,
                 page,
                 size,
                 sort);

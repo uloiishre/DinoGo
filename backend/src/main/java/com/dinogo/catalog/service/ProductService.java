@@ -42,11 +42,14 @@ import com.dinogo.catalog.repository.ProductImageRepository;
 import com.dinogo.catalog.repository.ProductRepository;
 import com.dinogo.catalog.repository.ProductSkuRepository;
 import com.dinogo.catalog.repository.SubcategoryRepository;
+import com.dinogo.review.entity.StarEntity;
 import com.dinogo.seller.entity.Seller;
 import com.dinogo.seller.repository.SellerRepository;
 import com.dinogo.seller.service.CurrentSellerService;
 
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 
@@ -294,6 +297,7 @@ public class ProductService {
                         Integer sellerId,
                         BigDecimal minPrice,
                         BigDecimal maxPrice,
+                        Double minRating,
                         Integer page,
                         Integer size,
                         String sort) {
@@ -363,6 +367,26 @@ public class ProductService {
                                                                 maxPrice));
                         }
 
+                        // 商品評價
+                        if (minRating != null) {
+
+                                Subquery<Double> ratingSubquery = query.subquery(Double.class);
+                                Root<StarEntity> starRoot = ratingSubquery.from(StarEntity.class);
+
+                                ratingSubquery.select(
+                                                cb.avg(starRoot.get("fiveStar")));
+
+                                ratingSubquery.where(
+                                                cb.equal(
+                                                                starRoot.get("productId"),
+                                                                root.get("productId")),
+                                                cb.isNotNull(starRoot.get("fiveStar")));
+
+                                predicates.add(
+                                                cb.greaterThanOrEqualTo(
+                                                                ratingSubquery,
+                                                                minRating));
+                        }
                         return cb.and(
                                         predicates.toArray(new Predicate[0]));
                 };
