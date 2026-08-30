@@ -6,6 +6,7 @@ services:
       PAYMENT_EXPIRY_ENABLED: "false"
       SYSMSG_EMAIL_ENABLED: "false"
       ECPAY_ENABLED: "false"
+      APP_AI_OPENAI_ENABLED: "false"
 
   reverse-proxy:
     environment:

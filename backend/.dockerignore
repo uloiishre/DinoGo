@@ -1,10 +1,12 @@
 target/
 uploads/
 
-src/main/resources/application-local.properties
-src/main/resources/application-local.yml
-src/main/resources/application-*.local.properties
-src/main/resources/application-*.local.yml
+**/application-local.properties
+**/application-local.yml
+**/application-local.yaml
+**/application-*.local.properties
+**/application-*.local.yml
+**/application-*.local.yaml
 
 .env
 .env.*
