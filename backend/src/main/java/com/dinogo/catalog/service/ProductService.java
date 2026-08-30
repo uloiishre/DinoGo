@@ -1,27 +1,25 @@
 package com.dinogo.catalog.service;
 
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
-
-import com.cloudinary.Cloudinary;
-import com.cloudinary.utils.ObjectUtils;
-
-import org.springframework.web.multipart.MultipartFile;
+import java.util.Objects;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import com.dinogo.catalog.dto.ProductCreateRequest;
 import com.dinogo.catalog.dto.ProductDetailResponse;
 import com.dinogo.catalog.dto.ProductImageCreateRequest;
@@ -1093,5 +1091,40 @@ public class ProductService {
                 product.setStatus((byte) 3);
 
                 productRepository.save(product);
+        }
+
+        // 商家商品詳情圖片上傳
+        public Map<String, String> uploadDescriptionImage(MultipartFile file) {
+
+                if (file == null || file.isEmpty()) {
+                        throw new IllegalArgumentException("請選擇圖片");
+                }
+
+                String contentType = file.getContentType();
+
+                if (contentType == null || !contentType.startsWith("image/")) {
+                        throw new IllegalArgumentException("只能上傳圖片");
+                }
+
+                try {
+                        Map<?, ?> uploadResult = cloudinary.uploader().upload(
+                                        file.getBytes(),
+                                        ObjectUtils.asMap(
+                                                        "folder", "dinogo/product-descriptions",
+                                                        "resource_type", "image"));
+
+                        String imageUrl = uploadResult
+                                        .get("secure_url")
+                                        .toString();
+
+                        return Map.of(
+                                        "imageUrl",
+                                        imageUrl);
+
+                } catch (IOException e) {
+                        throw new RuntimeException(
+                                        "商品描述圖片上傳失敗",
+                                        e);
+                }
         }
 }
