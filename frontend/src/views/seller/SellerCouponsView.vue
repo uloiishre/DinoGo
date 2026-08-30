@@ -41,6 +41,7 @@ const sellerProducts = ref([])
 const sellerOrders = ref([])
 const performanceStartDate = ref('')
 const performanceEndDate = ref('')
+const performanceRange = ref('7')
 const performanceStartInput = ref(null)
 const performanceEndInput = ref(null)
 const chartPalette = ref(createSellerChartPalette())
@@ -787,9 +788,10 @@ const applyPerformanceDateRange = async () => {
 const selectPerformancePreset = async (preset) => {
   const end = new Date()
   const start = new Date(end)
+  if (preset === 'day') start.setDate(end.getDate())
   if (preset === '7') start.setDate(end.getDate() - 6)
   if (preset === '30') start.setDate(end.getDate() - 29)
-  if (preset === 'month') start.setDate(1)
+  performanceRange.value = preset
   performanceStartDate.value = toDateInput(start)
   performanceEndDate.value = toDateInput(end)
   performanceStartPicker?.setDate(performanceStartDate.value, false)
@@ -807,6 +809,7 @@ const createPerformanceDatePicker = (input, field, defaultDate) =>
     disableMobile: true,
     locale: MandarinTraditional,
     onChange: (_, dateString) => {
+      performanceRange.value = 'custom'
       if (field === 'start') {
         performanceStartDate.value = dateString
         performanceEndPicker?.set('minDate', dateString)
@@ -895,15 +898,32 @@ onUnmounted(() => {
     <section class="performance-panel">
       <div class="section-heading compact">
         <h2>優惠券表現</h2>
-        <span>{{ performanceRangeLabel }}</span>
         <button type="button" class="link-button" @click="fakeAction('查看更多')">查看更多</button>
       </div>
 
       <div class="performance-filter" aria-label="優惠券表現日期篩選">
         <div class="performance-presets">
-          <button type="button" @click="selectPerformancePreset('7')">近 7 天</button>
-          <button type="button" @click="selectPerformancePreset('30')">近 30 天</button>
-          <button type="button" @click="selectPerformancePreset('month')">本月</button>
+          <button
+            type="button"
+            :class="{ active: performanceRange === 'day' }"
+            @click="selectPerformancePreset('day')"
+          >
+            當天
+          </button>
+          <button
+            type="button"
+            :class="{ active: performanceRange === '7' }"
+            @click="selectPerformancePreset('7')"
+          >
+            近 7 天
+          </button>
+          <button
+            type="button"
+            :class="{ active: performanceRange === '30' }"
+            @click="selectPerformancePreset('30')"
+          >
+            近 30 天
+          </button>
         </div>
         <div class="performance-dates">
           <label>
@@ -1244,7 +1264,8 @@ onUnmounted(() => {
 .performance-filter {
   display: flex;
   align-items: flex-end;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  justify-content: flex-start;
   gap: 16px;
   padding: 2px 0;
 }
@@ -1253,6 +1274,7 @@ onUnmounted(() => {
 .performance-dates {
   display: flex;
   align-items: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -1264,12 +1286,22 @@ onUnmounted(() => {
   background: var(--color-surface);
   color: var(--color-text-800);
   font: inherit;
+  font-size: var(--font-size-sm);
+  line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
 }
 
 .performance-presets button:hover {
   border-color: var(--color-primary);
   background: var(--color-primary-soft);
+}
+
+.performance-presets button.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: 800;
 }
 
 .performance-dates label {

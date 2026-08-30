@@ -61,13 +61,13 @@ class SellerServiceTest {
                 1,
                 "小恐龍商店",
                 "專賣恐龍周邊",
-                "https://example.com/logo.png");
+                "https://res.cloudinary.com/demo/image/upload/logo.png");
 
         assertThat(result).isNotNull();
         assertThat(result.getMember().getMemberId()).isEqualTo(1);
         assertThat(result.getStoreName()).isEqualTo("小恐龍商店");
         assertThat(result.getStoreDescription()).isEqualTo("專賣恐龍周邊");
-        assertThat(result.getStoreLogoUrl()).isEqualTo("https://example.com/logo.png");
+        assertThat(result.getStoreLogoUrl()).isEqualTo("https://res.cloudinary.com/demo/image/upload/logo.png");
         assertThat(result.getStatus()).isEqualTo("ACTIVE");
         assertThat(result.getCreatedAt()).isNotNull();
         assertThat(result.getUpdatedAt()).isNotNull();
@@ -88,7 +88,7 @@ class SellerServiceTest {
                 1,
                 "小恐龍商店",
                 "專賣恐龍周邊",
-                "https://example.com/logo.png"))
+                "https://res.cloudinary.com/demo/image/upload/logo.png"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("該會員已經是商家");
 
@@ -108,7 +108,7 @@ class SellerServiceTest {
                 1,
                 "小恐龍商店",
                 "專賣恐龍周邊",
-                "https://example.com/logo.png"))
+                "https://res.cloudinary.com/demo/image/upload/logo.png"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("找不到會員");
 

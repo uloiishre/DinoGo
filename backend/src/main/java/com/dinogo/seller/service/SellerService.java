@@ -48,7 +48,9 @@ public class SellerService {
         seller.setMember(member);
         seller.setStoreName(storeName);
         seller.setStoreDescription(storeDescription);
-        seller.setStoreLogoUrl(storeLogoUrl);
+        seller.setStoreLogoUrl(SellerCloudinaryUrlValidator.optionalCloudinaryImageUrl(
+                storeLogoUrl,
+                "店鋪 Logo URL"));
         seller.setStatus(DEFAULT_SELLER_STATUS);
         seller.setCreatedAt(now);
         seller.setUpdatedAt(now);

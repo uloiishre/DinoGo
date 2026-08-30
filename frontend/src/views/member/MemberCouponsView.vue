@@ -47,11 +47,19 @@ const visibleCoupons = computed(() =>
 
 function couponAmount(coupon) {
   if (coupon.discountType === 'PERCENT' || coupon.discountType === 'PERCENTAGE') {
-    const value = Number(coupon.discountValue ?? 0)
-    return `${100 - value}折`
+    return `${formatPercentDiscount(coupon.discountValue)}折`
   }
 
   return `NT$${Number(coupon.discountAmount ?? coupon.discountValue ?? 0).toLocaleString()}`
+}
+
+function formatPercentDiscount(discountValue) {
+  const value = Number(discountValue ?? 0)
+  const displayValue = Number.isFinite(value) ? value / 10 : 0
+
+  return new Intl.NumberFormat('zh-TW', {
+    maximumFractionDigits: 2,
+  }).format(displayValue)
 }
 
 function couponDescription(coupon) {

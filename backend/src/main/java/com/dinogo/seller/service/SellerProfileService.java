@@ -61,7 +61,9 @@ public class SellerProfileService {
 
         seller.setStoreName(request.storeName());
         seller.setStoreDescription(request.storeDescription());
-        seller.setStoreLogoUrl(request.storeLogoUrl());
+        seller.setStoreLogoUrl(SellerCloudinaryUrlValidator.optionalCloudinaryImageUrl(
+                request.storeLogoUrl(),
+                "店鋪 Logo URL"));
         seller.setStatus(request.status());
         seller.setServiceStartTime(request.serviceStartTime());
         seller.setServiceEndTime(request.serviceEndTime());
