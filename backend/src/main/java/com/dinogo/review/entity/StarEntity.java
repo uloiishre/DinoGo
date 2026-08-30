@@ -18,7 +18,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
@@ -71,7 +70,7 @@ public class StarEntity {
     private Integer productId;
 
     @Setter
-    //review-start，總共1次修改，第1次//
+    //review-start，總共2次修改，第1次//
     // 對齊訂單模組 OrderItem.productName 的 100 字快照上限。
     @Column(name = "product_name", nullable = false, length = 100)
     private String productName;
@@ -86,23 +85,22 @@ public class StarEntity {
     // 對齊訂單模組 OrderItem.unitPrice 的 decimal(12,2)。
     @Column(name = "base_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal basePrice;
-    //review-end，總共1次修改，第1次//
+    //review-end，總共2次修改，第1次//
 
-    // SQL Server VARBINARY(MAX) 對應 Java byte[]；JSON DTO 使用 Base64。
+    //review-start，總共2次修改，第2次//
+    // 評論圖片只保存 Cloudinary HTTPS URL，實際圖片不寫入單體資料庫。
     @Setter
-    @Lob
-    @Column(name = "img_one")
-    private byte[] imgOne;
-
-    @Setter
-    @Lob
-    @Column(name = "img_two")
-    private byte[] imgTwo;
+    @Column(name = "img_one", length = 500)
+    private String imgOne;
 
     @Setter
-    @Lob
-    @Column(name = "img_three")
-    private byte[] imgThree;
+    @Column(name = "img_two", length = 500)
+    private String imgTwo;
+
+    @Setter
+    @Column(name = "img_three", length = 500)
+    private String imgThree;
+    //review-end，總共2次修改，第2次//
 
     @Setter
     @Column(name = "feedback", length = 500)

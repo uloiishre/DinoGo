@@ -2,7 +2,6 @@ package com.dinogo.sysmsg.entity;
 import org.hibernate.annotations.Nationalized;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.Lob;
 import jakarta.persistence.PrimaryKeyJoinColumn;
 import jakarta.persistence.Table;
 
@@ -40,24 +39,24 @@ public class SendSellerEntity extends SendEntity {
     @Column(name = "order_no", length = 30)
     private String orderNo;
 
-    @Lob
+    //sysmsg-start，總共1次修改，第1次//
+    // 圖片本體上傳 Cloudinary，訊息資料只保存 HTTPS URL。
     @Column(
-        name = "img_one"
+        name = "img_one", length = 500
     )
-    private byte[] imgOne;
+    private String imgOne;
 
-    @Lob
     @Column(
-        name = "img_two"
+        name = "img_two", length = 500
     )
-    private byte[] imgTwo;
+    private String imgTwo;
 
 
-    @Lob
     @Column(
-        name = "img_three"
+        name = "img_three", length = 500
     )
-    private byte[] imgThree;
+    private String imgThree;
+    //sysmsg-end，總共1次修改，第1次//
     
     @Nationalized
     @Column(
@@ -86,9 +85,9 @@ public class SendSellerEntity extends SendEntity {
         String sendContent,
         SendStatus sendStatus,
         String orderNo,
-        byte[] imgOne,
-        byte[] imgTwo,
-        byte[] imgThree,
+        String imgOne,
+        String imgTwo,
+        String imgThree,
         String sendRemark
     ) {
 
@@ -128,27 +127,27 @@ public class SendSellerEntity extends SendEntity {
         this.orderNo = orderNo;
     }
 
-    public byte[] getImgOne() {
+    public String getImgOne() {
         return imgOne;
     }
 
-    public void setImgOne(byte[] imgOne) {
+    public void setImgOne(String imgOne) {
         this.imgOne = imgOne;
     }
 
-    public byte[] getImgTwo() {
+    public String getImgTwo() {
         return imgTwo;
     }
 
-    public void setImgTwo(byte[] imgTwo) {
+    public void setImgTwo(String imgTwo) {
         this.imgTwo = imgTwo;
     }
 
-    public byte[] getImgThree() {
+    public String getImgThree() {
         return imgThree;
     }
 
-    public void setImgThree(byte[] imgThree) {
+    public void setImgThree(String imgThree) {
         this.imgThree = imgThree;
     }
 
