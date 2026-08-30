@@ -71,9 +71,10 @@ BEGIN
         product_name nvarchar(100) NOT NULL,
         image_url nvarchar(500) NULL,
         base_price decimal(12,2) NOT NULL,
-        img_one varbinary(max) NULL,
-        img_two varbinary(max) NULL,
-        img_three varbinary(max) NULL,
+        -- Cloudinary HTTPS URL；圖片本體不寫入 SQL Server。
+        img_one nvarchar(500) NULL,
+        img_two nvarchar(500) NULL,
+        img_three nvarchar(500) NULL,
         feedback nvarchar(500) NULL,
         five_star int NULL,
         version bigint NOT NULL
@@ -87,15 +88,11 @@ BEGIN
                      AND LTRIM(RTRIM(feedback)) <> N''
                      AND
                      (
-                         (img_one IS NOT NULL AND DATALENGTH(img_one) > 0)
-                         OR (img_two IS NOT NULL AND DATALENGTH(img_two) > 0)
-                         OR (img_three IS NOT NULL AND DATALENGTH(img_three) > 0)
+                         img_one IS NOT NULL OR img_two IS NOT NULL OR img_three IS NOT NULL
                      )
                     THEN CONVERT(tinyint, 2)
                 WHEN (feedback IS NOT NULL AND LTRIM(RTRIM(feedback)) <> N'')
-                     OR (img_one IS NOT NULL AND DATALENGTH(img_one) > 0)
-                     OR (img_two IS NOT NULL AND DATALENGTH(img_two) > 0)
-                     OR (img_three IS NOT NULL AND DATALENGTH(img_three) > 0)
+                     OR img_one IS NOT NULL OR img_two IS NOT NULL OR img_three IS NOT NULL
                     THEN CONVERT(tinyint, 1)
                 ELSE CONVERT(tinyint, 0)
             END
@@ -188,15 +185,11 @@ BEGIN
                      AND LTRIM(RTRIM(feedback)) <> N''''
                      AND
                      (
-                         (img_one IS NOT NULL AND DATALENGTH(img_one) > 0)
-                         OR (img_two IS NOT NULL AND DATALENGTH(img_two) > 0)
-                         OR (img_three IS NOT NULL AND DATALENGTH(img_three) > 0)
+                         img_one IS NOT NULL OR img_two IS NOT NULL OR img_three IS NOT NULL
                      )
                     THEN CONVERT(tinyint, 2)
                 WHEN (feedback IS NOT NULL AND LTRIM(RTRIM(feedback)) <> N'''')
-                     OR (img_one IS NOT NULL AND DATALENGTH(img_one) > 0)
-                     OR (img_two IS NOT NULL AND DATALENGTH(img_two) > 0)
-                     OR (img_three IS NOT NULL AND DATALENGTH(img_three) > 0)
+                     OR img_one IS NOT NULL OR img_two IS NOT NULL OR img_three IS NOT NULL
                     THEN CONVERT(tinyint, 1)
                 ELSE CONVERT(tinyint, 0)
             END

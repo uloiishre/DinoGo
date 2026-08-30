@@ -217,9 +217,10 @@ CREATE TABLE sysmsg.send_seller
 (
     send_seller_id INT NOT NULL,
     order_no NVARCHAR(30) NULL,
-    img_one VARBINARY(MAX) NULL,
-    img_two VARBINARY(MAX) NULL,
-    img_three VARBINARY(MAX) NULL,
+    -- Cloudinary HTTPS URL；附件本體不寫入 SQL Server。
+    img_one NVARCHAR(500) NULL,
+    img_two NVARCHAR(500) NULL,
+    img_three NVARCHAR(500) NULL,
     send_remark NVARCHAR(1000) NULL,
     CONSTRAINT PK_sysmsg_send_seller PRIMARY KEY (send_seller_id),
     CONSTRAINT FK_send_seller_send FOREIGN KEY (send_seller_id)
@@ -231,9 +232,9 @@ GO
 IF COL_LENGTH(N'sysmsg.send_seller', N'send_seller_id') IS NULL
     THROW 51013, N'既有 sysmsg.send_seller 缺少 send_seller_id，無法自動升級', 1;
 IF COL_LENGTH(N'sysmsg.send_seller', N'order_no') IS NULL ALTER TABLE sysmsg.send_seller ADD order_no nvarchar(30) NULL;
-IF COL_LENGTH(N'sysmsg.send_seller', N'img_one') IS NULL ALTER TABLE sysmsg.send_seller ADD img_one varbinary(max) NULL;
-IF COL_LENGTH(N'sysmsg.send_seller', N'img_two') IS NULL ALTER TABLE sysmsg.send_seller ADD img_two varbinary(max) NULL;
-IF COL_LENGTH(N'sysmsg.send_seller', N'img_three') IS NULL ALTER TABLE sysmsg.send_seller ADD img_three varbinary(max) NULL;
+IF COL_LENGTH(N'sysmsg.send_seller', N'img_one') IS NULL ALTER TABLE sysmsg.send_seller ADD img_one nvarchar(500) NULL;
+IF COL_LENGTH(N'sysmsg.send_seller', N'img_two') IS NULL ALTER TABLE sysmsg.send_seller ADD img_two nvarchar(500) NULL;
+IF COL_LENGTH(N'sysmsg.send_seller', N'img_three') IS NULL ALTER TABLE sysmsg.send_seller ADD img_three nvarchar(500) NULL;
 IF COL_LENGTH(N'sysmsg.send_seller', N'send_remark') IS NULL ALTER TABLE sysmsg.send_seller ADD send_remark nvarchar(1000) NULL;
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.key_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_seller') AND name=N'PK_sysmsg_send_seller')

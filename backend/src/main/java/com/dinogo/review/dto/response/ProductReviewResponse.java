@@ -17,9 +17,11 @@ public record ProductReviewResponse(
         String productName,
         Integer fiveStar,
         String feedback,
-        byte[] imgOne,
-        byte[] imgTwo,
-        byte[] imgThree,
+        //review-start，總共1次修改，第1次//
+        String imgOne,
+        String imgTwo,
+        String imgThree,
+        //review-end，總共1次修改，第1次//
         LocalDateTime starUpdAt) {
 
     public static ProductReviewResponse fromEntity(StarEntity star) {

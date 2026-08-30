@@ -20,9 +20,11 @@ public record StarResponse(
         String productName,
         String imageUrl,
         BigDecimal basePrice,
-        byte[] imgOne,
-        byte[] imgTwo,
-        byte[] imgThree,
+        //review-start，總共1次修改，第1次//
+        String imgOne,
+        String imgTwo,
+        String imgThree,
+        //review-end，總共1次修改，第1次//
         String feedback,
         Integer fiveStar,
         boolean reviewed,

@@ -35,11 +35,16 @@ public class SellerTemplateCreateRequest {
     @Size(max = 1000)
     private String sendRemark;
 
-    private byte[] imgOne;
+    //sysmsg-start，總共1次修改，第1次//
+    @Size(max = 500)
+    private String imgOne;
 
-    private byte[] imgTwo;
+    @Size(max = 500)
+    private String imgTwo;
 
-    private byte[] imgThree;
+    @Size(max = 500)
+    private String imgThree;
+    //sysmsg-end，總共1次修改，第1次//
 
     /*
      * Lombok 可使用：
@@ -84,27 +89,27 @@ public class SellerTemplateCreateRequest {
         this.sendRemark = sendRemark;
     }
 
-    public byte[] getImgOne() {
+    public String getImgOne() {
         return imgOne;
     }
 
-    public void setImgOne(byte[] imgOne) {
+    public void setImgOne(String imgOne) {
         this.imgOne = imgOne;
     }
 
-    public byte[] getImgTwo() {
+    public String getImgTwo() {
         return imgTwo;
     }
 
-    public void setImgTwo(byte[] imgTwo) {
+    public void setImgTwo(String imgTwo) {
         this.imgTwo = imgTwo;
     }
 
-    public byte[] getImgThree() {
+    public String getImgThree() {
         return imgThree;
     }
 
-    public void setImgThree(byte[] imgThree) {
+    public void setImgThree(String imgThree) {
         this.imgThree = imgThree;
     }
 }
