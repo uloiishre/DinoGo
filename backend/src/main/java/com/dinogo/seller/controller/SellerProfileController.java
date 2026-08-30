@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.dinogo.security.AuthenticatedMember;
 import com.dinogo.seller.dto.SellerProfileRequest;
 import com.dinogo.seller.dto.SellerProfileResponse;
+import com.dinogo.seller.dto.StorefrontSummaryResponse;
 import com.dinogo.seller.service.SellerProfileService;
 
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,6 +45,12 @@ public class SellerProfileController {
     public SellerProfileResponse getPublicStore(
             @org.springframework.web.bind.annotation.PathVariable Integer sellerId) {
         return sellerProfileService.getPublicStore(sellerId);
+    }
+
+    @GetMapping("/api/stores/{sellerId}/summary")
+    public StorefrontSummaryResponse getStorefrontSummary(
+            @org.springframework.web.bind.annotation.PathVariable Integer sellerId) {
+        return sellerProfileService.getStorefrontSummary(sellerId);
     }
 
     // 讓前端或 Postman 可以透過 keyword 搜尋商家。

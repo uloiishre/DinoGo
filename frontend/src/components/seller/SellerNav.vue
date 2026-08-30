@@ -1,7 +1,8 @@
 <script setup>
 import { RouterLink, useRoute, useRouter } from 'vue-router'
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useSellerProfileStore } from '@/stores/sellerProfile'
 import { getCurrentSellerId } from '@/utils/seller-session'
 
 // 沒有 sellerId 時，不要自動變成 1
@@ -10,6 +11,7 @@ const sellerId = computed(() => getCurrentSellerId())
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const sellerProfileStore = useSellerProfileStore()
 
 const navItems = [
   { label: '營運總覽', to: '/seller/dashboard', icon: 'bi-speedometer2' },
@@ -25,8 +27,6 @@ const navItems = [
   { label: '訊息中心', to: '/seller/messages', icon: 'bi-chat-left-text' },
   { label: '店鋪資料', to: '/seller/profile', icon: 'bi-shop' },
 ]
-
-const plannedItems = [{ label: '銷售分析', icon: 'bi-graph-up-arrow' }]
 
 const isItemActive = (item) => {
   if (item.to === '/seller/products') {
@@ -44,6 +44,14 @@ function logout() {
   authStore.signOut()
   router.replace({ name: 'Login' })
 }
+
+onMounted(async () => {
+  try {
+    await sellerProfileStore.fetchProfile()
+  } catch (error) {
+    console.error('Load seller profile for sidebar failed:', error)
+  }
+})
 </script>
 
 <template>
@@ -68,7 +76,7 @@ function logout() {
     <section class="seller-card">
       <span class="seller-card-icon">店</span>
       <div>
-        <strong>森日選物</strong>
+        <strong>{{ sellerProfileStore.storeName }}</strong>
         <span>今日營運狀態</span>
       </div>
     </section>
@@ -88,17 +96,6 @@ function logout() {
         </RouterLink>
       </div>
 
-      <div
-        v-for="item in plannedItems"
-        :key="item.label"
-        class="seller-nav-link is-planned"
-        :title="`${item.label}功能規劃中`"
-        aria-disabled="true"
-      >
-        <i class="nav-mark bi" :class="item.icon" aria-hidden="true"></i>
-        <span>{{ item.label }}</span>
-        <small>規劃中</small>
-      </div>
     </nav>
 
     <div class="seller-nav-footer">
@@ -228,11 +225,6 @@ function logout() {
   margin-left: auto;
   color: var(--color-text-200);
   font-size: var(--font-size-xs);
-}
-
-.seller-nav-link.is-planned {
-  cursor: not-allowed;
-  opacity: 0.58;
 }
 
 .store-link {

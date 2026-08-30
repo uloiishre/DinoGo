@@ -18,7 +18,8 @@ const claimedCouponIds = computed(
   () => new Set(memberCoupons.value.map((coupon) => Number(coupon.couponId))),
 )
 
-const isStoreCouponCenter = computed(() => Boolean(route.query.sellerId))
+const storeSellerId = computed(() => route.params.sellerId || route.query.sellerId)
+const isStoreCouponCenter = computed(() => Boolean(storeSellerId.value))
 
 function discountText(coupon) {
   if (coupon.discountType === 'PERCENT') {
@@ -41,7 +42,7 @@ async function loadCoupons() {
   errorMessage.value = ''
   try {
     const publicRequest = api.get('/coupons/available', {
-      params: route.query.sellerId ? { sellerId: route.query.sellerId } : {},
+      params: storeSellerId.value ? { sellerId: storeSellerId.value } : {},
     })
     const memberRequest = authStore.isAuthenticated
       ? api.get('/member/coupons')
@@ -79,7 +80,7 @@ async function claimCoupon(couponId) {
 onMounted(loadCoupons)
 
 watch(
-  () => route.query.sellerId,
+  storeSellerId,
   () => {
     loadCoupons()
   },

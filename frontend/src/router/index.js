@@ -42,6 +42,11 @@ const routes = [
         component: () => import('@/views/coupon/CouponCenterView.vue'),
       },
       {
+        path: 'stores/:sellerId/coupons',
+        name: 'StoreCouponCenter',
+        component: () => import('@/views/coupon/CouponCenterView.vue'),
+      },
+      {
         path: 'stores',
         name: 'StoreSearch',
         component: () => import('@/views/product/StoreSearchView.vue'),

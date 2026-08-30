@@ -1,6 +1,8 @@
 package com.dinogo.seller.service;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -13,8 +15,12 @@ import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import com.dinogo.seller.dto.SellerProfileRequest;
 import com.dinogo.seller.dto.SellerProfileResponse;
+import com.dinogo.seller.dto.StorefrontSummaryResponse;
 import com.dinogo.seller.entity.Seller;
 import com.dinogo.seller.repository.SellerRepository;
+import com.dinogo.catalog.repository.ProductRepository;
+import com.dinogo.coupon.service.CouponService;
+import com.dinogo.review.repository.StarRepository;
 
 @Service
 public class SellerProfileService {
@@ -23,10 +29,21 @@ public class SellerProfileService {
 
     private final SellerRepository sellerRepository;
     private final Cloudinary cloudinary;
+    private final ProductRepository productRepository;
+    private final StarRepository starRepository;
+    private final CouponService couponService;
 
-    public SellerProfileService(SellerRepository sellerRepository, Cloudinary cloudinary) {
+    public SellerProfileService(
+            SellerRepository sellerRepository,
+            Cloudinary cloudinary,
+            ProductRepository productRepository,
+            StarRepository starRepository,
+            CouponService couponService) {
         this.sellerRepository = sellerRepository;
         this.cloudinary = cloudinary;
+        this.productRepository = productRepository;
+        this.starRepository = starRepository;
+        this.couponService = couponService;
     }
 
     @Transactional(readOnly = true)
@@ -58,6 +75,27 @@ public class SellerProfileService {
                 .orElseThrow(() -> new IllegalArgumentException("Store not found."));
 
         return SellerProfileResponse.from(seller);
+    }
+
+    @Transactional(readOnly = true)
+    public StorefrontSummaryResponse getStorefrontSummary(Integer sellerId) {
+        sellerRepository.findBySellerIdAndStatusIgnoreCase(sellerId, "ACTIVE")
+                .orElseThrow(() -> new IllegalArgumentException("Store not found."));
+
+        long ratingCount = starRepository.countPublishedSoldProductRatingsBySellerId(sellerId);
+        Double average = ratingCount == 0
+                ? null
+                : starRepository.findPublishedSoldProductAverageFiveStarBySellerId(sellerId);
+        BigDecimal averageRating = average == null
+                ? null
+                : BigDecimal.valueOf(average).setScale(1, RoundingMode.HALF_UP);
+
+        return new StorefrontSummaryResponse(
+                averageRating,
+                ratingCount,
+                productRepository.countBySeller_SellerIdAndStatus(sellerId, (byte) 1),
+                productRepository.sumSoldCountBySellerId(sellerId),
+                couponService.getAvailableCoupons(sellerId).size());
     }
 
     // 把前端傳來的 keyword 清理後，去查啟用中的商家，再轉成前端需要的 response。

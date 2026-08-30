@@ -1,12 +1,12 @@
 <script setup>
 import {
-  getSellerProfile,
-  updateSellerProfile,
   uploadSellerLogo,
   resolveSellerLogoUrl,
 } from '@/api/sellerProfileApi'
+import { useSellerProfileStore } from '@/stores/sellerProfile'
 import { computed, onMounted, reactive, ref } from 'vue'
 
+const sellerProfileStore = useSellerProfileStore()
 const isSaving = ref(false)
 const savedMessage = ref('')
 const logoUrl = ref('')
@@ -32,6 +32,7 @@ const handleLogoSelect = async (event) => {
 
   try {
     const response = await uploadSellerLogo(file)
+    sellerProfileStore.setProfile(response.data)
     applyProfileToForm(response.data)
     savedMessage.value = '店鋪 Logo 已更新。'
   } catch (error) {
@@ -145,7 +146,7 @@ const handleSave = async () => {
   const serviceEndTime = formatServiceTimeForApi('end')
 
   try {
-    const response = await updateSellerProfile({
+    const profile = await sellerProfileStore.saveProfile({
       storeName: form.storeName,
       storeDescription: form.description,
       storeLogoUrl: logoUrl.value.trim() || null,
@@ -154,7 +155,7 @@ const handleSave = async () => {
       serviceEndTime,
     })
 
-    applyProfileToForm(response.data)
+    applyProfileToForm(profile)
     savedMessage.value = '店鋪資料已更新。'
   } catch (error) {
     console.error('Update seller profile failed:', error)
@@ -166,8 +167,8 @@ const handleSave = async () => {
 
 onMounted(async () => {
   try {
-    const response = await getSellerProfile()
-    applyProfileToForm(response.data)
+    const profile = await sellerProfileStore.fetchProfile({ force: true })
+    applyProfileToForm(profile)
   } catch (error) {
     console.error('Load seller profile failed:', error)
     savedMessage.value = '店鋪資料載入失敗，請確認是否已登入賣家帳號。'

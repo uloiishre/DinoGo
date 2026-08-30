@@ -1,6 +1,7 @@
 package com.dinogo.seller.service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -96,13 +97,27 @@ public class SellerWalletService {
 
     @Transactional(readOnly = true)
     public List<SellerWalletTransactionResponse> getTransactions(Integer memberId) {
+        return getTransactions(memberId, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SellerWalletTransactionResponse> getTransactions(
+            Integer memberId,
+            LocalDate startDate,
+            LocalDate endDate) {
         Integer sellerId = currentSellerService.requireActiveSellerId(memberId);
+
+        if ((startDate == null) != (endDate == null)
+                || (startDate != null && endDate.isBefore(startDate))) {
+            throw new IllegalArgumentException("查詢結束日期不可早於開始日期，且日期不可為空");
+        }
 
         return orderRepository.findBySellerIdOrderByCreatedAtDesc(sellerId).stream()
                 .filter(order -> order.getStatus() != OrderStatus.PENDING_PAYMENT)
                 .filter(order -> order.getStatus() != OrderStatus.CANCELLED)
                 .sorted(Comparator.comparing(Order::getCreatedAt).reversed())
                 .map(this::toTransactionResponse)
+                .filter(transaction -> isTransactionInRange(transaction, startDate, endDate))
                 .toList();
     }
 
@@ -164,5 +179,17 @@ public class SellerWalletService {
                 completed && order.getCompletedAt() != null
                         ? order.getCompletedAt()
                         : order.getCreatedAt());
+    }
+
+    private boolean isTransactionInRange(
+            SellerWalletTransactionResponse transaction,
+            LocalDate startDate,
+            LocalDate endDate) {
+        if (startDate == null && endDate == null) {
+            return true;
+        }
+
+        LocalDate occurredDate = transaction.occurredAt().toLocalDate();
+        return !occurredDate.isBefore(startDate) && !occurredDate.isAfter(endDate);
     }
 }

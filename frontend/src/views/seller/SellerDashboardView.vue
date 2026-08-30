@@ -1,76 +1,132 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import flatpickr from 'flatpickr'
 import { MandarinTraditional } from 'flatpickr/dist/l10n/zh-tw'
 import 'flatpickr/dist/flatpickr.css'
 import '@/assets/styles/seller-flatpickr.css'
 import { Line } from 'vue-chartjs'
-import {
-  CategoryScale,
-  Chart as ChartJS,
-  Filler,
-  Legend,
-  LinearScale,
-  LineElement,
-  PointElement,
-  Tooltip,
-} from 'chart.js'
 import { getSellerOrders } from '@/api/sellerOrderApi'
-import { getSellerProducts } from '@/api/sellerProductApi'
+import { analyzeSellerSalesInsight, getSellerSalesInsight } from '@/api/sellerSalesInsightApi'
 import { getSellerWalletTransactions } from '@/api/sellerWalletApi'
-import { getCurrentSellerId } from '@/utils/seller-session'
+import {
+  createSellerChartPalette,
+  createSellerLineChartOptions,
+  createSellerLineDataset,
+  formatFullDateLabel,
+  registerSellerLineChart,
+} from './useSellerLineChart'
 
-ChartJS.register(CategoryScale, Filler, Legend, LinearScale, LineElement, PointElement, Tooltip)
+registerSellerLineChart()
 
 const walletTransactions = ref([])
 const sellerOrders = ref([])
-const sellerProducts = ref([])
+const salesInsight = ref(null)
+const trendWalletTransactions = ref([])
+const trendSellerOrders = ref([])
 const dashboardLoading = ref(false)
 const dashboardError = ref('')
+const salesInsightStatsLoading = ref(false)
+const salesInsightAnalysisLoading = ref(false)
+const salesInsightError = ref('')
 const dateInput = ref(null)
+const salesInsightPreset = ref('7')
+const salesInsightStartDate = ref('')
+const salesInsightEndDate = ref('')
+const salesInsightStartInput = ref(null)
+const salesInsightEndInput = ref(null)
+const trendStartDate = ref('')
+const trendEndDate = ref('')
+const trendStartInput = ref(null)
+const trendEndInput = ref(null)
 const selectedDate = ref(toDateKey(new Date()))
-const selectedCategory = ref('ALL')
 const selectedTrendKeys = ref(['sales', 'orders'])
-const chartPalette = ref({
-  sales: '#657a6d',
-  orders: '#9a7b42',
-  cancelled: '#c73e3a',
-  quantity: '#64748b',
-  text: '#38423d',
-  muted: '#66706a',
-  border: '#e8e6e1',
-  surface: '#ffffff',
-})
+const chartPalette = ref(createSellerChartPalette())
 let dashboardRefreshTimer = null
 let dashboardDatePicker = null
+let salesInsightStartPicker = null
+let salesInsightEndPicker = null
+let trendStartPicker = null
+let trendEndPicker = null
 
 async function loadDashboardData() {
   try {
     dashboardLoading.value = true
     dashboardError.value = ''
 
-    const sellerId = getCurrentSellerId()
-    const [walletResponse, orderResponse, productResponse] = await Promise.all([
+    const [walletResponse, orderResponse] = await Promise.all([
       getSellerWalletTransactions(),
       getSellerOrders(),
-      sellerId ? getSellerProducts(sellerId) : Promise.resolve({ data: [] }),
     ])
 
     walletTransactions.value = walletResponse.data || []
     sellerOrders.value = Array.isArray(orderResponse.data) ? orderResponse.data : []
-    sellerProducts.value = Array.isArray(productResponse.data) ? productResponse.data : []
   } catch {
     dashboardError.value = '無法載入營運資料，請稍後再試。'
     walletTransactions.value = []
     sellerOrders.value = []
-    sellerProducts.value = []
   } finally {
     dashboardLoading.value = false
   }
 }
 
+async function loadTrendData() {
+  if (!trendStartDate.value || !trendEndDate.value) return
+
+  const params = {
+    startDate: trendStartDate.value,
+    endDate: trendEndDate.value,
+  }
+
+  const [walletResponse, orderResponse] = await Promise.all([
+    getSellerWalletTransactions(params),
+    getSellerOrders(params),
+  ])
+
+  trendWalletTransactions.value = walletResponse.data || []
+  trendSellerOrders.value = Array.isArray(orderResponse.data) ? orderResponse.data : []
+}
+
+async function loadSalesInsightStats() {
+  if (!salesInsightStartDate.value || !salesInsightEndDate.value) return
+
+  try {
+    salesInsightStatsLoading.value = true
+    salesInsightError.value = ''
+
+    const response = await getSellerSalesInsight(salesInsightParams.value)
+
+    salesInsight.value = response.data || null
+  } catch {
+    salesInsight.value = null
+    salesInsightError.value = '無法載入 AI 銷售洞察，請稍後再試。'
+  } finally {
+    salesInsightStatsLoading.value = false
+  }
+}
+
+async function runSalesInsightAnalysis() {
+  if (!salesInsightStartDate.value || !salesInsightEndDate.value) return
+
+  try {
+    salesInsightAnalysisLoading.value = true
+    salesInsightError.value = ''
+
+    const response = await analyzeSellerSalesInsight(salesInsightParams.value)
+    salesInsight.value = response.data || null
+  } catch {
+    salesInsightError.value = '無法產生 AI 銷售洞察，請稍後再試。'
+  } finally {
+    salesInsightAnalysisLoading.value = false
+  }
+}
+
 const incomeTransactions = computed(() =>
   walletTransactions.value.filter(
+    (item) => item.status === 'AVAILABLE' && item.direction === 'income',
+  ),
+)
+const trendIncomeTransactions = computed(() =>
+  trendWalletTransactions.value.filter(
     (item) => item.status === 'AVAILABLE' && item.direction === 'income',
   ),
 )
@@ -111,6 +167,49 @@ const yesterdayAverageOrderValue = computed(() =>
 const previousSevenDayRevenue = computed(() =>
   getRevenueBetween(previousSevenDayRange.value.startKey, previousSevenDayRange.value.endKey),
 )
+const salesInsightStats = computed(() => salesInsight.value?.stats || null)
+const salesInsightAi = computed(() => salesInsight.value?.ai || null)
+const salesInsightBusy = computed(
+  () => salesInsightStatsLoading.value || salesInsightAnalysisLoading.value,
+)
+const salesInsightParams = computed(() => ({
+  startDate: salesInsightStartDate.value,
+  endDate: salesInsightEndDate.value,
+}))
+const salesInsightPeriodLabel = computed(() => {
+  const stats = salesInsightStats.value
+  if (!stats?.periodStart || !stats?.periodEnd) return '近 7 日'
+
+  return `${stats.periodStart.replaceAll('-', '/')} - ${stats.periodEnd.replaceAll('-', '/')}`
+})
+const salesInsightMetricCards = computed(() => {
+  const stats = salesInsightStats.value
+  if (!stats) return []
+
+  return [
+    {
+      label: '本期銷售額',
+      value: formatCurrency(stats.revenueAmount),
+      previous: `前期 ${formatCurrency(stats.previousRevenueAmount)}`,
+      change: formatChangeText(stats.revenueChangeRate),
+      tone: getChangeTone(stats.revenueChangeRate),
+    },
+    {
+      label: '本期訂單數',
+      value: `${Number(stats.orderCount || 0).toLocaleString('zh-TW')} 筆`,
+      previous: `前期 ${Number(stats.previousOrderCount || 0).toLocaleString('zh-TW')} 筆`,
+      change: formatChangeText(stats.orderCountChangeRate),
+      tone: getChangeTone(stats.orderCountChangeRate),
+    },
+    {
+      label: '平均訂單金額',
+      value: formatCurrency(stats.averageOrderValue),
+      previous: `前期 ${formatCurrency(stats.previousAverageOrderValue)}`,
+      change: formatChangeText(stats.averageOrderValueChangeRate),
+      tone: getChangeTone(stats.averageOrderValueChangeRate),
+    },
+  ]
+})
 
 const metricCards = computed(() => [
   {
@@ -161,40 +260,41 @@ const metricCards = computed(() => [
   },
 ])
 
-const productLookup = computed(() => {
-  const map = new Map()
-  sellerProducts.value.forEach((product) => {
-    map.set(product.productId, product)
-  })
-  return map
-})
-
-const categoryOptions = computed(() => {
-  const categories = new Set(
-    sellerProducts.value.map((product) => getProductCategory(product)).filter(Boolean),
-  )
-
-  return ['ALL', ...Array.from(categories)]
-})
+const productRankingOrders = computed(() =>
+  sellerOrders.value
+    .filter(isCountedSalesOrder)
+    .filter((order) => {
+      const dateKey = order.createdAt?.slice(0, 10)
+      return (
+        dateKey &&
+        salesInsightStartDate.value &&
+        salesInsightEndDate.value &&
+        dateKey >= salesInsightStartDate.value &&
+        dateKey <= salesInsightEndDate.value
+      )
+    }),
+)
 
 const productInsightRows = computed(() => {
   const productMap = new Map()
 
-  selectedDateOrders.value.forEach((order) => {
+  productRankingOrders.value.forEach((order) => {
     ;(order.items || []).forEach((item) => {
-      const productId = item.productId || item.product?.productId || item.id
-      if (!productId) return
+      const productId = item.productId || item.product?.productId || item.id || 'unknown'
+      const skuId = item.skuId || item.productSkuId || item.sku?.skuId || ''
+      const skuText = item.skuSpec || item.skuName || (skuId ? `SKU-${skuId}` : '未指定')
+      const mapKey = `${productId}-${skuId || skuText}`
 
-      const current = productMap.get(productId) || {
+      const current = productMap.get(mapKey) || {
+        mapKey,
         productId,
+        skuId,
         productName: item.productName || item.product?.productName || `商品 #${productId}`,
-        category: getProductCategory(productLookup.value.get(productId) || item.product || item),
+        sku: skuText,
+        imageUrl: item.productImageUrl || item.imageUrl || item.product?.imageUrl || '',
+        unitPrice: Number(item.unitPrice || 0),
         revenue: 0,
-        orderCount: 0,
         quantity: 0,
-        buyerIds: new Set(),
-        stock: Number(productLookup.value.get(productId)?.stock || 0),
-        status: productLookup.value.get(productId)?.status,
       }
 
       const quantity = Number(item.quantity || 0)
@@ -202,64 +302,80 @@ const productInsightRows = computed(() => {
 
       current.revenue += amount
       current.quantity += quantity
-      current.orderCount += 1
-      if (order.buyerId) current.buyerIds.add(order.buyerId)
-      productMap.set(productId, current)
+      if (!current.unitPrice && item.unitPrice) {
+        current.unitPrice = Number(item.unitPrice || 0)
+      }
+      productMap.set(mapKey, current)
     })
   })
 
   return Array.from(productMap.values())
-    .filter((item) => selectedCategory.value === 'ALL' || item.category === selectedCategory.value)
-    .sort((a, b) => b.revenue - a.revenue)
+    .filter((item) => item.quantity > 0)
+    .sort((a, b) => b.quantity - a.quantity || b.revenue - a.revenue)
     .slice(0, 5)
     .map((item, index) => ({
       ...item,
       rank: index + 1,
-      buyerCount: item.buyerIds.size,
     }))
 })
+
+const productRankingPeriodLabel = computed(() =>
+  salesInsightStartDate.value && salesInsightEndDate.value
+    ? `${salesInsightStartDate.value.replaceAll('-', '/')} - ${salesInsightEndDate.value.replaceAll('-', '/')}`
+    : '',
+)
 
 const trendMetricOptions = [
   { key: 'sales', label: '銷售額' },
   { key: 'orders', label: '訂單數' },
-  { key: 'cancelled', label: '取消訂單' },
+  { key: 'averageOrderValue', label: '平均客單價' },
   { key: 'quantity', label: '銷售件數' },
 ]
 
-const hourlyTrendBuckets = computed(() => {
-  const buckets = Array.from({ length: 12 }, (_, index) => {
-    const startHour = index * 2
-    return {
-      label: `${String(startHour).padStart(2, '0')}:00`,
+const trendDateBuckets = computed(() => {
+  const buckets = new Map()
+  const start = new Date(`${trendStartDate.value}T00:00:00`)
+  const end = new Date(`${trendEndDate.value}T00:00:00`)
+
+  for (const date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+    const dateKey = toDateKey(date)
+    buckets.set(dateKey, {
+      label: dateKey,
       sales: 0,
       orders: 0,
-      cancelled: 0,
+      averageOrderValue: 0,
       quantity: 0,
-    }
-  })
-
-  incomeTransactions.value
-    .filter((item) => item.occurredAt?.slice(0, 10) === selectedDate.value)
-    .forEach((item) => {
-      const hour = new Date(item.occurredAt).getHours()
-      const bucketIndex = Math.min(Math.floor(hour / 2), buckets.length - 1)
-      buckets[bucketIndex].sales += Number(item.amount || 0)
     })
+  }
 
-  selectedDateOrders.value.forEach((order) => {
-    if (!order.createdAt) return
-    const hour = new Date(order.createdAt).getHours()
-    const bucketIndex = Math.min(Math.floor(hour / 2), buckets.length - 1)
-    buckets[bucketIndex].orders += 1
-    buckets[bucketIndex].quantity += getSoldQuantity([order])
-
-    if (order.status === 'CANCELLED') {
-      buckets[bucketIndex].cancelled += 1
+  trendIncomeTransactions.value.forEach((item) => {
+    const dateKey = item.occurredAt?.slice(0, 10)
+    if (buckets.has(dateKey)) {
+      buckets.get(dateKey).sales += Number(item.amount || 0)
     }
   })
 
-  return buckets
+  trendSellerOrders.value.forEach((order) => {
+    const dateKey = order.createdAt?.slice(0, 10)
+    if (!buckets.has(dateKey)) return
+
+    const bucket = buckets.get(dateKey)
+    bucket.orders += 1
+    bucket.quantity += getSoldQuantity([order])
+  })
+
+  buckets.forEach((bucket) => {
+    bucket.averageOrderValue = bucket.orders ? Math.round(bucket.sales / bucket.orders) : 0
+  })
+
+  return [...buckets.values()]
 })
+
+const trendRangeLabel = computed(() =>
+  trendStartDate.value && trendEndDate.value
+    ? `${trendStartDate.value.replaceAll('-', '/')} - ${trendEndDate.value.replaceAll('-', '/')}`
+    : '',
+)
 
 const trendChartData = computed(() => {
   const enabledOptions = trendMetricOptions.filter((option) =>
@@ -267,74 +383,29 @@ const trendChartData = computed(() => {
   )
 
   return {
-    labels: hourlyTrendBuckets.value.map((bucket) => bucket.label),
-    datasets: enabledOptions.map((option) => ({
-      label: option.label,
-      data: hourlyTrendBuckets.value.map((bucket) => bucket[option.key]),
-      borderColor: chartPalette.value[option.key],
-      backgroundColor: toAlpha(chartPalette.value[option.key], 0.12),
-      pointBackgroundColor: chartPalette.value.surface,
-      pointBorderColor: chartPalette.value[option.key],
-      pointHoverBackgroundColor: chartPalette.value[option.key],
-      pointHoverBorderColor: chartPalette.value.surface,
-      pointRadius: 3,
-      pointHoverRadius: 5,
-      borderWidth: 2,
-      tension: 0.36,
-      fill: option.key === 'sales',
-    })),
+    labels: trendDateBuckets.value.map((bucket) => bucket.label),
+    datasets: enabledOptions.map((option, index) =>
+      createSellerLineDataset(
+        option,
+        trendDateBuckets.value.map((bucket) => bucket[option.key]),
+        chartPalette.value,
+        index === 0,
+      ),
+    ),
   }
 })
 
-const trendChartOptions = computed(() => ({
-  responsive: true,
-  maintainAspectRatio: false,
-  interaction: {
-    intersect: false,
-    mode: 'index',
-  },
-  plugins: {
-    legend: {
-      display: false,
+const trendChartOptions = computed(() =>
+  createSellerLineChartOptions({
+    palette: chartPalette.value,
+    formatTooltipTitle: formatFullDateLabel,
+    formatValue(value, label) {
+      return ['銷售額', '平均客單價'].includes(label)
+        ? formatCurrency(value)
+        : value.toLocaleString('zh-TW')
     },
-    tooltip: {
-      backgroundColor: chartPalette.value.text,
-      displayColors: true,
-      padding: 12,
-      callbacks: {
-        label(context) {
-          const value = Number(context.raw || 0)
-          return context.dataset.label === '銷售額'
-            ? `${context.dataset.label}: ${formatCurrency(value)}`
-            : `${context.dataset.label}: ${value.toLocaleString('zh-TW')}`
-        },
-      },
-    },
-  },
-  scales: {
-    x: {
-      grid: {
-        display: false,
-      },
-      ticks: {
-        color: chartPalette.value.muted,
-        maxRotation: 0,
-        autoSkip: true,
-        autoSkipPadding: 18,
-      },
-    },
-    y: {
-      beginAtZero: true,
-      grid: {
-        color: chartPalette.value.border,
-      },
-      ticks: {
-        color: chartPalette.value.muted,
-        precision: 0,
-      },
-    },
-  },
-}))
+  }),
+)
 
 function toDateKey(date) {
   const year = date.getFullYear()
@@ -383,6 +454,10 @@ function getSoldQuantity(orders) {
   )
 }
 
+function isCountedSalesOrder(order) {
+  return ['PAID', 'PROCESSING', 'SHIPPED', 'COMPLETED'].includes(order.status)
+}
+
 function formatChange(current, previous, direction = 'higher-is-better') {
   const currentValue = Number(current || 0)
   const previousValue = Number(previous || 0)
@@ -403,6 +478,18 @@ function formatChange(current, previous, direction = 'higher-is-better') {
   }
 }
 
+function formatChangeText(rate) {
+  const value = Number(rate || 0)
+  return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`
+}
+
+function getChangeTone(rate) {
+  const value = Number(rate || 0)
+  if (value > 0) return 'positive'
+  if (value < 0) return 'negative'
+  return 'neutral'
+}
+
 function toggleTrendKey(key) {
   if (selectedTrendKeys.value.includes(key)) {
     selectedTrendKeys.value = selectedTrendKeys.value.filter((item) => item !== key)
@@ -417,6 +504,84 @@ function openDatePicker() {
   dateInput.value?.focus()
 }
 
+function initializeTrendDateRange() {
+  const today = new Date()
+  const start = new Date(today)
+  start.setDate(today.getDate() - 6)
+  trendStartDate.value = toDateKey(start)
+  trendEndDate.value = toDateKey(today)
+}
+
+function initializeSalesInsightDateRange() {
+  setSalesInsightPresetRange('7')
+}
+
+function setSalesInsightPresetRange(preset) {
+  const end = preset === 'day' ? new Date() : new Date(`${selectedDate.value}T00:00:00`)
+  const start = new Date(end)
+  if (preset === 'day') start.setDate(end.getDate())
+  if (preset === '7') start.setDate(end.getDate() - 6)
+  if (preset === '30') start.setDate(end.getDate() - 29)
+  salesInsightPreset.value = preset
+  salesInsightStartDate.value = toDateKey(start)
+  salesInsightEndDate.value = toDateKey(end)
+  syncSalesInsightPickers()
+}
+
+function syncSalesInsightPickers() {
+  salesInsightStartPicker?.setDate(salesInsightStartDate.value, false)
+  salesInsightEndPicker?.setDate(salesInsightEndDate.value, false)
+  salesInsightEndPicker?.set('minDate', salesInsightStartDate.value)
+  salesInsightStartPicker?.set('maxDate', salesInsightEndDate.value)
+}
+
+async function applySalesInsightDateRange() {
+  if (!salesInsightStartDate.value || !salesInsightEndDate.value) return
+  if (salesInsightEndDate.value < salesInsightStartDate.value) {
+    salesInsightError.value = '結束日期不可早於開始日期。'
+    return
+  }
+
+  await loadSalesInsightStats()
+}
+
+async function selectSalesInsightPreset(preset) {
+  setSalesInsightPresetRange(preset)
+  await applySalesInsightDateRange()
+}
+
+async function applyTrendDateRange() {
+  if (!trendStartDate.value || !trendEndDate.value) return
+  if (trendEndDate.value < trendStartDate.value) {
+    dashboardError.value = '結束日期不可早於開始日期。'
+    return
+  }
+
+  try {
+    dashboardError.value = ''
+    await loadTrendData()
+  } catch {
+    dashboardError.value = '無法載入關鍵指標分析資料，請稍後再試。'
+    trendWalletTransactions.value = []
+    trendSellerOrders.value = []
+  }
+}
+
+async function selectTrendPreset(preset) {
+  const end = new Date()
+  const start = new Date(end)
+  if (preset === '7') start.setDate(end.getDate() - 6)
+  if (preset === '30') start.setDate(end.getDate() - 29)
+  if (preset === 'month') start.setDate(1)
+  trendStartDate.value = toDateKey(start)
+  trendEndDate.value = toDateKey(end)
+  trendStartPicker?.setDate(trendStartDate.value, false)
+  trendEndPicker?.setDate(trendEndDate.value, false)
+  trendEndPicker?.set('minDate', trendStartDate.value)
+  trendStartPicker?.set('maxDate', trendEndDate.value)
+  await applyTrendDateRange()
+}
+
 function exportDashboardCsv() {
   const metricRows = metricCards.value.map((item) => ({
     type: '關鍵指標',
@@ -425,13 +590,9 @@ function exportDashboardCsv() {
     previous: item.previous,
     change: item.change.text,
     product: '',
-    category: '',
     revenue: '',
-    orderCount: '',
     quantity: '',
-    buyerCount: '',
     stock: '',
-    status: '',
   }))
   const productRows = productInsightRows.value.map((item) => ({
     type: '商品銷售排名',
@@ -440,13 +601,9 @@ function exportDashboardCsv() {
     previous: '',
     change: '',
     product: item.productName,
-    category: item.category,
     revenue: formatCurrency(item.revenue),
-    orderCount: item.orderCount,
     quantity: item.quantity,
-    buyerCount: item.buyerCount,
-    stock: item.stock,
-    status: formatProductStatus(item.status),
+    stock: '',
   }))
   const headers = [
     '類型',
@@ -455,13 +612,9 @@ function exportDashboardCsv() {
     '比較基準',
     '變化',
     '商品',
-    '分類',
     '銷售額',
-    '訂單數',
-    '件數',
-    '買家數',
+    '銷售件數',
     '庫存',
-    '狀態',
   ]
   const rows = [...metricRows, ...productRows].map((row) => [
     row.type,
@@ -470,13 +623,9 @@ function exportDashboardCsv() {
     row.previous,
     row.change,
     row.product,
-    row.category,
     row.revenue,
-    row.orderCount,
     row.quantity,
-    row.buyerCount,
     row.stock,
-    row.status,
   ])
   const csv = [headers, ...rows].map((row) => row.map(escapeCsvCell).join(',')).join('\r\n')
   const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
@@ -496,65 +645,13 @@ function formatDateRange(range) {
   return `${range.startKey} 至 ${range.endKey}`
 }
 
-function formatProductStatus(status) {
-  if (status === 'ACTIVE' || status === 0) return '上架中'
-  if (status === 'INACTIVE' || status === 1) return '草稿'
-  if (status === 2) return '已下架'
-  return '未設定'
-}
-
-function getProductCategory(product = {}) {
-  return (
-    product.categoryName ||
-    product.category?.categoryName ||
-    product.category?.name ||
-    product.subcategoryName ||
-    product.subcategory?.subcategoryName ||
-    product.subcategory?.name ||
-    product.subcategory?.category?.categoryName ||
-    product.subcategory?.category?.name ||
-    '未分類'
-  )
-}
-
 function escapeCsvCell(value) {
   const text = String(value ?? '')
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
 }
 
 function loadChartPalette() {
-  const styles = window.getComputedStyle(document.documentElement)
-  chartPalette.value = {
-    sales: getCssColor(styles, '--color-primary-600', chartPalette.value.sales),
-    orders: getCssColor(styles, '--color-warning', chartPalette.value.orders),
-    cancelled: getCssColor(styles, '--color-danger', chartPalette.value.cancelled),
-    quantity: getCssColor(styles, '--color-info', chartPalette.value.quantity),
-    text: getCssColor(styles, '--color-text-700', chartPalette.value.text),
-    muted: getCssColor(styles, '--color-text-muted', chartPalette.value.muted),
-    border: getCssColor(styles, '--color-border', chartPalette.value.border),
-    surface: getCssColor(styles, '--color-surface', chartPalette.value.surface),
-  }
-}
-
-function getCssColor(styles, token, fallback) {
-  return styles.getPropertyValue(token).trim() || fallback
-}
-
-function toAlpha(color, alpha) {
-  const normalized = color.trim()
-  if (!normalized.startsWith('#') || ![4, 7].includes(normalized.length)) {
-    return normalized
-  }
-
-  const hex =
-    normalized.length === 4
-      ? `#${normalized[1]}${normalized[1]}${normalized[2]}${normalized[2]}${normalized[3]}${normalized[3]}`
-      : normalized
-  const red = Number.parseInt(hex.slice(1, 3), 16)
-  const green = Number.parseInt(hex.slice(3, 5), 16)
-  const blue = Number.parseInt(hex.slice(5, 7), 16)
-
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`
+  chartPalette.value = createSellerChartPalette()
 }
 
 function initializeDashboardDatePicker() {
@@ -582,11 +679,112 @@ function initializeDashboardDatePicker() {
   })
 }
 
+function createTrendDatePicker(input, field, defaultDate) {
+  return flatpickr(input, {
+    altInput: true,
+    altInputClass: 'seller-flatpickr-input coupon-date-input',
+    altFormat: 'Y/m/d',
+    allowInput: false,
+    dateFormat: 'Y-m-d',
+    defaultDate,
+    disableMobile: true,
+    locale: MandarinTraditional,
+    monthSelectorType: 'dropdown',
+    onChange: (_, dateString) => {
+      if (field === 'start') {
+        trendStartDate.value = dateString
+        trendEndPicker?.set('minDate', dateString)
+      }
+      if (field === 'end') {
+        trendEndDate.value = dateString
+        trendStartPicker?.set('maxDate', dateString)
+      }
+      void applyTrendDateRange()
+    },
+    onReady: (_, __, instance) => {
+      instance.calendarContainer.classList.add('seller-module-flatpickr')
+    },
+  })
+}
+
+function createSalesInsightDatePicker(input, field, defaultDate) {
+  return flatpickr(input, {
+    altInput: true,
+    altInputClass: 'seller-flatpickr-input coupon-date-input',
+    altFormat: 'Y/m/d',
+    allowInput: false,
+    dateFormat: 'Y-m-d',
+    defaultDate,
+    disableMobile: true,
+    locale: MandarinTraditional,
+    monthSelectorType: 'dropdown',
+    onChange: (_, dateString) => {
+      salesInsightPreset.value = 'custom'
+      if (field === 'start') {
+        salesInsightStartDate.value = dateString
+        salesInsightEndPicker?.set('minDate', dateString)
+      }
+      if (field === 'end') {
+        salesInsightEndDate.value = dateString
+        salesInsightStartPicker?.set('maxDate', dateString)
+      }
+      void applySalesInsightDateRange()
+    },
+    onReady: (_, __, instance) => {
+      instance.calendarContainer.classList.add('seller-module-flatpickr')
+    },
+  })
+}
+
+function initializeSalesInsightDatePickers() {
+  salesInsightStartPicker?.destroy()
+  salesInsightEndPicker?.destroy()
+  salesInsightStartPicker = salesInsightStartInput.value
+    ? createSalesInsightDatePicker(
+        salesInsightStartInput.value,
+        'start',
+        salesInsightStartDate.value,
+      )
+    : null
+  salesInsightEndPicker = salesInsightEndInput.value
+    ? createSalesInsightDatePicker(salesInsightEndInput.value, 'end', salesInsightEndDate.value)
+    : null
+  syncSalesInsightPickers()
+}
+
+function initializeTrendDatePickers() {
+  trendStartPicker?.destroy()
+  trendEndPicker?.destroy()
+  trendStartPicker = trendStartInput.value
+    ? createTrendDatePicker(trendStartInput.value, 'start', trendStartDate.value)
+    : null
+  trendEndPicker = trendEndInput.value
+    ? createTrendDatePicker(trendEndInput.value, 'end', trendEndDate.value)
+    : null
+  trendEndPicker?.set('minDate', trendStartDate.value)
+  trendStartPicker?.set('maxDate', trendEndDate.value)
+}
+
 onMounted(() => {
   loadChartPalette()
+  initializeSalesInsightDateRange()
+  initializeTrendDateRange()
   initializeDashboardDatePicker()
+  void nextTick(() => {
+    initializeSalesInsightDatePickers()
+    initializeTrendDatePickers()
+  })
   loadDashboardData()
-  dashboardRefreshTimer = window.setInterval(loadDashboardData, 5 * 60 * 1000)
+  void loadSalesInsightStats()
+  void applyTrendDateRange()
+  dashboardRefreshTimer = window.setInterval(
+    () => {
+      void loadDashboardData()
+      void loadSalesInsightStats()
+      void applyTrendDateRange()
+    },
+    5 * 60 * 1000,
+  )
 })
 
 onUnmounted(() => {
@@ -594,7 +792,22 @@ onUnmounted(() => {
     window.clearInterval(dashboardRefreshTimer)
   }
   dashboardDatePicker?.destroy()
+  salesInsightStartPicker?.destroy()
+  salesInsightEndPicker?.destroy()
+  trendStartPicker?.destroy()
+  trendEndPicker?.destroy()
   dashboardDatePicker = null
+  salesInsightStartPicker = null
+  salesInsightEndPicker = null
+  trendStartPicker = null
+  trendEndPicker = null
+})
+
+watch(selectedDate, () => {
+  if (['day', '7', '30'].includes(salesInsightPreset.value)) {
+    setSalesInsightPresetRange(salesInsightPreset.value)
+    void loadSalesInsightStats()
+  }
 })
 </script>
 
@@ -646,10 +859,32 @@ onUnmounted(() => {
       </div>
     </section>
 
-    <section class="hourly-sales-panel">
-      <div class="panel-heading">
-        <h2>今日趨勢</h2>
-        <span>已選擇 {{ selectedTrendKeys.length }} / {{ trendMetricOptions.length }}</span>
+    <section class="performance-panel dashboard-performance-panel">
+      <div class="section-heading compact">
+        <h2>關鍵指標分析</h2>
+        <span>{{ trendRangeLabel }}</span>
+        <span class="trend-count"
+          >已選擇 {{ selectedTrendKeys.length }} / {{ trendMetricOptions.length }}</span
+        >
+      </div>
+
+      <div class="performance-filter" aria-label="關鍵指標分析日期篩選">
+        <div class="performance-presets">
+          <button type="button" @click="selectTrendPreset('7')">近 7 天</button>
+          <button type="button" @click="selectTrendPreset('30')">近 30 天</button>
+          <button type="button" @click="selectTrendPreset('month')">本月</button>
+        </div>
+        <div class="performance-dates">
+          <label>
+            開始日期
+            <input ref="trendStartInput" type="text" />
+          </label>
+          <span aria-hidden="true">至</span>
+          <label>
+            結束日期
+            <input ref="trendEndInput" type="text" />
+          </label>
+        </div>
       </div>
 
       <div class="trend-selector" aria-label="選擇趨勢指標">
@@ -666,67 +901,175 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <div class="chart-frame chart-frame--line" aria-label="分時指標趨勢">
+      <div class="performance-chart" aria-label="關鍵指標日期趨勢">
         <Line :data="trendChartData" :options="trendChartOptions" />
       </div>
     </section>
 
-    <section class="product-performance-panel">
-      <div class="panel-heading">
-        <h1>商品銷售排名</h1>
-      </div>
-
-      <div class="product-toolbar">
-        <label class="category-filter">
-          分類
-          <select v-model="selectedCategory" aria-label="篩選商品分類">
-            <option v-for="category in categoryOptions" :key="category" :value="category">
-              {{ category === 'ALL' ? '全部分類' : category }}
-            </option>
-          </select>
-        </label>
-      </div>
-
-      <div class="ranking-control">
-        排名依照
-        <strong>銷售額</strong>
-      </div>
-
-      <div class="product-table">
-        <div class="product-table-head">
-          <span>排名</span>
-          <span>商品</span>
-          <span>分類</span>
-          <span>銷售額</span>
-          <span>訂單數</span>
-          <span>件數</span>
-          <span>買家數</span>
-          <span>庫存</span>
-          <span>狀態</span>
+    <section class="dashboard-lower-grid">
+      <section class="product-performance-panel">
+        <div class="panel-heading">
+          <div>
+            <h1>商品銷售排名</h1>
+            <span>{{ productRankingPeriodLabel }}</span>
+          </div>
         </div>
 
-        <div v-if="productInsightRows.length === 0" class="product-empty">
-          <i class="bi bi-file-earmark-bar-graph" aria-hidden="true"></i>
-          <p>目前尚未收集到足夠的數據進行商品排名，可先完成訂單或上架商品後再查看。</p>
+        <div class="product-table">
+          <table class="table table-hover align-middle mb-0 product-ranking-table">
+            <thead>
+              <tr>
+                <th>排名</th>
+                <th>商品圖片</th>
+                <th>商品名稱</th>
+                <th>SKU</th>
+                <th>單價</th>
+                <th>銷量</th>
+                <th>銷售額</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="productInsightRows.length === 0">
+                <td colspan="7">
+                  <div class="product-empty">
+                    <i class="bi bi-file-earmark-bar-graph" aria-hidden="true"></i>
+                    <p>此區間尚未收集到商品銷售資料，可調整日期或完成訂單後再查看。</p>
+                  </div>
+                </td>
+              </tr>
+              <tr v-for="item in productInsightRows" :key="item.mapKey">
+                <td>
+                  <span :class="['badge', 'rank-badge', `rank-badge--${item.rank}`]">
+                    <i
+                      v-if="item.rank <= 3"
+                      class="bi bi-award-fill"
+                      aria-hidden="true"
+                    ></i>
+                    <span v-else>{{ item.rank }}</span>
+                  </span>
+                </td>
+                <td>
+                  <img
+                    v-if="item.imageUrl"
+                    :src="item.imageUrl"
+                    :alt="item.productName"
+                    class="product-thumb"
+                  />
+                  <span v-else class="product-thumb product-thumb--empty">
+                    <i class="bi bi-image" aria-hidden="true"></i>
+                  </span>
+                </td>
+                <td>
+                  <strong class="product-name">{{ item.productName }}</strong>
+                </td>
+                <td>{{ item.sku }}</td>
+                <td>{{ formatCurrency(item.unitPrice) }}</td>
+                <td>{{ item.quantity.toLocaleString('zh-TW') }}</td>
+                <td class="product-revenue">{{ formatCurrency(item.revenue) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="ai-insight-panel">
+        <div class="panel-heading">
+          <div>
+            <h1>AI 銷售洞察</h1>
+            <span>{{ salesInsightPeriodLabel }}</span>
+          </div>
+          <button
+            type="button"
+            class="insight-refresh-button"
+            :disabled="salesInsightBusy"
+            @click="runSalesInsightAnalysis"
+          >
+            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+            重新分析
+          </button>
         </div>
 
-        <div
-          v-for="item in productInsightRows"
-          v-else
-          :key="`${selectedCategory}-${item.productId}`"
-          class="product-table-row"
-        >
-          <span>{{ item.rank }}</span>
-          <strong>{{ item.productName }}</strong>
-          <span>{{ item.category }}</span>
-          <span>{{ formatCurrency(item.revenue) }}</span>
-          <span>{{ item.orderCount }}</span>
-          <span>{{ item.quantity }}</span>
-          <span>{{ item.buyerCount }}</span>
-          <span>{{ item.stock }}</span>
-          <span>{{ formatProductStatus(item.status) }}</span>
+        <div class="performance-filter" aria-label="AI 銷售洞察日期篩選">
+          <div class="performance-presets">
+            <button
+              type="button"
+              :class="{ active: salesInsightPreset === 'day' }"
+              @click="selectSalesInsightPreset('day')"
+            >
+              當天
+            </button>
+            <button
+              type="button"
+              :class="{ active: salesInsightPreset === '7' }"
+              @click="selectSalesInsightPreset('7')"
+            >
+              近 7 天
+            </button>
+            <button
+              type="button"
+              :class="{ active: salesInsightPreset === '30' }"
+              @click="selectSalesInsightPreset('30')"
+            >
+              近 30 天
+            </button>
+          </div>
+          <div class="performance-dates">
+            <label>
+              開始日期
+              <input ref="salesInsightStartInput" type="text" />
+            </label>
+            <span aria-hidden="true">至</span>
+            <label>
+              結束日期
+              <input ref="salesInsightEndInput" type="text" />
+            </label>
+          </div>
         </div>
-      </div>
+
+        <p v-if="salesInsightError" class="state-message state-message--error">
+          {{ salesInsightError }}
+        </p>
+        <p v-else-if="salesInsightAnalysisLoading" class="state-message">AI 銷售洞察產生中...</p>
+        <p v-else-if="salesInsightStatsLoading" class="state-message">銷售統計載入中...</p>
+
+        <div v-if="salesInsightStats" class="insight-grid">
+          <article
+            v-for="item in salesInsightMetricCards"
+            :key="item.label"
+            class="insight-stat-card"
+          >
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+            <div>
+              <small>{{ item.previous }}</small>
+              <em :class="`metric-change--${item.tone}`">{{ item.change }}</em>
+            </div>
+          </article>
+        </div>
+
+        <div v-if="salesInsightAi" class="insight-content">
+          <div>
+            <span class="insight-label">銷售趨勢分析</span>
+            <p>{{ salesInsightAi.trendAnalysis || salesInsightAi.summary }}</p>
+          </div>
+          <div>
+            <span class="insight-label">熱銷商品建議</span>
+            <p>{{ salesInsightAi.hotProductSuggestion }}</p>
+          </div>
+          <div>
+            <span class="insight-label">優惠券建議</span>
+            <p>{{ salesInsightAi.couponSuggestion }}</p>
+          </div>
+          <div>
+            <span class="insight-label">小提醒</span>
+            <p>{{ salesInsightAi.reminder }}</p>
+          </div>
+        </div>
+
+        <p v-else-if="salesInsightStats && !salesInsightAnalysisLoading" class="state-message">
+          尚未分析，請選擇日期並點擊重新分析。
+        </p>
+      </section>
     </section>
   </section>
 </template>
@@ -769,7 +1112,7 @@ onUnmounted(() => {
 
 .filter-bar,
 .metric-panel,
-.hourly-sales-panel,
+.ai-insight-panel,
 .product-performance-panel {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -824,9 +1167,140 @@ onUnmounted(() => {
 }
 
 .metric-panel,
-.hourly-sales-panel,
+.ai-insight-panel,
 .product-performance-panel {
   padding: var(--space-5);
+}
+
+.dashboard-lower-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.22fr) minmax(360px, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.ai-insight-panel {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.ai-insight-panel .panel-heading > div,
+.product-performance-panel .panel-heading > div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.insight-refresh-button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  background: var(--color-surface);
+  color: var(--color-text-700);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.insight-refresh-button:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.insight-refresh-button:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.insight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: var(--space-2);
+}
+
+.insight-stat-card {
+  display: grid;
+  min-height: 104px;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: var(--color-bg-muted);
+}
+
+.insight-stat-card span,
+.insight-stat-card small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.insight-stat-card strong {
+  color: var(--color-text-900);
+  font-size: var(--font-size-xl);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.insight-stat-card div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.insight-stat-card em {
+  border-radius: var(--radius-pill);
+  padding: 2px 7px;
+  font-size: var(--font-size-xs);
+  font-style: normal;
+  font-weight: 800;
+}
+
+.insight-content {
+  display: grid;
+  gap: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-4);
+}
+
+.insight-content > div {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+}
+
+.insight-label {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+}
+
+.insight-content p,
+.insight-content ol {
+  margin: 0;
+  color: var(--color-text-800);
+  font-size: var(--font-size-sm);
+  line-height: 1.7;
+}
+
+.insight-content ol {
+  display: grid;
+  gap: var(--space-1);
+  padding-left: 1.25rem;
+}
+
+.performance-panel {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 18px 20px;
+  background: var(--color-surface);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .panel-heading {
@@ -852,15 +1326,99 @@ onUnmounted(() => {
 }
 
 .panel-heading span,
+.section-heading span,
 .metric-label,
 .metric-compare span {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
 
+.section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-heading.compact {
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.section-heading h2 {
+  margin: 0;
+  color: var(--color-text-900);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.trend-count {
+  margin-left: auto;
+}
+
+.performance-filter {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 2px 0;
+}
+
+.performance-presets,
+.performance-dates {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.performance-presets button {
+  min-height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 0 12px;
+  background: var(--color-surface);
+  color: var(--color-text-800);
+  font: inherit;
+  cursor: pointer;
+}
+
+.performance-presets button:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.performance-presets button.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-weight: 800;
+}
+
+.performance-dates label {
+  display: grid;
+  gap: 4px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.performance-dates input {
+  width: 132px;
+  min-height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 0 8px;
+  font: inherit;
+}
+
+.performance-dates > span {
+  padding-bottom: 8px;
+  color: var(--color-text-muted);
+}
+
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
   gap: var(--space-2);
   margin-top: var(--space-3);
 }
@@ -869,7 +1427,7 @@ onUnmounted(() => {
   position: relative;
   display: grid;
   min-width: 0;
-  min-height: 112px;
+  min-height: 116px;
   grid-template-rows: auto 1fr auto;
   gap: var(--space-2);
   border: 1px solid var(--color-border);
@@ -952,17 +1510,16 @@ onUnmounted(() => {
 
 .metric-card strong {
   min-width: 0;
-  overflow: hidden;
   color: var(--color-text-900);
-  font-size: 28px;
+  font-size: clamp(1.25rem, 1rem + 1.1vw, 1.75rem);
+  font-variant-numeric: tabular-nums;
   line-height: 1;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .metric-compare {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) max-content;
   gap: var(--space-2);
   align-items: end;
   border-top: 1px solid var(--color-border);
@@ -1001,15 +1558,9 @@ onUnmounted(() => {
   color: var(--color-text-muted);
 }
 
-.hourly-sales-panel {
-  display: grid;
-  gap: var(--space-4);
-  align-content: start;
-}
-
 .trend-selector {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1052,16 +1603,11 @@ onUnmounted(() => {
   box-shadow: var(--shadow-focus);
 }
 
-.chart-frame {
-  position: relative;
-  min-width: 0;
-  border-radius: var(--radius-md);
-  background: var(--color-bg-muted);
-  padding: var(--space-4);
-}
-
-.chart-frame--line {
-  height: 320px;
+.performance-chart {
+  height: 220px;
+  min-height: 220px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 14px;
 }
 
 .product-performance-panel {
@@ -1069,91 +1615,93 @@ onUnmounted(() => {
   gap: var(--space-3);
 }
 
-.product-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: var(--space-3);
-  border-bottom: 1px solid var(--color-border);
-  padding-bottom: var(--space-3);
-}
-
-.category-filter,
-.ranking-control {
-  display: inline-flex;
-  min-height: 36px;
-  align-items: center;
-  gap: var(--space-2);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  padding: 0 var(--space-3);
-  background: var(--color-surface);
-  color: var(--color-text-700);
-  font-size: var(--font-size-sm);
-  text-decoration: none;
-}
-
-.category-filter select,
-.ranking-control strong {
-  border: 0;
-  background: transparent;
-  color: var(--color-text-900);
-  font: inherit;
-  font-weight: 800;
-}
-
-.category-filter select:focus {
-  outline: none;
-}
-
-.ranking-control {
-  margin-top: var(--space-3);
-}
-
 .product-table {
-  margin-top: var(--space-3);
   overflow-x: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
 }
 
-.product-table-head,
-.product-table-row {
-  display: grid;
-  grid-template-columns:
-    64px minmax(220px, 1.6fr) minmax(112px, 0.85fr) minmax(132px, 1fr)
-    minmax(84px, 0.7fr) minmax(84px, 0.7fr) minmax(84px, 0.7fr) minmax(84px, 0.7fr)
-    minmax(96px, 0.8fr);
-  align-items: center;
-  min-width: 900px;
-}
-
-.product-table-head {
-  min-height: 44px;
-  background: var(--color-bg-muted);
-  color: var(--color-text-700);
+.product-ranking-table {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+  color: var(--color-text-800);
   font-size: var(--font-size-sm);
-  font-weight: 800;
 }
 
-.product-table-head span,
-.product-table-row span,
-.product-table-row strong {
-  min-width: 0;
-  padding: 0 var(--space-3);
+.product-ranking-table th,
+.product-ranking-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: middle;
   white-space: nowrap;
 }
 
-.product-table-row {
-  min-height: 52px;
-  border-top: 1px solid var(--color-border);
-  color: inherit;
-  font-size: var(--font-size-sm);
-  text-decoration: none;
+.product-ranking-table th {
+  background: var(--color-bg-muted);
+  color: var(--color-text-700);
+  font-weight: 800;
 }
 
-.product-table-row strong {
+.product-ranking-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.rank-badge {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text-700);
+  font-weight: 800;
+}
+
+.rank-badge--1 {
+  border-color: #d8a100;
+  background: #fff7d6;
+  color: #a87400;
+}
+
+.rank-badge--2 {
+  border-color: #b8c0cc;
+  background: #f3f5f7;
+  color: #687385;
+}
+
+.rank-badge--3 {
+  border-color: #c7854a;
+  background: #fff0e4;
+  color: #9a5a23;
+}
+
+.product-thumb {
+  display: inline-grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
+}
+
+.product-name {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
   color: var(--color-text-900);
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.product-revenue {
+  color: var(--color-success);
+  font-weight: 800;
 }
 
 .product-empty {
@@ -1192,7 +1740,33 @@ onUnmounted(() => {
 
 @media (max-width: 1180px) {
   .metric-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  }
+}
+
+@media (max-width: 1080px) {
+  .dashboard-lower-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .insight-grid,
+  .insight-content {
+    grid-template-columns: 1fr;
+  }
+
+  .performance-filter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .performance-dates {
+    justify-content: space-between;
+  }
+
+  .trend-selector {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1201,13 +1775,23 @@ onUnmounted(() => {
     overflow-x: auto;
   }
 
+  .trend-selector {
+    grid-template-columns: 1fr;
+  }
+
   .metric-grid {
     grid-template-columns: 1fr;
   }
 
-  .product-toolbar {
-    align-items: stretch;
+  .panel-heading {
+    align-items: flex-start;
     flex-direction: column;
   }
+
+  .insight-refresh-button {
+    width: 100%;
+    justify-content: center;
+  }
+
 }
 </style>
