@@ -984,9 +984,13 @@ onUnmounted(() => {
               >
                 <h2>產品說明</h2>
 
-                <p>
-                  {{ product.description || '目前尚無產品說明。' }}
-                </p>
+                <div
+                  v-if="product.description"
+                  class="product-description-content"
+                  v-html="product.description"
+                ></div>
+
+                <p v-else class="description-empty">目前尚無產品說明。</p>
               </div>
 
               <div v-else class="detail-panel reviews-panel" role="tabpanel" aria-label="商品評價">
@@ -1925,12 +1929,60 @@ onUnmounted(() => {
   font-size: var(--font-size-lg);
 }
 
-.description-panel p {
+.product-description-content {
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.product-description-content :deep(p) {
+  margin: 0 0 var(--space-3);
+}
+
+.product-description-content :deep(h2) {
+  margin: var(--space-5) 0 var(--space-3);
+
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+}
+
+.product-description-content :deep(strong) {
+  font-weight: 700;
+}
+
+.product-description-content :deep(u) {
+  text-decoration: underline;
+}
+
+.product-description-content :deep(em) {
+  font-style: italic;
+}
+
+.product-description-content :deep(a) {
+  color: var(--color-primary);
+
+  text-decoration: underline;
+}
+
+.product-description-content :deep(ul),
+.product-description-content :deep(ol) {
+  margin: var(--space-3) 0;
+
+  padding-left: 28px;
+}
+
+.product-description-content :deep(img) {
+  display: block;
+
+  max-width: 100%;
+  height: auto;
+
+  margin: var(--space-4) 0;
+}
+
+.description-empty {
   margin: 0;
 
-  line-height: 1.8;
-
-  white-space: pre-line;
+  color: var(--color-text-muted);
 }
 
 .reviews-panel {
