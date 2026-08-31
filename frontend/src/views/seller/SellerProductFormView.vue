@@ -41,6 +41,7 @@ const selectedNewImageIndex = ref(0)
 const categories = ref([])
 const subcategories = ref([])
 const brands = ref([])
+const removedSkuIds = ref([])
 
 const selectedCategoryId = ref('')
 const PRODUCT_NAME_MAX_LENGTH = 50
@@ -280,7 +281,20 @@ const generateSkuList = () => {
       }
     }
   }
+  // 找出原本存在於資料庫，但這次因刪除規格而消失的 SKU
+  oldSkus.forEach((oldSku) => {
+    if (!oldSku.skuId) {
+      return
+    }
 
+    const stillExists = newSkus.some((newSku) => newSku.skuId === oldSku.skuId)
+
+    if (!stillExists && !removedSkuIds.value.includes(oldSku.skuId)) {
+      removedSkuIds.value.push(oldSku.skuId)
+    }
+  })
+
+  form.skus = newSkus
   form.skus = newSkus
 }
 
@@ -700,6 +714,12 @@ const saveProductSkus = async () => {
   for (const sku of disabledSkus) {
     await disableSellerProductSku(productId.value, sku.skuId)
   }
+  // ④ 停用因「刪除規格值」而被移除的既有 SKU
+  for (const skuId of removedSkuIds.value) {
+    await disableSellerProductSku(productId.value, skuId)
+  }
+
+  removedSkuIds.value = []
 }
 const handleSaveDraft = async () => {
   if (!sellerId.value) {
