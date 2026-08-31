@@ -330,79 +330,100 @@ BEGIN
     -- 因為沒有 public_id 就無法安全刪除/替換該資產，直接把該欄位 URL 一併清空，
     -- 避免殘留「有 URL 沒有 public_id」的不完整資料擋住 WITH CHECK。
 
-    ;WITH backfill AS
+    -- 三個圖片欄位先轉成列，再共用同一套安全解析規則。
+    -- LEFT 的長度即使遇到完全不合法的 URL 也只會是 0，不可能傳入負數。
+    IF OBJECT_ID(N'tempdb..#review_cloudinary_backfill') IS NOT NULL
+        DROP TABLE #review_cloudinary_backfill;
+
+    CREATE TABLE #review_cloudinary_backfill
     (
-        SELECT
-            star_id,
-            img_one,
-            img_one_public_id,
-            CASE
-                WHEN img_one IS NOT NULL AND img_one_public_id IS NULL
-                     AND CHARINDEX(N'/upload/', img_one) > 0
-                THEN SUBSTRING(
-                        img_one,
-                        CHARINDEX(N'/upload/', img_one) + 8,
-                        LEN(img_one)
-                     )
-                ELSE NULL
-            END AS raw_after_upload
-        FROM review.star
-        WHERE img_one IS NOT NULL AND img_one_public_id IS NULL
-    )
-    UPDATE b
-    SET img_one_public_id =
+        star_id int NOT NULL,
+        image_slot tinyint NOT NULL,
+        parsed_public_id nvarchar(255) NULL,
+        PRIMARY KEY (star_id, image_slot)
+    );
+
+    INSERT INTO #review_cloudinary_backfill (star_id, image_slot, parsed_public_id)
+    SELECT
+        s.star_id,
+        asset.image_slot,
         CASE
-            -- 去掉版本號片段 v123456/，再去掉副檔名，剩下就是 public_id（含資料夾）
-            WHEN raw_after_upload LIKE N'v[0-9]%/%'
-                 AND CHARINDEX(
-                        N'.',
-                        REVERSE(SUBSTRING(
-                            raw_after_upload,
-                            CHARINDEX(N'/', raw_after_upload) + 1,
-                            LEN(raw_after_upload)))) > 0
+            WHEN length_info.safe_length BETWEEN 1 AND 255
             THEN LEFT(
-                    SUBSTRING(raw_after_upload, CHARINDEX(N'/', raw_after_upload) + 1, LEN(raw_after_upload)),
-                    LEN(SUBSTRING(raw_after_upload, CHARINDEX(N'/', raw_after_upload) + 1, LEN(raw_after_upload)))
-                    - CHARINDEX(N'.', REVERSE(SUBSTRING(raw_after_upload, CHARINDEX(N'/', raw_after_upload) + 1, LEN(raw_after_upload))))
-                 )
+                    parsed.public_path,
+                    CASE WHEN length_info.safe_length BETWEEN 1 AND 255
+                         THEN length_info.safe_length ELSE 0 END)
             ELSE NULL
         END
     FROM review.star AS s
-    JOIN backfill AS b ON b.star_id = s.star_id
-    WHERE b.raw_after_upload IS NOT NULL;
+    CROSS APPLY
+    (
+        VALUES
+            (CONVERT(tinyint, 1), s.img_one, s.img_one_public_id),
+            (CONVERT(tinyint, 2), s.img_two, s.img_two_public_id),
+            (CONVERT(tinyint, 3), s.img_three, s.img_three_public_id)
+    ) AS asset(image_slot, asset_url, current_public_id)
+    CROSS APPLY
+    (
+        SELECT CHARINDEX(N'/upload/', asset.asset_url) AS upload_position
+    ) AS upload_info
+    CROSS APPLY
+    (
+        SELECT CASE
+            WHEN upload_info.upload_position > 0
+            THEN SUBSTRING(
+                    asset.asset_url,
+                    upload_info.upload_position + LEN(N'/upload/'),
+                    LEN(asset.asset_url))
+            ELSE NULL
+        END AS after_upload
+    ) AS uploaded
+    CROSS APPLY
+    (
+        SELECT CASE
+            WHEN uploaded.after_upload LIKE N'v[0-9]%/%'
+            THEN SUBSTRING(
+                    uploaded.after_upload,
+                    CHARINDEX(N'/', uploaded.after_upload) + 1,
+                    LEN(uploaded.after_upload))
+            ELSE NULL
+        END AS public_path
+    ) AS parsed
+    CROSS APPLY
+    (
+        SELECT CHARINDEX(N'.', REVERSE(parsed.public_path)) AS extension_position
+    ) AS extension_info
+    CROSS APPLY
+    (
+        SELECT CASE
+            WHEN parsed.public_path IS NOT NULL
+                 AND extension_info.extension_position > 0
+            THEN LEN(parsed.public_path) - extension_info.extension_position
+            ELSE 0
+        END AS safe_length
+    ) AS length_info
+    WHERE asset.asset_url IS NOT NULL
+      AND asset.current_public_id IS NULL;
 
-    -- 三個欄位分別套用同一套回填規則
-    UPDATE review.star
-    SET img_two_public_id =
-        CASE
-            WHEN img_two IS NOT NULL AND img_two_public_id IS NULL
-                 AND CHARINDEX(N'/upload/', img_two) > 0
-                 AND SUBSTRING(img_two, CHARINDEX(N'/upload/', img_two) + 8, LEN(img_two)) LIKE N'v[0-9]%/%'
-                 AND CHARINDEX(N'.', REVERSE(img_two)) > 0
-            THEN LEFT(
-                    SUBSTRING(img_two, CHARINDEX(N'/', SUBSTRING(img_two, CHARINDEX(N'/upload/', img_two) + 8, LEN(img_two))) + CHARINDEX(N'/upload/', img_two) + 8, LEN(img_two)),
-                    LEN(SUBSTRING(img_two, CHARINDEX(N'/', SUBSTRING(img_two, CHARINDEX(N'/upload/', img_two) + 8, LEN(img_two))) + CHARINDEX(N'/upload/', img_two) + 8, LEN(img_two)))
-                    - CHARINDEX(N'.', REVERSE(SUBSTRING(img_two, CHARINDEX(N'/', SUBSTRING(img_two, CHARINDEX(N'/upload/', img_two) + 8, LEN(img_two))) + CHARINDEX(N'/upload/', img_two) + 8, LEN(img_two))))
-                 )
-            ELSE img_two_public_id
-        END
-    WHERE img_two IS NOT NULL AND img_two_public_id IS NULL;
+    ;WITH parsed AS
+    (
+        SELECT
+            star_id,
+            MAX(CASE WHEN image_slot = 1 THEN parsed_public_id END) AS img_one_public_id,
+            MAX(CASE WHEN image_slot = 2 THEN parsed_public_id END) AS img_two_public_id,
+            MAX(CASE WHEN image_slot = 3 THEN parsed_public_id END) AS img_three_public_id
+        FROM #review_cloudinary_backfill
+        GROUP BY star_id
+    )
+    UPDATE s
+    SET
+        img_one_public_id = COALESCE(s.img_one_public_id, parsed.img_one_public_id),
+        img_two_public_id = COALESCE(s.img_two_public_id, parsed.img_two_public_id),
+        img_three_public_id = COALESCE(s.img_three_public_id, parsed.img_three_public_id)
+    FROM review.star AS s
+    INNER JOIN parsed ON parsed.star_id = s.star_id;
 
-    UPDATE review.star
-    SET img_three_public_id =
-        CASE
-            WHEN img_three IS NOT NULL AND img_three_public_id IS NULL
-                 AND CHARINDEX(N'/upload/', img_three) > 0
-                 AND SUBSTRING(img_three, CHARINDEX(N'/upload/', img_three) + 8, LEN(img_three)) LIKE N'v[0-9]%/%'
-                 AND CHARINDEX(N'.', REVERSE(img_three)) > 0
-            THEN LEFT(
-                    SUBSTRING(img_three, CHARINDEX(N'/', SUBSTRING(img_three, CHARINDEX(N'/upload/', img_three) + 8, LEN(img_three))) + CHARINDEX(N'/upload/', img_three) + 8, LEN(img_three)),
-                    LEN(SUBSTRING(img_three, CHARINDEX(N'/', SUBSTRING(img_three, CHARINDEX(N'/upload/', img_three) + 8, LEN(img_three))) + CHARINDEX(N'/upload/', img_three) + 8, LEN(img_three)))
-                    - CHARINDEX(N'.', REVERSE(SUBSTRING(img_three, CHARINDEX(N'/', SUBSTRING(img_three, CHARINDEX(N'/upload/', img_three) + 8, LEN(img_three))) + CHARINDEX(N'/upload/', img_three) + 8, LEN(img_three))))
-                 )
-            ELSE img_three_public_id
-        END
-    WHERE img_three IS NOT NULL AND img_three_public_id IS NULL;
+    DROP TABLE #review_cloudinary_backfill;
 
     -- 仍然無法回填 public_id 的孤兒 URL，直接清空該欄位，讓資料回到「未上傳」的合法狀態
     UPDATE review.star SET img_one   = NULL WHERE img_one   IS NOT NULL AND img_one_public_id   IS NULL;
@@ -456,7 +477,8 @@ BEGIN
             five_star IS NOT NULL
             OR
             (
-                NULLIF(LTRIM(RTRIM(feedback)), N'') IS NULL
+                -- 嚴格要求 NULL；空字串或全空白字串不可偽裝成未評論內容。
+                feedback IS NULL
                 AND img_one IS NULL AND img_one_public_id IS NULL
                 AND img_two IS NULL AND img_two_public_id IS NULL
                 AND img_three IS NULL AND img_three_public_id IS NULL
