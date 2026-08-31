@@ -22,7 +22,11 @@ public record StarUpdateRequest(
         String feedback,
 
         @Size(max = 500, message = "imgOne URL 最多 500 字") String imgOne,
+        @Size(max = 255, message = "imgOnePublicId 最多 255 字") String imgOnePublicId,
         @Size(max = 500, message = "imgTwo URL 最多 500 字") String imgTwo,
-        @Size(max = 500, message = "imgThree URL 最多 500 字") String imgThree) {
+        @Size(max = 255, message = "imgTwoPublicId 最多 255 字") String imgTwoPublicId,
+        @Size(max = 500, message = "imgThree URL 最多 500 字") String imgThree,
+        @Size(max = 255, message = "imgThreePublicId 最多 255 字") String imgThreePublicId) {
 }
 //review-end，總共1次修改，第1次//
+
