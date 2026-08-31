@@ -6,7 +6,6 @@ import 'flatpickr/dist/flatpickr.css'
 import '@/assets/styles/seller-flatpickr.css'
 import { Line } from 'vue-chartjs'
 import { getSellerOrders } from '@/api/sellerOrderApi'
-import { analyzeSellerSalesInsight, getSellerSalesInsight } from '@/api/sellerSalesInsightApi'
 import { getSellerWalletTransactions } from '@/api/sellerWalletApi'
 import {
   createSellerChartPalette,
@@ -20,20 +19,11 @@ registerSellerLineChart()
 
 const walletTransactions = ref([])
 const sellerOrders = ref([])
-const salesInsight = ref(null)
 const trendWalletTransactions = ref([])
 const trendSellerOrders = ref([])
 const dashboardLoading = ref(false)
 const dashboardError = ref('')
-const salesInsightStatsLoading = ref(false)
-const salesInsightAnalysisLoading = ref(false)
-const salesInsightError = ref('')
 const dateInput = ref(null)
-const aiRange = ref('7')
-const aiStartDate = ref('')
-const aiEndDate = ref('')
-const aiStartInput = ref(null)
-const aiEndInput = ref(null)
 const productRange = ref('7')
 const productStartDate = ref('')
 const productEndDate = ref('')
@@ -49,8 +39,6 @@ const selectedTrendKeys = ref(['sales', 'orders'])
 const chartPalette = ref(createSellerChartPalette())
 let dashboardRefreshTimer = null
 let dashboardDatePicker = null
-let aiStartPicker = null
-let aiEndPicker = null
 let productStartPicker = null
 let productEndPicker = null
 let trendStartPicker = null
@@ -92,40 +80,6 @@ async function loadTrendData() {
 
   trendWalletTransactions.value = walletResponse.data || []
   trendSellerOrders.value = Array.isArray(orderResponse.data) ? orderResponse.data : []
-}
-
-async function loadSalesInsightStats() {
-  if (!aiStartDate.value || !aiEndDate.value) return
-
-  try {
-    salesInsightStatsLoading.value = true
-    salesInsightError.value = ''
-
-    const response = await getSellerSalesInsight(salesInsightParams.value)
-
-    salesInsight.value = response.data || null
-  } catch {
-    salesInsight.value = null
-    salesInsightError.value = '無法載入 AI 銷售洞察，請稍後再試。'
-  } finally {
-    salesInsightStatsLoading.value = false
-  }
-}
-
-async function runSalesInsightAnalysis() {
-  if (!aiStartDate.value || !aiEndDate.value) return
-
-  try {
-    salesInsightAnalysisLoading.value = true
-    salesInsightError.value = ''
-
-    const response = await analyzeSellerSalesInsight(salesInsightParams.value)
-    salesInsight.value = response.data || null
-  } catch {
-    salesInsightError.value = '無法產生 AI 銷售洞察，請稍後再試。'
-  } finally {
-    salesInsightAnalysisLoading.value = false
-  }
 }
 
 const incomeTransactions = computed(() =>
@@ -175,92 +129,6 @@ const yesterdayAverageOrderValue = computed(() =>
 const previousSevenDayRevenue = computed(() =>
   getRevenueBetween(previousSevenDayRange.value.startKey, previousSevenDayRange.value.endKey),
 )
-const salesInsightStats = computed(() => salesInsight.value?.stats || null)
-const salesInsightAi = computed(() => salesInsight.value?.ai || null)
-const salesInsightBusy = computed(
-  () => salesInsightStatsLoading.value || salesInsightAnalysisLoading.value,
-)
-const salesInsightParams = computed(() => ({
-  startDate: aiStartDate.value,
-  endDate: aiEndDate.value,
-}))
-const salesInsightPeriodLabel = computed(() => {
-  const stats = salesInsightStats.value
-  if (!stats?.periodStart || !stats?.periodEnd) return '近 7 日'
-
-  return `${stats.periodStart.replaceAll('-', '/')} - ${stats.periodEnd.replaceAll('-', '/')}`
-})
-const salesInsightSummaryMetrics = computed(() => {
-  const stats = salesInsightStats.value
-  if (!stats) return []
-
-  return [
-    {
-      label: '本期銷售額',
-      value: formatCurrency(stats.revenueAmount),
-      previous: `前期 ${formatCurrency(stats.previousRevenueAmount)}`,
-      change: formatChangeText(stats.revenueChangeRate),
-      tone: getChangeTone(stats.revenueChangeRate),
-    },
-    {
-      label: '本期訂單數',
-      value: `${Number(stats.orderCount || 0).toLocaleString('zh-TW')} 筆`,
-      previous: `前期 ${Number(stats.previousOrderCount || 0).toLocaleString('zh-TW')} 筆`,
-      change: formatChangeText(stats.orderCountChangeRate),
-      tone: getChangeTone(stats.orderCountChangeRate),
-    },
-    {
-      label: '平均訂單金額',
-      value: formatCurrency(stats.averageOrderValue),
-      previous: `前期 ${formatCurrency(stats.previousAverageOrderValue)}`,
-      change: formatChangeText(stats.averageOrderValueChangeRate),
-      tone: getChangeTone(stats.averageOrderValueChangeRate),
-    },
-  ]
-})
-const aiInsightRows = computed(() => {
-  if (!salesInsightAi.value) return []
-
-  return [
-    {
-      key: 'salesTrend',
-      icon: 'bi-graph-up-arrow',
-      title: '銷售趨勢',
-      badge: '趨勢',
-      content:
-        salesInsightAi.value.salesTrend ||
-        salesInsightAi.value.trendAnalysis ||
-        salesInsightAi.value.summary,
-    },
-    {
-      key: 'productOpportunity',
-      icon: 'bi-box-seam',
-      title: '商品機會',
-      badge: '商品',
-      content:
-        salesInsightAi.value.productOpportunity || salesInsightAi.value.hotProductSuggestion,
-    },
-    {
-      key: 'couponOpportunity',
-      icon: 'bi-ticket-perforated',
-      title: '優惠券機會',
-      badge: '促銷',
-      content: salesInsightAi.value.couponOpportunity || salesInsightAi.value.couponSuggestion,
-    },
-    {
-      key: 'operationAlert',
-      icon: 'bi-clipboard-check',
-      title: '營運提醒',
-      badge: '提醒',
-      content: salesInsightAi.value.operationAlert || salesInsightAi.value.reminder,
-    },
-  ].filter((item) => item.content)
-})
-const salesInsightActions = computed(() => {
-  const actions = salesInsightAi.value?.actions
-  return Array.isArray(actions) ? actions.slice(0, 3) : []
-})
-
 const metricCards = computed(() => [
   {
     label: '今日銷售',
@@ -530,18 +398,6 @@ function formatChange(current, previous, direction = 'higher-is-better') {
   }
 }
 
-function formatChangeText(rate) {
-  const value = Number(rate || 0)
-  return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`
-}
-
-function getChangeTone(rate) {
-  const value = Number(rate || 0)
-  if (value > 0) return 'positive'
-  if (value < 0) return 'negative'
-  return 'neutral'
-}
-
 function toggleTrendKey(key) {
   if (selectedTrendKeys.value.includes(key)) {
     selectedTrendKeys.value = selectedTrendKeys.value.filter((item) => item !== key)
@@ -564,10 +420,6 @@ function initializeTrendDateRange() {
   trendEndDate.value = toDateKey(today)
 }
 
-function initializeSalesInsightDateRange() {
-  setAiDateRange('7')
-}
-
 function initializeProductDateRange() {
   setProductDateRange('7')
 }
@@ -585,14 +437,6 @@ function resolveQuickDateRange(range) {
   }
 }
 
-function setAiDateRange(range) {
-  const dates = resolveQuickDateRange(range)
-  aiRange.value = range
-  aiStartDate.value = dates.start
-  aiEndDate.value = dates.end
-  syncAiPickers()
-}
-
 function setProductDateRange(range) {
   const dates = resolveQuickDateRange(range)
   productRange.value = range
@@ -601,28 +445,11 @@ function setProductDateRange(range) {
   syncProductPickers()
 }
 
-function syncAiPickers() {
-  aiStartPicker?.setDate(aiStartDate.value, false)
-  aiEndPicker?.setDate(aiEndDate.value, false)
-  aiEndPicker?.set('minDate', aiStartDate.value)
-  aiStartPicker?.set('maxDate', aiEndDate.value)
-}
-
 function syncProductPickers() {
   productStartPicker?.setDate(productStartDate.value, false)
   productEndPicker?.setDate(productEndDate.value, false)
   productEndPicker?.set('minDate', productStartDate.value)
   productStartPicker?.set('maxDate', productEndDate.value)
-}
-
-async function applySalesInsightDateRange() {
-  if (!aiStartDate.value || !aiEndDate.value) return
-  if (aiEndDate.value < aiStartDate.value) {
-    salesInsightError.value = '結束日期不可早於開始日期。'
-    return
-  }
-
-  await loadSalesInsightStats()
 }
 
 function applyProductDateRange() {
@@ -633,11 +460,6 @@ function applyProductDateRange() {
   }
 
   dashboardError.value = ''
-}
-
-async function selectAiRange(range) {
-  setAiDateRange(range)
-  await applySalesInsightDateRange()
 }
 
 function selectProductRange(range) {
@@ -812,45 +634,6 @@ function createTrendDatePicker(input, field, defaultDate) {
   })
 }
 
-function createAiDatePicker(input, field, defaultDate) {
-  return flatpickr(input, {
-    altInput: true,
-    altInputClass: 'seller-flatpickr-input coupon-date-input',
-    altFormat: 'Y/m/d',
-    allowInput: false,
-    dateFormat: 'Y-m-d',
-    defaultDate,
-    disableMobile: true,
-    locale: MandarinTraditional,
-    monthSelectorType: 'dropdown',
-    onChange: (_, dateString) => {
-      aiRange.value = 'custom'
-      if (field === 'start') {
-        aiStartDate.value = dateString
-        aiEndPicker?.set('minDate', dateString)
-      }
-      if (field === 'end') {
-        aiEndDate.value = dateString
-        aiStartPicker?.set('maxDate', dateString)
-      }
-      void applySalesInsightDateRange()
-    },
-    onReady: (_, __, instance) => {
-      instance.calendarContainer.classList.add('seller-module-flatpickr')
-    },
-  })
-}
-
-function initializeAiDatePickers() {
-  aiStartPicker?.destroy()
-  aiEndPicker?.destroy()
-  aiStartPicker = aiStartInput.value
-    ? createAiDatePicker(aiStartInput.value, 'start', aiStartDate.value)
-    : null
-  aiEndPicker = aiEndInput.value ? createAiDatePicker(aiEndInput.value, 'end', aiEndDate.value) : null
-  syncAiPickers()
-}
-
 function createProductDatePicker(input, field, defaultDate) {
   return flatpickr(input, {
     altInput: true,
@@ -907,22 +690,18 @@ function initializeTrendDatePickers() {
 
 onMounted(() => {
   loadChartPalette()
-  initializeSalesInsightDateRange()
   initializeProductDateRange()
   initializeTrendDateRange()
   initializeDashboardDatePicker()
   void nextTick(() => {
-    initializeAiDatePickers()
     initializeProductDatePickers()
     initializeTrendDatePickers()
   })
   loadDashboardData()
-  void loadSalesInsightStats()
   void applyTrendDateRange()
   dashboardRefreshTimer = window.setInterval(
     () => {
       void loadDashboardData()
-      void loadSalesInsightStats()
       void applyTrendDateRange()
     },
     5 * 60 * 1000,
@@ -934,15 +713,11 @@ onUnmounted(() => {
     window.clearInterval(dashboardRefreshTimer)
   }
   dashboardDatePicker?.destroy()
-  aiStartPicker?.destroy()
-  aiEndPicker?.destroy()
   productStartPicker?.destroy()
   productEndPicker?.destroy()
   trendStartPicker?.destroy()
   trendEndPicker?.destroy()
   dashboardDatePicker = null
-  aiStartPicker = null
-  aiEndPicker = null
   productStartPicker = null
   productEndPicker = null
   trendStartPicker = null
@@ -1166,103 +941,6 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <section class="ai-insight-panel">
-        <div class="panel-heading">
-          <div>
-            <h1>AI 銷售洞察</h1>
-          </div>
-          <button
-            type="button"
-            class="insight-refresh-button"
-            :disabled="salesInsightBusy"
-            @click="runSalesInsightAnalysis"
-          >
-            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
-            {{ salesInsightAi ? '重新分析' : '產生分析' }}
-          </button>
-        </div>
-
-        <div class="performance-filter" aria-label="AI 銷售洞察日期篩選">
-          <div class="performance-presets">
-            <button
-              type="button"
-              :class="{ active: aiRange === 'day' }"
-              @click="selectAiRange('day')"
-            >
-              當天
-            </button>
-            <button
-              type="button"
-              :class="{ active: aiRange === '7' }"
-              @click="selectAiRange('7')"
-            >
-              近 7 天
-            </button>
-            <button
-              type="button"
-              :class="{ active: aiRange === '30' }"
-              @click="selectAiRange('30')"
-            >
-              近 30 天
-            </button>
-          </div>
-          <div class="performance-dates">
-            <label>
-              開始日期
-              <input ref="aiStartInput" type="text" />
-            </label>
-            <span aria-hidden="true">至</span>
-            <label>
-              結束日期
-              <input ref="aiEndInput" type="text" />
-            </label>
-          </div>
-        </div>
-
-        <p v-if="salesInsightError" class="state-message state-message--error">
-          {{ salesInsightError }}
-        </p>
-        <p v-else-if="salesInsightAnalysisLoading" class="state-message">AI 銷售洞察產生中...</p>
-        <p v-else-if="salesInsightStatsLoading" class="state-message">銷售統計載入中...</p>
-
-        <div v-if="salesInsightStats" class="insight-summary">
-          <span class="insight-section-title">本期摘要</span>
-          <div class="insight-summary-list">
-            <div v-for="item in salesInsightSummaryMetrics" :key="item.label">
-              <span>{{ item.label }}</span>
-              <strong>{{ item.value }}</strong>
-              <small>{{ item.previous }}</small>
-              <em :class="`metric-change--${item.tone}`">{{ item.change }}</em>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="salesInsightAi" class="insight-content">
-          <span class="insight-section-title">AI 重點洞察</span>
-          <div class="insight-row-list">
-            <article v-for="item in aiInsightRows" :key="item.key" class="insight-row-card">
-              <i :class="['bi', item.icon]" aria-hidden="true"></i>
-              <div>
-                <div class="insight-row-title">
-                  <strong>{{ item.title }}</strong>
-                  <span class="badge insight-status-badge">{{ item.badge }}</span>
-                </div>
-                <p>{{ item.content }}</p>
-              </div>
-            </article>
-          </div>
-          <div v-if="salesInsightActions.length" class="insight-actions">
-            <span class="insight-section-title">AI 建議行動</span>
-            <ol>
-              <li v-for="action in salesInsightActions" :key="action">{{ action }}</li>
-            </ol>
-          </div>
-        </div>
-
-        <p v-else-if="salesInsightStats && !salesInsightAnalysisLoading" class="state-message">
-          尚未分析，請選擇日期並點擊重新分析。
-        </p>
-      </section>
     </section>
   </section>
 </template>
@@ -1305,7 +983,6 @@ onUnmounted(() => {
 
 .filter-bar,
 .metric-panel,
-.ai-insight-panel,
 .product-performance-panel {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -1360,199 +1037,20 @@ onUnmounted(() => {
 }
 
 .metric-panel,
-.ai-insight-panel,
 .product-performance-panel {
   padding: var(--space-5);
 }
 
 .dashboard-lower-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(340px, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-5);
   align-items: start;
 }
 
-.ai-insight-panel {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.ai-insight-panel .panel-heading > div,
 .product-performance-panel .panel-heading > div {
   display: grid;
   gap: var(--space-1);
-}
-
-.insight-refresh-button {
-  display: inline-flex;
-  min-height: 36px;
-  align-items: center;
-  gap: var(--space-2);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  padding: 0 var(--space-3);
-  background: var(--color-surface);
-  color: var(--color-text-700);
-  font: inherit;
-  font-size: var(--font-size-sm);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.insight-refresh-button:hover:not(:disabled) {
-  border-color: var(--color-primary);
-  background: var(--color-primary-soft);
-}
-
-.insight-refresh-button:disabled {
-  cursor: progress;
-  opacity: 0.6;
-}
-
-.insight-summary {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.insight-section-title {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  font-weight: 800;
-}
-
-.insight-summary-list {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-2);
-}
-
-.insight-summary-list > div {
-  display: grid;
-  min-height: 84px;
-  min-width: 0;
-  grid-template-rows: auto 1fr auto;
-  gap: var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
-  background: var(--color-bg-muted);
-}
-
-.insight-summary-list span,
-.insight-summary-list small {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.insight-summary-list strong {
-  min-width: 0;
-  color: var(--color-text-900);
-  font-size: clamp(0.95rem, 0.78rem + 0.5vw, 1.2rem);
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.insight-summary-list small {
-  align-self: end;
-}
-
-.insight-summary-list em {
-  justify-self: start;
-  display: grid;
-  border-radius: var(--radius-pill);
-  padding: 2px 7px;
-  font-size: var(--font-size-xs);
-  font-style: normal;
-  font-weight: 800;
-}
-
-.insight-content {
-  display: grid;
-  gap: var(--space-3);
-  border-top: 1px solid var(--color-border);
-  padding-top: var(--space-4);
-}
-
-.insight-row-list {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.insight-row-card {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  gap: var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
-  background: var(--color-surface);
-}
-
-.insight-row-card > i {
-  display: inline-grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: var(--radius-pill);
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
-  font-size: 16px;
-}
-
-.insight-row-card > div {
-  display: grid;
-  align-content: start;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.insight-row-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.insight-row-title strong {
-  color: var(--color-text-900);
-  font-size: var(--font-size-sm);
-}
-
-.insight-status-badge {
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-muted);
-  color: var(--color-text-700);
-}
-
-.insight-label {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  font-weight: 800;
-}
-
-.insight-content p,
-.insight-actions ol {
-  margin: 0;
-  color: var(--color-text-800);
-  font-size: var(--font-size-sm);
-  line-height: 1.7;
-}
-
-.insight-actions {
-  display: grid;
-  gap: var(--space-2);
-  border-top: 1px solid var(--color-border);
-  padding-top: var(--space-3);
-}
-
-.insight-actions ol {
-  display: grid;
-  gap: var(--space-1);
-  margin: 0;
-  padding-left: 1.25rem;
 }
 
 .performance-panel {
@@ -2075,11 +1573,6 @@ onUnmounted(() => {
 }
 
 @media (max-width: 900px) {
-  .insight-summary-list,
-  .insight-content {
-    grid-template-columns: 1fr;
-  }
-
   .performance-filter {
     align-items: stretch;
     flex-direction: column;
@@ -2119,11 +1612,5 @@ onUnmounted(() => {
     align-items: flex-start;
     flex-direction: column;
   }
-
-  .insight-refresh-button {
-    width: 100%;
-    justify-content: center;
-  }
-
 }
 </style>
