@@ -1,5 +1,59 @@
+<script>
+const googleIdentityServicesUrl = 'https://accounts.google.com/gsi/client'
+let googleIdentityServicesPromise
+let initializedGoogleClientId
+let activeGoogleCredentialHandler
+
+function loadGoogleIdentityServices() {
+  if (window.google?.accounts?.id) return Promise.resolve()
+  if (googleIdentityServicesPromise) return googleIdentityServicesPromise
+
+  googleIdentityServicesPromise = new Promise((resolve, reject) => {
+    const existingScript = document.querySelector(`script[src="${googleIdentityServicesUrl}"]`)
+    const script = existingScript || document.createElement('script')
+
+    script.addEventListener('load', resolve, { once: true })
+    script.addEventListener(
+      'error',
+      () => {
+        googleIdentityServicesPromise = undefined
+        reject(new Error('Google Identity Services 載入失敗'))
+      },
+      { once: true },
+    )
+
+    if (existingScript) return
+
+    script.src = googleIdentityServicesUrl
+    script.async = true
+    script.defer = true
+    document.head.appendChild(script)
+  })
+
+  return googleIdentityServicesPromise
+}
+
+function initializeGoogleIdentityServices(clientId, credentialHandler) {
+  activeGoogleCredentialHandler = credentialHandler
+
+  if (initializedGoogleClientId) {
+    if (initializedGoogleClientId !== clientId) {
+      throw new Error('Google Identity Services Client ID 不一致')
+    }
+    return
+  }
+
+  window.google.accounts.id.initialize({
+    client_id: clientId,
+    callback: (response) => activeGoogleCredentialHandler?.(response),
+    use_fedcm_for_button: true,
+  })
+  initializedGoogleClientId = clientId
+}
+</script>
+
 <script setup>
-import { nextTick, onMounted, ref } from 'vue'
+import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -104,23 +158,10 @@ async function linkGoogle() {
   }
 }
 
-function loadGoogleIdentityServices() {
-  return new Promise((resolve, reject) => {
-    if (window.google?.accounts?.id) {
-      resolve()
-      return
-    }
-    const script = document.createElement('script')
-    script.src = 'https://accounts.google.com/gsi/client'
-    script.async = true
-    script.defer = true
-    script.onload = resolve
-    script.onerror = () => reject(new Error('Google Identity Services 載入失敗'))
-    document.head.appendChild(script)
-  })
-}
+let isMounted = false
 
 onMounted(async () => {
+  isMounted = true
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
   if (!clientId) {
     apiError.value = 'Google 登入尚未設定。'
@@ -129,12 +170,12 @@ onMounted(async () => {
 
   try {
     await loadGoogleIdentityServices()
-    window.google.accounts.id.initialize({
-      client_id: clientId,
-      callback: handleGoogleCredential,
-      use_fedcm_for_button: true,
-    })
+    if (!isMounted) return
+
+    initializeGoogleIdentityServices(clientId, handleGoogleCredential)
     await nextTick()
+    if (!isMounted || !googleButton.value) return
+
     const buttonWidth = Math.min(360, googleButton.value.clientWidth || 360)
     window.google.accounts.id.renderButton(googleButton.value, {
       theme: 'outline',
@@ -145,7 +186,14 @@ onMounted(async () => {
     })
     isGoogleReady.value = true
   } catch (error) {
-    apiError.value = 'Google 登入元件載入失敗，請稍後再試。'
+    if (isMounted) apiError.value = 'Google 登入元件載入失敗，請稍後再試。'
+  }
+})
+
+onUnmounted(() => {
+  isMounted = false
+  if (activeGoogleCredentialHandler === handleGoogleCredential) {
+    activeGoogleCredentialHandler = undefined
   }
 })
 </script>
