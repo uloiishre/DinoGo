@@ -2,6 +2,7 @@ package com.dinogo.review.entity;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -58,8 +59,11 @@ public class HistoryEntity {
     private String orderNo;
     //review-end，總共1次修改，第1次//
 
-    // Spring Boot 只在建立 History 時 cascade persist Star。
-    // 刪除 History 時由 SQL Server ON DELETE CASCADE 刪除 Star。
+    /**
+     * 功能：建立 History 時一併 persist 所有商品評論快照。
+     * 應用：刪除 History 不使用 JPA REMOVE cascade，交由 SQL Server ON DELETE CASCADE
+     * 在同一資料庫操作中清除 Star，避免 Hibernate 逐筆 DELETE。
+     */
     @OneToMany(
             mappedBy = "history",
             cascade = CascadeType.PERSIST,
@@ -68,15 +72,9 @@ public class HistoryEntity {
 
     /** Spring Boot 幫助方法：同步建立 History 與 Star 的雙向關聯。 */
     public void addStar(StarEntity star) {
-        stars.add(star);
-        star.setHistory(this);
+        StarEntity requiredStar = Objects.requireNonNull(star, "star 不可為 null");
+        stars.add(requiredStar);
+        requiredStar.setHistory(this);
     }
 
-    /**
-     * 僅解除 Java 物件兩端的關聯，不代表 CANCELLED 訂單的資料庫刪除流程。
-     */
-    public void removeStar(StarEntity star) {
-        stars.remove(star);
-        star.setHistory(null);
-    }
 }
