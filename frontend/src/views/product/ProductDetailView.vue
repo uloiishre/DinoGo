@@ -41,24 +41,42 @@ const selectedReview = ref(null)
 const reviewPage = ref(1)
 const reviewTotalPages = ref(1)
 const reviewFilter = ref({ rating: null, content: 'ALL' })
-const reviewSummary = computed(() => {
-  const pool = previewReviewPool()
-  const rated = pool.filter((review) => review.fiveStar)
-  const average = rated.length
-    ? Math.floor((rated.reduce((sum, review) => sum + review.fiveStar, 0) / rated.length) * 10) / 10
-    : null
-  return {
-    averageFiveStar: average,
-    totalCount: rated.length,
-    fiveStarCount: rated.filter((review) => review.fiveStar === 5).length,
-    fourStarCount: rated.filter((review) => review.fiveStar === 4).length,
-    threeStarCount: rated.filter((review) => review.fiveStar === 3).length,
-    twoStarCount: rated.filter((review) => review.fiveStar === 2).length,
-    oneStarCount: rated.filter((review) => review.fiveStar === 1).length,
-    withFeedbackCount: rated.filter((review) => review.feedback?.trim()).length,
-    withImageCount: rated.filter((review) => reviewImages(review).length).length,
-  }
+const ratingSummary = ref({
+  productId: null,
+  averageFiveStar: null,
+  totalCount: 0,
+  fiveStarCount: 0,
+  fourStarCount: 0,
+  threeStarCount: 0,
+  twoStarCount: 0,
+  oneStarCount: 0,
+  withFeedbackCount: 0,
+  withImageCount: 0,
 })
+const fetchRatingSummary = async () => {
+  const productId = route.params.id
+
+  try {
+    const response = await api.get(`/reviews/products/${productId}/rating-summary`)
+
+    ratingSummary.value = response.data
+  } catch (error) {
+    console.error('取得商品評價摘要失敗：', error)
+
+    ratingSummary.value = {
+      productId: Number(productId),
+      averageFiveStar: null,
+      totalCount: 0,
+      fiveStarCount: 0,
+      fourStarCount: 0,
+      threeStarCount: 0,
+      twoStarCount: 0,
+      oneStarCount: 0,
+      withFeedbackCount: 0,
+      withImageCount: 0,
+    }
+  }
+}
 //圖片切換
 const selectedImageIndex = computed(() => {
   if (!product.value?.images?.length || !selectedImage.value) {
@@ -439,36 +457,6 @@ const toggleFavorite = async () => {
   }
 }
 
-function previewReviewPool() {
-  const imageUrls = (product.value?.images ?? [])
-    .map((image) => getImageUrl(image.imageUrl))
-    .filter(Boolean)
-  const messages = [
-    '包裝完整，商品質感很好，實際使用後符合期待。',
-    '尺寸與頁面說明一致，出貨速度也很快。',
-    '操作容易，細節做工不錯，會推薦給其他買家。',
-    '顏色接近實品照片，整體使用體驗很滿意。',
-    '功能符合需求，客服回覆清楚，值得再次購買。',
-  ]
-  return Array.from({ length: 20 }, (_, index) => {
-    const displayType = index % 4
-    return {
-      starId: index + 1,
-      memberId: 12031 + index * 17,
-      fiveStar: 5 - (index % 3),
-      feedback: displayType === 2 || displayType === 3 ? '' : messages[index % messages.length],
-      images:
-        imageUrls.length && (displayType === 0 || displayType === 2)
-          ? Array.from(
-              { length: Math.min(3, imageUrls.length) },
-              (_, imageIndex) => imageUrls[(index + imageIndex) % imageUrls.length],
-            )
-          : [],
-      starUpdAt: new Date(Date.now() - index * 60000).toISOString(),
-    }
-  }).sort(compareReviewDisplayOrder)
-}
-
 // 產品明細檢視版比照後端：內容＋圖片為 2、內容或圖片為 1、僅星等為 0。
 function reviewDisplayPriority(review) {
   const hasContent = Boolean(review?.feedback?.trim())
@@ -494,27 +482,48 @@ function maskMemberId(memberId) {
 function reviewImages(review) {
   return Array.isArray(review?.images) ? review.images : []
 }
-
 async function loadReviews() {
   if (reviewsLoading.value) return
-  reviewsLoading.value = true
-  await Promise.resolve()
-  const pool = previewReviewPool().filter((review) => {
-    if (reviewFilter.value.rating && review.fiveStar !== reviewFilter.value.rating) return false
-    if (reviewFilter.value.content === 'FEEDBACK' && !review.feedback?.trim()) return false
-    if (reviewFilter.value.content === 'IMAGE' && !reviewImages(review).length) return false
-    return true
-  })
-  const totalPages = Math.max(1, Math.ceil(pool.length / 10))
-  reviewPage.value = Math.min(reviewPage.value, totalPages)
-  reviewTotalPages.value = totalPages
-  const start = (reviewPage.value - 1) * 10
-  const batch = pool.slice(start, start + 10)
-  reviews.value = batch
-  reviewsLoaded.value = true
-  reviewsLoading.value = false
-}
 
+  reviewsLoading.value = true
+
+  try {
+    const productId = route.params.id
+
+    const response = await api.get(`/reviews/products/${productId}`, {
+      params: {
+        page: reviewPage.value,
+
+        rating: reviewFilter.value.rating || undefined,
+
+        content: reviewFilter.value.content !== 'ALL' ? reviewFilter.value.content : undefined,
+      },
+    })
+
+    const data = response.data
+
+    reviews.value = data.content ?? []
+    reviewPage.value = data.pageNumber ?? 1
+    reviewTotalPages.value = data.totalPages ?? 1
+    reviewsLoaded.value = true
+
+    // 完整評論 API 裡的 summary 資料比 rating-summary 更多
+    if (data.summary) {
+      ratingSummary.value = {
+        ...ratingSummary.value,
+        ...data.summary,
+      }
+    }
+  } catch (error) {
+    console.error('取得商品評價失敗：', error)
+
+    reviews.value = []
+    reviewTotalPages.value = 1
+    reviewsLoaded.value = true
+  } finally {
+    reviewsLoading.value = false
+  }
+}
 async function selectReviewFilter({ rating = null, content = 'ALL' }) {
   reviewFilter.value = { rating, content }
   reviews.value = []
@@ -528,7 +537,7 @@ function isReviewFilterActive({ rating = null, content = 'ALL' }) {
 }
 
 function ratingCount(value) {
-  return reviewSummary.value[`${['', 'one', 'two', 'three', 'four', 'five'][value]}StarCount`] ?? 0
+  return ratingSummary.value[`${['', 'one', 'two', 'three', 'four', 'five'][value]}StarCount`] ?? 0
 }
 
 function formatAverage(value) {
@@ -537,10 +546,11 @@ function formatAverage(value) {
 }
 
 const averageInteger = computed(
-  () => formatAverage(reviewSummary.value.averageFiveStar).split('.')[0],
+  () => formatAverage(ratingSummary.value.averageFiveStar).split('.')[0],
 )
+
 const averageDecimal = computed(() => {
-  const formatted = formatAverage(reviewSummary.value.averageFiveStar)
+  const formatted = formatAverage(ratingSummary.value.averageFiveStar)
   return formatted.includes('.') ? `.${formatted.split('.')[1]}` : ''
 })
 
@@ -694,7 +704,7 @@ watch(selectedSku, () => {
 
 onMounted(async () => {
   await fetchProductDetail()
-  await loadReviews()
+  await fetchRatingSummary()
   await fetchSeller()
   await fetchSellerCoupons()
   await fetchFavoriteStatus()
@@ -806,7 +816,7 @@ onUnmounted(() => {
                     :key="value"
                     class="bi"
                     :class="
-                      value <= Math.floor(reviewSummary.averageFiveStar || 0)
+                      value <= Math.floor(ratingSummary.averageFiveStar || 0)
                         ? 'bi-star-fill'
                         : 'bi-star'
                     "
@@ -1005,7 +1015,7 @@ onUnmounted(() => {
                         :key="value"
                         class="bi"
                         :class="
-                          value <= Math.floor(reviewSummary.averageFiveStar || 0)
+                          value <= Math.floor(ratingSummary.averageFiveStar || 0)
                             ? 'bi-star-fill'
                             : 'bi-star'
                         "
@@ -1019,7 +1029,7 @@ onUnmounted(() => {
                         :class="{ active: isReviewFilterActive({}) }"
                         @click="selectReviewFilter({})"
                       >
-                        全部（{{ reviewSummary.totalCount }}）
+                        全部（{{ ratingSummary.totalCount }}）
                       </button>
                       <button
                         v-for="value in [5, 4, 3, 2, 1]"
@@ -1037,14 +1047,14 @@ onUnmounted(() => {
                         :class="{ active: isReviewFilterActive({ content: 'FEEDBACK' }) }"
                         @click="selectReviewFilter({ content: 'FEEDBACK' })"
                       >
-                        附上評論（{{ reviewSummary.withFeedbackCount }}）
+                        附上評論（{{ ratingSummary.withFeedbackCount }}）
                       </button>
                       <button
                         type="button"
                         :class="{ active: isReviewFilterActive({ content: 'IMAGE' }) }"
                         @click="selectReviewFilter({ content: 'IMAGE' })"
                       >
-                        附上圖片（{{ reviewSummary.withImageCount }}）
+                        附上圖片（{{ ratingSummary.withImageCount }}）
                       </button>
                     </div>
                   </div>

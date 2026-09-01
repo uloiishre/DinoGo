@@ -47,7 +47,7 @@ public class ReviewService {
     private final HistoryRepository historyRepository;
     private final StarRepository starRepository;
     private final MonolithValidationService monolithValidationService;
-    //review-start，總共9次修改，第2次//
+    // review-start，總共9次修改，第2次//
     private final ReviewImageService reviewImages;
 
     public ReviewService(
@@ -60,14 +60,14 @@ public class ReviewService {
         this.monolithValidationService = monolithValidationService;
         this.reviewImages = reviewImages;
     }
-    //review-end，總共9次修改，第2次//
+    // review-end，總共9次修改，第2次//
 
     @Transactional
-    //review-start，總共9次修改，第3次//
+    // review-start，總共9次修改，第3次//
     public HistoryResponse createHistoryFromCompletedOrder(OrderSysmsgResponse orderSnapshot) {
         OrderSysmsgResponse order = monolithValidationService.requireCompletedOrder(orderSnapshot);
         Integer orderId = order.orderId();
-        //review-end，總共9次修改，第3次//
+        // review-end，總共9次修改，第3次//
         if (historyRepository.findByOrderId(orderId).isPresent()) {
             throw new ReviewConflictException("此訂單已建立評論紀錄，orderId=" + orderId);
         }
@@ -79,10 +79,10 @@ public class ReviewService {
         history.setMemberId(order.buyerId());
         history.setSellerId(order.sellerId());
         history.setOrderId(order.orderId());
-        //review-start，總共9次修改，第4次//
+        // review-start，總共9次修改，第4次//
         // 保存訂單編號快照，對應 review.history.order_no NOT NULL。
         history.setOrderNo(order.orderNo());
-        //review-end，總共9次修改，第4次//
+        // review-end，總共9次修改，第4次//
         for (OrderReviewItemResponse item : order.items()) {
             history.addStar(toStarSnapshot(item));
         }
@@ -98,13 +98,13 @@ public class ReviewService {
     }
 
     @Transactional
-    //review-start，總共9次修改，第5次//
+    // review-start，總共9次修改，第5次//
     public void deleteHistoryForCancelledOrder(OrderSysmsgResponse orderSnapshot) {
         OrderSysmsgResponse order = monolithValidationService.requireCancelledOrder(orderSnapshot);
         Integer orderId = order.orderId();
         historyRepository.findByOrderId(orderId).ifPresent(historyRepository::delete);
     }
-    //review-end，總共9次修改，第5次//
+    // review-end，總共9次修改，第5次//
 
     @Transactional(readOnly = true)
     public HistoryResponse getMemberHistory(Integer orderId, Integer currentMemberId) {
@@ -161,32 +161,84 @@ public class ReviewService {
     @Transactional(readOnly = true)
     public ProductReviewPageResponse getProductReviews(
             Integer productId,
-            Integer pageNumber) {
+            Integer pageNumber,
+            Integer rating,
+            String content) {
+
         requirePositiveId(productId, "productId");
+
         if (pageNumber == null || pageNumber < 1) {
             throw new IllegalArgumentException("page 必須大於等於 1");
         }
 
-        //review-start，總共9次修改，第6次//
-        // 功能：Pageable 由同一個 derived method 產生內容與 count SQL。
-        // 應用：頁籤與滾輪都以一基底頁碼呼叫，SQL Server 使用 OFFSET/FETCH。
-        Page<StarEntity> page = starRepository.findByProductIdAndFiveStarIsNotNull(
-                productId,
-                PageRequest.of(pageNumber - 1, PAGE_SIZE, PRODUCT_REVIEW_SORT));
-        if (pageNumber > 1 && page.isEmpty() && page.getTotalElements() > 0) {
+        if (rating != null && (rating < 1 || rating > 5)) {
+            throw new IllegalArgumentException("rating 必須介於 1 到 5");
+        }
+
+        String contentFilter = content == null
+                ? "ALL"
+                : content.toUpperCase();
+
+        PageRequest pageable = PageRequest.of(
+                pageNumber - 1,
+                PAGE_SIZE,
+                PRODUCT_REVIEW_SORT);
+
+        Page<StarEntity> page;
+
+        if (rating != null) {
+
+            page = starRepository
+                    .findByProductIdAndFiveStar(
+                            productId,
+                            rating,
+                            pageable);
+
+        } else if ("FEEDBACK".equals(contentFilter)) {
+
+            page = starRepository.findProductReviewsWithFeedback(
+                    productId,
+                    pageable);
+
+        } else if ("IMAGE".equals(contentFilter)) {
+
+            page = starRepository
+                    .findProductReviewsWithImage(
+                            productId,
+                            pageable);
+
+        } else {
+
+            page = starRepository
+                    .findByProductIdAndFiveStarIsNotNull(
+                            productId,
+                            pageable);
+        }
+
+        if (pageNumber > 1
+                && page.isEmpty()
+                && page.getTotalElements() > 0) {
+
             throw new IllegalArgumentException("page 超出最後一頁");
         }
-        List<ProductReviewResponse> content = page.getContent().stream()
+
+        List<ProductReviewResponse> contentList = page.getContent()
+                .stream()
                 .map(ProductReviewResponse::fromEntity)
                 .toList();
+
         return new ProductReviewPageResponse(
-                content,
+                contentList,
                 page.hasNext(),
+
+                // 注意：
+                // summary 還是整個商品全部評論的統計，
+                // 不因目前篩選而改變。
                 productReviewSummary(productId),
+
                 pageNumber,
                 page.getTotalPages(),
                 page.getTotalElements());
-        //review-end，總共9次修改，第6次//
     }
 
     /** 功能：映射單次聚合結果；應用：產品摘要固定只執行一支聚合 SQL。 */
@@ -243,7 +295,7 @@ public class ReviewService {
 
     private StarEntity requireOwnedStar(Integer starId, Integer memberId) {
         requirePositiveId(starId, "starId");
-        //review-start，總共9次修改，第7次//
+        // review-start，總共9次修改，第7次//
         // 先區分不存在與非本人資源，才能依架構分別回傳 404 與 403。
         StarEntity star = starRepository.findById(starId)
                 .orElseThrow(() -> new ReviewNotFoundException(
@@ -252,7 +304,7 @@ public class ReviewService {
             throw new ReviewForbiddenException("目前會員無權操作此評論資料");
         }
         return star;
-        //review-end，總共9次修改，第7次//
+        // review-end，總共9次修改，第7次//
     }
 
     private StarEntity toStarSnapshot(OrderReviewItemResponse item) {
@@ -260,7 +312,7 @@ public class ReviewService {
                 || item.productName() == null || item.unitPrice() == null) {
             throw new IllegalStateException("訂單商品明細缺少評論快照必要欄位");
         }
-        //review-start，總共9次修改，第8次//
+        // review-start，總共9次修改，第8次//
         // 上限對齊實際 OrderItem 欄位，合法訂單快照不應因 review 欄位較短而失敗。
         if (item.productName().length() > 100) {
             throw new IllegalStateException("訂單商品名稱超過 review.star.product_name 長度 100");
@@ -269,7 +321,7 @@ public class ReviewService {
             throw new IllegalStateException("訂單商品圖片 URL 超過長度 500");
         }
         // image_url 允許 NULL，代表完成訂單建立快照時商品沒有可用圖片。
-        //review-end，總共9次修改，第8次//
+        // review-end，總共9次修改，第8次//
         if (item.unitPrice().signum() < 0) {
             throw new IllegalStateException("訂單商品價格不可小於 0");
         }
@@ -284,13 +336,13 @@ public class ReviewService {
     }
 
     private void validateImageReferences(StarUpdateRequest request, Integer memberId) {
-        //review-start，總共9次修改，第9次//
+        // review-start，總共9次修改，第9次//
         // URL 與 publicId 成對驗證 cloud name 及會員 prefix；不接受任意 Cloudinary URL。
         String ownerPrefix = "dinogo/reviews/" + memberId;
         reviewImages.validateReference(request.imgOne(), request.imgOnePublicId(), ownerPrefix);
         reviewImages.validateReference(request.imgTwo(), request.imgTwoPublicId(), ownerPrefix);
         reviewImages.validateReference(request.imgThree(), request.imgThreePublicId(), ownerPrefix);
-        //review-end，總共9次修改，第9次//
+        // review-end，總共9次修改，第9次//
     }
 
     private String normalizeFeedback(String feedback) {

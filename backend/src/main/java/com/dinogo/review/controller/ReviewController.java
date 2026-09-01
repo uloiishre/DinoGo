@@ -3,6 +3,7 @@ package com.dinogo.review.controller;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -17,24 +18,24 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.dinogo.review.dto.request.StarUpdateRequest;
 import com.dinogo.review.dto.response.HistoryResponse;
-import com.dinogo.review.dto.response.ProductReviewPageResponse;
 import com.dinogo.review.dto.response.ProductRatingSummaryResponse;
+import com.dinogo.review.dto.response.ProductReviewPageResponse;
+import com.dinogo.review.dto.response.ReviewImageUploadResponse;
 import com.dinogo.review.dto.response.SellerRatingSummaryResponse;
 import com.dinogo.review.dto.response.StarResponse;
-import com.dinogo.review.dto.response.ReviewImageUploadResponse;
 import com.dinogo.review.service.ReviewImageService;
 import com.dinogo.review.service.ReviewService;
 import com.dinogo.security.AuthenticatedMember;
-
-import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 
 import jakarta.validation.Valid;
 
 /**
  * 評論 REST API。
  *
- * <p>Controller 只負責接收 HTTP 資料、執行 @Valid、轉交 Service 及組合回應；
- * 會員身分透過 Spring Security principal 取得，不接受 query parameter 的 memberId。</p>
+ * <p>
+ * Controller 只負責接收 HTTP 資料、執行 @Valid、轉交 Service 及組合回應；
+ * 會員身分透過 Spring Security principal 取得，不接受 query parameter 的 memberId。
+ * </p>
  */
 @Validated
 @RestController
@@ -49,11 +50,9 @@ public class ReviewController {
         this.reviewImageService = reviewImageService;
     }
 
-    //review-start，總共1次修改，第1次//
+    // review-start，總共1次修改，第1次//
     /** 功能：上傳至多三張評論圖；應用：回傳 URL 供 updateStar JSON 使用。 */
-    @org.springframework.web.bind.annotation.PostMapping(
-            value = "/stars/images",
-            consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @org.springframework.web.bind.annotation.PostMapping(value = "/stars/images", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ReviewImageUploadResponse> uploadImages(
             @RequestParam("files") List<MultipartFile> files,
             @AuthenticationPrincipal AuthenticatedMember member) {
@@ -61,12 +60,12 @@ public class ReviewController {
         return ResponseEntity.ok(new ReviewImageUploadResponse(
                 reviewImageService.upload(files, memberId)));
     }
-    //review-end，總共1次修改，第1次//
+    // review-end，總共1次修改，第1次//
 
     @GetMapping("/orders/{orderId}")
     public ResponseEntity<HistoryResponse> getMemberHistory(
             @PathVariable Integer orderId,
-            //Client：沿用會員模組的登入 principal，不再轉送 Authorization 給 Client。
+            // Client：沿用會員模組的登入 principal，不再轉送 Authorization 給 Client。
             @AuthenticationPrincipal AuthenticatedMember member) {
 
         return ResponseEntity.ok(
@@ -107,10 +106,16 @@ public class ReviewController {
     @GetMapping("/products/{productId}")
     public ResponseEntity<ProductReviewPageResponse> getProductReviews(
             @PathVariable Integer productId,
-            @RequestParam(defaultValue = "1") Integer page) {
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(required = false) Integer rating,
+            @RequestParam(defaultValue = "ALL") String content) {
 
         return ResponseEntity.ok(
-                reviewService.getProductReviews(productId, page));
+                reviewService.getProductReviews(
+                        productId,
+                        page,
+                        rating,
+                        content));
     }
 
     /** product 模組的商品詳情頁使用；未有評分時 averageFiveStar 為 null。 */
