@@ -45,17 +45,23 @@ public class SendSellerEntity extends SendEntity {
         name = "img_one", length = 500
     )
     private String imgOne;
+    @Column(name = "img_one_public_id", length = 255)
+    private String imgOnePublicId;
 
     @Column(
         name = "img_two", length = 500
     )
     private String imgTwo;
+    @Column(name = "img_two_public_id", length = 255)
+    private String imgTwoPublicId;
 
 
     @Column(
         name = "img_three", length = 500
     )
     private String imgThree;
+    @Column(name = "img_three_public_id", length = 255)
+    private String imgThreePublicId;
     //sysmsg-end，總共1次修改，第1次//
     
     @Nationalized
@@ -134,6 +140,8 @@ public class SendSellerEntity extends SendEntity {
     public void setImgOne(String imgOne) {
         this.imgOne = imgOne;
     }
+    public String getImgOnePublicId() { return imgOnePublicId; }
+    public void setImgOnePublicId(String value) { this.imgOnePublicId = value; }
 
     public String getImgTwo() {
         return imgTwo;
@@ -142,6 +150,8 @@ public class SendSellerEntity extends SendEntity {
     public void setImgTwo(String imgTwo) {
         this.imgTwo = imgTwo;
     }
+    public String getImgTwoPublicId() { return imgTwoPublicId; }
+    public void setImgTwoPublicId(String value) { this.imgTwoPublicId = value; }
 
     public String getImgThree() {
         return imgThree;
@@ -150,6 +160,8 @@ public class SendSellerEntity extends SendEntity {
     public void setImgThree(String imgThree) {
         this.imgThree = imgThree;
     }
+    public String getImgThreePublicId() { return imgThreePublicId; }
+    public void setImgThreePublicId(String value) { this.imgThreePublicId = value; }
 
     public String getSendRemark() {
         return sendRemark;
@@ -159,3 +171,4 @@ public class SendSellerEntity extends SendEntity {
         this.sendRemark = sendRemark;
     }
 }
+

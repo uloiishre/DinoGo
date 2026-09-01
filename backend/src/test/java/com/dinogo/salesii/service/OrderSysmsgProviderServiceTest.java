@@ -62,14 +62,19 @@ class OrderSysmsgProviderServiceTest {
     }
 
     @Test
-    void completedOrderTakesPriorityOverDeliveredProjection() {
+    void completedOrderKeepsDeliveredShipmentSnapshotForMilestoneReconciliation() {
         Order order = order(9, OrderStatus.COMPLETED);
+        Shipment shipment = new Shipment();
+        shipment.setOrder(order);
+        shipment.setStatus(ShipmentStatus.DELIVERED);
         when(orders.findById(9)).thenReturn(Optional.of(order));
+        when(shipments.findByOrderOrderId(9)).thenReturn(Optional.of(shipment));
 
         OrderSysmsgProviderService provider = new OrderSysmsgProviderService(orders, shipments);
 
-        assertEquals("COMPLETED", provider.getOrderForSysmsg(9).status());
-        verifyNoInteractions(shipments);
+        OrderSysmsgResponse response = provider.getOrderForSysmsg(9);
+        assertEquals("COMPLETED", response.status());
+        assertEquals("DELIVERED", response.shipmentStatus());
     }
 
     @Test
@@ -135,4 +140,3 @@ class OrderSysmsgProviderServiceTest {
     }
 }
 //sysmsg-end，總共1次修改，第1次//
-

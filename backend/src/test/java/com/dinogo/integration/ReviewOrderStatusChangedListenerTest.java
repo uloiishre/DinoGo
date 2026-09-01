@@ -9,7 +9,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-import com.dinogo.review.service.ReviewService;
+import com.dinogo.review.service.ReviewHistoryReconciliationService;
 import com.dinogo.salesii.dto.OrderSysmsgResponse;
 import com.dinogo.salesii.event.OrderStatusChangedEvent;
 import com.dinogo.salesii.service.OrderSysmsgProviderService;
@@ -17,7 +17,7 @@ import com.dinogo.salesii.service.OrderSysmsgProviderService;
 //review-start，總共1次修改，第1次//
 class ReviewOrderStatusChangedListenerTest {
     private final OrderSysmsgProviderService orders = mock(OrderSysmsgProviderService.class);
-    private final ReviewService reviews = mock(ReviewService.class);
+    private final ReviewHistoryReconciliationService reviews = mock(ReviewHistoryReconciliationService.class);
     private final ReviewOrderStatusChangedListener listener =
             new ReviewOrderStatusChangedListener(orders, reviews);
 
@@ -29,7 +29,7 @@ class ReviewOrderStatusChangedListenerTest {
         listener.onOrderStatusChanged(new OrderStatusChangedEvent(10));
 
         verify(orders).getOrder(10);
-        verify(reviews).createHistoryFromCompletedOrder(order);
+        verify(reviews).reconcile(order);
         verifyNoMoreInteractions(orders, reviews);
     }
 
@@ -41,7 +41,7 @@ class ReviewOrderStatusChangedListenerTest {
         listener.onOrderStatusChanged(new OrderStatusChangedEvent(10));
 
         verify(orders).getOrder(10);
-        verify(reviews).deleteHistoryForCancelledOrder(order);
+        verify(reviews).reconcile(order);
         verifyNoMoreInteractions(orders, reviews);
     }
 
@@ -50,5 +50,4 @@ class ReviewOrderStatusChangedListenerTest {
     }
 }
 //review-end，總共1次修改，第1次//
-
 

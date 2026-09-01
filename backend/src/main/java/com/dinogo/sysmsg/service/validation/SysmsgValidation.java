@@ -5,7 +5,7 @@ import java.util.Set;
 
 import com.dinogo.sysmsg.dto.external.OrderInfoResponse;
 
-/** 無狀態的 Sysmsg 輸入與跨模組資料驗證工具。 */
+/** 無狀態的共用輸入與跨模組資料驗證。 */
 public final class SysmsgValidation {
     private static final Set<String> SYSTEM_PREFIXES = Set.of("OA", "OC", "OS");
 

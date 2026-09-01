@@ -20,17 +20,10 @@ import com.dinogo.seller.entity.WithdrawalRequest;
 import com.dinogo.seller.entity.WithdrawalStatus;
 import com.dinogo.seller.repository.SellerRepository;
 import com.dinogo.seller.repository.WithdrawalRequestRepository;
-import com.dinogo.sysmsg.entity.RecordEntity;
-import com.dinogo.sysmsg.entity.SendEntity;
-import com.dinogo.sysmsg.entity.SendStatus;
-import com.dinogo.sysmsg.repository.RecordRepository;
-import com.dinogo.sysmsg.repository.SendRepository;
 
 @Service
 public class SellerWalletService {
 
-    private static final Integer PLATFORM_SELLER_ID = 1;
-    private static final String WITHDRAWAL_NOTIFICATION_FUNCTION = "OS-001";
     private static final Set<WithdrawalStatus> DEDUCTED_WITHDRAWAL_STATUSES = Set.of(
             WithdrawalStatus.PROCESSING,
             WithdrawalStatus.PAID);
@@ -44,22 +37,22 @@ public class SellerWalletService {
     private final OrderRepository orderRepository;
     private final SellerRepository sellerRepository;
     private final WithdrawalRequestRepository withdrawalRequestRepository;
-    private final SendRepository sendRepository;
-    private final RecordRepository recordRepository;
 
+    //sysmsg-start，總共2次修改，第1次//
+    /**
+     * 功能：SellerWalletService 不注入 sysmsg Entity 或 Repository。
+     * 應用：保持單向依賴，未來若需要提款通知，改由 sysmsg 依賴本服務取得權威資料。
+     */
+    //sysmsg-end，總共2次修改，第1次//
     public SellerWalletService(
             CurrentSellerService currentSellerService,
             OrderRepository orderRepository,
             SellerRepository sellerRepository,
-            WithdrawalRequestRepository withdrawalRequestRepository,
-            SendRepository sendRepository,
-            RecordRepository recordRepository) {
+            WithdrawalRequestRepository withdrawalRequestRepository) {
         this.currentSellerService = currentSellerService;
         this.orderRepository = orderRepository;
         this.sellerRepository = sellerRepository;
         this.withdrawalRequestRepository = withdrawalRequestRepository;
-        this.sendRepository = sendRepository;
-        this.recordRepository = recordRepository;
     }
 
     @Transactional(readOnly = true)
@@ -84,9 +77,13 @@ public class SellerWalletService {
             throw new IllegalArgumentException("目前沒有可提領金額。");
         }
 
-        WithdrawalRequest withdrawal = withdrawalRequestRepository.save(new WithdrawalRequest(seller, amount));
-        createWithdrawalNotification(seller.getSellerId(), amount);
+        WithdrawalRequest withdrawal = withdrawalRequestRepository.save(
+                new WithdrawalRequest(seller, amount));
 
+        //sysmsg-start，總共2次修改，第2次//
+        // 功能：提款交易只儲存 seller 資料，不寫入 sysmsg.send/record。
+        // 應用：現階段不產生提款通知，也不建立反向 seller → sysmsg 依賴。
+        //sysmsg-end，總共2次修改，第2次//
         return new SellerWithdrawalResponse(
                 withdrawal.getWithdrawalId(),
                 withdrawal.getAmount(),
@@ -151,19 +148,6 @@ public class SellerWalletService {
                 .filter(order -> order.getStatus() == status)
                 .map(Order::getTotalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    private void createWithdrawalNotification(Integer sellerId, BigDecimal amount) {
-        String formattedAmount = amount.stripTrailingZeros().toPlainString();
-        SendEntity send = sendRepository.save(new SendEntity(
-                PLATFORM_SELLER_ID,
-                WITHDRAWAL_NOTIFICATION_FUNCTION,
-                "提款申請通知",
-                "提款申請已送出",
-                "您的提款申請已送出，提款金額 NT$" + formattedAmount + "，平台將進行審核與撥款作業。",
-                SendStatus.SEND));
-
-        recordRepository.save(new RecordEntity(send, null, sellerId));
     }
 
     private SellerWalletTransactionResponse toTransactionResponse(Order order) {

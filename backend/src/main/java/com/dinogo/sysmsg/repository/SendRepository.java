@@ -1,7 +1,7 @@
 package com.dinogo.sysmsg.repository;
 
 import java.util.List;
-import java.time.LocalDateTime;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -16,29 +16,22 @@ public interface SendRepository extends JpaRepository<SendEntity, Integer> {
             select s from SendEntity s
             where s.msgfromSellerId = :senderId and s.sendStatus = :status
               and (:prefix is null or s.msgFunction like concat(:prefix, '%'))
-              and (:cursorTime is null or s.sendUpdAt < :cursorTime
-                   or (s.sendUpdAt = :cursorTime and s.sendId < :cursorId))
-            order by s.sendUpdAt desc, s.sendId desc
             """)
-    List<SendEntity> findBySenderAndStatusNewest(
+    Page<SendEntity> findBySenderAndStatus(
             @Param("senderId") Integer senderId, @Param("status") SendStatus status,
             @Param("prefix") String prefix,
-            @Param("cursorTime") LocalDateTime cursorTime, @Param("cursorId") Integer cursorId,
             Pageable pageable);
 
+    //sysmsg-start，總共1次修改，第1次//
     @Query("""
             select s from SendEntity s
-            where s.msgfromSellerId = :senderId and s.sendStatus = :status
-              and (:prefix is null or s.msgFunction like concat(:prefix, '%'))
-              and (:cursorTime is null or s.sendUpdAt > :cursorTime
-                   or (s.sendUpdAt = :cursorTime and s.sendId > :cursorId))
-            order by s.sendUpdAt asc, s.sendId asc
+            where s.sendStatus = :status
+              and (s.msgFunction like 'OA%' or s.msgFunction like 'OC%' or s.msgFunction like 'OS%')
             """)
-    List<SendEntity> findBySenderAndStatusOldest(
-            @Param("senderId") Integer senderId, @Param("status") SendStatus status,
-            @Param("prefix") String prefix,
-            @Param("cursorTime") LocalDateTime cursorTime, @Param("cursorId") Integer cursorId,
+    Page<SendEntity> findSystemTemplates(
+            @Param("status") SendStatus status,
             Pageable pageable);
+    //sysmsg-end，總共1次修改，第1次//
 
     List<SendEntity> findByMsgFunctionAndSendStatus(
             String msgFunction, SendStatus sendStatus);

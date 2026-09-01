@@ -2,32 +2,12 @@ package com.dinogo.sysmsg.dto.external;
 
 import java.util.List;
 
-/**External跨模組 API 的資料邊界
- * ============================================================
- * Member 模組 API 回傳
- * ============================================================
+/**
+ * sysmsg 內部使用的會員資料邊界。
  *
- * 假設 Member 模組 API：
- *
- * GET /api/member/auth/validate
- *
- * 實際 port 由 member 模組決定。
- *
- * 例如：
- *
- * http://localhost:8081
- *
- * ============================================================
- *
- * sysmsg 使用目的：
- *
- * 1. 確認登入會員存在
- * 2. 取得 member_id
- * 3. 必要時確認 token / login 身分
- *
- * 注意：
- *
- * sysmsg 不重新實作完整登入系統。
+ * <p>單體部署時由 {@code MemberSysmsgProviderService} 取得資料，再由
+ * {@code ModuleDataMapper} 轉入本型別；不呼叫 localhost HTTP API，也不直接查詢
+ * member schema。用途是收件者有效性、角色路由、登入身分與 Email 偏好判斷。</p>
  */
 public class MemberAuthResponse {
 
@@ -46,10 +26,10 @@ public class MemberAuthResponse {
     private List<Integer> roleIds = List.of();
 
     /** 訂單偏好三態：true=寄送、false=不寄送、null=無法驗證且預設寄送。 */
-    private Boolean emailOrderNotifications; //假設Client-sysmsg：待 member 模組提供正式欄位。
+    private Boolean emailOrderNotifications;
 
     /** 行銷偏好三態：true=寄送、false/null=不寄送。 */
-    private Boolean emailMarketingNotifications; //假設Client-sysmsg：待 member 模組提供正式欄位。
+    private Boolean emailMarketingNotifications;
 
 
     public MemberAuthResponse() {
