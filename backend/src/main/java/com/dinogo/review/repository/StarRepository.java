@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -22,8 +23,26 @@ public interface StarRepository extends JpaRepository<StarEntity, Integer> {
          * 功能：由 Spring Data 從同一方法衍生內容與 count 查詢。
          * 應用：Pageable 產生 SQL Server OFFSET/FETCH，避免列表和總筆數條件分歧。
          */
-        Page<StarEntity> findByProductIdAndFiveStarIsNotNull(
-                        Integer productId,
+        @EntityGraph(attributePaths = "history")
+        @Query("""
+                        SELECT s
+                        FROM StarEntity s
+                        WHERE s.productId = :productId
+                          AND s.fiveStar IS NOT NULL
+                          AND (:rating IS NULL OR s.fiveStar = :rating)
+                          AND (
+                                :contentFilter = 'ALL'
+                                OR (:contentFilter = 'FEEDBACK'
+                                    AND s.feedback IS NOT NULL
+                                    AND TRIM(s.feedback) <> '')
+                                OR (:contentFilter = 'IMAGE'
+                                    AND (s.imgOne IS NOT NULL OR s.imgTwo IS NOT NULL OR s.imgThree IS NOT NULL))
+                              )
+                        """)
+        Page<StarEntity> findPublicProductReviews(
+                        @Param("productId") Integer productId,
+                        @Param("rating") Integer rating,
+                        @Param("contentFilter") String contentFilter,
                         Pageable pageable);
         // review-end，總共3次修改，第1次//
 

@@ -161,17 +161,25 @@ public class ReviewService {
     @Transactional(readOnly = true)
     public ProductReviewPageResponse getProductReviews(
             Integer productId,
-            Integer pageNumber) {
+            Integer pageNumber,
+            Integer rating,
+            String contentFilter) {
         requirePositiveId(productId, "productId");
         if (pageNumber == null || pageNumber < 1) {
             throw new IllegalArgumentException("page 必須大於等於 1");
         }
+        if (rating != null && (rating < 1 || rating > 5)) {
+            throw new IllegalArgumentException("rating 必須介於 1 到 5");
+        }
+        String normalizedContentFilter = normalizeContentFilter(contentFilter);
 
         //review-start，總共9次修改，第6次//
         // 功能：Pageable 由同一個 derived method 產生內容與 count SQL。
         // 應用：頁籤與滾輪都以一基底頁碼呼叫，SQL Server 使用 OFFSET/FETCH。
-        Page<StarEntity> page = starRepository.findByProductIdAndFiveStarIsNotNull(
+        Page<StarEntity> page = starRepository.findPublicProductReviews(
                 productId,
+                rating,
+                normalizedContentFilter,
                 PageRequest.of(pageNumber - 1, PAGE_SIZE, PRODUCT_REVIEW_SORT));
         if (pageNumber > 1 && page.isEmpty() && page.getTotalElements() > 0) {
             throw new IllegalArgumentException("page 超出最後一頁");
@@ -187,6 +195,17 @@ public class ReviewService {
                 page.getTotalPages(),
                 page.getTotalElements());
         //review-end，總共9次修改，第6次//
+    }
+
+    private String normalizeContentFilter(String contentFilter) {
+        if (contentFilter == null || contentFilter.isBlank()) {
+            return "ALL";
+        }
+        String normalized = contentFilter.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!List.of("ALL", "FEEDBACK", "IMAGE").contains(normalized)) {
+            throw new IllegalArgumentException("content 必須是 ALL、FEEDBACK 或 IMAGE");
+        }
+        return normalized;
     }
 
     /** 功能：映射單次聚合結果；應用：產品摘要固定只執行一支聚合 SQL。 */
