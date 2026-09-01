@@ -12,9 +12,18 @@ import org.springframework.data.jpa.repository.Query;
 class StarRepositoryQueryContractTest {
 
     @Test
-    void exposesOnlyDerivedOffsetPageMethod() throws Exception {
-        assertNotNull(StarRepository.class.getMethod(
-                "findByProductIdAndFiveStarIsNotNull", Integer.class, Pageable.class));
+    void publicReviewPageSupportsRatingAndContentFilters() throws Exception {
+        Query query = StarRepository.class.getMethod(
+                "findPublicProductReviews",
+                Integer.class,
+                Integer.class,
+                String.class,
+                Pageable.class).getAnnotation(Query.class);
+        String jpql = query.value().replaceAll("\\s+", " ").toLowerCase();
+        assertNotNull(query);
+        assertTrue(jpql.contains(":rating is null"));
+        assertTrue(jpql.contains(":contentfilter = 'feedback'"));
+        assertTrue(jpql.contains(":contentfilter = 'image'"));
     }
 
     @Test

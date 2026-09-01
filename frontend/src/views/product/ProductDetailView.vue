@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { logSafeError } from '@/utils/safeError'
 import { getImageUrl } from '@/utils/imageUrl'
+import { getProductReviews } from '@/api/review'
 import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
 const route = useRoute()
@@ -32,7 +33,6 @@ const claimedCouponIds = computed(
   () => new Set(memberCoupons.value.map((coupon) => Number(coupon.couponId))),
 )
 
-// Review 檢視版：使用本地展示資料，不呼叫尚未整合的 Review 後端。
 const activeDetailTab = ref('description')
 const reviews = ref([])
 const reviewsLoading = ref(false)
@@ -40,24 +40,18 @@ const reviewsLoaded = ref(false)
 const selectedReview = ref(null)
 const reviewPage = ref(1)
 const reviewTotalPages = ref(1)
+const reviewTotalElements = ref(0)
 const reviewFilter = ref({ rating: null, content: 'ALL' })
-const reviewSummary = computed(() => {
-  const pool = previewReviewPool()
-  const rated = pool.filter((review) => review.fiveStar)
-  const average = rated.length
-    ? Math.floor((rated.reduce((sum, review) => sum + review.fiveStar, 0) / rated.length) * 10) / 10
-    : null
-  return {
-    averageFiveStar: average,
-    totalCount: rated.length,
-    fiveStarCount: rated.filter((review) => review.fiveStar === 5).length,
-    fourStarCount: rated.filter((review) => review.fiveStar === 4).length,
-    threeStarCount: rated.filter((review) => review.fiveStar === 3).length,
-    twoStarCount: rated.filter((review) => review.fiveStar === 2).length,
-    oneStarCount: rated.filter((review) => review.fiveStar === 1).length,
-    withFeedbackCount: rated.filter((review) => review.feedback?.trim()).length,
-    withImageCount: rated.filter((review) => reviewImages(review).length).length,
-  }
+const reviewSummary = ref({
+  averageFiveStar: null,
+  totalCount: 0,
+  fiveStarCount: 0,
+  fourStarCount: 0,
+  threeStarCount: 0,
+  twoStarCount: 0,
+  oneStarCount: 0,
+  withFeedbackCount: 0,
+  withImageCount: 0,
 })
 //圖片切換
 const selectedImageIndex = computed(() => {
@@ -439,80 +433,29 @@ const toggleFavorite = async () => {
   }
 }
 
-function previewReviewPool() {
-  const imageUrls = (product.value?.images ?? [])
-    .map((image) => getImageUrl(image.imageUrl))
-    .filter(Boolean)
-  const messages = [
-    '包裝完整，商品質感很好，實際使用後符合期待。',
-    '尺寸與頁面說明一致，出貨速度也很快。',
-    '操作容易，細節做工不錯，會推薦給其他買家。',
-    '顏色接近實品照片，整體使用體驗很滿意。',
-    '功能符合需求，客服回覆清楚，值得再次購買。',
-  ]
-  return Array.from({ length: 20 }, (_, index) => {
-    const displayType = index % 4
-    return {
-      starId: index + 1,
-      memberId: 12031 + index * 17,
-      fiveStar: 5 - (index % 3),
-      feedback: displayType === 2 || displayType === 3 ? '' : messages[index % messages.length],
-      images:
-        imageUrls.length && (displayType === 0 || displayType === 2)
-          ? Array.from(
-              { length: Math.min(3, imageUrls.length) },
-              (_, imageIndex) => imageUrls[(index + imageIndex) % imageUrls.length],
-            )
-          : [],
-      starUpdAt: new Date(Date.now() - index * 60000).toISOString(),
-    }
-  }).sort(compareReviewDisplayOrder)
-}
-
-// 產品明細檢視版比照後端：內容＋圖片為 2、內容或圖片為 1、僅星等為 0。
-function reviewDisplayPriority(review) {
-  const hasContent = Boolean(review?.feedback?.trim())
-  const hasImage = reviewImages(review).length > 0
-  return hasContent && hasImage ? 2 : hasContent || hasImage ? 1 : 0
-}
-
-function compareReviewDisplayOrder(left, right) {
-  return (
-    reviewDisplayPriority(right) - reviewDisplayPriority(left) ||
-    new Date(right.starUpdAt).getTime() - new Date(left.starUpdAt).getTime() ||
-    right.starId - left.starId
-  )
-}
-
-function maskMemberId(memberId) {
-  const value = String(memberId ?? '')
-  if (!value) return '會員 *****'
-  if (value.length === 1) return `會員 ${value}*****`
-  return `會員 ${value.slice(0, 1)}*****${value.slice(-1)}`
-}
-
 function reviewImages(review) {
-  return Array.isArray(review?.images) ? review.images : []
+  return [review?.imgOne, review?.imgTwo, review?.imgThree].filter(Boolean)
 }
 
 async function loadReviews() {
-  if (reviewsLoading.value) return
+  if (reviewsLoading.value || !product.value?.productId) return
   reviewsLoading.value = true
-  await Promise.resolve()
-  const pool = previewReviewPool().filter((review) => {
-    if (reviewFilter.value.rating && review.fiveStar !== reviewFilter.value.rating) return false
-    if (reviewFilter.value.content === 'FEEDBACK' && !review.feedback?.trim()) return false
-    if (reviewFilter.value.content === 'IMAGE' && !reviewImages(review).length) return false
-    return true
-  })
-  const totalPages = Math.max(1, Math.ceil(pool.length / 10))
-  reviewPage.value = Math.min(reviewPage.value, totalPages)
-  reviewTotalPages.value = totalPages
-  const start = (reviewPage.value - 1) * 10
-  const batch = pool.slice(start, start + 10)
-  reviews.value = batch
-  reviewsLoaded.value = true
-  reviewsLoading.value = false
+  try {
+    const response = await getProductReviews(product.value.productId, reviewPage.value, reviewFilter.value)
+    const data = response.data
+    reviews.value = data.content ?? []
+    reviewSummary.value = data.summary ?? reviewSummary.value
+    reviewPage.value = data.currentPage ?? reviewPage.value
+    reviewTotalPages.value = Math.max(1, data.totalPages ?? 0)
+    reviewTotalElements.value = data.totalElements ?? 0
+    reviewsLoaded.value = true
+  } catch (error) {
+    logSafeError('取得商品評價失敗：', error)
+    reviews.value = []
+    reviewsLoaded.value = true
+  } finally {
+    reviewsLoading.value = false
+  }
 }
 
 async function selectReviewFilter({ rating = null, content = 'ALL' }) {
@@ -995,7 +938,7 @@ onUnmounted(() => {
 
               <div v-else class="detail-panel reviews-panel" role="tabpanel" aria-label="商品評價">
                 <div class="review-overview">
-                  <div class="review-average" aria-label="全部評價平均分數">
+                  <div class="review-average" aria-label="商品評價分數">
                     <strong
                       >{{ averageInteger }}<small>{{ averageDecimal }}</small></strong
                     >
@@ -1063,7 +1006,7 @@ onUnmounted(() => {
                   >
                     <div class="review-card__copy">
                       <strong>
-                        {{ maskMemberId(review.memberId) }}
+                        {{ review.reviewerDisplayName }}
                       </strong>
                       <time class="review-card__time" :datetime="review.starUpdAt">{{
                         formatReviewTime(review.starUpdAt)
@@ -1095,7 +1038,7 @@ onUnmounted(() => {
                 </div>
 
                 <nav
-                  v-if="reviewsLoaded && reviewTotalPages > 1"
+                  v-if="reviewsLoaded && reviewTotalElements > 0"
                   class="review-pagination"
                   aria-label="商品評價頁碼"
                 >
@@ -1273,7 +1216,7 @@ onUnmounted(() => {
               ×
             </button>
             <header>
-              <p>{{ maskMemberId(selectedReview.memberId) }}</p>
+              <p>{{ selectedReview.reviewerDisplayName }}</p>
               <h2 id="review-dialog-title">商品評價</h2>
               <span class="review-stars" :aria-label="`${selectedReview.fiveStar} 顆星`">
                 <i
@@ -1905,6 +1848,15 @@ onUnmounted(() => {
 
 .detail-tab-list button:hover {
   color: var(--color-primary);
+}
+
+.detail-tab-list button:focus-visible,
+.review-filters button:focus-visible,
+.review-card:focus-visible,
+.review-pagination button:focus-visible,
+.review-dialog__close:focus-visible {
+  outline: 0;
+  box-shadow: var(--shadow-focus);
 }
 
 /* =========================================
