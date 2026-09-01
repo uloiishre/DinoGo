@@ -11,7 +11,6 @@ import {
 } from '@/api/order'
 import { getOrderDisplayStatus } from '@/utils/orderDisplayStatus'
 import { getImageUrl } from '@/utils/imageUrl'
-import { getOrderStars } from '@/api/review'
 import OrderItemReviewView from '@/views/review/OrderItemReviewView.vue'
 
 const route = useRoute()
@@ -28,7 +27,6 @@ const showCancellationModal = ref(false)
 const retryingPayment = ref(false)
 const paymentRetryErrorMessage = ref('')
 const reviewItemId = ref(null)
-const reviewStarsByOrderItemId = ref(new Map())
 const fetchingOrder = ref(false)
 const AUTO_REFRESH_INTERVAL_MS = 10_000
 let autoRefreshTimer = null
@@ -249,22 +247,7 @@ function formatDate(value) {
 }
 
 function isItemReviewed(item) {
-  return Number(reviewStarsByOrderItemId.value.get(item.orderItemId)?.fiveStar ?? 0) > 0
-}
-
-async function loadOrderReviewStars() {
-  if (order.value?.status !== 'COMPLETED') {
-    reviewStarsByOrderItemId.value = new Map()
-    return
-  }
-  try {
-    const response = await getOrderStars(orderId.value)
-    reviewStarsByOrderItemId.value = new Map(
-      (response.data ?? []).map((star) => [star.orderItemId, star]),
-    )
-  } catch {
-    reviewStarsByOrderItemId.value = new Map()
-  }
+  return Number(item.fiveStar ?? 0) > 0 || item.isReviewed === true
 }
 
 function openReviewModal(item) {
@@ -275,15 +258,8 @@ function closeReviewModal() {
   reviewItemId.value = null
 }
 
-function updateReviewStar(nextStar) {
-  reviewStarsByOrderItemId.value = new Map(reviewStarsByOrderItemId.value).set(
-    nextStar.orderItemId,
-    nextStar,
-  )
-}
-
 onMounted(() => {
-  void loadOrder().then(loadOrderReviewStars)
+  void loadOrder()
   window.addEventListener('focus', refreshOrderSilently)
   document.addEventListener('visibilitychange', refreshOrderSilently)
   autoRefreshTimer = window.setInterval(refreshOrderSilently, AUTO_REFRESH_INTERVAL_MS)
@@ -408,6 +384,7 @@ onUnmounted(() => {
                 <i v-if="!isItemReviewed(item)" class="bi bi-star-fill" aria-hidden="true"></i>
                 <!-- //review-已評價// -->
                 <i v-else class="bi bi-star" aria-hidden="true"></i>
+                <span>評價</span>
               </button>
             </article>
 
@@ -554,7 +531,6 @@ onUnmounted(() => {
       :initial-order-item-id="reviewItemId"
       modal
       @close="closeReviewModal"
-      @updated="updateReviewStar"
     />
   </section>
 </template>
@@ -937,9 +913,11 @@ onUnmounted(() => {
 
 .review-endcap {
   display: grid;
+  grid-template-rows: auto auto;
   min-width: calc(var(--space-7) + var(--space-2));
   align-self: stretch;
   align-content: center;
+  gap: var(--space-1);
   place-items: center;
   margin-block: calc(var(--space-3) * -1);
   font-size: var(--font-size-lg);
@@ -951,15 +929,20 @@ onUnmounted(() => {
   box-shadow: none;
 }
 
+.review-endcap span {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  line-height: 1;
+}
 /* 未評價：強烈主視覺綠色 */
 .review-endcap--pending {
   color: var(--color-surface);
-  background: var(--color-primary-active);
+  background: var(--color-primary);
 }
 /* 已評價：灰暗主視覺綠色 */
 .review-endcap--reviewed {
   color: var(--color-primary-600);
-  background: var(--color-primary-100);
+  background: var(--color-primary);
 }
 
 .review-endcap:hover {

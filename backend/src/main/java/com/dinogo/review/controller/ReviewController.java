@@ -107,12 +107,10 @@ public class ReviewController {
     @GetMapping("/products/{productId}")
     public ResponseEntity<ProductReviewPageResponse> getProductReviews(
             @PathVariable Integer productId,
-            @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(required = false) Integer rating,
-            @RequestParam(defaultValue = "ALL") String content) {
+            @RequestParam(defaultValue = "1") Integer page) {
 
         return ResponseEntity.ok(
-                reviewService.getProductReviews(productId, page, rating, content));
+                reviewService.getProductReviews(productId, page));
     }
 
     /** product 模組的商品詳情頁使用；未有評分時 averageFiveStar 為 null。 */
