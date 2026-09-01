@@ -30,10 +30,12 @@ public class SellerInfoResponse {
     private String email;
 
     /** 訂單偏好三態：true=寄送、false=不寄送、null=無法驗證且預設寄送。 */
-    private Boolean emailOrderNotifications; //假設Client-sysmsg：待 seller/member 模組提供正式欄位。
+    /** Seller／Member Provider 提供的訂單 Email 三態偏好。 */
+    private Boolean emailOrderNotifications;
 
     /** 行銷偏好三態：true=寄送、false/null=不寄送。 */
-    private Boolean emailMarketingNotifications; //假設Client-sysmsg：待 seller/member 模組提供正式欄位。
+    /** Seller／Member Provider 提供的行銷 Email 三態偏好。 */
+    private Boolean emailMarketingNotifications;
 
     public SellerInfoResponse() {
     }

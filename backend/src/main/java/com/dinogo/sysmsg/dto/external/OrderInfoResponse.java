@@ -3,46 +3,12 @@ package com.dinogo.sysmsg.dto.external;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-/**External跨模組 API 的資料邊界，對應指定的 PAID 等訂單資料
- * ============================================================
- * Order 模組 API
- * ============================================================
+/**
+ * sysmsg 內部使用的訂單快照資料邊界。
  *
- * 假設 Order API：
- *
- * GET /api/orders/{orderId}
- *
- * 例如 Order 模組：
- *
- * http://localhost:8082
- *
- * ============================================================
- *
- * 假設 Order 模組回傳：
- *
- * order_id
- * order_no
- * buyer_id
- * seller_id
- * total_amount
- * payment_method_id
- * method_name
- * created_at
- * status
- *
- * ============================================================
- *
- * sysmsg 不自行維護上述訂單資料。
- *
- * 這個 Response 是：
- *
- * Order API
- *     ↓
- * OrderInfoResponse
- *     ↓
- * OrderMessageService
- *     ↓
- * SendOrderEntity
+ * <p>單體部署時由 {@code OrderSysmsgProviderService#getOrder(Integer)} 取得權威資料，
+ * 再由 {@code ModuleDataMapper} 轉入本型別；不經由前端訂單 API 或 localhost HTTP。
+ * 一般訂單與取消訂單通知共用此快照。</p>
  */
 public class OrderInfoResponse {
 
@@ -67,6 +33,14 @@ public class OrderInfoResponse {
     private String cancelReason;
 
     private LocalDateTime cancelledAt;
+
+    private String orderStatus;
+    private String paymentStatus;
+    private LocalDateTime paidAt;
+    private String shipmentStatus;
+    private LocalDateTime shippedAt;
+    private LocalDateTime deliveredAt;
+    private LocalDateTime completedAt;
 
     public OrderInfoResponse() {
     }
@@ -158,4 +132,19 @@ public class OrderInfoResponse {
     public void setCancelledAt(LocalDateTime cancelledAt) {
         this.cancelledAt = cancelledAt;
     }
+
+    public String getOrderStatus() { return orderStatus; }
+    public void setOrderStatus(String orderStatus) { this.orderStatus = orderStatus; }
+    public String getPaymentStatus() { return paymentStatus; }
+    public void setPaymentStatus(String paymentStatus) { this.paymentStatus = paymentStatus; }
+    public LocalDateTime getPaidAt() { return paidAt; }
+    public void setPaidAt(LocalDateTime paidAt) { this.paidAt = paidAt; }
+    public String getShipmentStatus() { return shipmentStatus; }
+    public void setShipmentStatus(String shipmentStatus) { this.shipmentStatus = shipmentStatus; }
+    public LocalDateTime getShippedAt() { return shippedAt; }
+    public void setShippedAt(LocalDateTime shippedAt) { this.shippedAt = shippedAt; }
+    public LocalDateTime getDeliveredAt() { return deliveredAt; }
+    public void setDeliveredAt(LocalDateTime deliveredAt) { this.deliveredAt = deliveredAt; }
+    public LocalDateTime getCompletedAt() { return completedAt; }
+    public void setCompletedAt(LocalDateTime completedAt) { this.completedAt = completedAt; }
 }

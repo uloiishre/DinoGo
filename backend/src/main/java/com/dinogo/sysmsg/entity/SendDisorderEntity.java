@@ -43,7 +43,7 @@ public class SendDisorderEntity extends SendEntity {
      * 訂單 ID。
      *
      * 來源：
-     *     OrderCancelResponse
+     *     OrderInfoResponse（包含取消快照）
      */
     @Column(
         name = "order_id",
