@@ -29,7 +29,8 @@ public record ProductReviewResponse(
         return new ProductReviewResponse(
                 star.getId(),
                 //review-start，總共3次修改，第3次//
-                maskMemberId(star.getHistory().getMemberId()),
+                // 不由低熵 memberId 產生可枚舉雜湊，也不提供跨評論追蹤識別碼。
+                "匿名會員",
                 //review-end，總共3次修改，第3次//
                 star.getProductId(),
                 star.getProductName(),
@@ -39,18 +40,6 @@ public record ProductReviewResponse(
                 star.getImgTwo(),
                 star.getImgThree(),
                 star.getStarUpdAt());
-    }
-
-    /** 公開頁面只提供部分遮罩後的會員編號，不暴露完整 memberId。 */
-    private static String maskMemberId(Integer memberId) {
-        String value = memberId == null ? "" : memberId.toString();
-        if (value.isEmpty()) {
-            return "會員 *****";
-        }
-        if (value.length() == 1) {
-            return "會員 " + value + "*****";
-        }
-        return "會員 " + value.charAt(0) + "*****" + value.charAt(value.length() - 1);
     }
 }
 

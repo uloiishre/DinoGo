@@ -14,7 +14,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.dinogo.member.repository.MemberRepository;
 import com.dinogo.review.controller.ReviewController;
-import com.dinogo.review.service.ReviewImageService;
 import com.dinogo.review.service.ReviewService;
 import com.dinogo.security.JwtAuthenticationFilter;
 import com.dinogo.security.JwtTokenUtil;
@@ -30,9 +29,6 @@ class ReviewSecurityIntegrationTest {
 
     @MockitoBean
     private ReviewService reviewService;
-
-    @MockitoBean
-    private ReviewImageService reviewImageService;
 
     @MockitoBean
     private JwtTokenUtil jwtTokenUtil;
@@ -58,3 +54,4 @@ class ReviewSecurityIntegrationTest {
     }
 }
 //review-end，總共1次修改，第1次//
+
