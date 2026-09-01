@@ -175,45 +175,18 @@ public class ReviewService {
             throw new IllegalArgumentException("rating 必須介於 1 到 5");
         }
 
-        String contentFilter = content == null
-                ? "ALL"
-                : content.toUpperCase();
+        String contentFilter = normalizeContentFilter(content);
 
         PageRequest pageable = PageRequest.of(
                 pageNumber - 1,
                 PAGE_SIZE,
                 PRODUCT_REVIEW_SORT);
 
-        Page<StarEntity> page;
-
-        if (rating != null) {
-
-            page = starRepository
-                    .findByProductIdAndFiveStar(
-                            productId,
-                            rating,
-                            pageable);
-
-        } else if ("FEEDBACK".equals(contentFilter)) {
-
-            page = starRepository.findProductReviewsWithFeedback(
-                    productId,
-                    pageable);
-
-        } else if ("IMAGE".equals(contentFilter)) {
-
-            page = starRepository
-                    .findProductReviewsWithImage(
-                            productId,
-                            pageable);
-
-        } else {
-
-            page = starRepository
-                    .findByProductIdAndFiveStarIsNotNull(
-                            productId,
-                            pageable);
-        }
+        Page<StarEntity> page = starRepository.findPublicProductReviews(
+                productId,
+                rating,
+                contentFilter,
+                pageable);
 
         if (pageNumber > 1
                 && page.isEmpty()
@@ -230,15 +203,21 @@ public class ReviewService {
         return new ProductReviewPageResponse(
                 contentList,
                 page.hasNext(),
-
-                // 注意：
-                // summary 還是整個商品全部評論的統計，
-                // 不因目前篩選而改變。
                 productReviewSummary(productId),
-
                 pageNumber,
                 page.getTotalPages(),
                 page.getTotalElements());
+    }
+
+    private String normalizeContentFilter(String contentFilter) {
+        if (contentFilter == null || contentFilter.isBlank()) {
+            return "ALL";
+        }
+        String normalized = contentFilter.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!List.of("ALL", "FEEDBACK", "IMAGE").contains(normalized)) {
+            throw new IllegalArgumentException("content 必須是 ALL、FEEDBACK 或 IMAGE");
+        }
+        return normalized;
     }
 
     /** 功能：映射單次聚合結果；應用：產品摘要固定只執行一支聚合 SQL。 */

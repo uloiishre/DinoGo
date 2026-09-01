@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { logSafeError } from '@/utils/safeError'
 import { getImageUrl } from '@/utils/imageUrl'
+import { getProductReviews } from '@/api/review'
 import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
 const route = useRoute()
@@ -32,7 +33,6 @@ const claimedCouponIds = computed(
   () => new Set(memberCoupons.value.map((coupon) => Number(coupon.couponId))),
 )
 
-// Review 檢視版：使用本地展示資料，不呼叫尚未整合的 Review 後端。
 const activeDetailTab = ref('description')
 const reviews = ref([])
 const reviewsLoading = ref(false)
@@ -40,6 +40,7 @@ const reviewsLoaded = ref(false)
 const selectedReview = ref(null)
 const reviewPage = ref(1)
 const reviewTotalPages = ref(1)
+const reviewTotalElements = ref(0)
 const reviewFilter = ref({ rating: null, content: 'ALL' })
 const ratingSummary = ref({
   productId: null,
@@ -480,10 +481,10 @@ function maskMemberId(memberId) {
 }
 
 function reviewImages(review) {
-  return Array.isArray(review?.images) ? review.images : []
+  return [review?.imgOne, review?.imgTwo, review?.imgThree].filter(Boolean)
 }
 async function loadReviews() {
-  if (reviewsLoading.value) return
+  if (reviewsLoading.value || !product.value?.productId) return
 
   reviewsLoading.value = true
 
@@ -1005,7 +1006,7 @@ onUnmounted(() => {
 
               <div v-else class="detail-panel reviews-panel" role="tabpanel" aria-label="商品評價">
                 <div class="review-overview">
-                  <div class="review-average" aria-label="全部評價平均分數">
+                  <div class="review-average" aria-label="商品評價分數">
                     <strong
                       >{{ averageInteger }}<small>{{ averageDecimal }}</small></strong
                     >
@@ -1073,7 +1074,7 @@ onUnmounted(() => {
                   >
                     <div class="review-card__copy">
                       <strong>
-                        {{ maskMemberId(review.memberId) }}
+                        {{ review.reviewerDisplayName }}
                       </strong>
                       <time class="review-card__time" :datetime="review.starUpdAt">{{
                         formatReviewTime(review.starUpdAt)
@@ -1105,7 +1106,7 @@ onUnmounted(() => {
                 </div>
 
                 <nav
-                  v-if="reviewsLoaded && reviewTotalPages > 1"
+                  v-if="reviewsLoaded && reviewTotalElements > 0"
                   class="review-pagination"
                   aria-label="商品評價頁碼"
                 >
@@ -1283,7 +1284,7 @@ onUnmounted(() => {
               ×
             </button>
             <header>
-              <p>{{ maskMemberId(selectedReview.memberId) }}</p>
+              <p>{{ selectedReview.reviewerDisplayName }}</p>
               <h2 id="review-dialog-title">商品評價</h2>
               <span class="review-stars" :aria-label="`${selectedReview.fiveStar} 顆星`">
                 <i
@@ -1915,6 +1916,15 @@ onUnmounted(() => {
 
 .detail-tab-list button:hover {
   color: var(--color-primary);
+}
+
+.detail-tab-list button:focus-visible,
+.review-filters button:focus-visible,
+.review-card:focus-visible,
+.review-pagination button:focus-visible,
+.review-dialog__close:focus-visible {
+  outline: 0;
+  box-shadow: var(--shadow-focus);
 }
 
 /* =========================================
