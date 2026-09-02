@@ -6,11 +6,11 @@ services:
     restart: unless-stopped
     environment:
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:?Set FRONTEND_BASE_URL}
-      PAYMENT_SIMULATION_ENABLED: "true"
+      PAYMENT_SIMULATION_ENABLED: ${PAYMENT_SIMULATION_ENABLED:-false}
       PAYMENT_EXPIRY_ENABLED: "false"
       SYSMSG_EMAIL_ENABLED: "false"
       SYSMSG_RECONCILIATION_ENABLED: ${SYSMSG_RECONCILIATION_ENABLED:-false}
-      ECPAY_ENABLED: "false"
+      ECPAY_ENABLED: ${ECPAY_ENABLED:-false}
 
   frontend:
     restart: unless-stopped
