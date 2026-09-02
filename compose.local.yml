@@ -1,7 +1,7 @@
 services:
   backend:
     environment:
-      FRONTEND_BASE_URL: http://localhost:8088
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:8088}
       PAYMENT_SIMULATION_ENABLED: ${PAYMENT_SIMULATION_ENABLED:-true}
       PAYMENT_EXPIRY_ENABLED: "false"
       SYSMSG_EMAIL_ENABLED: "false"
