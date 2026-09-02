@@ -117,14 +117,19 @@ async function loadOrder({ silent = false, force = false } = {}) {
 
   try {
     const response = await getOrder(orderId.value)
+    let refreshedShipmentEvents = null
+    if (response.data?.shipment) {
+      try {
+        refreshedShipmentEvents = (await getShipmentEvents(orderId.value)).data ?? []
+      } catch {
+        refreshedShipmentEvents = null
+      }
+    } else {
+      refreshedShipmentEvents = []
+    }
     if (requestId === latestLoadRequestId) {
       order.value = response.data
-      shipmentEvents.value = []
-      if (response.data?.shipment) {
-        try {
-          shipmentEvents.value = (await getShipmentEvents(orderId.value)).data ?? []
-        } catch { shipmentEvents.value = [] }
-      }
+      if (refreshedShipmentEvents !== null) shipmentEvents.value = refreshedShipmentEvents
     }
   } catch (error) {
     if (!silent && requestId === latestLoadRequestId) {
@@ -159,7 +164,7 @@ async function handleConfirmDelivery() {
   deliveryErrorMessage.value = ''
   try {
     await confirmDelivery(orderId.value)
-    await loadOrder({ force: true })
+    await loadOrder({ silent: true, force: true })
   } catch (error) {
     deliveryErrorMessage.value = error.response?.data?.message ?? '確認收貨失敗，請稍後再試'
   } finally {

@@ -9,6 +9,7 @@ import {
   createPayment,
   getMemberOrders,
   getOrder,
+  getShipmentEvents,
   submitEcpayCheckout,
 } from '../../src/api/order.js'
 
@@ -23,6 +24,7 @@ vi.mock('../../src/api/order.js', () => ({
   createPayment: vi.fn(),
   getMemberOrders: vi.fn(),
   getOrder: vi.fn(),
+  getShipmentEvents: vi.fn(),
   submitEcpayCheckout: vi.fn(),
 }))
 
@@ -58,8 +60,17 @@ const orderFixture = (overrides = {}) => ({
   ...overrides,
 })
 
+function deferred() {
+  let resolve
+  const promise = new Promise((promiseResolve) => {
+    resolve = promiseResolve
+  })
+  return { promise, resolve }
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
+  getShipmentEvents.mockResolvedValue({ data: [] })
 })
 
 describe('buyer order list aggregate display status', () => {
@@ -170,6 +181,47 @@ describe('buyer order detail aggregate display status', () => {
     expect(wrapper.text()).toContain('黑貓宅急便')
     expect(wrapper.text()).toContain('TRACK-001')
     expect(wrapper.find('button.btn-primary').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  test('keeps existing shipment events visible while a silent refresh loads new events', async () => {
+    getOrder.mockResolvedValue({ data: orderFixture() })
+    getShipmentEvents.mockResolvedValue({ data: [{ shipmentEventId: 1, eventType: 'HANDED_OVER' }] })
+    const wrapper = mount(OrderDetail)
+    await flushPromises()
+    const pendingEvents = deferred()
+    getShipmentEvents.mockImplementationOnce(() => pendingEvents.promise)
+
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+
+    expect(wrapper.find('.shipment-timeline').exists()).toBe(true)
+    expect(wrapper.get('.shipment-timeline').text()).toContain('賣家已交寄')
+
+    pendingEvents.resolve({ data: [{ shipmentEventId: 1, eventType: 'HANDED_OVER' }] })
+    await flushPromises()
+    wrapper.unmount()
+  })
+
+  test('keeps the order detail visible while refreshing after delivery confirmation', async () => {
+    const availableOrder = orderFixture({ shipment: { status: 'AVAILABLE_FOR_PICKUP' } })
+    const completedOrder = orderFixture({ status: 'COMPLETED', shipment: { status: 'DELIVERED' } })
+    const pendingRefresh = deferred()
+    getOrder
+      .mockResolvedValueOnce({ data: availableOrder })
+      .mockImplementationOnce(() => pendingRefresh.promise)
+    confirmDelivery.mockResolvedValue({ data: null })
+    const wrapper = mount(OrderDetail)
+    await flushPromises()
+
+    await wrapper.get('button.btn-primary').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.state-card').exists()).toBe(false)
+    expect(wrapper.get('button.btn-primary').text()).toBe('確認中...')
+
+    pendingRefresh.resolve({ data: completedOrder })
+    await flushPromises()
     wrapper.unmount()
   })
 

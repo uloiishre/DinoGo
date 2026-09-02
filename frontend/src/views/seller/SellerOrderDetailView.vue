@@ -143,16 +143,19 @@ async function loadOrder({ silent = false, force = false } = {}) {
   }
   try {
     const response = await getSellerOrder(orderId.value)
+    let refreshedShipmentEvents = null
+    if (response.data?.shipment) {
+      try {
+        refreshedShipmentEvents = (await getShipmentEvents(orderId.value)).data ?? []
+      } catch {
+        refreshedShipmentEvents = null
+      }
+    } else {
+      refreshedShipmentEvents = []
+    }
     if (requestId === latestLoadRequestId) {
       order.value = response.data
-      shipmentEvents.value = []
-      if (response.data?.shipment) {
-        try {
-          shipmentEvents.value = (await getShipmentEvents(orderId.value)).data ?? []
-        } catch {
-          shipmentEvents.value = []
-        }
-      }
+      if (refreshedShipmentEvents !== null) shipmentEvents.value = refreshedShipmentEvents
     }
   } catch (error) {
     if (!silent && requestId === latestLoadRequestId) {
@@ -250,8 +253,11 @@ async function simulateNextTcatEvent() {
   simulatingTcatEvent.value = true
   tcatSimulationError.value = ''
   try {
-    await simulateTcatEvent(orderId.value, nextTcatEvent.value.type)
-    await loadOrder({ force: true })
+    const event = nextTcatEvent.value
+    const response = await simulateTcatEvent(orderId.value, event.type)
+    order.value.shipment = response.data
+    shipmentEvents.value = [...shipmentEvents.value, { eventType: event.type }]
+    void loadOrder({ silent: true, force: true })
   } catch (error) {
     tcatSimulationError.value = error.response?.data?.message ?? '物流模擬回報失敗。'
   } finally {
@@ -457,7 +463,7 @@ onUnmounted(() => {
               :disabled="simulatingTcatEvent"
               @click="simulateNextTcatEvent"
             >
-              {{ simulatingTcatEvent ? '物流回報中…' : nextTcatEvent.label }}
+              {{ nextTcatEvent.label }}
             </button>
             <p v-if="tcatSimulationError" class="form-error" role="alert">{{ tcatSimulationError }}</p>
             <div
