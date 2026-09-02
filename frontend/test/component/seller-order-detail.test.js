@@ -285,7 +285,7 @@ describe('seller shipment operation flow', () => {
 
     expect(simulateTcatEvent).toHaveBeenCalledWith(10, 'IN_TRANSIT')
     expect(wrapper.get('button.secondary-button').text()).toContain('配送中')
-    expect(wrapper.get('button.secondary-button').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('button.secondary-button').attributes('disabled')).toBeUndefined()
 
     pendingEvents.resolve({ data: [{ eventType: 'HANDED_OVER' }, { eventType: 'IN_TRANSIT' }] })
     await flushPromises()

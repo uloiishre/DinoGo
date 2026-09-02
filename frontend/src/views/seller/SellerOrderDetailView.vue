@@ -257,7 +257,7 @@ async function simulateNextTcatEvent() {
     const response = await simulateTcatEvent(orderId.value, event.type)
     order.value.shipment = response.data
     shipmentEvents.value = [...shipmentEvents.value, { eventType: event.type }]
-    await loadOrder({ silent: true, force: true })
+    void loadOrder({ silent: true, force: true })
   } catch (error) {
     tcatSimulationError.value = error.response?.data?.message ?? '物流模擬回報失敗。'
   } finally {
@@ -463,7 +463,7 @@ onUnmounted(() => {
               :disabled="simulatingTcatEvent"
               @click="simulateNextTcatEvent"
             >
-              {{ nextTcatEvent.label }}{{ simulatingTcatEvent ? '（更新中…）' : '' }}
+              {{ nextTcatEvent.label }}
             </button>
             <p v-if="tcatSimulationError" class="form-error" role="alert">{{ tcatSimulationError }}</p>
             <div
