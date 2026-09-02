@@ -1,6 +1,6 @@
 package com.dinogo.sysmsg.service;
 
-/** 送交單封 Email 給郵件 provider 時需要的不可變資料。 */
+/** Immutable data required to submit one message to the Email provider. */
 public record EmailDeliveryCommand(
         Integer recordChannelId,
         String recipientEmail,

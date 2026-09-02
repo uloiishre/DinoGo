@@ -7,13 +7,27 @@ import heroDragonLine from '@/assets/images/home/hero-dragon-line.png'
 import heroDragonMascot from '@/assets/images/home/hero-dragon-mascot.png'
 import { getImageUrl } from '@/utils/imageUrl'
 
-const categories = [
-  { name: '包袋', icon: 'bi-handbag' },
-  { name: '皮夾', icon: 'bi-wallet2' },
-  { name: '配件', icon: 'bi-gem' },
-  { name: '生活選物', icon: 'bi-house-heart' },
-  { name: '旅行用品', icon: 'bi-luggage' },
-]
+const categories = ref([])
+const categoryLoading = ref(false)
+
+const categoryIcons = {
+  '3C電子': 'bi-laptop',
+  服飾: 'bi-person-standing-dress',
+  美妝保養: 'bi-droplet',
+  居家生活: 'bi-house-heart',
+  食品: 'bi-cup-straw',
+  其他: 'bi-grid',
+}
+
+const loadCategories = async () => {
+  const response = await api.get('/categories')
+
+  categories.value = response.data.filter((category) => category.categoryName !== '其他')
+}
+
+const getCategoryIcon = (categoryName) => {
+  return categoryIcons[categoryName] ?? 'bi-grid'
+}
 
 const products = ref([])
 const productLoading = ref(false)
@@ -61,7 +75,9 @@ const showNextHeroSlide = () => {
 }
 
 onMounted(() => {
+  loadCategories()
   loadHotProducts()
+
   heroSlideTimer = window.setInterval(showNextHeroSlide, 5000)
 })
 
@@ -94,7 +110,11 @@ onUnmounted(() => {
               :key="index"
               :aria-current="index === activeHeroSlide ? 'true' : undefined"
               :aria-label="`顯示第 ${index + 1} 張品牌圖像`"
-              :class="['home-hero__pagination-button', 'dg-focus-ring', { 'is-active': index === activeHeroSlide }]"
+              :class="[
+                'home-hero__pagination-button',
+                'dg-focus-ring',
+                { 'is-active': index === activeHeroSlide },
+              ]"
               type="button"
               @click="showHeroSlide(index)"
             >
@@ -111,15 +131,23 @@ onUnmounted(() => {
             >全部分類 <span aria-hidden="true">→</span></RouterLink
           >
         </div>
-        <div class="category-grid">
+        <div v-if="categoryLoading">商品分類載入中...</div>
+
+        <div v-else class="category-grid">
           <RouterLink
             v-for="category in categories"
-            :key="category.name"
+            :key="category.categoryId"
             class="category-card dg-focus-ring"
-            to="/products"
+            :to="{
+              name: 'ProductList',
+              query: {
+                categoryId: category.categoryId,
+              },
+            }"
           >
-            <i :class="['bi', category.icon]" aria-hidden="true"></i
-            ><span>{{ category.name }}</span>
+            <i :class="['bi', getCategoryIcon(category.categoryName)]" aria-hidden="true"></i>
+
+            <span>{{ category.categoryName }}</span>
           </RouterLink>
         </div>
       </section>

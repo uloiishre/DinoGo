@@ -60,7 +60,9 @@ public class SellerApplicationService {
         application.setMember(member);
         application.setStoreName(request.storeName().trim());
         application.setStoreDescription(trimToNull(request.storeDescription()));
-        application.setStoreLogoUrl(trimToNull(request.storeLogoUrl()));
+        application.setStoreLogoUrl(SellerCloudinaryUrlValidator.optionalCloudinaryImageUrl(
+                trimToNull(request.storeLogoUrl()),
+                "店鋪 Logo URL"));
         application.setStatus(SellerApplicationStatus.PENDING);
 
         return SellerApplicationResponse.from(sellerApplicationRepository.save(application));

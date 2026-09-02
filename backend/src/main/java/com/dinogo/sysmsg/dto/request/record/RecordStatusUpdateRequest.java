@@ -14,6 +14,7 @@ import jakarta.validation.constraints.NotNull;
  */
 public class RecordStatusUpdateRequest {
 
+    //msg-已讀回傳後端之資訊// 前端固定送出 targetStatus=READ，不接受 DELETE 或任意狀態。
     @NotNull
     private RecordStatus targetStatus;
 

@@ -17,6 +17,7 @@ import {
 import { getCurrentSellerId } from '@/utils/seller-session'
 import { logSafeError } from '@/utils/safeError'
 import { getImageUrl } from '@/utils/imageUrl'
+import ProductDescriptionEditor from '@/components/product/ProductDescriptionEditor.vue'
 
 const sellerId = computed(() => getCurrentSellerId())
 const route = useRoute()
@@ -40,9 +41,14 @@ const selectedNewImageIndex = ref(0)
 const categories = ref([])
 const subcategories = ref([])
 const brands = ref([])
+const removedSkuIds = ref([])
 
 const selectedCategoryId = ref('')
+const PRODUCT_NAME_MAX_LENGTH = 50
 
+const productNameLength = computed(() => form.productName.length)
+
+const productNameTooLong = computed(() => productNameLength.value > PRODUCT_NAME_MAX_LENGTH)
 const loadCategories = async () => {
   try {
     const response = await api.get('/categories')
@@ -275,7 +281,20 @@ const generateSkuList = () => {
       }
     }
   }
+  // 找出原本存在於資料庫，但這次因刪除規格而消失的 SKU
+  oldSkus.forEach((oldSku) => {
+    if (!oldSku.skuId) {
+      return
+    }
 
+    const stillExists = newSkus.some((newSku) => newSku.skuId === oldSku.skuId)
+
+    if (!stillExists && !removedSkuIds.value.includes(oldSku.skuId)) {
+      removedSkuIds.value.push(oldSku.skuId)
+    }
+  })
+
+  form.skus = newSkus
   form.skus = newSkus
 }
 
@@ -695,6 +714,12 @@ const saveProductSkus = async () => {
   for (const sku of disabledSkus) {
     await disableSellerProductSku(productId.value, sku.skuId)
   }
+  // ④ 停用因「刪除規格值」而被移除的既有 SKU
+  for (const skuId of removedSkuIds.value) {
+    await disableSellerProductSku(productId.value, skuId)
+  }
+
+  removedSkuIds.value = []
 }
 const handleSaveDraft = async () => {
   if (!sellerId.value) {
@@ -771,6 +796,10 @@ const handleSubmit = async () => {
   // 商品名稱驗證
   if (!form.productName.trim()) {
     errorMessage.value = '請輸入商品名稱。'
+    return
+  }
+  if (form.productName.trim().length > PRODUCT_NAME_MAX_LENGTH) {
+    errorMessage.value = `商品標題不得超過 ${PRODUCT_NAME_MAX_LENGTH} 字。`
     return
   }
 
@@ -1007,10 +1036,25 @@ onMounted(async () => {
         </label>
 
         <label class="form-field full-width">
-          商品描述
-          <textarea v-model="form.description" placeholder="請輸入商品描述"></textarea>
-        </label>
+          <div class="field-label-row">
+            <span>商品名稱</span>
 
+            <span class="character-count" :class="{ error: productNameTooLong }">
+              {{ productNameLength }} / {{ PRODUCT_NAME_MAX_LENGTH }}
+            </span>
+          </div>
+
+          <input v-model="form.productName" type="text" placeholder="請輸入商品名稱" />
+
+          <small v-if="productNameTooLong" class="field-error">
+            商品標題不得超過 {{ PRODUCT_NAME_MAX_LENGTH }} 字
+          </small>
+        </label>
+        <div class="form-field full-width">
+          <span>商品描述</span>
+
+          <ProductDescriptionEditor v-model="form.description" />
+        </div>
         <section class="sku-section full-width">
           <div class="section-header">
             <h2>商品規格 SKU</h2>
@@ -1881,5 +1925,27 @@ button {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   line-height: 1.6;
+}
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.character-count {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+}
+
+.character-count.error,
+.field-error {
+  color: #b42318;
+}
+
+.field-error {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
 }
 </style>

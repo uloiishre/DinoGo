@@ -2,10 +2,11 @@ package com.dinogo.catalog.controller;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.data.domain.Page;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -53,7 +54,8 @@ public class ProductController {
             @RequestParam(defaultValue = "12") Integer size,
             @RequestParam(required = false) String sort,
             @RequestParam(required = false) BigDecimal minPrice,
-            @RequestParam(required = false) BigDecimal maxPrice) {
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) Double minRating) {
 
         return productService.getProducts(
                 keyword,
@@ -63,6 +65,7 @@ public class ProductController {
                 sellerId,
                 minPrice,
                 maxPrice,
+                minRating,
                 page,
                 size,
                 sort);
@@ -207,5 +210,13 @@ public class ProductController {
         productService.deleteProduct(productId, member.memberId());
 
         return ResponseEntity.noContent().build();
+    }
+
+    // 商品圖片上傳
+    @PostMapping(value = "/description-images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Map<String, String> uploadDescriptionImage(
+            @RequestParam("file") MultipartFile file) {
+
+        return productService.uploadDescriptionImage(file);
     }
 }

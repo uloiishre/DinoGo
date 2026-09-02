@@ -31,11 +31,7 @@ const navItems = [
     to: { name: 'ProductList', query: { sort: 'salesDesc' } },
     activeKey: 'salesDesc',
   },
-  {
-    label: '品牌與商家',
-    to: { name: 'ProductList', query: { filter: 'brand' } },
-    activeKey: 'brand',
-  },
+
   {
     label: '優惠活動',
     to: { name: 'CouponCenter' },
@@ -233,7 +229,7 @@ onBeforeUnmount(() => {
         class="primary-nav__menu collapse d-lg-flex align-items-lg-center gap-lg-1"
       >
         <!-- 全部分類 -->
-        <div class="category-menu">
+        <div class="category-menu" @mouseleave="showCategoryFilter = false">
           <button
             type="button"
             class="primary-nav__link primary-nav__link--all"
@@ -248,96 +244,98 @@ onBeforeUnmount(() => {
           </button>
 
           <!-- 展開選單 -->
-          <div v-if="showCategoryFilter" class="category-filter-panel">
-            <!-- 分類 -->
-            <div class="filter-column">
-              <h4 class="filter-title">分類</h4>
+          <div v-if="showCategoryFilter" class="category-filter-bridge">
+            <div class="category-filter-panel">
+              <!-- 分類 -->
+              <div class="filter-column">
+                <h4 class="filter-title">分類</h4>
 
-              <button
-                type="button"
-                class="filter-option"
-                :class="{
-                  active: selectedCategoryId === '',
-                }"
-                @click="clearFilters"
-              >
-                全部分類
-              </button>
-
-              <button
-                v-for="category in categories"
-                :key="category.categoryId"
-                type="button"
-                class="filter-option"
-                :class="{
-                  active: selectedCategoryId === category.categoryId,
-                }"
-                @click="selectCategory(category.categoryId)"
-              >
-                {{ category.categoryName }}
-              </button>
-            </div>
-
-            <!-- 子分類 -->
-            <div class="filter-column">
-              <h4 class="filter-title">子分類</h4>
-
-              <template v-if="selectedCategoryId">
                 <button
                   type="button"
                   class="filter-option"
                   :class="{
-                    active: selectedSubcategoryId === '',
+                    active: selectedCategoryId === '',
                   }"
-                  @click="selectSubcategory('')"
+                  @click="clearFilters"
                 >
-                  全部子分類
+                  全部分類
                 </button>
 
                 <button
-                  v-for="subcategory in subcategories"
-                  :key="subcategory.subcategoryId"
+                  v-for="category in categories"
+                  :key="category.categoryId"
                   type="button"
                   class="filter-option"
                   :class="{
-                    active: selectedSubcategoryId === subcategory.subcategoryId,
+                    active: selectedCategoryId === category.categoryId,
                   }"
-                  @click="selectSubcategory(subcategory.subcategoryId)"
+                  @click="selectCategory(category.categoryId)"
                 >
-                  {{ subcategory.subcategoryName }}
+                  {{ category.categoryName }}
                 </button>
-              </template>
+              </div>
 
-              <p v-else class="filter-hint">請先選擇分類</p>
-            </div>
+              <!-- 子分類 -->
+              <div class="filter-column">
+                <h4 class="filter-title">子分類</h4>
 
-            <!-- 品牌 -->
-            <div class="filter-column">
-              <h4 class="filter-title">品牌</h4>
+                <template v-if="selectedCategoryId">
+                  <button
+                    type="button"
+                    class="filter-option"
+                    :class="{
+                      active: selectedSubcategoryId === '',
+                    }"
+                    @click="selectSubcategory('')"
+                  >
+                    全部子分類
+                  </button>
 
-              <button
-                type="button"
-                class="filter-option"
-                :class="{
-                  active: selectedBrandId === '',
-                }"
-                @click="selectBrand('')"
-              >
-                全部品牌
-              </button>
+                  <button
+                    v-for="subcategory in subcategories"
+                    :key="subcategory.subcategoryId"
+                    type="button"
+                    class="filter-option"
+                    :class="{
+                      active: selectedSubcategoryId === subcategory.subcategoryId,
+                    }"
+                    @click="selectSubcategory(subcategory.subcategoryId)"
+                  >
+                    {{ subcategory.subcategoryName }}
+                  </button>
+                </template>
 
-              <button
-                v-for="brand in brands"
-                :key="brand.brandId"
-                type="button"
-                class="filter-option"
-                :class="{
-                  active: selectedBrandId === brand.brandId,
-                }"
-                @click="selectBrand(brand.brandId)"
-              >
-                {{ brand.brandName }}
-              </button>
+                <p v-else class="filter-hint">請先選擇分類</p>
+              </div>
+
+              <!-- 品牌 -->
+              <div class="filter-column">
+                <h4 class="filter-title">品牌</h4>
+
+                <button
+                  type="button"
+                  class="filter-option"
+                  :class="{
+                    active: selectedBrandId === '',
+                  }"
+                  @click="selectBrand('')"
+                >
+                  全部品牌
+                </button>
+
+                <button
+                  v-for="brand in brands"
+                  :key="brand.brandId"
+                  type="button"
+                  class="filter-option"
+                  :class="{
+                    active: selectedBrandId === brand.brandId,
+                  }"
+                  @click="selectBrand(brand.brandId)"
+                >
+                  {{ brand.brandName }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -447,14 +445,18 @@ onBeforeUnmount(() => {
    分類展開面板
    ========================= */
 
-.category-filter-panel {
+.category-filter-bridge {
   position: absolute;
-
-  top: calc(100% + 10px);
+  top: 100%;
   left: 0;
 
   z-index: 2000;
 
+  width: 720px;
+  padding-top: 10px;
+}
+
+.category-filter-panel {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
 
@@ -464,7 +466,6 @@ onBeforeUnmount(() => {
   padding: 24px;
 
   color: var(--color-text);
-
   background: #ffffff;
 
   border: 1px solid var(--color-border);
@@ -605,18 +606,6 @@ onBeforeUnmount(() => {
 
   .primary-nav__link--seller {
     margin-left: 0;
-  }
-
-  .category-filter-panel {
-    position: static;
-
-    width: 100%;
-    margin-top: 8px;
-
-    grid-template-columns: 1fr;
-
-    max-height: 70vh;
-    overflow-y: auto;
   }
 
   .filter-column {

@@ -2,6 +2,7 @@
 import { onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import SearchBar from './SearchBar.vue'
+import headerLogoUrl from '@/assets/images/dinogo-logo-s.png'
 import { useCartStore } from '@/stores/cart'
 import { getPersistedToken } from '@/utils/auth-session.js'
 
@@ -60,13 +61,15 @@ const hasMoreNotifications = notificationItems.length > 3
   <header class="app-header">
     <div class="container app-header__main d-flex align-items-center">
       <RouterLink class="brand-mark flex-shrink-0" to="/" aria-label="DinoGo 首頁">
-        <span class="brand-mark__badge" aria-hidden="true">D</span>
+        <span class="brand-mark__logo" aria-hidden="true">
+          <img :src="headerLogoUrl" alt="" class="brand-mark__logo-image" />
+        </span>
         <span class="brand-mark__copy">
           <span class="brand-mark__name">DINO-GO</span>
           <span class="brand-mark__tagline">好物，慢慢挑</span>
         </span>
       </RouterLink>
-      <div class="flex-grow-1 d-none d-md-block"><SearchBar /></div>
+      <div class="header-search flex-grow-1 d-none d-md-block"><SearchBar /></div>
       <nav class="header-actions d-flex align-items-center gap-2" aria-label="Header actions">
         <RouterLink class="header-action" to="/member/favorites" aria-label="收藏"
           ><i class="bi bi-heart" aria-hidden="true"></i
@@ -155,15 +158,14 @@ const hasMoreNotifications = notificationItems.length > 3
 }
 .app-header__main {
   min-height: 92px;
-  gap: 36px;
+  gap: clamp(var(--space-3), 2vw, var(--space-6));
 }
 .app-header__search-mobile {
   padding-bottom: var(--space-4);
 }
 .brand-mark {
   display: flex;
-  width: 250px;
-  flex: 0 0 250px;
+  flex: 0 0 auto;
   align-items: center;
   gap: var(--space-3);
   font-family: var(--font-heading);
@@ -171,16 +173,23 @@ const hasMoreNotifications = notificationItems.length > 3
   text-decoration: none;
   white-space: nowrap;
 }
-.brand-mark__badge {
+.header-search {
+  min-width: 180px;
+}
+.brand-mark__logo {
   display: grid;
   width: 48px;
   height: 48px;
-  color: var(--color-surface);
-  font-family: var(--font-body);
-  font-size: 24px;
   place-items: center;
-  border-radius: var(--radius-md);
-  background: var(--color-primary-700);
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+}
+.brand-mark__logo-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: inherit;
 }
 .brand-mark__copy {
   display: flex;
@@ -340,7 +349,7 @@ const hasMoreNotifications = notificationItems.length > 3
 }
 
 @media (max-width: 575.98px) {
-  .brand-mark__badge {
+  .brand-mark__logo {
     width: 40px;
     height: 40px;
   }
@@ -359,6 +368,23 @@ const hasMoreNotifications = notificationItems.length > 3
 @media (max-width: 767.98px) {
   .app-header__main {
     min-height: 72px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 991.98px) {
+  .brand-mark__logo {
+    width: 44px;
+    height: 44px;
+  }
+  .brand-mark__name {
+    font-size: var(--font-size-md);
+  }
+  .brand-mark__tagline {
+    font-size: 11px;
+  }
+  .header-action {
+    width: 52px;
+    flex-basis: 52px;
   }
 }
 </style>

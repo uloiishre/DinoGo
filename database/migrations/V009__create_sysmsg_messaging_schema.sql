@@ -151,6 +151,8 @@ CREATE TABLE sysmsg.send_order
     status NVARCHAR(30) NOT NULL,
     CONSTRAINT PK_sysmsg_send_order PRIMARY KEY (send_order_id),
     CONSTRAINT CK_send_order_total_amount CHECK (total_amount >= 0),
+    CONSTRAINT CK_send_order_order_no_not_blank CHECK (LEN(LTRIM(RTRIM(order_no))) > 0),
+    CONSTRAINT CK_send_order_payment_snapshot CHECK ((payment_method_id IS NULL AND method_name IS NULL) OR (payment_method_id IS NOT NULL AND method_name IS NOT NULL AND LEN(LTRIM(RTRIM(method_name))) > 0)),
     CONSTRAINT CK_send_order_status CHECK (status IN ('PAID', 'SHIPPED', 'DELIVERED', 'COMPLETED')),
     CONSTRAINT FK_send_order_send FOREIGN KEY (send_order_id)
         REFERENCES sysmsg.send(send_id) ON DELETE CASCADE
@@ -167,10 +169,16 @@ IF NOT EXISTS (SELECT 1 FROM sys.key_constraints WHERE parent_object_id=OBJECT_I
     ALTER TABLE sysmsg.send_order ADD CONSTRAINT PK_sysmsg_send_order PRIMARY KEY (send_order_id);
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_order') AND name=N'CK_send_order_total_amount')
     ALTER TABLE sysmsg.send_order WITH CHECK ADD CONSTRAINT CK_send_order_total_amount CHECK (total_amount >= 0);
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_order') AND name=N'CK_send_order_order_no_not_blank')
+    ALTER TABLE sysmsg.send_order WITH CHECK ADD CONSTRAINT CK_send_order_order_no_not_blank CHECK (LEN(LTRIM(RTRIM(order_no))) > 0);
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_order') AND name=N'CK_send_order_payment_snapshot')
+    ALTER TABLE sysmsg.send_order WITH CHECK ADD CONSTRAINT CK_send_order_payment_snapshot CHECK ((payment_method_id IS NULL AND method_name IS NULL) OR (payment_method_id IS NOT NULL AND method_name IS NOT NULL AND LEN(LTRIM(RTRIM(method_name))) > 0));
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_order') AND name=N'CK_send_order_status')
     ALTER TABLE sysmsg.send_order WITH CHECK ADD CONSTRAINT CK_send_order_status CHECK (status IN ('PAID', 'SHIPPED', 'DELIVERED', 'COMPLETED'));
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_order') AND name=N'FK_send_order_send')
     ALTER TABLE sysmsg.send_order WITH CHECK ADD CONSTRAINT FK_send_order_send FOREIGN KEY (send_order_id) REFERENCES sysmsg.send(send_id) ON DELETE CASCADE;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'sysmsg.send_order') AND name=N'IX_sysmsg_send_order_event')
+    CREATE INDEX IX_sysmsg_send_order_event ON sysmsg.send_order(order_id, status, send_order_id);
 GO
 
 IF OBJECT_ID(N'sysmsg.send_disorder', N'U') IS NULL
@@ -188,6 +196,8 @@ CREATE TABLE sysmsg.send_disorder
     status NVARCHAR(30) NOT NULL,
     CONSTRAINT PK_sysmsg_send_disorder PRIMARY KEY (send_disorder_id),
     CONSTRAINT CK_send_disorder_total_amount CHECK (total_amount >= 0),
+    CONSTRAINT CK_send_disorder_order_no_not_blank CHECK (LEN(LTRIM(RTRIM(order_no))) > 0),
+    CONSTRAINT CK_send_disorder_payment_snapshot CHECK ((payment_method_id IS NULL AND method_name IS NULL) OR (payment_method_id IS NOT NULL AND method_name IS NOT NULL AND LEN(LTRIM(RTRIM(method_name))) > 0)),
     CONSTRAINT CK_send_disorder_status CHECK (status = 'CANCELLED'),
     CONSTRAINT FK_send_disorder_send FOREIGN KEY (send_disorder_id)
         REFERENCES sysmsg.send(send_id) ON DELETE CASCADE
@@ -205,10 +215,16 @@ IF NOT EXISTS (SELECT 1 FROM sys.key_constraints WHERE parent_object_id=OBJECT_I
     ALTER TABLE sysmsg.send_disorder ADD CONSTRAINT PK_sysmsg_send_disorder PRIMARY KEY (send_disorder_id);
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_disorder') AND name=N'CK_send_disorder_total_amount')
     ALTER TABLE sysmsg.send_disorder WITH CHECK ADD CONSTRAINT CK_send_disorder_total_amount CHECK (total_amount >= 0);
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_disorder') AND name=N'CK_send_disorder_order_no_not_blank')
+    ALTER TABLE sysmsg.send_disorder WITH CHECK ADD CONSTRAINT CK_send_disorder_order_no_not_blank CHECK (LEN(LTRIM(RTRIM(order_no))) > 0);
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_disorder') AND name=N'CK_send_disorder_payment_snapshot')
+    ALTER TABLE sysmsg.send_disorder WITH CHECK ADD CONSTRAINT CK_send_disorder_payment_snapshot CHECK ((payment_method_id IS NULL AND method_name IS NULL) OR (payment_method_id IS NOT NULL AND method_name IS NOT NULL AND LEN(LTRIM(RTRIM(method_name))) > 0));
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_disorder') AND name=N'CK_send_disorder_status')
     ALTER TABLE sysmsg.send_disorder WITH CHECK ADD CONSTRAINT CK_send_disorder_status CHECK (status = 'CANCELLED');
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_disorder') AND name=N'FK_send_disorder_send')
     ALTER TABLE sysmsg.send_disorder WITH CHECK ADD CONSTRAINT FK_send_disorder_send FOREIGN KEY (send_disorder_id) REFERENCES sysmsg.send(send_id) ON DELETE CASCADE;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'sysmsg.send_disorder') AND name=N'IX_sysmsg_send_disorder_event')
+    CREATE INDEX IX_sysmsg_send_disorder_event ON sysmsg.send_disorder(order_id, status, send_disorder_id);
 GO
 
 IF OBJECT_ID(N'sysmsg.send_seller', N'U') IS NULL
@@ -217,11 +233,22 @@ CREATE TABLE sysmsg.send_seller
 (
     send_seller_id INT NOT NULL,
     order_no NVARCHAR(30) NULL,
-    img_one VARBINARY(MAX) NULL,
-    img_two VARBINARY(MAX) NULL,
-    img_three VARBINARY(MAX) NULL,
+    -- Cloudinary HTTPS URL；附件本體不寫入 SQL Server。
+    img_one NVARCHAR(500) NULL,
+    img_one_public_id NVARCHAR(255) NULL,
+    img_two NVARCHAR(500) NULL,
+    img_two_public_id NVARCHAR(255) NULL,
+    img_three NVARCHAR(500) NULL,
+    img_three_public_id NVARCHAR(255) NULL,
     send_remark NVARCHAR(1000) NULL,
     CONSTRAINT PK_sysmsg_send_seller PRIMARY KEY (send_seller_id),
+    CONSTRAINT CK_sysmsg_send_seller_order_no_not_blank CHECK (order_no IS NULL OR LEN(LTRIM(RTRIM(order_no))) > 0),
+    CONSTRAINT CK_sysmsg_send_seller_cloudinary_refs CHECK
+    (
+        (img_one IS NULL AND img_one_public_id IS NULL OR img_one IS NOT NULL AND img_one_public_id IS NOT NULL AND LEN(LTRIM(RTRIM(img_one))) > 0 AND LEN(LTRIM(RTRIM(img_one_public_id))) > 0) AND
+        (img_two IS NULL AND img_two_public_id IS NULL OR img_two IS NOT NULL AND img_two_public_id IS NOT NULL AND LEN(LTRIM(RTRIM(img_two))) > 0 AND LEN(LTRIM(RTRIM(img_two_public_id))) > 0) AND
+        (img_three IS NULL AND img_three_public_id IS NULL OR img_three IS NOT NULL AND img_three_public_id IS NOT NULL AND LEN(LTRIM(RTRIM(img_three))) > 0 AND LEN(LTRIM(RTRIM(img_three_public_id))) > 0)
+    ),
     CONSTRAINT FK_send_seller_send FOREIGN KEY (send_seller_id)
         REFERENCES sysmsg.send(send_id) ON DELETE CASCADE
 );
@@ -231,13 +258,20 @@ GO
 IF COL_LENGTH(N'sysmsg.send_seller', N'send_seller_id') IS NULL
     THROW 51013, N'既有 sysmsg.send_seller 缺少 send_seller_id，無法自動升級', 1;
 IF COL_LENGTH(N'sysmsg.send_seller', N'order_no') IS NULL ALTER TABLE sysmsg.send_seller ADD order_no nvarchar(30) NULL;
-IF COL_LENGTH(N'sysmsg.send_seller', N'img_one') IS NULL ALTER TABLE sysmsg.send_seller ADD img_one varbinary(max) NULL;
-IF COL_LENGTH(N'sysmsg.send_seller', N'img_two') IS NULL ALTER TABLE sysmsg.send_seller ADD img_two varbinary(max) NULL;
-IF COL_LENGTH(N'sysmsg.send_seller', N'img_three') IS NULL ALTER TABLE sysmsg.send_seller ADD img_three varbinary(max) NULL;
+IF COL_LENGTH(N'sysmsg.send_seller', N'img_one') IS NULL ALTER TABLE sysmsg.send_seller ADD img_one nvarchar(500) NULL;
+IF COL_LENGTH(N'sysmsg.send_seller', N'img_one_public_id') IS NULL ALTER TABLE sysmsg.send_seller ADD img_one_public_id nvarchar(255) NULL;
+IF COL_LENGTH(N'sysmsg.send_seller', N'img_two') IS NULL ALTER TABLE sysmsg.send_seller ADD img_two nvarchar(500) NULL;
+IF COL_LENGTH(N'sysmsg.send_seller', N'img_two_public_id') IS NULL ALTER TABLE sysmsg.send_seller ADD img_two_public_id nvarchar(255) NULL;
+IF COL_LENGTH(N'sysmsg.send_seller', N'img_three') IS NULL ALTER TABLE sysmsg.send_seller ADD img_three nvarchar(500) NULL;
+IF COL_LENGTH(N'sysmsg.send_seller', N'img_three_public_id') IS NULL ALTER TABLE sysmsg.send_seller ADD img_three_public_id nvarchar(255) NULL;
 IF COL_LENGTH(N'sysmsg.send_seller', N'send_remark') IS NULL ALTER TABLE sysmsg.send_seller ADD send_remark nvarchar(1000) NULL;
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.key_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_seller') AND name=N'PK_sysmsg_send_seller')
     ALTER TABLE sysmsg.send_seller ADD CONSTRAINT PK_sysmsg_send_seller PRIMARY KEY (send_seller_id);
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_seller') AND name=N'CK_sysmsg_send_seller_order_no_not_blank')
+    ALTER TABLE sysmsg.send_seller WITH CHECK ADD CONSTRAINT CK_sysmsg_send_seller_order_no_not_blank CHECK (order_no IS NULL OR LEN(LTRIM(RTRIM(order_no))) > 0);
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_seller') AND name=N'CK_sysmsg_send_seller_cloudinary_refs')
+    ALTER TABLE sysmsg.send_seller WITH CHECK ADD CONSTRAINT CK_sysmsg_send_seller_cloudinary_refs CHECK ((img_one IS NULL AND img_one_public_id IS NULL OR img_one IS NOT NULL AND img_one_public_id IS NOT NULL AND LEN(LTRIM(RTRIM(img_one))) > 0 AND LEN(LTRIM(RTRIM(img_one_public_id))) > 0) AND (img_two IS NULL AND img_two_public_id IS NULL OR img_two IS NOT NULL AND img_two_public_id IS NOT NULL AND LEN(LTRIM(RTRIM(img_two))) > 0 AND LEN(LTRIM(RTRIM(img_two_public_id))) > 0) AND (img_three IS NULL AND img_three_public_id IS NULL OR img_three IS NOT NULL AND img_three_public_id IS NOT NULL AND LEN(LTRIM(RTRIM(img_three))) > 0 AND LEN(LTRIM(RTRIM(img_three_public_id))) > 0));
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_seller') AND name=N'FK_send_seller_send')
     ALTER TABLE sysmsg.send_seller WITH CHECK ADD CONSTRAINT FK_send_seller_send FOREIGN KEY (send_seller_id) REFERENCES sysmsg.send(send_id) ON DELETE CASCADE;
 GO
@@ -294,10 +328,20 @@ CREATE TABLE sysmsg.record
         (msgto_member_id IS NOT NULL AND msgto_seller_id IS NULL) OR
         (msgto_member_id IS NULL AND msgto_seller_id IS NOT NULL)
     ),
+    CONSTRAINT CK_sysmsg_record_recipient_function CHECK
+    (
+        (msgto_member_id IS NOT NULL AND LEFT(msg_function, 2) IN ('OA', 'OC', 'AC', 'SC')) OR
+        (msgto_seller_id IS NOT NULL AND LEFT(msg_function, 2) IN ('OA', 'OS', 'AS'))
+    ),
+    CONSTRAINT CK_sysmsg_record_order_contract CHECK
+    (
+        (LEFT(msg_function, 2) IN ('AC', 'AS') AND order_id IS NOT NULL AND order_status IS NOT NULL AND order_status IN ('PAID', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'CANCELLED')) OR
+        (LEFT(msg_function, 2) IN ('OA', 'OC', 'OS', 'SC') AND order_id IS NULL AND order_status IS NULL)
+    ),
     CONSTRAINT CK_sysmsg_record_order_snapshot CHECK
     (
         (order_id IS NULL AND order_status IS NULL) OR
-        (order_id IS NOT NULL AND order_status IN ('PAID', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'CANCELLED'))
+        (order_id IS NOT NULL AND order_status IS NOT NULL AND order_status IN ('PAID', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'CANCELLED'))
     )
 );
 END;
@@ -347,8 +391,12 @@ IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT
     );
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.record') AND name=N'CK_sysmsg_record_exactly_one_recipient')
     ALTER TABLE sysmsg.record WITH CHECK ADD CONSTRAINT CK_sysmsg_record_exactly_one_recipient CHECK ((msgto_member_id IS NOT NULL AND msgto_seller_id IS NULL) OR (msgto_member_id IS NULL AND msgto_seller_id IS NOT NULL));
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.record') AND name=N'CK_sysmsg_record_recipient_function')
+    ALTER TABLE sysmsg.record WITH CHECK ADD CONSTRAINT CK_sysmsg_record_recipient_function CHECK ((msgto_member_id IS NOT NULL AND LEFT(msg_function,2) IN ('OA','OC','AC','SC')) OR (msgto_seller_id IS NOT NULL AND LEFT(msg_function,2) IN ('OA','OS','AS')));
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.record') AND name=N'CK_sysmsg_record_order_contract')
+    ALTER TABLE sysmsg.record WITH CHECK ADD CONSTRAINT CK_sysmsg_record_order_contract CHECK ((LEFT(msg_function,2) IN ('AC','AS') AND order_id IS NOT NULL AND order_status IS NOT NULL AND order_status IN ('PAID','SHIPPED','DELIVERED','COMPLETED','CANCELLED')) OR (LEFT(msg_function,2) IN ('OA','OC','OS','SC') AND order_id IS NULL AND order_status IS NULL));
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.record') AND name=N'CK_sysmsg_record_order_snapshot')
-    ALTER TABLE sysmsg.record WITH CHECK ADD CONSTRAINT CK_sysmsg_record_order_snapshot CHECK ((order_id IS NULL AND order_status IS NULL) OR (order_id IS NOT NULL AND order_status IN ('PAID','SHIPPED','DELIVERED','COMPLETED','CANCELLED')));
+    ALTER TABLE sysmsg.record WITH CHECK ADD CONSTRAINT CK_sysmsg_record_order_snapshot CHECK ((order_id IS NULL AND order_status IS NULL) OR (order_id IS NOT NULL AND order_status IS NOT NULL AND order_status IN ('PAID','SHIPPED','DELIVERED','COMPLETED','CANCELLED')));
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE parent_object_id=OBJECT_ID(N'sysmsg.record') AND name=N'FK_sysmsg_record_send_function')
     ALTER TABLE sysmsg.record WITH CHECK ADD CONSTRAINT FK_sysmsg_record_send_function FOREIGN KEY (send_id,msg_function) REFERENCES sysmsg.send(send_id,msg_function);
 GO
@@ -381,6 +429,11 @@ CREATE TABLE sysmsg.record_channel
     sent_at DATETIME2(7) NULL,
     provider_message_id NVARCHAR(200) NULL,
     error_message NVARCHAR(1000) NULL,
+    attempt_count INT NOT NULL CONSTRAINT DF_sysmsg_record_channel_attempt_count DEFAULT (0),
+    last_attempt_at DATETIME2(7) NULL,
+    next_retry_at DATETIME2(7) NULL,
+    failure_code NVARCHAR(50) NULL,
+    dead_lettered_at DATETIME2(7) NULL,
     CONSTRAINT PK_sysmsg_record_channel PRIMARY KEY (record_channel_id),
     CONSTRAINT UX_sysmsg_record_channel_type UNIQUE (record_id, channel_type),
     CONSTRAINT FK_sysmsg_record_channel_send FOREIGN KEY (send_id)
@@ -389,12 +442,14 @@ CREATE TABLE sysmsg.record_channel
         REFERENCES sysmsg.record(record_id, send_id) ON DELETE CASCADE,
     CONSTRAINT CK_sysmsg_record_channel_type CHECK (channel_type IN ('EMAIL', 'LINE')),
     CONSTRAINT CK_sysmsg_record_channel_notification_type CHECK (notification_type IN ('ORDER', 'MARKETING')),
+    CONSTRAINT CK_sysmsg_record_channel_attempt_count CHECK (attempt_count >= 0),
     CONSTRAINT CK_sysmsg_record_channel_result CHECK
     (
-        NOT (sent_at IS NOT NULL AND error_message IS NOT NULL) AND
-        ((sent_at IS NULL AND provider_message_id IS NULL) OR
-         (sent_at IS NOT NULL AND LEN(LTRIM(RTRIM(provider_message_id))) > 0)) AND
-        (error_message IS NULL OR LEN(LTRIM(RTRIM(error_message))) > 0)
+        (attempt_count=0 AND sent_at IS NULL AND provider_message_id IS NULL AND error_message IS NULL AND failure_code IS NULL AND last_attempt_at IS NULL AND next_retry_at IS NULL AND dead_lettered_at IS NULL)
+        OR (attempt_count>0 AND sent_at IS NULL AND provider_message_id IS NULL AND error_message IS NULL AND failure_code IS NULL AND last_attempt_at IS NOT NULL AND next_retry_at IS NULL AND dead_lettered_at IS NULL)
+        OR (attempt_count>0 AND sent_at IS NOT NULL AND provider_message_id IS NOT NULL AND LEN(LTRIM(RTRIM(provider_message_id)))>0 AND error_message IS NULL AND failure_code IS NULL AND last_attempt_at IS NOT NULL AND next_retry_at IS NULL AND dead_lettered_at IS NULL)
+        OR (attempt_count>0 AND sent_at IS NULL AND provider_message_id IS NULL AND error_message IS NOT NULL AND LEN(LTRIM(RTRIM(error_message)))>0 AND failure_code IS NOT NULL AND LEN(LTRIM(RTRIM(failure_code)))>0 AND last_attempt_at IS NOT NULL AND next_retry_at IS NOT NULL AND dead_lettered_at IS NULL)
+        OR (attempt_count>0 AND sent_at IS NULL AND provider_message_id IS NULL AND error_message IS NOT NULL AND LEN(LTRIM(RTRIM(error_message)))>0 AND failure_code IS NOT NULL AND LEN(LTRIM(RTRIM(failure_code)))>0 AND last_attempt_at IS NOT NULL AND next_retry_at IS NULL AND dead_lettered_at IS NOT NULL)
     )
 );
 END;
@@ -420,6 +475,24 @@ END;
 IF COL_LENGTH(N'sysmsg.record_channel', N'sent_at') IS NULL ALTER TABLE sysmsg.record_channel ADD sent_at datetime2(7) NULL;
 IF COL_LENGTH(N'sysmsg.record_channel', N'provider_message_id') IS NULL ALTER TABLE sysmsg.record_channel ADD provider_message_id nvarchar(200) NULL;
 IF COL_LENGTH(N'sysmsg.record_channel', N'error_message') IS NULL ALTER TABLE sysmsg.record_channel ADD error_message nvarchar(1000) NULL;
+IF COL_LENGTH(N'sysmsg.record_channel', N'attempt_count') IS NULL ALTER TABLE sysmsg.record_channel ADD attempt_count int NOT NULL CONSTRAINT DF_sysmsg_record_channel_attempt_count DEFAULT (0) WITH VALUES;
+IF COL_LENGTH(N'sysmsg.record_channel', N'last_attempt_at') IS NULL ALTER TABLE sysmsg.record_channel ADD last_attempt_at datetime2(7) NULL;
+IF COL_LENGTH(N'sysmsg.record_channel', N'next_retry_at') IS NULL ALTER TABLE sysmsg.record_channel ADD next_retry_at datetime2(7) NULL;
+IF COL_LENGTH(N'sysmsg.record_channel', N'failure_code') IS NULL ALTER TABLE sysmsg.record_channel ADD failure_code nvarchar(50) NULL;
+IF COL_LENGTH(N'sysmsg.record_channel', N'dead_lettered_at') IS NULL ALTER TABLE sysmsg.record_channel ADD dead_lettered_at datetime2(7) NULL;
+GO
+
+-- 舊版 Channel 沒有嘗試資訊；依已有結果回填最小可驗證狀態。
+UPDATE sysmsg.record_channel
+SET attempt_count=1,
+    last_attempt_at=COALESCE(last_attempt_at, sent_at)
+WHERE sent_at IS NOT NULL AND attempt_count=0;
+UPDATE sysmsg.record_channel
+SET attempt_count=1,
+    last_attempt_at=COALESCE(last_attempt_at, SYSUTCDATETIME()),
+    failure_code=COALESCE(failure_code, N'LEGACY_FAILURE'),
+    next_retry_at=COALESCE(next_retry_at, DATEADD(MINUTE, 1, SYSUTCDATETIME()))
+WHERE sent_at IS NULL AND error_message IS NOT NULL AND attempt_count=0 AND dead_lettered_at IS NULL;
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.key_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.record_channel') AND name=N'PK_sysmsg_record_channel')
@@ -430,18 +503,30 @@ IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT
     ALTER TABLE sysmsg.record_channel WITH CHECK ADD CONSTRAINT CK_sysmsg_record_channel_type CHECK (channel_type IN ('EMAIL','LINE'));
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.record_channel') AND name=N'CK_sysmsg_record_channel_notification_type')
     ALTER TABLE sysmsg.record_channel WITH CHECK ADD CONSTRAINT CK_sysmsg_record_channel_notification_type CHECK (notification_type IN ('ORDER','MARKETING'));
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.record_channel') AND name=N'CK_sysmsg_record_channel_attempt_count')
+    ALTER TABLE sysmsg.record_channel WITH CHECK ADD CONSTRAINT CK_sysmsg_record_channel_attempt_count CHECK (attempt_count >= 0);
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.record_channel') AND name=N'CK_sysmsg_record_channel_result')
-    ALTER TABLE sysmsg.record_channel WITH CHECK ADD CONSTRAINT CK_sysmsg_record_channel_result CHECK (NOT (sent_at IS NOT NULL AND error_message IS NOT NULL) AND ((sent_at IS NULL AND provider_message_id IS NULL) OR (sent_at IS NOT NULL AND LEN(LTRIM(RTRIM(provider_message_id))) > 0)) AND (error_message IS NULL OR LEN(LTRIM(RTRIM(error_message))) > 0));
+    ALTER TABLE sysmsg.record_channel WITH CHECK ADD CONSTRAINT CK_sysmsg_record_channel_result CHECK (NOT (sent_at IS NOT NULL AND error_message IS NOT NULL) AND ((sent_at IS NULL AND provider_message_id IS NULL) OR (sent_at IS NOT NULL AND provider_message_id IS NOT NULL AND LEN(LTRIM(RTRIM(provider_message_id))) > 0)) AND (error_message IS NULL OR LEN(LTRIM(RTRIM(error_message))) > 0));
+IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.record_channel') AND name=N'CK_sysmsg_record_channel_result_contract')
+    ALTER TABLE sysmsg.record_channel DROP CONSTRAINT CK_sysmsg_record_channel_result_contract;
+ALTER TABLE sysmsg.record_channel WITH CHECK ADD CONSTRAINT CK_sysmsg_record_channel_result_contract CHECK ((attempt_count=0 AND sent_at IS NULL AND provider_message_id IS NULL AND error_message IS NULL AND failure_code IS NULL AND last_attempt_at IS NULL AND next_retry_at IS NULL AND dead_lettered_at IS NULL) OR (attempt_count>0 AND sent_at IS NULL AND provider_message_id IS NULL AND error_message IS NULL AND failure_code IS NULL AND last_attempt_at IS NOT NULL AND next_retry_at IS NULL AND dead_lettered_at IS NULL) OR (attempt_count>0 AND sent_at IS NOT NULL AND provider_message_id IS NOT NULL AND LEN(LTRIM(RTRIM(provider_message_id)))>0 AND error_message IS NULL AND failure_code IS NULL AND last_attempt_at IS NOT NULL AND next_retry_at IS NULL AND dead_lettered_at IS NULL) OR (attempt_count>0 AND sent_at IS NULL AND provider_message_id IS NULL AND error_message IS NOT NULL AND LEN(LTRIM(RTRIM(error_message)))>0 AND failure_code IS NOT NULL AND LEN(LTRIM(RTRIM(failure_code)))>0 AND last_attempt_at IS NOT NULL AND next_retry_at IS NOT NULL AND dead_lettered_at IS NULL) OR (attempt_count>0 AND sent_at IS NULL AND provider_message_id IS NULL AND error_message IS NOT NULL AND LEN(LTRIM(RTRIM(error_message)))>0 AND failure_code IS NOT NULL AND LEN(LTRIM(RTRIM(failure_code)))>0 AND last_attempt_at IS NOT NULL AND next_retry_at IS NULL AND dead_lettered_at IS NOT NULL));
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE parent_object_id=OBJECT_ID(N'sysmsg.record_channel') AND name=N'FK_sysmsg_record_channel_send')
     ALTER TABLE sysmsg.record_channel WITH CHECK ADD CONSTRAINT FK_sysmsg_record_channel_send FOREIGN KEY (send_id) REFERENCES sysmsg.send(send_id);
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE parent_object_id=OBJECT_ID(N'sysmsg.record_channel') AND name=N'FK_sysmsg_record_channel_record_send')
     ALTER TABLE sysmsg.record_channel WITH CHECK ADD CONSTRAINT FK_sysmsg_record_channel_record_send FOREIGN KEY (record_id,send_id) REFERENCES sysmsg.record(record_id,send_id) ON DELETE CASCADE;
 GO
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'sysmsg.record_channel') AND name=N'IX_sysmsg_record_channel_pending')
-    CREATE INDEX IX_sysmsg_record_channel_pending ON sysmsg.record_channel(channel_type, record_channel_id) INCLUDE (record_id, send_id, notification_type) WHERE sent_at IS NULL AND provider_message_id IS NULL AND error_message IS NULL;
+IF EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'sysmsg.record_channel') AND name=N'IX_sysmsg_record_channel_pending')
+    DROP INDEX IX_sysmsg_record_channel_pending ON sysmsg.record_channel;
+CREATE INDEX IX_sysmsg_record_channel_pending ON sysmsg.record_channel(channel_type, record_channel_id) INCLUDE (record_id, send_id, notification_type) WHERE sent_at IS NULL AND provider_message_id IS NULL AND error_message IS NULL AND attempt_count=0 AND last_attempt_at IS NULL AND dead_lettered_at IS NULL;
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'sysmsg.record_channel') AND name=N'IX_sysmsg_record_channel_send')
     CREATE INDEX IX_sysmsg_record_channel_send ON sysmsg.record_channel(send_id, record_id, channel_type);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'sysmsg.record_channel') AND name=N'IX_sysmsg_record_channel_retry_due')
+    CREATE INDEX IX_sysmsg_record_channel_retry_due ON sysmsg.record_channel(channel_type, next_retry_at, record_channel_id) INCLUDE (record_id, send_id, attempt_count, failure_code, error_message) WHERE channel_type='EMAIL' AND sent_at IS NULL AND provider_message_id IS NULL AND error_message IS NOT NULL AND next_retry_at IS NOT NULL AND dead_lettered_at IS NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'sysmsg.record_channel') AND name=N'IX_sysmsg_record_channel_dead_letter')
+    CREATE INDEX IX_sysmsg_record_channel_dead_letter ON sysmsg.record_channel(dead_lettered_at, record_channel_id) INCLUDE (record_id, send_id, attempt_count, failure_code, error_message) WHERE dead_lettered_at IS NOT NULL;
+IF EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'sysmsg.record_channel') AND name=N'IX_sysmsg_record_channel_failed_email')
+    DROP INDEX IX_sysmsg_record_channel_failed_email ON sysmsg.record_channel;
 GO
 
 -- CHECK/FK 無法跨多張子表；部署結束前拒絕既有不一致資料。
@@ -467,6 +552,70 @@ IF EXISTS
 )
 BEGIN
     THROW 51001, N'sysmsg.send 父子表業務一致性檢查失敗', 1;
+END;
+GO
+
+-- Record 必須指向 SEND，且 sender／訂單快照與 Send 及其唯一子型別一致。
+IF EXISTS
+(
+    SELECT 1
+    FROM sysmsg.record AS recipient
+    INNER JOIN sysmsg.send AS parent
+        ON parent.send_id=recipient.send_id AND parent.msg_function=recipient.msg_function
+    LEFT JOIN sysmsg.send_order AS normal_order ON normal_order.send_order_id=parent.send_id
+    LEFT JOIN sysmsg.send_disorder AS cancelled_order ON cancelled_order.send_disorder_id=parent.send_id
+    WHERE parent.send_status <> 'SEND'
+       OR recipient.msgfrom_seller_id <> parent.msgfrom_seller_id
+       OR (LEFT(parent.msg_function,2) IN ('AC','AS') AND
+           (recipient.order_id IS NULL OR recipient.order_status IS NULL OR
+            (normal_order.send_order_id IS NOT NULL AND (recipient.order_id<>normal_order.order_id OR recipient.order_status<>normal_order.status)) OR
+            (cancelled_order.send_disorder_id IS NOT NULL AND (recipient.order_id<>cancelled_order.order_id OR recipient.order_status<>cancelled_order.status))))
+       OR (LEFT(parent.msg_function,2) IN ('OA','OC','OS','SC') AND (recipient.order_id IS NOT NULL OR recipient.order_status IS NOT NULL))
+)
+BEGIN
+    THROW 51002, N'sysmsg.record 與 send／子型別一致性檢查失敗', 1;
+END;
+GO
+
+-- notification_type 必須由 Record 收件人與 prefix 唯一推導，禁止外部任意指定。
+IF EXISTS
+(
+    SELECT 1
+    FROM sysmsg.record_channel AS channel
+    INNER JOIN sysmsg.record AS recipient
+        ON recipient.record_id=channel.record_id AND recipient.send_id=channel.send_id
+    CROSS APPLY
+    (
+        SELECT CASE
+            WHEN recipient.msgto_member_id IS NOT NULL AND LEFT(recipient.msg_function,2) IN ('AC','SC') THEN 'ORDER'
+            WHEN recipient.msgto_seller_id IS NOT NULL AND LEFT(recipient.msg_function,2)='AS' THEN 'ORDER'
+            WHEN recipient.msgto_member_id IS NOT NULL AND LEFT(recipient.msg_function,2) IN ('OA','OC') THEN 'MARKETING'
+            WHEN recipient.msgto_seller_id IS NOT NULL AND LEFT(recipient.msg_function,2) IN ('OA','OS') THEN 'MARKETING'
+            ELSE 'INVALID'
+        END AS expected_notification_type
+    ) AS expected
+    WHERE expected.expected_notification_type='INVALID'
+       OR channel.notification_type<>expected.expected_notification_type
+)
+BEGIN
+    THROW 51003, N'sysmsg.record_channel 通知分類一致性檢查失敗', 1;
+END;
+GO
+
+IF EXISTS
+(
+    SELECT 1 FROM sysmsg.record_channel
+    WHERE attempt_count<0 OR NOT
+    (
+        (attempt_count=0 AND sent_at IS NULL AND provider_message_id IS NULL AND error_message IS NULL AND failure_code IS NULL AND last_attempt_at IS NULL AND next_retry_at IS NULL AND dead_lettered_at IS NULL)
+        OR (attempt_count>0 AND sent_at IS NULL AND provider_message_id IS NULL AND error_message IS NULL AND failure_code IS NULL AND last_attempt_at IS NOT NULL AND next_retry_at IS NULL AND dead_lettered_at IS NULL)
+        OR (attempt_count>0 AND sent_at IS NOT NULL AND provider_message_id IS NOT NULL AND error_message IS NULL AND failure_code IS NULL AND last_attempt_at IS NOT NULL AND next_retry_at IS NULL AND dead_lettered_at IS NULL)
+        OR (attempt_count>0 AND sent_at IS NULL AND provider_message_id IS NULL AND error_message IS NOT NULL AND failure_code IS NOT NULL AND last_attempt_at IS NOT NULL AND next_retry_at IS NOT NULL AND dead_lettered_at IS NULL)
+        OR (attempt_count>0 AND sent_at IS NULL AND provider_message_id IS NULL AND error_message IS NOT NULL AND failure_code IS NOT NULL AND last_attempt_at IS NOT NULL AND next_retry_at IS NULL AND dead_lettered_at IS NOT NULL)
+    )
+)
+BEGIN
+    THROW 51004, N'sysmsg.record_channel 發送／重試／死信狀態檢查失敗', 1;
 END;
 GO
 -- //sysmsg-end，總共1次修改，第1次//

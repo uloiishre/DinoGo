@@ -29,11 +29,22 @@ public class SendTemplateUpdateRequest {
     @Size(max = 1000)
     private String sendRemark;
 
-    private byte[] imgOne;
+    //sysmsg-start，總共1次修改，第1次//
+    @Size(max = 500)
+    private String imgOne;
+    @Size(max = 255)
+    private String imgOnePublicId;
 
-    private byte[] imgTwo;
+    @Size(max = 500)
+    private String imgTwo;
+    @Size(max = 255)
+    private String imgTwoPublicId;
 
-    private byte[] imgThree;
+    @Size(max = 500)
+    private String imgThree;
+    @Size(max = 255)
+    private String imgThreePublicId;
+    //sysmsg-end，總共1次修改，第1次//
 
     /*
      * Lombok：
@@ -77,27 +88,34 @@ public class SendTemplateUpdateRequest {
         this.sendRemark = sendRemark;
     }
 
-    public byte[] getImgOne() {
+    public String getImgOne() {
         return imgOne;
     }
 
-    public void setImgOne(byte[] imgOne) {
+    public void setImgOne(String imgOne) {
         this.imgOne = imgOne;
     }
+    public String getImgOnePublicId() { return imgOnePublicId; }
+    public void setImgOnePublicId(String value) { this.imgOnePublicId = value; }
 
-    public byte[] getImgTwo() {
+    public String getImgTwo() {
         return imgTwo;
     }
 
-    public void setImgTwo(byte[] imgTwo) {
+    public void setImgTwo(String imgTwo) {
         this.imgTwo = imgTwo;
     }
+    public String getImgTwoPublicId() { return imgTwoPublicId; }
+    public void setImgTwoPublicId(String value) { this.imgTwoPublicId = value; }
 
-    public byte[] getImgThree() {
+    public String getImgThree() {
         return imgThree;
     }
 
-    public void setImgThree(byte[] imgThree) {
+    public void setImgThree(String imgThree) {
         this.imgThree = imgThree;
     }
+    public String getImgThreePublicId() { return imgThreePublicId; }
+    public void setImgThreePublicId(String value) { this.imgThreePublicId = value; }
 }
+

@@ -5,11 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { logSafeError } from '@/utils/safeError'
 import ProductCard from '@/views/product/ProductCard.vue'
-import {
-  getPublicStore,
-  getPublicStoreSummary,
-  resolveSellerLogoUrl,
-} from '@/api/sellerProfileApi'
+import { getPublicStore, getPublicStoreSummary, resolveSellerLogoUrl } from '@/api/sellerProfileApi'
 import { useAuthStore } from '@/stores/auth'
 const route = useRoute()
 const router = useRouter()
@@ -238,6 +234,9 @@ const fetchProducts = async () => {
     if (route.query.maxPrice) {
       params.maxPrice = route.query.maxPrice
     }
+    if (route.query.minRating) {
+      params.minRating = route.query.minRating
+    }
 
     if (route.query.sort) {
       params.sort = route.query.sort
@@ -285,12 +284,15 @@ watch(
     route.query.brandId,
     route.query.minPrice,
     route.query.maxPrice,
+    route.query.minRating,
     route.query.sort,
     route.query.sellerId,
   ],
   () => {
     currentPage.value = 0
     sort.value = route.query.sort || ''
+    minRating.value = route.query.minRating || ''
+
     loadStoreProfile()
     loadStoreCoupons()
     fetchProducts()
@@ -392,7 +394,9 @@ onMounted(async () => {
         </div>
 
         <p v-if="couponMessage" class="coupon-notice coupon-notice--success">{{ couponMessage }}</p>
-        <p v-if="couponErrorMessage" class="coupon-notice coupon-notice--error">{{ couponErrorMessage }}</p>
+        <p v-if="couponErrorMessage" class="coupon-notice coupon-notice--error">
+          {{ couponErrorMessage }}
+        </p>
 
         <div v-if="featuredStoreCoupons.length" class="store-coupon-list">
           <article
@@ -408,7 +412,10 @@ onMounted(async () => {
             </div>
             <button
               type="button"
-              :disabled="claimedCouponIds.has(Number(coupon.couponId)) || claimingCouponId === coupon.couponId"
+              :disabled="
+                claimedCouponIds.has(Number(coupon.couponId)) ||
+                claimingCouponId === coupon.couponId
+              "
               @click="claimCoupon(coupon.couponId)"
             >
               {{

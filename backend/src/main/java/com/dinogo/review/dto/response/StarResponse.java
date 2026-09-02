@@ -20,9 +20,14 @@ public record StarResponse(
         String productName,
         String imageUrl,
         BigDecimal basePrice,
-        byte[] imgOne,
-        byte[] imgTwo,
-        byte[] imgThree,
+        //review-start，總共1次修改，第1次//
+        String imgOne,
+        String imgOnePublicId,
+        String imgTwo,
+        String imgTwoPublicId,
+        String imgThree,
+        String imgThreePublicId,
+        //review-end，總共1次修改，第1次//
         String feedback,
         Integer fiveStar,
         boolean reviewed,
@@ -40,8 +45,11 @@ public record StarResponse(
                 star.getImageUrl(),
                 star.getBasePrice(),
                 star.getImgOne(),
+                star.getImgOnePublicId(),
                 star.getImgTwo(),
+                star.getImgTwoPublicId(),
                 star.getImgThree(),
+                star.getImgThreePublicId(),
                 star.getFeedback(),
                 star.getFiveStar(),
                 star.getFiveStar() != null && star.getFiveStar() > 0,
@@ -50,3 +58,4 @@ public record StarResponse(
                 star.getStarUpdAt());
     }
 }
+

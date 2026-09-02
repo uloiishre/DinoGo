@@ -3,6 +3,12 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getOrder } from '@/api/order'
+import {
+  clearStar,
+  getOrderStars,
+  updateStar,
+  uploadReviewImages,
+} from '@/api/review'
 import { getImageUrl } from '@/utils/imageUrl'
 
 const props = defineProps({
@@ -10,12 +16,13 @@ const props = defineProps({
   initialOrderItemId: { type: Number, default: null },
   modal: { type: Boolean, default: false },
 })
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'updated'])
 const route = useRoute()
 const router = useRouter()
 const order = ref(props.orderData)
 const selectedOrderItemId = ref(Number(props.initialOrderItemId ?? route.params.orderItemId))
 const star = ref(null)
+const orderStars = ref([])
 const rating = ref(0)
 const feedback = ref('')
 const images = ref([])
@@ -34,25 +41,17 @@ const productImage = computed(() => getImageUrl(star.value?.imageUrl || item.val
 const productName = computed(() => star.value?.productName || item.value?.productName || '商品')
 const productSpec = computed(() => item.value?.skuSpec || '單一規格')
 
-function byteArrayUrl(value) {
-  if (!value) return ''
-  const mimeType = value.startsWith('iVBOR')
-    ? 'image/png'
-    : value.startsWith('R0lGOD')
-      ? 'image/gif'
-      : value.startsWith('UklGR')
-        ? 'image/webp'
-        : 'image/jpeg'
-  return `data:${mimeType};base64,${value}`
-}
-
 function hydrateForm(nextStar) {
   rating.value = Number(nextStar?.fiveStar ?? 0)
   feedback.value = nextStar?.feedback ?? ''
   revokeLocalUrls()
-  images.value = [nextStar?.imgOne, nextStar?.imgTwo, nextStar?.imgThree]
-    .filter(Boolean)
-    .map((base64) => ({ base64, preview: byteArrayUrl(base64), local: false }))
+  images.value = [
+    [nextStar?.imgOne, nextStar?.imgOnePublicId],
+    [nextStar?.imgTwo, nextStar?.imgTwoPublicId],
+    [nextStar?.imgThree, nextStar?.imgThreePublicId],
+  ]
+    .filter(([secureUrl]) => Boolean(secureUrl))
+    .map(([secureUrl, publicId]) => ({ secureUrl, publicId, preview: secureUrl, local: false }))
 }
 
 async function loadReview() {
@@ -66,19 +65,11 @@ async function loadReview() {
   try {
     if (!props.orderData) order.value = (await getOrder(orderId.value)).data
     if (!item.value) throw new Error('REVIEW_ITEM_NOT_FOUND')
-    // DinoGo 檢視版不呼叫尚未整合的 Review API。
-    star.value = {
-      starId: Number(route.query.starId ?? orderItemId.value),
-      orderItemId: orderItemId.value,
-      productId: item.value.productId,
-      productName: item.value.productName,
-      imageUrl: item.value.productImageUrl,
-      fiveStar: item.value.isReviewed ? 4 : 0,
-      feedback: item.value.isReviewed ? '商品與描述一致，整體使用體驗不錯。' : '',
-      imgOne: null,
-      imgTwo: null,
-      imgThree: null,
-    }
+    orderStars.value = (await getOrderStars(orderId.value)).data ?? []
+    star.value = orderStars.value.find(
+      (candidate) => candidate.orderItemId === orderItemId.value,
+    ) ?? null
+    if (!star.value) throw new Error('REVIEW_STAR_NOT_FOUND')
     hydrateForm(star.value)
   } catch (error) {
     errorMessage.value = error.response?.data?.message
@@ -89,30 +80,13 @@ async function loadReview() {
 }
 
 function selectReviewItem() {
-  const nextItem = item.value
-  if (!nextItem) return
-  star.value = {
-    starId: nextItem.orderItemId,
-    orderItemId: nextItem.orderItemId,
-    productId: nextItem.productId,
-    productName: nextItem.productName,
-    imageUrl: nextItem.productImageUrl,
-    fiveStar: Number(nextItem.fiveStar ?? 0) || (nextItem.isReviewed ? 4 : 0),
-    feedback: nextItem.isReviewed ? '商品與描述一致，整體使用體驗不錯。' : '',
-    imgOne: null, imgTwo: null, imgThree: null,
-  }
+  star.value = orderStars.value.find(
+    (candidate) => candidate.orderItemId === orderItemId.value,
+  ) ?? null
   errorMessage.value = ''
   successMessage.value = ''
-  hydrateForm(star.value)
-}
-
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
+  if (star.value) hydrateForm(star.value)
+  else errorMessage.value = '找不到此訂單品項的評價資料。'
 }
 
 async function addImages(event) {
@@ -122,7 +96,7 @@ async function addImages(event) {
   for (const file of files.slice(0, remaining)) {
     if (!file.type.startsWith('image/')) continue
     images.value.push({
-      base64: await fileToBase64(file),
+      file,
       preview: URL.createObjectURL(file),
       local: true,
     })
@@ -147,15 +121,12 @@ async function handleClear() {
   errorMessage.value = ''
   successMessage.value = ''
   try {
-    star.value = {
-      ...star.value,
-      fiveStar: 0,
-      feedback: '',
-      imgOne: null,
-      imgTwo: null,
-      imgThree: null,
-    }
+    star.value = (await clearStar(star.value.starId)).data
+    orderStars.value = orderStars.value.map((candidate) =>
+      candidate.starId === star.value.starId ? star.value : candidate,
+    )
     hydrateForm(star.value)
+    emit('updated', star.value)
     successMessage.value = '評價內容已清空。'
   } catch (error) {
     errorMessage.value = error.response?.data?.message ?? '清空失敗，請稍後再試。'
@@ -173,17 +144,31 @@ async function handleSubmit() {
   saving.value = true
   errorMessage.value = ''
   successMessage.value = ''
-  const imageValues = images.value.map((image) => image.base64)
   try {
-    star.value = {
-      ...star.value,
+    const remoteAssets = images.value.filter((image) => !image.local)
+    const localFiles = images.value.filter((image) => image.local).map((image) => image.file)
+    const uploadedAssets = localFiles.length
+      ? ((await uploadReviewImages(localFiles)).data?.assets ?? []).map((asset) => ({
+          secureUrl: asset.secureUrl,
+          publicId: asset.publicId,
+        }))
+      : []
+    const assets = [...remoteAssets, ...uploadedAssets].slice(0, 3)
+    star.value = (await updateStar(star.value.starId, {
       fiveStar: rating.value,
       feedback: feedback.value.trim() || null,
-      imgOne: imageValues[0] ?? null,
-      imgTwo: imageValues[1] ?? null,
-      imgThree: imageValues[2] ?? null,
-    }
+      imgOne: assets[0]?.secureUrl ?? null,
+      imgOnePublicId: assets[0]?.publicId ?? null,
+      imgTwo: assets[1]?.secureUrl ?? null,
+      imgTwoPublicId: assets[1]?.publicId ?? null,
+      imgThree: assets[2]?.secureUrl ?? null,
+      imgThreePublicId: assets[2]?.publicId ?? null,
+    })).data
+    orderStars.value = orderStars.value.map((candidate) =>
+      candidate.starId === star.value.starId ? star.value : candidate,
+    )
     hydrateForm(star.value)
+    emit('updated', star.value)
     successMessage.value = '評價已送出。'
   } catch (error) {
     errorMessage.value = error.response?.data?.message ?? '評價送出失敗，請稍後再試。'
@@ -200,8 +185,20 @@ function closeWithoutChanges() {
   router.push({ name: 'MemberOrderDetail', params: { id: orderId.value } })
 }
 
-onMounted(loadReview)
-onBeforeUnmount(revokeLocalUrls)
+function handleEscape(event) {
+  if (event.key === 'Escape') closeWithoutChanges()
+}
+
+onMounted(() => {
+  void loadReview()
+  window.addEventListener('keydown', handleEscape)
+  if (props.modal) document.body.style.overflow = 'hidden'
+})
+onBeforeUnmount(() => {
+  revokeLocalUrls()
+  window.removeEventListener('keydown', handleEscape)
+  if (props.modal) document.body.style.overflow = ''
+})
 //review-end，總共3次修改，第1次//
 </script>
 
@@ -211,8 +208,7 @@ onBeforeUnmount(revokeLocalUrls)
     <div class="review-panel" role="dialog" :aria-modal="modal ? 'true' : undefined" aria-labelledby="review-title">
       <header class="review-header">
         <div>
-          <p>完成的訂單 · 單項產品</p>
-          <h1 id="review-title">商品評價</h1>
+          <h1 id="review-title">完成的訂單 · 單項產品 商品評價</h1>
         </div>
         <button type="button" class="close-button" aria-label="關閉且不做變更" @click="closeWithoutChanges">×</button>
       </header>
@@ -221,7 +217,7 @@ onBeforeUnmount(revokeLocalUrls)
         <span>評價對象</span>
         <select v-model.number="selectedOrderItemId" @change="selectReviewItem">
           <option v-for="candidate in order.items" :key="candidate.orderItemId" :value="candidate.orderItemId">
-            {{ candidate.productName }} 
+            {{ candidate.productName }} · {{ candidate.skuSpec || '單一規格' }}
           </option>
         </select>
       </label>
@@ -305,7 +301,7 @@ onBeforeUnmount(revokeLocalUrls)
 .review-page--modal .review-panel { width: min(calc(100% - var(--space-6)), calc(var(--space-8) * 13)); max-height: calc(100vh - var(--space-6)); overflow-y: auto; }
 .review-panel { max-width: calc(var(--space-8) * 13); margin: 0 auto; overflow: hidden; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
 .review-header { display: flex; align-items: flex-start; justify-content: space-between; padding: var(--space-5); border-bottom: 1px solid var(--color-border); }
-.review-header p, .review-header h1 { margin: 0; }.review-header p { color: var(--color-text-muted); font-size: var(--font-size-xs); }.review-header h1 { margin-top: var(--space-1); font-family: var(--font-heading); font-size: var(--font-size-xl); }
+.review-header h1 { margin: 0; font-family: var(--font-heading); font-size: var(--font-size-xl); }
 .close-button { width: calc(var(--space-5) + var(--space-4)); height: calc(var(--space-5) + var(--space-4)); color: var(--color-text-muted); font-size: var(--font-size-xl); line-height: 1; background: transparent; border: 0; border-radius: var(--radius-pill); cursor: pointer; }
 .close-button:hover { color: var(--color-text); background: var(--color-bg-muted); }
 .review-item-select { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-5); background: var(--color-bg-muted); border-bottom: 1px solid var(--color-border); }.review-item-select span { color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: 700; }.review-item-select select { min-width: 0; padding: var(--space-2) var(--space-3); color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); }

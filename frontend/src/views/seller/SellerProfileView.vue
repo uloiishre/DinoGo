@@ -203,7 +203,7 @@ onMounted(async () => {
       <section class="preview-card store-banner-preview">
         <div class="preview-brand">
           <img
-            v-if="logoUrl && !logoLoadFailed"
+            v-if="resolveSellerLogoUrl(logoUrl) && !logoLoadFailed"
             class="store-avatar-image"
             :src="resolveSellerLogoUrl(logoUrl)"
             :alt="`${form.storeName} Logo`"
@@ -246,7 +246,7 @@ onMounted(async () => {
             @click="openLogoPicker"
           >
             <img
-              v-if="logoUrl && !logoLoadFailed"
+              v-if="resolveSellerLogoUrl(logoUrl) && !logoLoadFailed"
               class="logo-preview"
               :src="resolveSellerLogoUrl(logoUrl)"
               :alt="`${form.storeName} Logo 預覽`"

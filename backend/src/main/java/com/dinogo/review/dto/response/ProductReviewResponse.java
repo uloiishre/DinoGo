@@ -7,26 +7,30 @@ import com.dinogo.review.entity.StarEntity;
 /**
  * 產品介紹頁使用的公開評論 DTO。
  *
- * <p>//review-前端// 只提供顯示評論所需資料；memberId 由前端遮罩後顯示。</p>
+ * <p>公開回應不包含原始 memberId；匿名名稱由後端直接提供。</p>
  */
 public record ProductReviewResponse(
         Integer starId,
-        //review-前端// 提供產品明細頁顯示遮罩後的會員識別碼。
-        Integer memberId,
+        //review-start，總共3次修改，第1次//
+        String reviewerDisplayName,
+        //review-end，總共3次修改，第1次//
         Integer productId,
         String productName,
         Integer fiveStar,
         String feedback,
-        byte[] imgOne,
-        byte[] imgTwo,
-        byte[] imgThree,
+        //review-start，總共3次修改，第2次//
+        String imgOne,
+        String imgTwo,
+        String imgThree,
+        //review-end，總共3次修改，第2次//
         LocalDateTime starUpdAt) {
 
     public static ProductReviewResponse fromEntity(StarEntity star) {
         return new ProductReviewResponse(
                 star.getId(),
-                //review-前端// History 是評論所屬會員的唯一可信來源。
-                star.getHistory().getMemberId(),
+                //review-start，總共3次修改，第3次//
+                maskMemberId(star.getHistory().getMemberId()),
+                //review-end，總共3次修改，第3次//
                 star.getProductId(),
                 star.getProductName(),
                 star.getFiveStar(),
@@ -36,4 +40,17 @@ public record ProductReviewResponse(
                 star.getImgThree(),
                 star.getStarUpdAt());
     }
+
+    /** 公開頁面只提供部分遮罩後的會員編號，不暴露完整 memberId。 */
+    private static String maskMemberId(Integer memberId) {
+        String value = memberId == null ? "" : memberId.toString();
+        if (value.isEmpty()) {
+            return "會員 *****";
+        }
+        if (value.length() == 1) {
+            return "會員 " + value + "*****";
+        }
+        return "會員 " + value.charAt(0) + "*****" + value.charAt(value.length() - 1);
+    }
 }
+

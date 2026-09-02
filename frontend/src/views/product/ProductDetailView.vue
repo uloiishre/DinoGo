@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { logSafeError } from '@/utils/safeError'
 import { getImageUrl } from '@/utils/imageUrl'
+import { getProductReviews } from '@/api/review'
 import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
 const route = useRoute()
@@ -32,7 +33,6 @@ const claimedCouponIds = computed(
   () => new Set(memberCoupons.value.map((coupon) => Number(coupon.couponId))),
 )
 
-// Review 檢視版：使用本地展示資料，不呼叫尚未整合的 Review 後端。
 const activeDetailTab = ref('description')
 const reviews = ref([])
 const reviewsLoading = ref(false)
@@ -40,26 +40,80 @@ const reviewsLoaded = ref(false)
 const selectedReview = ref(null)
 const reviewPage = ref(1)
 const reviewTotalPages = ref(1)
+const reviewTotalElements = ref(0)
 const reviewFilter = ref({ rating: null, content: 'ALL' })
-const reviewSummary = computed(() => {
-  const pool = previewReviewPool()
-  const rated = pool.filter((review) => review.fiveStar)
-  const average = rated.length
-    ? Math.floor((rated.reduce((sum, review) => sum + review.fiveStar, 0) / rated.length) * 10) / 10
-    : null
-  return {
-    averageFiveStar: average,
-    totalCount: rated.length,
-    fiveStarCount: rated.filter((review) => review.fiveStar === 5).length,
-    fourStarCount: rated.filter((review) => review.fiveStar === 4).length,
-    threeStarCount: rated.filter((review) => review.fiveStar === 3).length,
-    twoStarCount: rated.filter((review) => review.fiveStar === 2).length,
-    oneStarCount: rated.filter((review) => review.fiveStar === 1).length,
-    withFeedbackCount: rated.filter((review) => review.feedback?.trim()).length,
-    withImageCount: rated.filter((review) => reviewImages(review).length).length,
+const ratingSummary = ref({
+  productId: null,
+  averageFiveStar: null,
+  totalCount: 0,
+  fiveStarCount: 0,
+  fourStarCount: 0,
+  threeStarCount: 0,
+  twoStarCount: 0,
+  oneStarCount: 0,
+  withFeedbackCount: 0,
+  withImageCount: 0,
+})
+const fetchRatingSummary = async () => {
+  const productId = route.params.id
+
+  try {
+    const response = await api.get(`/reviews/products/${productId}/rating-summary`)
+
+    ratingSummary.value = response.data
+  } catch (error) {
+    console.error('取得商品評價摘要失敗：', error)
+
+    ratingSummary.value = {
+      productId: Number(productId),
+      averageFiveStar: null,
+      totalCount: 0,
+      fiveStarCount: 0,
+      fourStarCount: 0,
+      threeStarCount: 0,
+      twoStarCount: 0,
+      oneStarCount: 0,
+      withFeedbackCount: 0,
+      withImageCount: 0,
+    }
   }
+}
+//圖片切換
+const selectedImageIndex = computed(() => {
+  if (!product.value?.images?.length || !selectedImage.value) {
+    return -1
+  }
+
+  return product.value.images.findIndex((image) => image.imageUrl === selectedImage.value)
 })
 
+const showPreviousImage = () => {
+  const images = product.value?.images ?? []
+
+  if (images.length <= 1) {
+    return
+  }
+
+  const currentIndex = selectedImageIndex.value
+
+  const previousIndex = currentIndex <= 0 ? images.length - 1 : currentIndex - 1
+
+  selectedImage.value = images[previousIndex].imageUrl
+}
+
+const showNextImage = () => {
+  const images = product.value?.images ?? []
+
+  if (images.length <= 1) {
+    return
+  }
+
+  const currentIndex = selectedImageIndex.value
+
+  const nextIndex = currentIndex >= images.length - 1 ? 0 : currentIndex + 1
+
+  selectedImage.value = images[nextIndex].imageUrl
+}
 /**
  * 取得商品詳情
  */
@@ -404,36 +458,6 @@ const toggleFavorite = async () => {
   }
 }
 
-function previewReviewPool() {
-  const imageUrls = (product.value?.images ?? [])
-    .map((image) => getImageUrl(image.imageUrl))
-    .filter(Boolean)
-  const messages = [
-    '包裝完整，商品質感很好，實際使用後符合期待。',
-    '尺寸與頁面說明一致，出貨速度也很快。',
-    '操作容易，細節做工不錯，會推薦給其他買家。',
-    '顏色接近實品照片，整體使用體驗很滿意。',
-    '功能符合需求，客服回覆清楚，值得再次購買。',
-  ]
-  return Array.from({ length: 20 }, (_, index) => {
-    const displayType = index % 4
-    return {
-      starId: index + 1,
-      memberId: 12031 + index * 17,
-      fiveStar: 5 - (index % 3),
-      feedback: displayType === 2 || displayType === 3 ? '' : messages[index % messages.length],
-      images:
-        imageUrls.length && (displayType === 0 || displayType === 2)
-          ? Array.from(
-              { length: Math.min(3, imageUrls.length) },
-              (_, imageIndex) => imageUrls[(index + imageIndex) % imageUrls.length],
-            )
-          : [],
-      starUpdAt: new Date(Date.now() - index * 60000).toISOString(),
-    }
-  }).sort(compareReviewDisplayOrder)
-}
-
 // 產品明細檢視版比照後端：內容＋圖片為 2、內容或圖片為 1、僅星等為 0。
 function reviewDisplayPriority(review) {
   const hasContent = Boolean(review?.feedback?.trim())
@@ -457,29 +481,50 @@ function maskMemberId(memberId) {
 }
 
 function reviewImages(review) {
-  return Array.isArray(review?.images) ? review.images : []
+  return [review?.imgOne, review?.imgTwo, review?.imgThree].filter(Boolean)
 }
-
 async function loadReviews() {
-  if (reviewsLoading.value) return
-  reviewsLoading.value = true
-  await Promise.resolve()
-  const pool = previewReviewPool().filter((review) => {
-    if (reviewFilter.value.rating && review.fiveStar !== reviewFilter.value.rating) return false
-    if (reviewFilter.value.content === 'FEEDBACK' && !review.feedback?.trim()) return false
-    if (reviewFilter.value.content === 'IMAGE' && !reviewImages(review).length) return false
-    return true
-  })
-  const totalPages = Math.max(1, Math.ceil(pool.length / 10))
-  reviewPage.value = Math.min(reviewPage.value, totalPages)
-  reviewTotalPages.value = totalPages
-  const start = (reviewPage.value - 1) * 10
-  const batch = pool.slice(start, start + 10)
-  reviews.value = batch
-  reviewsLoaded.value = true
-  reviewsLoading.value = false
-}
+  if (reviewsLoading.value || !product.value?.productId) return
 
+  reviewsLoading.value = true
+
+  try {
+    const productId = route.params.id
+
+    const response = await api.get(`/reviews/products/${productId}`, {
+      params: {
+        page: reviewPage.value,
+
+        rating: reviewFilter.value.rating || undefined,
+
+        content: reviewFilter.value.content !== 'ALL' ? reviewFilter.value.content : undefined,
+      },
+    })
+
+    const data = response.data
+
+    reviews.value = data.content ?? []
+    reviewPage.value = data.pageNumber ?? 1
+    reviewTotalPages.value = data.totalPages ?? 1
+    reviewsLoaded.value = true
+
+    // 完整評論 API 裡的 summary 資料比 rating-summary 更多
+    if (data.summary) {
+      ratingSummary.value = {
+        ...ratingSummary.value,
+        ...data.summary,
+      }
+    }
+  } catch (error) {
+    console.error('取得商品評價失敗：', error)
+
+    reviews.value = []
+    reviewTotalPages.value = 1
+    reviewsLoaded.value = true
+  } finally {
+    reviewsLoading.value = false
+  }
+}
 async function selectReviewFilter({ rating = null, content = 'ALL' }) {
   reviewFilter.value = { rating, content }
   reviews.value = []
@@ -493,7 +538,7 @@ function isReviewFilterActive({ rating = null, content = 'ALL' }) {
 }
 
 function ratingCount(value) {
-  return reviewSummary.value[`${['', 'one', 'two', 'three', 'four', 'five'][value]}StarCount`] ?? 0
+  return ratingSummary.value[`${['', 'one', 'two', 'three', 'four', 'five'][value]}StarCount`] ?? 0
 }
 
 function formatAverage(value) {
@@ -501,16 +546,23 @@ function formatAverage(value) {
   return Number.isFinite(average) ? average.toFixed(1) : '—'
 }
 
-const averageInteger = computed(() => formatAverage(reviewSummary.value.averageFiveStar).split('.')[0])
+const averageInteger = computed(
+  () => formatAverage(ratingSummary.value.averageFiveStar).split('.')[0],
+)
+
 const averageDecimal = computed(() => {
-  const formatted = formatAverage(reviewSummary.value.averageFiveStar)
+  const formatted = formatAverage(ratingSummary.value.averageFiveStar)
   return formatted.includes('.') ? `.${formatted.split('.')[1]}` : ''
 })
 
 function formatReviewTime(value) {
   if (!value) return '評價時間未提供'
   return new Intl.DateTimeFormat('zh-TW', {
-    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
   }).format(new Date(value))
 }
 
@@ -520,7 +572,8 @@ const reviewPageItems = computed(() => {
   if (total <= 7) return Array.from({ length: total }, (_, index) => index + 1)
   const values = [1]
   if (current > 4) values.push('left-ellipsis')
-  for (let page = Math.max(2, current - 1); page <= Math.min(total - 1, current + 1); page += 1) values.push(page)
+  for (let page = Math.max(2, current - 1); page <= Math.min(total - 1, current + 1); page += 1)
+    values.push(page)
   if (current < total - 3) values.push('right-ellipsis')
   values.push(total)
   return values
@@ -642,7 +695,7 @@ watch(selectedSku, () => {
 
 onMounted(async () => {
   await fetchProductDetail()
-  await loadReviews()
+  await fetchRatingSummary()
   await fetchSeller()
   await fetchSellerCoupons()
   await fetchFavoriteStatus()
@@ -684,6 +737,26 @@ onUnmounted(() => {
               />
 
               <div v-else class="product-image-placeholder">暫無圖片</div>
+
+              <template v-if="product.images?.length > 1">
+                <button
+                  type="button"
+                  class="image-nav-button image-nav-button--previous"
+                  aria-label="上一張圖片"
+                  @click="showPreviousImage"
+                >
+                  <i class="bi bi-chevron-left"></i>
+                </button>
+
+                <button
+                  type="button"
+                  class="image-nav-button image-nav-button--next"
+                  aria-label="下一張圖片"
+                  @click="showNextImage"
+                >
+                  <i class="bi bi-chevron-right"></i>
+                </button>
+              </template>
             </div>
 
             <!-- 縮圖 -->
@@ -725,9 +798,21 @@ onUnmounted(() => {
               </div>
               <div class="product-heading-rating" aria-label="商品平均評分">
                 <span class="product-heading-rating__label">商品評價</span>
-                <strong>{{ averageInteger }}<small>{{ averageDecimal }}</small></strong>
+                <strong
+                  >{{ averageInteger }}<small>{{ averageDecimal }}</small></strong
+                >
                 <span class="review-stars">
-                  <i v-for="value in 5" :key="value" class="bi" :class="value <= Math.floor(reviewSummary.averageFiveStar || 0) ? 'bi-star-fill' : 'bi-star'" aria-hidden="true"></i>
+                  <i
+                    v-for="value in 5"
+                    :key="value"
+                    class="bi"
+                    :class="
+                      value <= Math.floor(ratingSummary.averageFiveStar || 0)
+                        ? 'bi-star-fill'
+                        : 'bi-star'
+                    "
+                    aria-hidden="true"
+                  ></i>
                 </span>
               </div>
             </div>
@@ -900,32 +985,68 @@ onUnmounted(() => {
               >
                 <h2>產品說明</h2>
 
-                <p>
-                  {{ product.description || '目前尚無產品說明。' }}
-                </p>
+                <div
+                  v-if="product.description"
+                  class="product-description-content"
+                  v-html="product.description"
+                ></div>
+
+                <p v-else class="description-empty">目前尚無產品說明。</p>
               </div>
 
-              <div
-                v-else
-                class="detail-panel reviews-panel"
-                role="tabpanel"
-                aria-label="商品評價"
-              >
+              <div v-else class="detail-panel reviews-panel" role="tabpanel" aria-label="商品評價">
                 <div class="review-overview">
-                  <div class="review-average" aria-label="全部評價平均分數">
-                    <strong>{{ averageInteger }}<small>{{ averageDecimal }}</small></strong>
+                  <div class="review-average" aria-label="商品評價分數">
+                    <strong
+                      >{{ averageInteger }}<small>{{ averageDecimal }}</small></strong
+                    >
                     <span class="review-stars">
-                      <i v-for="value in 5" :key="value" class="bi" :class="value <= Math.floor(reviewSummary.averageFiveStar || 0) ? 'bi-star-fill' : 'bi-star'"></i>
+                      <i
+                        v-for="value in 5"
+                        :key="value"
+                        class="bi"
+                        :class="
+                          value <= Math.floor(ratingSummary.averageFiveStar || 0)
+                            ? 'bi-star-fill'
+                            : 'bi-star'
+                        "
+                      ></i>
                     </span>
                   </div>
                   <div class="review-filters" aria-label="商品評價篩選">
                     <div class="review-filter-row">
-                      <button type="button" :class="{ active: isReviewFilterActive({}) }" @click="selectReviewFilter({})">全部（{{ reviewSummary.totalCount }}）</button>
-                      <button v-for="value in [5, 4, 3, 2, 1]" :key="value" type="button" :class="{ active: isReviewFilterActive({ rating: value }) }" @click="selectReviewFilter({ rating: value })">{{ value }}★（{{ ratingCount(value) }}）</button>
+                      <button
+                        type="button"
+                        :class="{ active: isReviewFilterActive({}) }"
+                        @click="selectReviewFilter({})"
+                      >
+                        全部（{{ ratingSummary.totalCount }}）
+                      </button>
+                      <button
+                        v-for="value in [5, 4, 3, 2, 1]"
+                        :key="value"
+                        type="button"
+                        :class="{ active: isReviewFilterActive({ rating: value }) }"
+                        @click="selectReviewFilter({ rating: value })"
+                      >
+                        {{ value }}★（{{ ratingCount(value) }}）
+                      </button>
                     </div>
                     <div class="review-filter-row">
-                      <button type="button" :class="{ active: isReviewFilterActive({ content: 'FEEDBACK' }) }" @click="selectReviewFilter({ content: 'FEEDBACK' })">附上評論（{{ reviewSummary.withFeedbackCount }}）</button>
-                      <button type="button" :class="{ active: isReviewFilterActive({ content: 'IMAGE' }) }" @click="selectReviewFilter({ content: 'IMAGE' })">附上圖片（{{ reviewSummary.withImageCount }}）</button>
+                      <button
+                        type="button"
+                        :class="{ active: isReviewFilterActive({ content: 'FEEDBACK' }) }"
+                        @click="selectReviewFilter({ content: 'FEEDBACK' })"
+                      >
+                        附上評論（{{ ratingSummary.withFeedbackCount }}）
+                      </button>
+                      <button
+                        type="button"
+                        :class="{ active: isReviewFilterActive({ content: 'IMAGE' }) }"
+                        @click="selectReviewFilter({ content: 'IMAGE' })"
+                      >
+                        附上圖片（{{ ratingSummary.withImageCount }}）
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -943,16 +1064,29 @@ onUnmounted(() => {
                   >
                     <div class="review-card__copy">
                       <strong>
-                        {{ maskMemberId(review.memberId) }}
+                        {{ review.reviewerDisplayName }}
                       </strong>
-                      <time class="review-card__time" :datetime="review.starUpdAt">{{ formatReviewTime(review.starUpdAt) }}</time>
+                      <time class="review-card__time" :datetime="review.starUpdAt">{{
+                        formatReviewTime(review.starUpdAt)
+                      }}</time>
                       <span class="review-stars" :aria-label="`${review.fiveStar} 顆星`">
-                        <i v-for="value in 5" :key="value" class="bi" :class="value <= review.fiveStar ? 'bi-star-fill' : 'bi-star'" aria-hidden="true"></i>
+                        <i
+                          v-for="value in 5"
+                          :key="value"
+                          class="bi"
+                          :class="value <= review.fiveStar ? 'bi-star-fill' : 'bi-star'"
+                          aria-hidden="true"
+                        ></i>
                       </span>
                       <p>{{ review.feedback || '此會員只留下星等評價。' }}</p>
                     </div>
                     <div v-if="reviewImages(review).length" class="review-thumbnails">
-                      <img v-for="(image, index) in reviewImages(review)" :key="index" :src="image" :alt="`評價照片 ${index + 1}`" />
+                      <img
+                        v-for="(image, index) in reviewImages(review)"
+                        :key="index"
+                        :src="image"
+                        :alt="`評價照片 ${index + 1}`"
+                      />
                     </div>
                   </button>
                 </div>
@@ -961,15 +1095,55 @@ onUnmounted(() => {
                   正在載入評價...
                 </div>
 
-                <nav v-if="reviewsLoaded && reviewTotalPages > 1" class="review-pagination" aria-label="商品評價頁碼">
-                  <button type="button" :disabled="reviewPage === 1" aria-label="第一頁" @click="selectReviewPage(1)">&lt;&lt;</button>
-                  <button type="button" :disabled="reviewPage === 1" aria-label="上一頁" @click="selectReviewPage(reviewPage - 1)">&lt;</button>
+                <nav
+                  v-if="reviewsLoaded && reviewTotalElements > 0"
+                  class="review-pagination"
+                  aria-label="商品評價頁碼"
+                >
+                  <button
+                    type="button"
+                    :disabled="reviewPage === 1"
+                    aria-label="第一頁"
+                    @click="selectReviewPage(1)"
+                  >
+                    &lt;&lt;
+                  </button>
+                  <button
+                    type="button"
+                    :disabled="reviewPage === 1"
+                    aria-label="上一頁"
+                    @click="selectReviewPage(reviewPage - 1)"
+                  >
+                    &lt;
+                  </button>
                   <template v-for="item in reviewPageItems" :key="item">
                     <span v-if="typeof item === 'string'">…</span>
-                    <button v-else type="button" :class="{ active: item === reviewPage }" :aria-current="item === reviewPage ? 'page' : undefined" @click="selectReviewPage(item)">{{ item }}</button>
+                    <button
+                      v-else
+                      type="button"
+                      :class="{ active: item === reviewPage }"
+                      :aria-current="item === reviewPage ? 'page' : undefined"
+                      @click="selectReviewPage(item)"
+                    >
+                      {{ item }}
+                    </button>
                   </template>
-                  <button type="button" :disabled="reviewPage === reviewTotalPages" aria-label="下一頁" @click="selectReviewPage(reviewPage + 1)">&gt;</button>
-                  <button type="button" :disabled="reviewPage === reviewTotalPages" aria-label="最後一頁" @click="selectReviewPage(reviewTotalPages)">&gt;&gt;</button>
+                  <button
+                    type="button"
+                    :disabled="reviewPage === reviewTotalPages"
+                    aria-label="下一頁"
+                    @click="selectReviewPage(reviewPage + 1)"
+                  >
+                    &gt;
+                  </button>
+                  <button
+                    type="button"
+                    :disabled="reviewPage === reviewTotalPages"
+                    aria-label="最後一頁"
+                    @click="selectReviewPage(reviewTotalPages)"
+                  >
+                    &gt;&gt;
+                  </button>
                 </nav>
               </div>
             </section>
@@ -1027,7 +1201,9 @@ onUnmounted(() => {
                 <h2 class="sidebar-title">該賣家可使用的優惠券</h2>
 
                 <p v-if="couponMessage" class="coupon-message success">{{ couponMessage }}</p>
-                <p v-if="couponErrorMessage" class="coupon-message error">{{ couponErrorMessage }}</p>
+                <p v-if="couponErrorMessage" class="coupon-message error">
+                  {{ couponErrorMessage }}
+                </p>
 
                 <div v-if="sellerCoupons.length === 0" class="coupon-empty">
                   目前尚無可使用的優惠券
@@ -1056,7 +1232,10 @@ onUnmounted(() => {
                     <button
                       type="button"
                       class="coupon-claim-button"
-                      :disabled="claimedCouponIds.has(Number(coupon.couponId)) || claimingCouponId === coupon.couponId"
+                      :disabled="
+                        claimedCouponIds.has(Number(coupon.couponId)) ||
+                        claimingCouponId === coupon.couponId
+                      "
                       @click.stop="claimCoupon(coupon.couponId)"
                     >
                       {{
@@ -1095,7 +1274,7 @@ onUnmounted(() => {
               ×
             </button>
             <header>
-              <p>{{ maskMemberId(selectedReview.memberId) }}</p>
+              <p>{{ selectedReview.reviewerDisplayName }}</p>
               <h2 id="review-dialog-title">商品評價</h2>
               <span class="review-stars" :aria-label="`${selectedReview.fiveStar} 顆星`">
                 <i
@@ -1166,7 +1345,9 @@ onUnmounted(() => {
   gap: var(--space-5);
 }
 
-.product-heading-copy { min-width: 0; }
+.product-heading-copy {
+  min-width: 0;
+}
 
 .product-heading-rating {
   display: grid;
@@ -1182,16 +1363,34 @@ onUnmounted(() => {
   border-radius: var(--radius-lg);
 }
 
-.product-heading-rating__label { align-self: start; color: var(--color-surface); font-size: var(--font-size-sm); font-weight: 700; }
-.product-heading-rating strong { align-self: center; color: var(--color-surface); font-size: var(--font-size-2xl); line-height: 1; }
-.product-heading-rating small { font-size: 0.55em; }
-.product-heading-rating .review-stars { align-self: end; color: #ffe44d; font-size: var(--font-size-lg); }
+.product-heading-rating__label {
+  align-self: start;
+  color: var(--color-surface);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+.product-heading-rating strong {
+  align-self: center;
+  color: var(--color-surface);
+  font-size: var(--font-size-2xl);
+  line-height: 1;
+}
+.product-heading-rating small {
+  font-size: 0.55em;
+}
+.product-heading-rating .review-stars {
+  align-self: end;
+  color: #ffe44d;
+  font-size: var(--font-size-lg);
+}
 
 /* =========================================
    主圖
    ========================================= */
 
 .main-image-wrapper {
+  position: relative;
+
   width: 100%;
   aspect-ratio: 1 / 1;
 
@@ -1201,6 +1400,53 @@ onUnmounted(() => {
 
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
+}
+.image-nav-button {
+  position: absolute;
+  top: 50%;
+
+  display: flex;
+  width: 44px;
+  height: 44px;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  color: var(--color-text);
+  font-size: 24px;
+
+  background: rgba(255, 255, 255, 0.9);
+
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+
+  cursor: pointer;
+
+  opacity: 0;
+
+  transform: translateY(-50%);
+
+  transition:
+    opacity 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.image-nav-button--previous {
+  left: 16px;
+}
+
+.image-nav-button--next {
+  right: 16px;
+}
+
+.main-image-wrapper:hover .image-nav-button {
+  opacity: 1;
+}
+
+.image-nav-button:hover {
+  background: var(--color-surface);
 }
 
 .product-main-image {
@@ -1662,6 +1908,15 @@ onUnmounted(() => {
   color: var(--color-primary);
 }
 
+.detail-tab-list button:focus-visible,
+.review-filters button:focus-visible,
+.review-card:focus-visible,
+.review-pagination button:focus-visible,
+.review-dialog__close:focus-visible {
+  outline: 0;
+  box-shadow: var(--shadow-focus);
+}
+
 /* =========================================
    商品說明 / 評價內容
    ========================================= */
@@ -1684,12 +1939,60 @@ onUnmounted(() => {
   font-size: var(--font-size-lg);
 }
 
-.description-panel p {
+.product-description-content {
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.product-description-content :deep(p) {
+  margin: 0 0 var(--space-3);
+}
+
+.product-description-content :deep(h2) {
+  margin: var(--space-5) 0 var(--space-3);
+
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+}
+
+.product-description-content :deep(strong) {
+  font-weight: 700;
+}
+
+.product-description-content :deep(u) {
+  text-decoration: underline;
+}
+
+.product-description-content :deep(em) {
+  font-style: italic;
+}
+
+.product-description-content :deep(a) {
+  color: var(--color-primary);
+
+  text-decoration: underline;
+}
+
+.product-description-content :deep(ul),
+.product-description-content :deep(ol) {
+  margin: var(--space-3) 0;
+
+  padding-left: 28px;
+}
+
+.product-description-content :deep(img) {
+  display: block;
+
+  max-width: 100%;
+  height: auto;
+
+  margin: var(--space-4) 0;
+}
+
+.description-empty {
   margin: 0;
 
-  line-height: 1.8;
-
-  white-space: pre-line;
+  color: var(--color-text-muted);
 }
 
 .reviews-panel {
@@ -1707,13 +2010,46 @@ onUnmounted(() => {
   min-height: calc(var(--space-8) + var(--space-7));
 }
 
-.review-average { display: grid; align-content: center; justify-items: center; gap: var(--space-1); text-align: center; }
-.review-average strong { color: var(--color-primary-active); font-size: var(--font-size-2xl); line-height: 1; }
-.review-average small { font-size: 0.55em; }
-.review-filters { display: grid; align-content: center; gap: var(--space-2); }
-.review-filter-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.review-filters button { padding: var(--space-1) var(--space-2); color: var(--color-primary-700); font-size: var(--font-size-xs); background: var(--color-surface); border: 1px solid var(--color-primary-300); border-radius: var(--radius-pill); cursor: pointer; }
-.review-filters button:hover, .review-filters button.active { color: var(--color-surface); background: var(--color-primary); border-color: var(--color-primary); }
+.review-average {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-1);
+  text-align: center;
+}
+.review-average strong {
+  color: var(--color-primary-active);
+  font-size: var(--font-size-2xl);
+  line-height: 1;
+}
+.review-average small {
+  font-size: 0.55em;
+}
+.review-filters {
+  display: grid;
+  align-content: center;
+  gap: var(--space-2);
+}
+.review-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.review-filters button {
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-primary-700);
+  font-size: var(--font-size-xs);
+  background: var(--color-surface);
+  border: 1px solid var(--color-primary-300);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+.review-filters button:hover,
+.review-filters button.active {
+  color: var(--color-surface);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
 
 /* =========================================
    右側欄
@@ -2081,10 +2417,22 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-.review-card__time { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.review-card__time {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
 
-.review-thumbnails { display: flex; gap: var(--space-2); }
-.review-thumbnails img { width: var(--space-8); height: var(--space-8); object-fit: cover; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.review-thumbnails {
+  display: flex;
+  gap: var(--space-2);
+}
+.review-thumbnails img {
+  width: var(--space-8);
+  height: var(--space-8);
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
 
 .review-state,
 .review-loading {
@@ -2100,10 +2448,34 @@ onUnmounted(() => {
   text-align: center;
 }
 
-.review-pagination { display: flex; min-height: var(--space-7); align-items: center; justify-content: center; gap: var(--space-1); margin-top: var(--space-3); }
-.review-pagination button { min-width: var(--space-5); min-height: var(--space-5); padding: var(--space-1) var(--space-2); color: var(--color-primary-700); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-sm); cursor: pointer; }
-.review-pagination button:hover:not(:disabled), .review-pagination button.active { color: var(--color-surface); background: var(--color-primary); border-color: var(--color-primary); }
-.review-pagination button:disabled { cursor: default; opacity: 0.4; }
+.review-pagination {
+  display: flex;
+  min-height: var(--space-7);
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+}
+.review-pagination button {
+  min-width: var(--space-5);
+  min-height: var(--space-5);
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-primary-700);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.review-pagination button:hover:not(:disabled),
+.review-pagination button.active {
+  color: var(--color-surface);
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+.review-pagination button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
 
 /* =========================================
    評價 Modal
@@ -2242,10 +2614,17 @@ onUnmounted(() => {
     padding: var(--space-4);
   }
 
-  .review-overview { grid-template-columns: 1fr; }
+  .review-overview {
+    grid-template-columns: 1fr;
+  }
 
-  .review-card { grid-template-columns: minmax(0, 1fr) auto; }
-  .review-thumbnails img { width: var(--space-7); height: var(--space-7); }
+  .review-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .review-thumbnails img {
+    width: var(--space-7);
+    height: var(--space-7);
+  }
 
   .purchase-actions {
     flex-wrap: wrap;

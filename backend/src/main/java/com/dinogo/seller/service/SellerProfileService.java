@@ -1,8 +1,6 @@
 package com.dinogo.seller.service;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -13,14 +11,17 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
+import com.dinogo.catalog.repository.ProductRepository;
+import com.dinogo.coupon.service.CouponService;
+//review-start，總共4次修改，第1次//
+import com.dinogo.review.dto.response.SellerRatingSummaryResponse;
+import com.dinogo.review.service.ReviewService;
+//review-end，總共4次修改，第1次//
 import com.dinogo.seller.dto.SellerProfileRequest;
 import com.dinogo.seller.dto.SellerProfileResponse;
 import com.dinogo.seller.dto.StorefrontSummaryResponse;
 import com.dinogo.seller.entity.Seller;
 import com.dinogo.seller.repository.SellerRepository;
-import com.dinogo.catalog.repository.ProductRepository;
-import com.dinogo.coupon.service.CouponService;
-import com.dinogo.review.repository.StarRepository;
 
 @Service
 public class SellerProfileService {
@@ -30,19 +31,25 @@ public class SellerProfileService {
     private final SellerRepository sellerRepository;
     private final Cloudinary cloudinary;
     private final ProductRepository productRepository;
-    private final StarRepository starRepository;
+    //review-start，總共4次修改，第2次//
+    // 功能：seller 只呼叫 Review 公開服務，不直接依賴 Review Repository。
+    // 應用：Review 可自行調整聚合查詢，seller 不受資料存取方法變更影響。
+    private final ReviewService reviewService;
+    //review-end，總共4次修改，第2次//
     private final CouponService couponService;
 
     public SellerProfileService(
             SellerRepository sellerRepository,
             Cloudinary cloudinary,
             ProductRepository productRepository,
-            StarRepository starRepository,
+            //review-start，總共4次修改，第3次//
+            ReviewService reviewService,
+            //review-end，總共4次修改，第3次//
             CouponService couponService) {
         this.sellerRepository = sellerRepository;
         this.cloudinary = cloudinary;
         this.productRepository = productRepository;
-        this.starRepository = starRepository;
+        this.reviewService = reviewService;
         this.couponService = couponService;
     }
 
@@ -50,7 +57,6 @@ public class SellerProfileService {
     public SellerProfileResponse getMyProfile(Integer memberId) {
         Seller seller = sellerRepository.findByMember_MemberId(memberId)
                 .orElseThrow(() -> new IllegalArgumentException("Seller not found."));
-
         return SellerProfileResponse.from(seller);
     }
 
@@ -61,7 +67,8 @@ public class SellerProfileService {
 
         seller.setStoreName(request.storeName());
         seller.setStoreDescription(request.storeDescription());
-        seller.setStoreLogoUrl(request.storeLogoUrl());
+        seller.setStoreLogoUrl(SellerCloudinaryUrlValidator.optionalCloudinaryImageUrl(
+                request.storeLogoUrl(), "店鋪 Logo URL"));
         seller.setStatus(request.status());
         seller.setServiceStartTime(request.serviceStartTime());
         seller.setServiceEndTime(request.serviceEndTime());
@@ -73,7 +80,6 @@ public class SellerProfileService {
     public SellerProfileResponse getPublicStore(Integer sellerId) {
         Seller seller = sellerRepository.findBySellerIdAndStatusIgnoreCase(sellerId, "ACTIVE")
                 .orElseThrow(() -> new IllegalArgumentException("Store not found."));
-
         return SellerProfileResponse.from(seller);
     }
 
@@ -82,27 +88,23 @@ public class SellerProfileService {
         sellerRepository.findBySellerIdAndStatusIgnoreCase(sellerId, "ACTIVE")
                 .orElseThrow(() -> new IllegalArgumentException("Store not found."));
 
-        long ratingCount = starRepository.countPublishedSoldProductRatingsBySellerId(sellerId);
-        Double average = ratingCount == 0
-                ? null
-                : starRepository.findPublishedSoldProductAverageFiveStarBySellerId(sellerId);
-        BigDecimal averageRating = average == null
-                ? null
-                : BigDecimal.valueOf(average).setScale(1, RoundingMode.HALF_UP);
+        //review-start，總共4次修改，第4次//
+        // 功能：由 ReviewService 一次聚合平均、評分數與已評商品數。
+        // 應用：平均值統一由 Review 以 RoundingMode.DOWN 無條件捨去至小數一位。
+        SellerRatingSummaryResponse rating = reviewService.getSellerRatingSummary(sellerId);
 
         return new StorefrontSummaryResponse(
-                averageRating,
-                ratingCount,
+                rating.averageFiveStar(),
+                rating.ratingCount(),
                 productRepository.countBySeller_SellerIdAndStatus(sellerId, (byte) 1),
                 productRepository.sumSoldCountBySellerId(sellerId),
                 couponService.getAvailableCoupons(sellerId).size());
+        //review-end，總共4次修改，第4次//
     }
 
-    // 把前端傳來的 keyword 清理後，去查啟用中的商家，再轉成前端需要的 response。
     @Transactional(readOnly = true)
     public List<SellerProfileResponse> searchPublicStores(String keyword) {
         String safeKeyword = keyword == null ? "" : keyword.trim();
-
         return sellerRepository
                 .findByStoreNameContainingAndStatusIgnoreCase(safeKeyword, "ACTIVE")
                 .stream()
@@ -115,40 +117,31 @@ public class SellerProfileService {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Logo file is required.");
         }
-
         if (file.getSize() > MAX_LOGO_SIZE_BYTES) {
             throw new IllegalArgumentException("Logo file must be 5 MB or smaller.");
         }
 
         String originalFilename = file.getOriginalFilename();
         String contentType = file.getContentType();
-
         boolean isImageContentType = contentType != null && contentType.startsWith("image/");
         boolean isImageExtension = originalFilename != null
                 && originalFilename.toLowerCase().matches(".*\\.(jpg|jpeg|png|webp|gif)$");
-
         if (!isImageContentType || !isImageExtension) {
             throw new IllegalArgumentException("Only image files are allowed.");
         }
 
         Seller seller = sellerRepository.findByMember_MemberId(memberId)
                 .orElseThrow(() -> new IllegalArgumentException("Seller not found."));
-
         try {
             Map<?, ?> uploadResult = cloudinary.uploader().upload(
                     file.getBytes(),
-                    ObjectUtils.asMap(
-                            "folder", "dinogo/seller-logos",
-                            "resource_type", "image"));
-
-            String logoUrl = uploadResult.get("secure_url").toString();
-            seller.setStoreLogoUrl(logoUrl);
+                    ObjectUtils.asMap("folder", "dinogo/seller-logos", "resource_type", "image"));
+            seller.setStoreLogoUrl(uploadResult.get("secure_url").toString());
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to upload seller logo.", exception);
         }
 
         seller.setUpdatedAt(LocalDateTime.now());
-
         return SellerProfileResponse.from(sellerRepository.save(seller));
     }
 }
