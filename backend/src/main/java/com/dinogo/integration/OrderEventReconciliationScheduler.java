@@ -7,6 +7,7 @@ import java.util.logging.Logger;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -24,6 +25,10 @@ import com.dinogo.sysmsg.service.OrderMessageService;
  * 應用：補正 AFTER_COMMIT 非同步事件因程式關閉或短暫失敗而遺漏的 Review/sysmsg 資料。
  */
 @Component
+@ConditionalOnProperty(
+        name = "app.sysmsg.reconciliation.enabled",
+        havingValue = "true",
+        matchIfMissing = false)
 public class OrderEventReconciliationScheduler {
     private static final Logger LOG = Logger.getLogger(OrderEventReconciliationScheduler.class.getName());
 
