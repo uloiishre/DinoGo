@@ -56,6 +56,14 @@ async function mountView(order = orderFixture()) {
   return wrapper
 }
 
+function deferred() {
+  let resolve
+  const promise = new Promise((promiseResolve) => {
+    resolve = promiseResolve
+  })
+  return { promise, resolve }
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   getShipmentEvents.mockResolvedValue({ data: [] })
@@ -244,6 +252,46 @@ describe('seller shipment operation flow', () => {
     await flushPromises()
 
     expect(simulateTcatEvent).toHaveBeenCalledWith(10, 'IN_TRANSIT')
+  })
+
+  test('keeps the next shipment action visible while a silent refresh loads events', async () => {
+    getShipmentEvents.mockResolvedValue({ data: [{ eventType: 'HANDED_OVER' }] })
+    const wrapper = await mountView(orderFixture({
+      status: 'SHIPPED',
+      shipment: { shipmentId: 3, status: 'SHIPPED', carrierName: '新竹物流', trackingNo: '1234567890' },
+    }))
+    const pendingEvents = deferred()
+    getShipmentEvents.mockImplementationOnce(() => pendingEvents.promise)
+
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+
+    expect(wrapper.get('button.secondary-button').text()).toBe('運送中')
+
+    pendingEvents.resolve({ data: [{ eventType: 'HANDED_OVER' }] })
+    await flushPromises()
+  })
+
+  test('shows the following shipment action before the post-simulation refresh completes', async () => {
+    const shipment = { shipmentId: 3, status: 'SHIPPED', carrierName: '新竹物流', trackingNo: '1234567890' }
+    getShipmentEvents.mockResolvedValue({ data: [{ eventType: 'HANDED_OVER' }] })
+    simulateTcatEvent.mockResolvedValue({ data: shipment })
+    const wrapper = await mountView(orderFixture({ status: 'SHIPPED', shipment }))
+    const pendingEvents = deferred()
+    getShipmentEvents.mockImplementationOnce(() => pendingEvents.promise)
+
+    await wrapper.get('button.secondary-button').trigger('click')
+    await flushPromises()
+
+    expect(simulateTcatEvent).toHaveBeenCalledWith(10, 'IN_TRANSIT')
+    expect(wrapper.get('button.secondary-button').text()).toContain('配送中')
+    expect(wrapper.get('button.secondary-button').attributes('disabled')).toBeDefined()
+
+    pendingEvents.resolve({ data: [{ eventType: 'HANDED_OVER' }, { eventType: 'IN_TRANSIT' }] })
+    await flushPromises()
+
+    expect(wrapper.get('button.secondary-button').text()).toBe('配送中')
+    expect(wrapper.get('button.secondary-button').attributes('disabled')).toBeUndefined()
   })
 
   test('lets the seller revise tracking information instead of confirming shipment', async () => {
