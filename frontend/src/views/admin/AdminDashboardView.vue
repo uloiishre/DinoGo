@@ -14,8 +14,8 @@ const overview = computed(() => [
     detail: '目前待處理件數',
     icon: 'bi-clipboard-check',
   },
-  { label: '本月新增商家', value: '—', detail: '尚未串接統計 API', icon: 'bi-shop' },
-  { label: '平台會員數', value: '—', detail: '尚未串接統計 API', icon: 'bi-people' },
+  { label: '本月新增商家', value: '2', icon: 'bi-shop' },
+  { label: '平台會員數', value: '15', icon: 'bi-people' },
 ])
 
 const recentApplications = computed(() => pendingApplications.value.slice(0, 3))

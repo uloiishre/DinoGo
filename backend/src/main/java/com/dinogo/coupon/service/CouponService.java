@@ -48,35 +48,6 @@ public class CouponService {
     }
 
     @Transactional(readOnly = true)
-    public List<PublicCouponResponse> getAvailableCoupons(Integer sellerId) {
-        LocalDateTime now = LocalDateTime.now();
-
-        return couponRepository.findAllByOrderByCouponIdDesc()
-                .stream()
-
-                // 只排除已取消，DRAFT 優惠券只要已到可用時間也可讓買家領取。
-                .filter(coupon -> !"DISABLED".equals(coupon.getStatus()))
-
-                // 有傳 sellerId → 只顯示該賣家的優惠券
-                // 沒傳 sellerId → 顯示所有賣家的優惠券
-                .filter(coupon -> sellerId == null
-                        || sellerId.equals(coupon.getSellerId()))
-
-                // 優惠券已經開始
-                .filter(coupon -> !coupon.getStartAt().isAfter(now))
-
-                // 優惠券尚未過期
-                .filter(coupon -> !coupon.getEndAt().isBefore(now))
-
-                // 沒有限量，或尚未被領完
-                .filter(coupon -> coupon.getLimitCount() == null
-                        || memberCouponRepository.countByCouponId(coupon.getCouponId()) < coupon.getLimitCount())
-
-                .map(this::toPublicResponse)
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
     public CouponResponse getCoupon(Integer sellerId, Integer couponId) {
         return toResponse(findSellerCoupon(sellerId, couponId));
     }
@@ -232,5 +203,60 @@ public class CouponService {
         if ("PRODUCT".equals(scopeType) && productId == null) {
             throw new IllegalArgumentException("適用商品優惠券必須提供 productId");
         }
+    }
+
+    @Transactional(readOnly = true)
+    public List<PublicCouponResponse> getAvailableCoupons(Integer sellerId) {
+        return getAvailableCoupons(sellerId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PublicCouponResponse> getAvailableCoupons(
+            Integer sellerId,
+            Integer productId) {
+
+        LocalDateTime now = LocalDateTime.now();
+
+        return couponRepository.findAllByOrderByCouponIdDesc()
+                .stream()
+                .peek(coupon -> {
+                    if (Integer.valueOf(2014).equals(coupon.getCouponId())) {
+                        long claimedCount = memberCouponRepository.countByCouponId(coupon.getCouponId());
+
+                    }
+                })
+
+                // 排除已停用的優惠券
+                .filter(coupon -> !"DISABLED".equals(coupon.getStatus()))
+
+                // 有指定 sellerId 時，只查該賣家的優惠券
+                .filter(coupon -> sellerId == null
+                        || sellerId.equals(coupon.getSellerId()))
+
+                // 已經到達開始時間
+                .filter(coupon -> !coupon.getStartAt().isAfter(now))
+
+                // 尚未超過結束時間
+                .filter(coupon -> !coupon.getEndAt().isBefore(now))
+
+                // 沒有限量，或者尚未被領完
+                .filter(coupon -> coupon.getLimitCount() == null
+                        || memberCouponRepository.countByCouponId(coupon.getCouponId()) < coupon.getLimitCount())
+
+                /*
+                 * 沒有 productId：
+                 * 保留原本行為，回傳該賣家的全部可用優惠券。
+                 *
+                 * 有 productId：
+                 * 只回傳全店適用或目前商品適用的優惠券。
+                 */
+                .filter(coupon -> productId == null
+                        || "STORE".equals(coupon.getScopeType())
+                        || "ALL".equals(coupon.getScopeType())
+                        || ("PRODUCT".equals(coupon.getScopeType())
+                                && productId.equals(coupon.getProductId())))
+
+                .map(this::toPublicResponse)
+                .toList();
     }
 }

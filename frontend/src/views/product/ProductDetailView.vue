@@ -622,24 +622,28 @@ const fetchSeller = async () => {
 }
 
 const fetchSellerCoupons = async () => {
-  if (!product.value?.sellerId) return
+  if (!product.value?.sellerId || !product.value?.productId) return
 
   try {
     const publicRequest = api.get('/coupons/available', {
       params: {
         sellerId: product.value.sellerId,
+        productId: Number(route.params.id),
       },
     })
+
     const memberRequest = authStore.isAuthenticated
       ? api.get('/member/coupons')
       : Promise.resolve({ data: [] })
+
     const [publicResponse, memberResponse] = await Promise.all([publicRequest, memberRequest])
 
     sellerCoupons.value = publicResponse.data || []
     memberCoupons.value = memberResponse.data || []
   } catch (error) {
-    console.error('取得賣家優惠券失敗：', error)
+    console.error('取得商品適用優惠券失敗：', error)
     sellerCoupons.value = []
+    memberCoupons.value = []
   }
 }
 const goToStore = (sellerId) => {
@@ -1179,11 +1183,6 @@ onUnmounted(() => {
                   </div>
 
                   <div class="seller-actions">
-                    <button type="button" class="seller-chat-button">
-                      <i class="bi bi-chat-dots"></i>
-                      聊天
-                    </button>
-
                     <button
                       type="button"
                       class="seller-store-button"
@@ -2682,5 +2681,34 @@ onUnmounted(() => {
   .coupon-claim-button {
     width: 100%;
   }
+}
+.seller-actions {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+}
+
+.seller-store-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 14px;
+
+  color: #fff;
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.seller-store-button:hover {
+  opacity: 0.9;
 }
 </style>
