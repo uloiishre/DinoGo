@@ -22,8 +22,9 @@ public class PublicCouponController {
 
     @GetMapping("/available")
     public List<PublicCouponResponse> getAvailableCoupons(
-            @RequestParam(required = false) Integer sellerId) {
+            @RequestParam(required = false) Integer sellerId,
+            @RequestParam(required = false) Integer productId) {
 
-        return couponService.getAvailableCoupons(sellerId);
+        return couponService.getAvailableCoupons(sellerId, productId);
     }
 }

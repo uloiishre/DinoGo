@@ -62,15 +62,23 @@ onMounted(async () => {
         <span>商家中心</span>
       </RouterLink>
 
-      <RouterLink
-        v-if="sellerId"
-        class="store-link"
-        :to="`/products?sellerId=${sellerId}`"
-        aria-label="查看店鋪"
-        title="查看店鋪"
-      >
-        <i class="bi bi-shop-window" aria-hidden="true"></i>
-      </RouterLink>
+      <div class="seller-header-actions">
+        <!-- 回到首頁 -->
+        <RouterLink class="home-link" to="/" aria-label="回到首頁" title="回到首頁">
+          <i class="bi bi-house-door" aria-hidden="true"></i>
+        </RouterLink>
+
+        <!-- 查看店鋪 -->
+        <RouterLink
+          v-if="sellerId"
+          class="store-link"
+          :to="`/products?sellerId=${sellerId}`"
+          aria-label="查看店鋪"
+          title="查看店鋪"
+        >
+          <i class="bi bi-shop-window" aria-hidden="true"></i>
+        </RouterLink>
+      </div>
     </div>
 
     <section class="seller-card">
@@ -95,7 +103,6 @@ onMounted(async () => {
           </a>
         </RouterLink>
       </div>
-
     </nav>
 
     <div class="seller-nav-footer">
@@ -251,7 +258,45 @@ onMounted(async () => {
 .store-link i {
   font-size: var(--font-size-base);
 }
+.seller-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 
+.home-link,
+.store-link {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-surface);
+  text-decoration: none;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.home-link:hover,
+.store-link:hover {
+  border-color: rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.home-link i,
+.store-link i {
+  font-size: var(--font-size-base);
+}
+
+.home-link:focus-visible,
+.store-link:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
 .seller-nav-footer {
   padding: var(--space-4);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
