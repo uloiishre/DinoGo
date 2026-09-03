@@ -8,6 +8,8 @@ import {
   getMemberMessage,
   markMemberMessageRead,
 } from '@/api/memberMessageApi.js'
+import { getOrder } from '@/api/order.js'
+import { getImageUrl } from '@/utils/imageUrl.js'
 
 const tabs = [
   { key: 'SYSTEM_INBOX', label: '系統通知' }, //msg-系統通知//
@@ -23,6 +25,10 @@ const pageSize = 12
 const currentPage = ref(1)
 const selectedIds = ref(new Set())
 const selectedMessage = ref(null)
+const selectedOrder = ref(null)
+const selectedOrderItems = ref([])
+const selectedOrderItemsLoading = ref(false)
+const selectedOrderItemsError = ref('')
 const loading = ref(false)
 const actionPending = ref(false)
 const errorMessage = ref('')
@@ -31,15 +37,38 @@ const totalPages = computed(() => Math.max(1, Math.ceil(filteredItems.value.leng
 const visibleMessages = computed(() => filteredItems.value.slice((currentPage.value - 1) * pageSize, currentPage.value * pageSize))
 const pageButtons = computed(() => [1, 2].filter((page) => page <= totalPages.value))
 const allVisibleSelected = computed(() => visibleMessages.value.length > 0 && visibleMessages.value.every((message) => selectedIds.value.has(message.recordId)))
+const isCancelledMemberMessage = computed(() => selectedMessage.value?.orderStatus === 'CANCELLED'
+  && selectedMessage.value?.msgtoMemberId != null
+  && selectedMessage.value?.orderId != null)
+const cancelledOrderNo = computed(() => {
+  if (!isCancelledMemberMessage.value) return ''
+  const storedOrderNo = selectedMessage.value.sendTitle?.match(/^訂單已取消-(.+)$/)?.[1]
+  return selectedOrder.value?.orderNo
+    || storedOrderNo
+    || ''
+})
 const messageContentParts = computed(() => {
-  const content = selectedMessage.value?.sendContent ?? ''
+  const content = isCancelledMemberMessage.value && selectedOrder.value
+    ? `親愛的會員-${selectedMessage.value.msgtoMemberId}您好:\n`
+      + `   感謝您今日光臨！您於 ${formatTemplateDate(selectedOrder.value.createdAt)} 下單之商品已取消，\n`
+      + `   您的訂單編號為 \"/member/orders/${selectedOrder.value.orderId}\"，\n`
+      + '   取消原因：\n'
+      + `       ${selectedOrder.value.cancelReason || '未提供原因'}\n`
+      + '   歡迎您來信說明，並再次訂購，您的意見是我們最重要的支持！'
+    : selectedMessage.value?.sendContent ?? ''
   const orderId = selectedMessage.value?.orderId
   const orderPath = orderId == null ? '' : `/member/orders/${orderId}`
   if (!orderPath || !content.includes(orderPath)) return [{ type: 'text', value: content }]
   const [before, after] = content.split(orderPath, 2)
   return [
     { type: 'text', value: before },
-    { type: 'link', value: '查看訂單詳情', to: { name: 'MemberOrderDetail', params: { id: orderId } } },
+    {
+      type: 'link',
+      value: selectedMessage.value.orderStatus === 'CANCELLED'
+        ? cancelledOrderNo.value || '查看訂單詳情'
+        : '查看訂單詳情',
+      to: { name: 'MemberOrderDetail', params: { id: orderId } },
+    },
     { type: 'text', value: after },
   ]
 })
@@ -113,6 +142,9 @@ async function markAllFilteredRead() {
 }
 async function openMessage(message) {
   selectedMessage.value = message
+  selectedOrder.value = null
+  selectedOrderItems.value = []
+  selectedOrderItemsError.value = ''
   document.body.style.overflow = 'hidden'
   try {
     const wasUnread = message.recordStatus === 'UNREAD'
@@ -122,14 +154,37 @@ async function openMessage(message) {
     message.recordStatus = 'READ'
     selectedMessage.value = { ...message, ...response.data }
     if (wasUnread) announceMemberUnreadChanged()
+    if (isCancelledMemberMessage.value) {
+      selectedOrderItemsLoading.value = true
+      try {
+        const orderResponse = await getOrder(selectedMessage.value.orderId)
+        selectedOrder.value = orderResponse.data
+        selectedOrderItems.value = orderResponse.data.items ?? []
+      } catch {
+        selectedOrderItemsError.value = '商品明細暫時無法載入。'
+      } finally {
+        selectedOrderItemsLoading.value = false
+      }
+    }
   } catch (error) {
     errorMessage.value = error.response?.data?.message || '訊息內容載入失敗，請稍後再試。'
   }
 }
 function closeMessage() { selectedMessage.value = null; document.body.style.overflow = '' }
-function senderLabel(message) { return message.msgfromSellerId != null ? `seller_id：${message.msgfromSellerId}` : '系統自動訊息' }
+function senderLabel(message) {
+  return message.msgFunction?.startsWith('SC')
+    ? message.storeName || '商家訊息'
+    : '系統自動訊息'
+}
 function goToPage(page) { currentPage.value = Math.min(Math.max(1, page), totalPages.value); selectedIds.value = new Set(); requestAnimationFrame(() => document.querySelector('.inbox-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })) }
 function formatDate(value) { return new Intl.DateTimeFormat('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value)) }
+function formatTemplateDate(value) {
+  const date = new Date(value)
+  const parts = new Intl.DateTimeFormat('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(date)
+  const part = (type) => parts.find((item) => item.type === type)?.value ?? ''
+  return `${part('year')}/${part('month')}/${part('day')} ${part('hour')}:${part('minute')}`
+}
+function formatCurrency(value) { return new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', maximumFractionDigits: 0 }).format(value ?? 0) }
 watch(statusFilter, () => { currentPage.value = 1; selectedIds.value = new Set() })
 watch(
   () => [route.query.recordId, route.query.category],
@@ -183,8 +238,17 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
     <div v-if="selectedMessage" class="message-overlay" @click.self="closeMessage">
       <article class="message-dialog" role="dialog" aria-modal="true" aria-labelledby="preview-message-detail-title">
         <button type="button" class="message-dialog__close" aria-label="關閉詳細訊息" @click="closeMessage">×</button>
-        <header><div><p>from：{{ senderLabel(selectedMessage) }}</p><h2 id="preview-message-detail-title">{{ selectedMessage.sendTitle }}</h2><time :datetime="selectedMessage.recordCreatedAt">{{ formatDate(selectedMessage.recordCreatedAt) }}</time></div></header>
+        <header><div><p>from：{{ senderLabel(selectedMessage) }}</p><h2 id="preview-message-detail-title"><template v-if="cancelledOrderNo"><span>訂單已取消</span><RouterLink :to="{ name: 'MemberOrderDetail', params: { id: selectedMessage.orderId } }" class="message-dialog__title-link" @click="closeMessage">{{ cancelledOrderNo }}</RouterLink></template><template v-else>{{ selectedMessage.sendTitle }}</template></h2><time :datetime="selectedMessage.recordCreatedAt">{{ formatDate(selectedMessage.recordCreatedAt) }}</time></div></header>
         <div class="message-dialog__content"><template v-for="(part, index) in messageContentParts" :key="index"><RouterLink v-if="part.type === 'link'" :to="part.to" class="message-dialog__order-link" @click="closeMessage">{{ part.value }}</RouterLink><span v-else>{{ part.value }}</span></template></div>
+        <div v-if="selectedOrderItemsLoading" class="message-dialog__items-state">商品明細載入中…</div>
+        <p v-else-if="selectedOrderItemsError" class="message-dialog__items-state">{{ selectedOrderItemsError }}</p>
+        <div v-else-if="selectedOrderItems.length" class="message-dialog__items" aria-label="取消訂單商品明細">
+          <article v-for="item in selectedOrderItems" :key="item.orderItemId" class="message-dialog__item">
+            <div class="message-dialog__item-image"><img v-if="item.productImageUrl" :src="getImageUrl(item.productImageUrl)" :alt="item.productName" /><i v-else class="bi bi-image" aria-hidden="true"></i></div>
+            <div class="message-dialog__item-copy"><strong>{{ item.productName }}</strong><span>{{ formatCurrency(item.unitPrice) }} × {{ item.quantity }}</span></div>
+            <strong class="message-dialog__item-price">{{ formatCurrency(selectedOrder.totalAmount) }}</strong>
+          </article>
+        </div>
       </article>
     </div>
   </main>
@@ -195,8 +259,10 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
 .inbox-tabs { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: var(--space-5); }.inbox-tabs button { position: relative; min-height: var(--space-7); padding-inline: var(--space-5); color: var(--color-text-muted); font: inherit; font-weight: 600; background: transparent; border: 0; border-bottom: var(--space-1) solid transparent; border-radius: var(--radius-md) var(--radius-md) 0 0; }.inbox-tabs button + button::before { position: absolute; bottom: 0; left: 0; width: 1px; height: 66.6667%; content: ''; background: var(--color-border-strong); }.inbox-tabs button:hover { color: var(--color-primary-active); background: var(--color-primary-soft); }.inbox-tabs button.active { color: var(--color-primary-active); background: var(--color-primary-soft); border-bottom-color: var(--color-primary); }
 .inbox-card { overflow: hidden; margin-top: var(--space-4); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }.inbox-toolbar { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--color-surface-soft); border-bottom: 1px solid var(--color-border); }.inbox-toolbar label { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-text-muted); font-size: var(--font-size-sm); }.page-size { margin-left: auto; }.inbox-toolbar select, .delete-button { min-height: calc(var(--space-6) + var(--space-1)); padding-inline: var(--space-3); font: inherit; border-radius: var(--radius-md); }.inbox-toolbar select { background: var(--color-surface); border: 1px solid var(--color-border-strong); }.delete-button { color: var(--color-danger); background: var(--color-surface); border: 1px solid var(--color-danger); }.delete-button:disabled { color: var(--color-text-subtle); background: var(--color-disabled-bg); border-color: var(--color-disabled); }
 .message-list { min-height: 420px; }.message-row { display: grid; height: var(--inbox-message-row-height); overflow: hidden; grid-template-columns: var(--space-7) minmax(0, 1fr); border-bottom: 1px solid var(--color-border); }.message-check { display: grid; place-items: center; }.message-open { display: grid; width: 100%; min-width: 0; grid-template-columns: var(--space-3) minmax(0, 1fr); align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-4); color: var(--color-text); text-align: left; background: transparent; border: 0; }.message-row:hover { background: var(--color-primary-soft); }.message-dot { width: var(--space-2); height: var(--space-2); background: var(--color-primary); border-radius: var(--radius-pill); }.message-dot.read { background: var(--color-disabled); }.message-copy { display: grid; min-width: 0; gap: 0; }.message-copy strong, .message-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.message-copy small, .message-dialog time { color: var(--color-text-muted); font-size: var(--font-size-xs); }.message-row--read .message-open, .message-row--read .message-copy strong, .message-row--read .message-copy small, .message-row--read .message-open time { color: var(--color-text-subtle); }.inbox-state { display: grid; min-height: var(--inbox-message-row-height); place-items: center; color: var(--color-text-muted); }
-.message-overlay { position: fixed; z-index: 1050; inset: 0; display: grid; place-items: center; padding: var(--space-5); background: color-mix(in srgb, var(--color-text) 65%, transparent); }.message-dialog { position: relative; width: min(100%, 720px); max-height: calc(100vh - (2 * var(--space-5))); overflow-y: auto; padding: var(--space-6); background: var(--color-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }.message-dialog__close { position: absolute; top: var(--space-3); right: var(--space-3); width: var(--space-7); height: var(--space-7); color: var(--color-text-muted); font-size: var(--font-size-xl); background: transparent; border: 0; }.message-dialog header { padding-right: var(--space-7); }.message-dialog header p, .message-dialog h2 { margin: 0; }.message-dialog h2 { margin-block: var(--space-1); }.message-dialog__content { margin-top: var(--space-5); padding-top: var(--space-5); white-space: pre-wrap; border-top: 1px solid var(--color-border); }
-.message-dialog__order-link { color: var(--color-primary-active); font-weight: 700; text-decoration: underline; text-underline-offset: 0.15em; }
+.message-overlay { position: fixed; z-index: 1050; inset: 0; display: grid; overflow-y: auto; place-items: center; padding: var(--space-5); background: color-mix(in srgb, var(--color-text) 65%, transparent); }.message-dialog { position: relative; width: min(100%, 720px); max-height: calc(100vh - (2 * var(--space-5))); overflow-y: auto; overscroll-behavior: contain; padding: var(--space-6); background: var(--color-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }.message-dialog__close { position: absolute; top: var(--space-3); right: var(--space-3); width: var(--space-7); height: var(--space-7); color: var(--color-text-muted); font-size: var(--font-size-xl); background: transparent; border: 0; }.message-dialog header { padding-right: var(--space-7); }.message-dialog header p, .message-dialog h2 { margin: 0; }.message-dialog h2 { margin-block: var(--space-1); }.message-dialog__content { overflow-wrap: anywhere; margin-top: var(--space-5); padding-top: var(--space-5); white-space: pre-wrap; border-top: 1px solid var(--color-border); }
+.message-dialog__order-link { color: var(--color-primary-active); text-decoration: none; }.message-dialog__order-link:hover { font-weight: 700; }
+.message-dialog h2:has(.message-dialog__title-link) { display: grid; }.message-dialog__title-link { width: fit-content; color: var(--color-primary-active); font-size: 15px; font-weight: 400; text-decoration: none; }.message-dialog__title-link:hover { font-weight: 700; }
+.message-dialog__items { display: grid; gap: var(--space-3); margin-top: var(--space-5); }.message-dialog__item { display: grid; grid-template-columns: var(--space-8) minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); padding: var(--space-3); background: var(--color-surface-soft); border: 1px solid var(--color-border); border-radius: var(--radius-md); }.message-dialog__item-image { display: grid; width: var(--space-8); height: var(--space-8); overflow: hidden; place-items: center; color: var(--color-text-muted); background: var(--color-surface); border-radius: var(--radius-md); }.message-dialog__item-image img { width: 100%; height: 100%; object-fit: cover; }.message-dialog__item-copy { display: grid; min-width: 0; gap: var(--space-1); }.message-dialog__item-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.message-dialog__item-copy span, .message-dialog__items-state { color: var(--color-text-muted); font-size: var(--font-size-sm); }.message-dialog__item-price { color: var(--color-text); white-space: nowrap; }.message-dialog__items-state { margin-top: var(--space-4); }
 .inbox-pagination { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-3); border-top: 1px solid var(--color-border); }.inbox-pagination button { min-width: calc(var(--space-6) + var(--space-1)); min-height: calc(var(--space-6) + var(--space-1)); color: var(--color-text-muted); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); }.inbox-pagination button.active { color: var(--color-surface); background: var(--color-primary); border-color: var(--color-primary); }.pagination-ellipsis { color: var(--color-text-muted); }
 .inbox-card { --inbox-message-row-height: 65px; min-height: 0; margin-top: 0; padding-bottom: calc(3 * var(--inbox-message-row-height)); border-top: 0; border-radius: 0 0 var(--radius-lg) var(--radius-lg); scroll-margin-top: var(--space-5); }
 .message-list { min-height: 0; }

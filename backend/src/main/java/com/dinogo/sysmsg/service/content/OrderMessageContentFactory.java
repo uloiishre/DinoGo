@@ -53,6 +53,24 @@ public class OrderMessageContentFactory {
         return "訂單 " + order.getOrderNo() + " 已取消，原因：" + reason + "。";
     }
 
+    public String cancelledTitle(OrderInfoResponse order, boolean customer) {
+        return "訂單已取消";
+    }
+
+    public String cancelledContent(OrderInfoResponse order, boolean customer) {
+        if (!customer) return cancelledContent(order);
+        if (order.getOrderId() == null || order.getBuyerId() == null || order.getCreatedAt() == null) {
+            throw new IllegalStateException("訂單缺少 orderId、buyerId 或 createdAt，無法產生取消通知");
+        }
+        String reason = order.getCancelReason() == null ? "未提供原因" : order.getCancelReason();
+        return "親愛的會員-" + order.getBuyerId() + "您好:\n"
+                + "   感謝您今日光臨！您於 " + order.getCreatedAt().format(ORDER_TIME_FORMATTER) + " 下單之商品已取消，\n"
+                + "   您的訂單編號為 \"/member/orders/" + order.getOrderId() + "\"，\n"
+                + "   取消原因：\n"
+                + "       " + reason + "\n"
+                + "   歡迎您來信說明，並再次訂購，您的意見是我們最重要的支持！";
+    }
+
     private String shippedCustomerContent(OrderInfoResponse order) {
         if (order.getOrderId() == null || order.getCreatedAt() == null) {
             throw new IllegalStateException("訂單缺少 orderId 或 createdAt，無法產生出貨通知");

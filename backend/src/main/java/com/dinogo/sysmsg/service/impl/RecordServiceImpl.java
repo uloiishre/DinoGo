@@ -92,13 +92,13 @@ public class RecordServiceImpl implements RecordService {
     @Override @Transactional(readOnly=true) public RecordResponse searchRecord(Integer id, Integer loginId) {
         RecordEntity r = requireRecord(id);
         permissions.validateRecordOwner(r, loginId);
-        return responseMapper.toResponse(r);
+        return toDetailResponse(r);
     }
     @Override @Transactional public RecordResponse readRecord(Integer id, Integer loginId) {
         RecordEntity r = requireRecord(id); permissions.validateRecordOwner(r, loginId);
         if (r.getRecordStatus() == RecordStatus.DELETE) throw new IllegalStateException("DELETE 訊息不能閱讀");
         if (r.getRecordStatus() == RecordStatus.UNREAD) r.setRecordStatus(RecordStatus.READ);
-        return responseMapper.toResponse(records.save(r));
+        return toDetailResponse(records.save(r));
     }
     @Override @Transactional public void deleteRecord(Integer id, Integer loginId) {
         RecordEntity r = requireRecord(id); permissions.validateRecordOwner(r, loginId);
@@ -149,6 +149,18 @@ public class RecordServiceImpl implements RecordService {
     private RecordEntity requireRecord(Integer id) {
         return records.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("找不到 Record：" + id));
+    }
+
+    private RecordResponse toDetailResponse(RecordEntity record) {
+        RecordResponse response = responseMapper.toResponse(record);
+        if (record.getMsgFunction() != null
+                && record.getMsgFunction().startsWith("SC")
+                && record.getMsgfromSellerId() != null) {
+            SellerInfoResponse seller = ModuleDataMapper.seller(
+                    sellers.getSeller(record.getMsgfromSellerId()));
+            response.setStoreName(seller.getSellerName());
+        }
+        return response;
     }
 
     private List<Integer> distinct(List<Integer> ids) {

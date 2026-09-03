@@ -116,8 +116,10 @@ public class OrderMessageServiceImpl implements OrderMessageService {
             throw new IllegalStateException("訂單不是 CANCELLED");
         }
         rejectDuplicate(o, status, customer);
-        String prefix=customer?"AC":"AS";String title="訂單已取消";
-        SendDisorderEntity send=new SendDisorderEntity(1,numbers.generateMsgFunction(prefix),o.getOrderNo(),title,contentFactory.cancelledContent(o),SendStatus.SEND,o.getOrderId(),o.getOrderNo(),o.getTotalAmount(),o.getPaymentMethodId(),o.getMethodName(),o.getCancelReason(),o.getCancelledAt(),status);
+        String prefix=customer?"AC":"AS";
+        String title=contentFactory.cancelledTitle(o, customer); //msg-title//
+        String content=contentFactory.cancelledContent(o, customer); //msg-content//
+        SendDisorderEntity send=new SendDisorderEntity(1,numbers.generateMsgFunction(prefix),o.getOrderNo(),title,content,SendStatus.SEND,o.getOrderId(),o.getOrderNo(),o.getTotalAmount(),o.getPaymentMethodId(),o.getMethodName(),o.getCancelReason(),o.getCancelledAt(),status);
         sends.save(send);
         recordService.createOrderRecord(send.getSendId(), customer ? o.getBuyerId() : null,
                 customer ? null : o.getSellerId(), o.getOrderId(), status);

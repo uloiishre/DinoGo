@@ -15,7 +15,10 @@ public class RecordResponse {
 
     private String msgFunction;
 
+    //msg-訊息msgfrom// SC 訊息以 msgfromSellerId 查詢並回傳商店名稱；其他類型由前端顯示系統來源。
     private Integer msgfromSellerId;
+
+    private String storeName;
 
     private Integer msgtoMemberId;
 
@@ -28,8 +31,10 @@ public class RecordResponse {
     /** 訊息詳情由關聯的 SEND 唯讀取得，不由前端自行提供。 */
     private String msgLabel;
 
+    //msg-訊息title//
     private String sendTitle;
 
+    //msg-訊息content//
     private String sendContent;
 
     private RecordStatus recordStatus;
@@ -70,6 +75,9 @@ public class RecordResponse {
     public void setMsgfromSellerId(Integer msgfromSellerId) {
         this.msgfromSellerId = msgfromSellerId;
     }
+
+    public String getStoreName() { return storeName; }
+    public void setStoreName(String storeName) { this.storeName = storeName; }
 
     public Integer getMsgtoMemberId() {
         return msgtoMemberId;

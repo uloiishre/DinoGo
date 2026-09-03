@@ -40,6 +40,27 @@ class OrderMessageContentFactoryTest {
     }
 
     @Test
+    void createsCustomerCancelledMessageWithMemberReasonAndOrderLink() {
+        OrderInfoResponse order = order("ORD-002", new BigDecimal("680"));
+        order.setOrderId(62);
+        order.setBuyerId(15);
+        order.setCreatedAt(LocalDateTime.of(2026, 9, 4, 9, 5));
+        order.setCancelReason("臨時不需要商品");
+
+        assertEquals("訂單已取消", factory.cancelledTitle(order, true));
+        assertEquals("親愛的會員-15您好:\n"
+                + "   感謝您今日光臨！您於 2026/09/04 09:05 下單之商品已取消，\n"
+                + "   您的訂單編號為 \"/member/orders/62\"，\n"
+                + "   取消原因：\n"
+                + "       臨時不需要商品\n"
+                + "   歡迎您來信說明，並再次訂購，您的意見是我們最重要的支持！",
+                factory.cancelledContent(order, true));
+        assertEquals("訂單已取消", factory.cancelledTitle(order, false));
+        assertEquals("訂單 ORD-002 已取消，原因：臨時不需要商品。",
+                factory.cancelledContent(order, false));
+    }
+
+    @Test
     void rejectsUnsupportedStatus() {
         assertThrows(IllegalStateException.class,
                 () -> factory.content(order("ORD-001", BigDecimal.ONE), "UNKNOWN", true));
