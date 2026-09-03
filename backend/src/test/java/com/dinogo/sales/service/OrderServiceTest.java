@@ -27,6 +27,7 @@ import com.dinogo.cart.repository.CartItemRepository;
 import com.dinogo.cart.repository.CartRepository;
 import com.dinogo.catalog.entity.Product;
 import com.dinogo.catalog.entity.ProductSku;
+import com.dinogo.catalog.repository.ProductRepository;
 import com.dinogo.catalog.repository.ProductSkuRepository;
 import com.dinogo.coupon.service.CouponUsageService;
 import com.dinogo.member.entity.Address;
@@ -71,12 +72,16 @@ class OrderServiceTest {
 
         private OrderService orderService;
 
+        @Mock
+        private ProductRepository productRepository;
+
         @BeforeEach
         void setUp() {
                 orderService = new OrderService(
                                 orderRepository,
                                 addressRepository,
                                 productSkuRepository,
+                                productRepository,
                                 sellerRepository,
                                 couponUsageService,
                                 cartRepository,
