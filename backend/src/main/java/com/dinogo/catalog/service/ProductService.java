@@ -3,19 +3,19 @@ package com.dinogo.catalog.service;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.cloudinary.Cloudinary;
@@ -989,7 +989,17 @@ public class ProductService {
                         MultipartFile[] files,
                         Integer memberId) {
 
+                long authStart = System.currentTimeMillis();
+
                 requireSellerProduct(productId, memberId);
+
+                long authEnd = System.currentTimeMillis();
+
+                System.out.println(
+                                "驗證商品耗時：" +
+                                                (authEnd - authStart) +
+                                                " ms");
+
                 return uploadProductImages(productId, files);
         }
 
@@ -998,16 +1008,99 @@ public class ProductService {
                         Integer productId,
                         MultipartFile[] files) {
 
+                long totalStart = System.currentTimeMillis();
+
                 Product product = productRepository.findById(productId)
-                                .orElseThrow(() -> new RuntimeException(
-                                                "找不到商品：" + productId));
+                                .orElseThrow(() -> new RuntimeException("找不到商品：" + productId));
 
                 if (files == null || files.length == 0) {
                         throw new RuntimeException("請至少上傳一張圖片");
                 }
 
-                // 找目前最大的 sortOrder
-                List<ProductImage> existingImages = productImageRepository.findByProductProductId(productId);
+                // ==========================================
+                // 1. 先驗證所有檔案
+                // ==========================================
+                for (MultipartFile file : files) {
+
+                        if (file == null || file.isEmpty()) {
+                                throw new RuntimeException("圖片檔案不可為空");
+                        }
+
+                        String contentType = file.getContentType();
+
+                        if (contentType == null ||
+                                        !contentType.startsWith("image/")) {
+
+                                throw new RuntimeException("只能上傳圖片檔案");
+                        }
+                }
+
+                // ==========================================
+                // 2. Cloudinary 平行上傳
+                // 這裡不要碰 JPA
+                // ==========================================
+                List<CompletableFuture<String>> uploadTasks = Arrays.stream(files)
+                                .map(file -> CompletableFuture.supplyAsync(() -> {
+
+                                        try {
+
+                                                long start = System.currentTimeMillis();
+
+                                                Map<?, ?> uploadResult = cloudinary.uploader().upload(
+                                                                file.getBytes(),
+                                                                ObjectUtils.asMap(
+                                                                                "folder",
+                                                                                "dinogo/products",
+                                                                                "resource_type",
+                                                                                "image"));
+
+                                                long end = System.currentTimeMillis();
+
+                                                System.out.println(
+                                                                Thread.currentThread().getName()
+                                                                                + " Cloudinary 上傳耗時："
+                                                                                + (end - start)
+                                                                                + " ms");
+
+                                                return uploadResult
+                                                                .get("secure_url")
+                                                                .toString();
+
+                                        } catch (IOException e) {
+
+                                                throw new CompletionException(e);
+                                        }
+
+                                }))
+                                .toList();
+
+                // ==========================================
+                // 3. 等所有 Cloudinary 上傳完成
+                //
+                // join() 依原本 files 順序取得結果，
+                // 所以圖片順序不會因為平行上傳亂掉
+                // ==========================================
+                List<String> imageUrls;
+
+                try {
+
+                        imageUrls = uploadTasks.stream()
+                                        .map(CompletableFuture::join)
+                                        .toList();
+
+                } catch (CompletionException e) {
+
+                        throw new RuntimeException(
+                                        "Cloudinary 圖片上傳失敗",
+                                        e.getCause());
+                }
+
+                // ==========================================
+                // 4. Cloudinary 全部完成後
+                // 才開始處理 JPA / DB
+                // ==========================================
+                List<ProductImage> existingImages = productImageRepository
+                                .findByProductProductId(productId);
 
                 int maxSortOrder = existingImages.stream()
                                 .map(ProductImage::getSortOrder)
@@ -1017,64 +1110,37 @@ public class ProductService {
 
                 List<ProductImageResponse> responses = new ArrayList<>();
 
-                for (MultipartFile file : files) {
+                // ==========================================
+                // 5. DB 仍然依序寫入
+                // ==========================================
+                for (String imageUrl : imageUrls) {
 
-                        if (file.isEmpty()) {
-                                continue;
-                        }
+                        maxSortOrder++;
 
-                        // 只接受圖片
-                        String contentType = file.getContentType();
+                        ProductImage image = ProductImage.builder()
+                                        .product(product)
+                                        .imageUrl(imageUrl)
+                                        .sortOrder(maxSortOrder)
+                                        .isMain(false)
+                                        .build();
 
-                        if (contentType == null ||
-                                        !contentType.startsWith("image/")) {
+                        ProductImage saved = productImageRepository.save(image);
 
-                                throw new RuntimeException("只能上傳圖片檔案");
-                        }
-
-                        try {
-
-                                // =========================
-                                // 上傳圖片到 Cloudinary
-                                // =========================
-                                Map<?, ?> uploadResult = cloudinary.uploader().upload(
-                                                file.getBytes(),
-                                                ObjectUtils.asMap(
-                                                                "folder", "dinogo/products",
-                                                                "resource_type", "image"));
-
-                                // 取得 Cloudinary HTTPS 圖片網址
-                                String imageUrl = uploadResult.get("secure_url").toString();
-
-                                maxSortOrder++;
-
-                                // =========================
-                                // 將 Cloudinary URL 存進 DB
-                                // =========================
-                                ProductImage image = ProductImage.builder()
-                                                .product(product)
-                                                .imageUrl(imageUrl)
-                                                .sortOrder(maxSortOrder)
-                                                .isMain(false)
-                                                .build();
-
-                                ProductImage saved = productImageRepository.save(image);
-
-                                responses.add(
-                                                ProductImageResponse.builder()
-                                                                .imageId(saved.getImageId())
-                                                                .imageUrl(saved.getImageUrl())
-                                                                .sortOrder(saved.getSortOrder())
-                                                                .isMain(saved.getIsMain())
-                                                                .build());
-
-                        } catch (IOException e) {
-
-                                throw new RuntimeException(
-                                                "Cloudinary 圖片上傳失敗",
-                                                e);
-                        }
+                        responses.add(
+                                        ProductImageResponse.builder()
+                                                        .imageId(saved.getImageId())
+                                                        .imageUrl(saved.getImageUrl())
+                                                        .sortOrder(saved.getSortOrder())
+                                                        .isMain(saved.getIsMain())
+                                                        .build());
                 }
+
+                long totalEnd = System.currentTimeMillis();
+
+                System.out.println(
+                                "整個 uploadProductImages 耗時："
+                                                + (totalEnd - totalStart)
+                                                + " ms");
 
                 return responses;
         }
