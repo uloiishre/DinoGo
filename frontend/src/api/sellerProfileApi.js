@@ -1,4 +1,6 @@
-import api from './axios'
+import api from './axios.js'
+
+const SELLER_LOGO_UPLOAD_TIMEOUT_MS = 60000
 
 export const getSellerProfile = () => {
   return api.get('/seller/profile')
@@ -19,7 +21,9 @@ export const uploadSellerLogo = (file) => {
   const formData = new FormData()
   formData.append('file', file)
 
-  return api.post('/seller/profile/logo', formData)
+  return api.post('/seller/profile/logo', formData, {
+    timeout: SELLER_LOGO_UPLOAD_TIMEOUT_MS,
+  })
 }
 
 export const resolveSellerLogoUrl = (url) => {
