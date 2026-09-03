@@ -37,7 +37,10 @@ const handleLogoSelect = async (event) => {
     savedMessage.value = '店鋪 Logo 已更新。'
   } catch (error) {
     console.error('Upload seller logo failed:', error)
-    savedMessage.value = '店鋪 Logo 上傳失敗，請確認檔案格式。'
+    savedMessage.value =
+      error.code === 'ECONNABORTED'
+        ? '店鋪 Logo 上傳逾時，請確認網路連線後再試一次。'
+        : '店鋪 Logo 上傳失敗，請確認檔案格式與大小。'
   } finally {
     isUploadingLogo.value = false
     event.target.value = ''
