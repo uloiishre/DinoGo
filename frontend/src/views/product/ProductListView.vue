@@ -13,7 +13,7 @@ const authStore = useAuthStore()
 
 const sort = ref(route.query.sort || '')
 const products = ref([])
-const loading = ref(false)
+const loading = ref(true)
 const errorMessage = ref('')
 const currentPage = ref(0)
 const pageSize = ref(12)
@@ -318,17 +318,17 @@ const changeSort = () => {
 }
 
 // 第一次進入頁面時取得商品
-onMounted(async () => {
+onMounted(() => {
   loadStoreProfile()
   loadStoreCoupons()
-  await fetchCategories()
-  await fetchBrands()
+
+  fetchCategories()
+  fetchBrands()
+  fetchProducts()
 
   if (selectedCategoryId.value) {
-    await fetchSubcategories()
+    fetchSubcategories()
   }
-
-  fetchProducts()
 })
 </script>
 
