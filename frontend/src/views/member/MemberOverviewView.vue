@@ -15,7 +15,7 @@ const orderState = ref('loading')
 const summaries = ref([
   { value: '—', label: '配送中的訂單', hint: '訂單資料載入中', icon: 'bi-box-seam' },
   { value: '—', label: '可使用優惠券', hint: '優惠券資料載入中', icon: 'bi-ticket-perforated' },
-  { value: '—', label: '未讀平台訊息', hint: '通知功能尚未提供', icon: 'bi-envelope' },
+  { value: '-', label: '未讀平台訊息', icon: 'bi-envelope' },
 ])
 
 function toDate(value) {
@@ -194,7 +194,7 @@ async function loadOverview() {
           hint: '優惠券資料暫時無法載入',
           icon: 'bi-ticket-perforated',
         },
-    { value: '—', label: '未讀平台訊息', hint: '通知功能尚未提供', icon: 'bi-envelope' },
+    { value: '-', label: '未讀平台訊息', icon: 'bi-envelope' },
   ]
 }
 
