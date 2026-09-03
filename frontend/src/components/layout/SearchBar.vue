@@ -10,7 +10,7 @@ const router = useRouter()
 const searchType = ref('product')
 const keyword = ref('')
 
-const handleSearch = () => {
+const handleSearch = async () => {
   const value = keyword.value.trim()
 
   if (!value) {
@@ -18,20 +18,23 @@ const handleSearch = () => {
   }
 
   if (searchType.value === 'product') {
-    router.push({
+    await router.push({
       path: '/products',
       query: {
         keyword: value,
       },
     })
   } else {
-    router.push({
+    await router.push({
       path: '/stores',
       query: {
         keyword: value,
       },
     })
   }
+
+  // 搜尋完成後清空搜尋框
+  keyword.value = ''
 }
 </script>
 
