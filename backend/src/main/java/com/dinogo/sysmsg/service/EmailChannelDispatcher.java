@@ -9,6 +9,7 @@ import java.util.logging.Logger;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -44,6 +45,7 @@ public class EmailChannelDispatcher {
      */
     private final Set<Integer> scheduledRetryIds = ConcurrentHashMap.newKeySet();
 
+    @Autowired
     public EmailChannelDispatcher(
             EmailChannelStateService stateService,
             JavaMailSender mailSender,
