@@ -1,12 +1,59 @@
 <script setup>
-import { onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import SearchBar from './SearchBar.vue'
 import headerLogoUrl from '@/assets/images/dinogo-logo-s.png'
+import {
+  getMemberInbox,
+  getMemberUnreadCount,
+  MEMBER_UNREAD_CHANGED_EVENT,
+} from '@/api/memberMessageApi.js'
 import { useCartStore } from '@/stores/cart'
 import { getPersistedToken } from '@/utils/auth-session.js'
 
 const cartStore = useCartStore()
+const notificationItems = ref([])
+const unreadCount = ref(0)
+const notificationPopoverOpen = ref(false)
+const latestNotifications = computed(() => notificationItems.value.slice(0, 3))
+const hasMoreNotifications = computed(() => notificationItems.value.length > 3)
+
+const memberInboxCategories = ['SYSTEM_INBOX', 'ORDER_INBOX', 'SELLER_INBOX']
+let notificationRefreshPending = false
+
+async function fetchNotificationPreview() {
+  const [unreadResult, ...inboxResults] = await Promise.allSettled([
+    getMemberUnreadCount(),
+    ...memberInboxCategories.map((category) => getMemberInbox(category)),
+  ])
+
+  if (unreadResult.status === 'fulfilled') {
+    unreadCount.value = unreadResult.value.data.unreadCount ?? 0
+  }
+
+  notificationItems.value = inboxResults
+    .filter((result) => result.status === 'fulfilled')
+    .flatMap((result) => result.value.data.items ?? [])
+    .sort((left, right) => {
+      const timeDifference = Date.parse(right.recordCreatedAt) - Date.parse(left.recordCreatedAt)
+      return timeDifference || right.recordId - left.recordId
+    })
+    .slice(0, 4)
+}
+
+async function refreshNotifications() {
+  if (notificationRefreshPending || !getPersistedToken()) return
+  notificationRefreshPending = true
+  try {
+    await fetchNotificationPreview()
+  } finally {
+    notificationRefreshPending = false
+  }
+}
+
+function closeNotificationPopover() {
+  notificationPopoverOpen.value = false
+}
 
 onMounted(async () => {
   const token = getPersistedToken()
@@ -18,44 +65,16 @@ onMounted(async () => {
   }
 
   try {
-    await cartStore.fetchCart()
+    await Promise.all([cartStore.fetchCart(), fetchNotificationPreview()])
   } catch (error) {
-    console.error('🛒 Header 取得購物車失敗:', error)
+    console.error('Header 資料載入失敗:', error)
   }
 })
 
-// DinoGo 檢視版：模擬會員全部未讀訊息超過 99 筆的徽章效果。
-const unreadCount = 128
-
-const notificationItems = [
-  {
-    recordId: 1,
-    recordStatus: 'UNREAD',
-    sendTitle: '訂單已完成',
-    sendContent: '您的訂單已完成，現在可以前往商品明細留下評價。',
-  },
-  {
-    recordId: 2,
-    recordStatus: 'UNREAD',
-    sendTitle: '商品已出貨',
-    sendContent: '賣家已將商品交付物流，請留意最新配送進度。',
-  },
-  {
-    recordId: 3,
-    recordStatus: 'READ',
-    sendTitle: '會員專屬通知',
-    sendContent: '本週會員活動已開始，歡迎前往商城查看活動內容。',
-  },
-  {
-    recordId: 4,
-    recordStatus: 'READ',
-    sendTitle: '更多通知',
-    sendContent: '前往會員收件匣查看完整內容。',
-  },
-]
-
-const latestNotifications = notificationItems.slice(0, 3)
-const hasMoreNotifications = notificationItems.length > 3
+window.addEventListener(MEMBER_UNREAD_CHANGED_EVENT, refreshNotifications)
+onBeforeUnmount(() => {
+  window.removeEventListener(MEMBER_UNREAD_CHANGED_EVENT, refreshNotifications)
+})
 </script>
 <template>
   <header class="app-header">
@@ -75,11 +94,16 @@ const hasMoreNotifications = notificationItems.length > 3
           ><i class="bi bi-heart" aria-hidden="true"></i
           ><span class="header-action__label">收藏</span></RouterLink
         >
-        <div class="notification-region">
+        <div
+          class="notification-region"
+          @mouseenter="notificationPopoverOpen = true"
+          @mouseleave="closeNotificationPopover"
+        >
           <RouterLink
             class="header-action header-action--badge"
-            to="/member/messages"
+            :to="{ name: 'MemberMessages' }"
             aria-label="通知"
+            @click="closeNotificationPopover"
           >
             <i class="bi bi-bell" aria-hidden="true"></i>
             <span v-if="unreadCount > 0" class="notification-badge">
@@ -95,12 +119,16 @@ const hasMoreNotifications = notificationItems.length > 3
             <span class="header-action__label">通知</span>
           </RouterLink>
 
-          <div class="notification-popover" aria-label="最新通知">
+          <div v-show="notificationPopoverOpen" class="notification-popover" aria-label="最新通知">
             <RouterLink
               v-for="item in latestNotifications"
               :key="item.recordId"
               class="notification-preview"
-              to="/member/messages"
+              :to="{
+                name: 'MemberMessages',
+                query: { recordId: item.recordId, category: item.memberInbox },
+              }"
+              @click="closeNotificationPopover"
             >
               <span
                 class="notification-read-dot"
@@ -108,17 +136,18 @@ const hasMoreNotifications = notificationItems.length > 3
                 :aria-label="item.recordStatus === 'READ' ? '已讀' : '未讀'"
               ></span>
               <span class="notification-preview__copy">
-                <!-- //msg-title// -->
+                <!-- //msg-title// 後端 sendTitle -->
                 <strong>{{ item.sendTitle }}</strong>
-                <!-- //msg-content// -->
+                <!-- //msg-content// 後端 sendContent -->
                 <small>{{ item.sendContent }}</small>
               </span>
             </RouterLink>
             <RouterLink
               v-if="hasMoreNotifications"
               class="notification-more"
-              to="/member/messages"
+              :to="{ name: 'MemberMessages' }"
               aria-label="查看更多通知"
+              @click="closeNotificationPopover"
               >…</RouterLink
             >
           </div>
@@ -265,7 +294,7 @@ const hasMoreNotifications = notificationItems.length > 3
   z-index: 1040;
   top: 100%;
   right: 0;
-  display: none;
+  display: block;
   width: calc(var(--space-8) * 6);
   overflow: hidden;
   background: var(--color-surface);
@@ -273,12 +302,9 @@ const hasMoreNotifications = notificationItems.length > 3
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
 }
-.notification-region:hover .notification-popover {
-  display: block;
-}
 .notification-preview {
   display: grid;
-  min-height: calc(var(--space-8) + var(--space-2));
+  min-height: calc((var(--space-8) + var(--space-2)) * 0.75);
   grid-template-columns: var(--space-3) minmax(0, 1fr);
   align-items: center;
   gap: var(--space-2);
@@ -290,6 +316,11 @@ const hasMoreNotifications = notificationItems.length > 3
 .notification-preview:hover {
   color: var(--color-primary-active);
   background: var(--color-primary-soft);
+}
+.notification-preview:focus-visible,
+.notification-more:focus-visible {
+  outline: none;
+  box-shadow: inset var(--shadow-focus);
 }
 .notification-read-dot {
   width: var(--space-2);
@@ -321,6 +352,7 @@ const hasMoreNotifications = notificationItems.length > 3
 .notification-more {
   display: grid;
   min-height: var(--space-5);
+  padding: var(--space-1);
   place-items: center;
   color: var(--color-text-muted);
   font-size: var(--font-size-lg);
@@ -338,10 +370,11 @@ const hasMoreNotifications = notificationItems.length > 3
   transform-origin: center;
 }
 .notification-badge__value--compact {
-  transform: scale(0.85);
+  font-size: 8px;
 }
 .notification-badge__value--dense {
-  transform: scale(0.7);
+  font-size: 7px;
+  letter-spacing: -0.5px;
 }
 .member-action {
   padding: 0;
