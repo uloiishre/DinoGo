@@ -240,6 +240,18 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes,
+  scrollBehavior(to, from, savedPosition) {
+    // 使用瀏覽器上一頁 / 下一頁時，回到原本的捲動位置
+    if (savedPosition) {
+      return savedPosition
+    }
+
+    // 一般切換頁面時，回到最上方
+    return {
+      top: 0,
+      left: 0,
+    }
+  },
 })
 
 router.beforeEach((to) => {
