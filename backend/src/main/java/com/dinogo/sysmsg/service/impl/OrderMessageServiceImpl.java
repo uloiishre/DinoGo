@@ -102,8 +102,9 @@ public class OrderMessageServiceImpl implements OrderMessageService {
     }
     private SendResponse normalFromOrder(OrderInfoResponse o,String status,boolean customer){
         if(!(customer?CUSTOMER:SELLER).contains(status))throw new IllegalStateException((customer?"AC":"AS")+" 不支援訂單狀態："+status);
-        rejectDuplicate(o,status,customer); String prefix=customer?"AC":"AS"; String title=contentFactory.title(status, customer);
-        String content=contentFactory.content(o,status,customer);
+        rejectDuplicate(o,status,customer); String prefix=customer?"AC":"AS";
+        String title=contentFactory.title(o, status, customer); //msg-title//
+        String content=contentFactory.content(o,status,customer); //msg-content//
         SendOrderEntity send=new SendOrderEntity(1,numbers.generateMsgFunction(prefix),o.getOrderNo(),title,content,SendStatus.SEND,o.getOrderId(),o.getOrderNo(),o.getTotalAmount(),o.getPaymentMethodId(),o.getMethodName(),o.getCreatedAt(),status);
         sends.save(send);
         recordService.createOrderRecord(send.getSendId(), customer ? o.getBuyerId() : null,

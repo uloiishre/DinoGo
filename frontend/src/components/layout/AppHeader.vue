@@ -19,17 +19,14 @@ const latestNotifications = computed(() => notificationItems.value.slice(0, 3))
 const hasMoreNotifications = computed(() => notificationItems.value.length > 3)
 
 const memberInboxCategories = ['SYSTEM_INBOX', 'ORDER_INBOX', 'SELLER_INBOX']
+const notificationSyncIntervalMs = 500
 let notificationRefreshPending = false
+let notificationSyncTimer = null
 
-async function fetchNotificationPreview() {
-  const [unreadResult, ...inboxResults] = await Promise.allSettled([
-    getMemberUnreadCount(),
-    ...memberInboxCategories.map((category) => getMemberInbox(category)),
-  ])
-
-  if (unreadResult.status === 'fulfilled') {
-    unreadCount.value = unreadResult.value.data.unreadCount ?? 0
-  }
+async function fetchNotificationItems() {
+  const inboxResults = await Promise.allSettled(
+    memberInboxCategories.map((category) => getMemberInbox(category)),
+  )
 
   notificationItems.value = inboxResults
     .filter((result) => result.status === 'fulfilled')
@@ -39,6 +36,31 @@ async function fetchNotificationPreview() {
       return timeDifference || right.recordId - left.recordId
     })
     .slice(0, 4)
+}
+
+async function fetchNotificationPreview() {
+  const [unreadResult] = await Promise.allSettled([getMemberUnreadCount(), fetchNotificationItems()])
+
+  if (unreadResult.status === 'fulfilled') {
+    unreadCount.value = unreadResult.value.data.unreadCount ?? 0
+  }
+}
+
+async function syncNotificationCount() {
+  if (notificationRefreshPending || !getPersistedToken() || document.hidden) return
+  notificationRefreshPending = true
+  try {
+    const response = await getMemberUnreadCount()
+    const nextUnreadCount = response.data.unreadCount ?? 0
+    if (nextUnreadCount !== unreadCount.value) {
+      unreadCount.value = nextUnreadCount
+      await fetchNotificationItems()
+    }
+  } catch {
+    // 背景同步失敗時保留目前畫面，下一個 500ms 週期會自動重試。
+  } finally {
+    notificationRefreshPending = false
+  }
 }
 
 async function refreshNotifications() {
@@ -55,6 +77,15 @@ function closeNotificationPopover() {
   notificationPopoverOpen.value = false
 }
 
+function openNotificationPopover() {
+  notificationPopoverOpen.value = true
+  refreshNotifications()
+}
+
+function handlePageVisible() {
+  if (!document.hidden) refreshNotifications()
+}
+
 onMounted(async () => {
   const token = getPersistedToken()
 
@@ -69,10 +100,16 @@ onMounted(async () => {
   } catch (error) {
     console.error('Header 資料載入失敗:', error)
   }
+  notificationSyncTimer = window.setInterval(syncNotificationCount, notificationSyncIntervalMs)
+  window.addEventListener('focus', refreshNotifications)
+  document.addEventListener('visibilitychange', handlePageVisible)
 })
 
 window.addEventListener(MEMBER_UNREAD_CHANGED_EVENT, refreshNotifications)
 onBeforeUnmount(() => {
+  if (notificationSyncTimer != null) window.clearInterval(notificationSyncTimer)
+  window.removeEventListener('focus', refreshNotifications)
+  document.removeEventListener('visibilitychange', handlePageVisible)
   window.removeEventListener(MEMBER_UNREAD_CHANGED_EVENT, refreshNotifications)
 })
 </script>
@@ -96,7 +133,7 @@ onBeforeUnmount(() => {
         >
         <div
           class="notification-region"
-          @mouseenter="notificationPopoverOpen = true"
+          @mouseenter="openNotificationPopover"
           @mouseleave="closeNotificationPopover"
         >
           <RouterLink

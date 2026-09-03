@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import {
   announceMemberUnreadChanged,
   deleteMemberMessage,
@@ -31,6 +31,18 @@ const totalPages = computed(() => Math.max(1, Math.ceil(filteredItems.value.leng
 const visibleMessages = computed(() => filteredItems.value.slice((currentPage.value - 1) * pageSize, currentPage.value * pageSize))
 const pageButtons = computed(() => [1, 2].filter((page) => page <= totalPages.value))
 const allVisibleSelected = computed(() => visibleMessages.value.length > 0 && visibleMessages.value.every((message) => selectedIds.value.has(message.recordId)))
+const messageContentParts = computed(() => {
+  const content = selectedMessage.value?.sendContent ?? ''
+  const orderId = selectedMessage.value?.orderId
+  const orderPath = orderId == null ? '' : `/member/orders/${orderId}`
+  if (!orderPath || !content.includes(orderPath)) return [{ type: 'text', value: content }]
+  const [before, after] = content.split(orderPath, 2)
+  return [
+    { type: 'text', value: before },
+    { type: 'link', value: '查看訂單詳情', to: { name: 'MemberOrderDetail', params: { id: orderId } } },
+    { type: 'text', value: after },
+  ]
+})
 
 function sortNewestFirst(items) {
   return items.sort((left, right) => {
@@ -172,7 +184,7 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
       <article class="message-dialog" role="dialog" aria-modal="true" aria-labelledby="preview-message-detail-title">
         <button type="button" class="message-dialog__close" aria-label="關閉詳細訊息" @click="closeMessage">×</button>
         <header><div><p>from：{{ senderLabel(selectedMessage) }}</p><h2 id="preview-message-detail-title">{{ selectedMessage.sendTitle }}</h2><time :datetime="selectedMessage.recordCreatedAt">{{ formatDate(selectedMessage.recordCreatedAt) }}</time></div></header>
-        <div class="message-dialog__content">{{ selectedMessage.sendContent }}</div>
+        <div class="message-dialog__content"><template v-for="(part, index) in messageContentParts" :key="index"><RouterLink v-if="part.type === 'link'" :to="part.to" class="message-dialog__order-link" @click="closeMessage">{{ part.value }}</RouterLink><span v-else>{{ part.value }}</span></template></div>
       </article>
     </div>
   </main>
@@ -184,6 +196,7 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
 .inbox-card { overflow: hidden; margin-top: var(--space-4); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }.inbox-toolbar { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--color-surface-soft); border-bottom: 1px solid var(--color-border); }.inbox-toolbar label { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-text-muted); font-size: var(--font-size-sm); }.page-size { margin-left: auto; }.inbox-toolbar select, .delete-button { min-height: calc(var(--space-6) + var(--space-1)); padding-inline: var(--space-3); font: inherit; border-radius: var(--radius-md); }.inbox-toolbar select { background: var(--color-surface); border: 1px solid var(--color-border-strong); }.delete-button { color: var(--color-danger); background: var(--color-surface); border: 1px solid var(--color-danger); }.delete-button:disabled { color: var(--color-text-subtle); background: var(--color-disabled-bg); border-color: var(--color-disabled); }
 .message-list { min-height: 420px; }.message-row { display: grid; height: var(--inbox-message-row-height); overflow: hidden; grid-template-columns: var(--space-7) minmax(0, 1fr); border-bottom: 1px solid var(--color-border); }.message-check { display: grid; place-items: center; }.message-open { display: grid; width: 100%; min-width: 0; grid-template-columns: var(--space-3) minmax(0, 1fr); align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-4); color: var(--color-text); text-align: left; background: transparent; border: 0; }.message-row:hover { background: var(--color-primary-soft); }.message-dot { width: var(--space-2); height: var(--space-2); background: var(--color-primary); border-radius: var(--radius-pill); }.message-dot.read { background: var(--color-disabled); }.message-copy { display: grid; min-width: 0; gap: 0; }.message-copy strong, .message-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.message-copy small, .message-dialog time { color: var(--color-text-muted); font-size: var(--font-size-xs); }.message-row--read .message-open, .message-row--read .message-copy strong, .message-row--read .message-copy small, .message-row--read .message-open time { color: var(--color-text-subtle); }.inbox-state { display: grid; min-height: var(--inbox-message-row-height); place-items: center; color: var(--color-text-muted); }
 .message-overlay { position: fixed; z-index: 1050; inset: 0; display: grid; place-items: center; padding: var(--space-5); background: color-mix(in srgb, var(--color-text) 65%, transparent); }.message-dialog { position: relative; width: min(100%, 720px); max-height: calc(100vh - (2 * var(--space-5))); overflow-y: auto; padding: var(--space-6); background: var(--color-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }.message-dialog__close { position: absolute; top: var(--space-3); right: var(--space-3); width: var(--space-7); height: var(--space-7); color: var(--color-text-muted); font-size: var(--font-size-xl); background: transparent; border: 0; }.message-dialog header { padding-right: var(--space-7); }.message-dialog header p, .message-dialog h2 { margin: 0; }.message-dialog h2 { margin-block: var(--space-1); }.message-dialog__content { margin-top: var(--space-5); padding-top: var(--space-5); white-space: pre-wrap; border-top: 1px solid var(--color-border); }
+.message-dialog__order-link { color: var(--color-primary-active); font-weight: 700; text-decoration: underline; text-underline-offset: 0.15em; }
 .inbox-pagination { display: flex; align-items: center; justify-content: center; gap: var(--space-2); padding: var(--space-3); border-top: 1px solid var(--color-border); }.inbox-pagination button { min-width: calc(var(--space-6) + var(--space-1)); min-height: calc(var(--space-6) + var(--space-1)); color: var(--color-text-muted); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); }.inbox-pagination button.active { color: var(--color-surface); background: var(--color-primary); border-color: var(--color-primary); }.pagination-ellipsis { color: var(--color-text-muted); }
 .inbox-card { --inbox-message-row-height: 65px; min-height: 0; margin-top: 0; padding-bottom: calc(3 * var(--inbox-message-row-height)); border-top: 0; border-radius: 0 0 var(--radius-lg) var(--radius-lg); scroll-margin-top: var(--space-5); }
 .message-list { min-height: 0; }
