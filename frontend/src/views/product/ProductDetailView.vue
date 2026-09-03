@@ -646,16 +646,6 @@ const fetchSellerCoupons = async () => {
     memberCoupons.value = []
   }
 }
-const getStoreLogoUrl = (url) => {
-  if (!url) return ''
-
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url
-  }
-
-  return `http://localhost:8080${url}`
-}
-
 const goToStore = (sellerId) => {
   router.push({
     path: '/products',
@@ -1172,7 +1162,7 @@ onUnmounted(() => {
                   <div class="seller-header">
                     <img
                       v-if="seller.storeLogoUrl"
-                      :src="getStoreLogoUrl(seller.storeLogoUrl)"
+                      :src="getImageUrl(seller.storeLogoUrl)"
                       :alt="seller.storeName"
                       class="seller-logo"
                     />

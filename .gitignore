@@ -61,3 +61,19 @@ backend/uploads/
 
 # Local Maven runtime
 backend/.mvn/local-maven/
+
+# Deployment secrets
+deploy/secrets/
+deployment/secrets/
+
+# TLS / private keys
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Database backup/import work files
+database/backups/
+database/import/
+*.bacpac
+*.bak
