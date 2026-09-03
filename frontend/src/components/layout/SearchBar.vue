@@ -1,14 +1,24 @@
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 defineProps({
   compact: { type: Boolean, default: false },
 })
 
+const route = useRoute()
 const router = useRouter()
+
 const searchType = ref('product')
-const keyword = ref('')
+const keyword = ref(route.query.keyword || '')
+
+// URL 的 keyword 改變時，同步搜尋框
+watch(
+  () => route.query.keyword,
+  (newKeyword) => {
+    keyword.value = newKeyword || ''
+  },
+)
 
 const handleSearch = () => {
   const value = keyword.value.trim()
