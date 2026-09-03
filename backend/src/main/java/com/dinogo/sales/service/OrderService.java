@@ -15,7 +15,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.dinogo.catalog.repository.ProductRepository;
 import com.dinogo.cart.entity.Cart;
 import com.dinogo.cart.entity.CartItem;
 import com.dinogo.cart.repository.CartItemRepository;
@@ -62,6 +62,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final AddressRepository addressRepository;
     private final ProductSkuRepository productSkuRepository;
+    private final ProductRepository productRepository;
     private final SellerRepository sellerRepository;
     private final CouponUsageService couponUsageService;
 
@@ -84,6 +85,7 @@ public class OrderService {
             OrderRepository orderRepository,
             AddressRepository addressRepository,
             ProductSkuRepository productSkuRepository,
+            ProductRepository productRepository,
             SellerRepository sellerRepository,
             CouponUsageService couponUsageService,
             CartRepository cartRepository,
@@ -92,6 +94,7 @@ public class OrderService {
         this.orderRepository = orderRepository;
         this.addressRepository = addressRepository;
         this.productSkuRepository = productSkuRepository;
+        this.productRepository = productRepository;
         this.sellerRepository = sellerRepository;
         this.couponUsageService = couponUsageService;
         this.cartRepository = cartRepository;
@@ -149,8 +152,18 @@ public class OrderService {
             couponItems.add(new CouponItem(product, itemSubtotal));
             int updated = productSkuRepository.deductStockIfAvailable(
                     itemRequest.skuId(), itemRequest.quantity());
+
             if (updated == 0) {
-                throw new InvalidOrderException("Insufficient stock for SKU: " + itemRequest.skuId());
+                throw new InvalidOrderException(
+                        "Insufficient stock for SKU: " + itemRequest.skuId());
+            }
+            int soldUpdated = productRepository.increaseSoldCount(
+                    product.getProductId(),
+                    itemRequest.quantity());
+
+            if (soldUpdated == 0) {
+                throw new InvalidOrderException(
+                        "Product does not exist: " + product.getProductId());
             }
         }
 
@@ -367,11 +380,21 @@ public class OrderService {
     }
 
     private void restoreStock(Order order) {
+
         for (OrderItem item : order.getOrderItems()) {
-            int updated = productSkuRepository.restoreStock(item.getSkuId(), item.getQuantity());
+
+            int updated = productSkuRepository.restoreStock(
+                    item.getSkuId(),
+                    item.getQuantity());
+
             if (updated == 0) {
-                throw new InvalidOrderException("SKU does not exist: " + item.getSkuId());
+                throw new InvalidOrderException(
+                        "SKU does not exist: " + item.getSkuId());
             }
+
+            productRepository.decreaseSoldCount(
+                    item.getProductId(),
+                    item.getQuantity());
         }
     }
 

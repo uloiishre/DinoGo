@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.dinogo.catalog.entity.Product;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.transaction.annotation.Transactional;
 
 public interface ProductRepository extends JpaRepository<Product, Integer>,
                 JpaSpecificationExecutor<Product> {
@@ -30,5 +32,30 @@ public interface ProductRepository extends JpaRepository<Product, Integer>,
                         WHERE p.seller.sellerId = :sellerId
                         """)
         long sumSoldCountBySellerId(@Param("sellerId") Integer sellerId);
+
+        @Modifying
+        @Query("""
+                        UPDATE Product p
+                        SET p.soldCount = p.soldCount + :quantity
+                        WHERE p.productId = :productId
+                        """)
+        int increaseSoldCount(
+                        @Param("productId") Integer productId,
+                        @Param("quantity") Integer quantity);
+
+        @Modifying
+        @Query("""
+                        UPDATE Product p
+                        SET p.soldCount =
+                            CASE
+                                WHEN p.soldCount >= :quantity
+                                THEN p.soldCount - :quantity
+                                ELSE 0
+                            END
+                        WHERE p.productId = :productId
+                        """)
+        int decreaseSoldCount(
+                        @Param("productId") Integer productId,
+                        @Param("quantity") Integer quantity);
 
 }
