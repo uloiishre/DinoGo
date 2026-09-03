@@ -131,7 +131,15 @@ const resetFilters = () => {
     },
   })
 }
+const handleCategoryChange = async () => {
+  // 換大分類後，原本子分類一定失效
+  selectedSubcategoryId.value = ''
+  subcategories.value = []
 
+  if (selectedCategoryId.value) {
+    await fetchSubcategories()
+  }
+}
 const loadStoreProfile = async () => {
   if (!route.query.sellerId) {
     storeProfile.value = null
@@ -308,22 +316,43 @@ watch(
     route.query.sort,
     route.query.sellerId,
   ],
-  () => {
+  async () => {
     currentPage.value = 0
-    sort.value = route.query.sort || ''
+
+    // =========================
+    // URL → 左側篩選
+    // =========================
+
+    selectedCategoryId.value = route.query.categoryId || ''
+
+    selectedBrandId.value = route.query.brandId || ''
+
+    minPrice.value = route.query.minPrice || ''
+    maxPrice.value = route.query.maxPrice || ''
     minRating.value = route.query.minRating || ''
 
+    sort.value = route.query.sort || ''
+
+    // =========================
+    // 子分類
+    // =========================
+    if (selectedCategoryId.value) {
+      await fetchSubcategories()
+
+      selectedSubcategoryId.value = route.query.subcategoryId || ''
+    } else {
+      selectedSubcategoryId.value = ''
+      subcategories.value = []
+    }
+
+    // =========================
+    // 其他資料
+    // =========================
     loadStoreProfile()
     loadStoreCoupons()
     fetchProducts()
   },
 )
-watch(selectedCategoryId, async () => {
-  // 大分類改變時，原本選的子分類失效
-  selectedSubcategoryId.value = ''
-
-  await fetchSubcategories()
-})
 
 // 切換排序
 const changeSort = () => {
@@ -468,7 +497,11 @@ onMounted(() => {
           <section class="filter-section">
             <h3>分類</h3>
 
-            <select v-model="selectedCategoryId" class="filter-select">
+            <select
+              v-model="selectedCategoryId"
+              class="filter-select"
+              @change="handleCategoryChange"
+            >
               <option value="">全部分類</option>
 
               <option
