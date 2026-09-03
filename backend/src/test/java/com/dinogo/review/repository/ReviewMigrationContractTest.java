@@ -13,7 +13,7 @@ class ReviewMigrationContractTest {
 
     @Test
     void migrationMatchesFinalReviewModel() throws Exception {
-        Path migration = Path.of("..", "review基本資料", "V008__create_review_history_and_star.sql");
+        Path migration = Path.of("..", "database", "migrations", "V008__create_review_history_and_star.sql");
         String sql = Files.readString(migration).replaceAll("\\s+", " ").toLowerCase();
         assertTrue(sql.contains("five_star tinyint"));
         assertTrue(sql.contains("then convert(tinyint, 5)"));

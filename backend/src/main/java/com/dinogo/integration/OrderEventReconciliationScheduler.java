@@ -28,7 +28,7 @@ import com.dinogo.sysmsg.service.OrderMessageService;
 @ConditionalOnProperty(
         name = "app.sysmsg.reconciliation.enabled",
         havingValue = "true",
-        matchIfMissing = false)
+        matchIfMissing = true)
 public class OrderEventReconciliationScheduler {
     private static final Logger LOG = Logger.getLogger(OrderEventReconciliationScheduler.class.getName());
 
