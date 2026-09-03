@@ -275,6 +275,26 @@ const changePageSize = () => {
   currentPage.value = 0
   fetchProducts()
 }
+// 上方重新搜尋時，重置左側篩選條件
+watch(
+  () => route.query.keyword,
+  (newKeyword, oldKeyword) => {
+    // 第一次進入頁面不處理，只處理真正的搜尋關鍵字變更
+    if (newKeyword === oldKeyword) {
+      return
+    }
+
+    selectedCategoryId.value = ''
+    selectedSubcategoryId.value = ''
+    selectedBrandId.value = ''
+
+    subcategories.value = []
+
+    minPrice.value = ''
+    maxPrice.value = ''
+    minRating.value = ''
+  },
+)
 //當搜尋或分類條件改變時，回第一頁
 watch(
   () => [
