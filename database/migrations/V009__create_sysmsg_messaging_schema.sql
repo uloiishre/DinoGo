@@ -304,7 +304,9 @@ CREATE TABLE sysmsg.record
             WHEN msgto_seller_id IS NULL THEN NULL
             WHEN LEFT(msg_function, 2) IN ('OA', 'OS') THEN 'SYSTEM_NOTICE'
             WHEN LEFT(msg_function, 2) = 'AS' AND order_status = 'CANCELLED' THEN 'CANCELLED_ORDER'
-            WHEN LEFT(msg_function, 2) = 'AS' THEN 'NEW_ORDER'
+            WHEN LEFT(msg_function, 2) = 'AS'
+                 AND order_status IN ('PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'COMPLETED')
+                THEN 'NEW_ORDER'
             ELSE NULL
         END
     ) PERSISTED,
@@ -368,7 +370,7 @@ GO
 IF COL_LENGTH(N'sysmsg.record', N'member_inbox') IS NULL
     EXEC(N'ALTER TABLE sysmsg.record ADD member_inbox AS (CASE WHEN msgto_member_id IS NULL THEN NULL WHEN LEFT(msg_function,2) IN (''OA'',''OC'') THEN ''SYSTEM_INBOX'' WHEN LEFT(msg_function,2)=''AC'' THEN ''ORDER_INBOX'' WHEN LEFT(msg_function,2)=''SC'' THEN ''SELLER_INBOX'' ELSE NULL END) PERSISTED');
 IF COL_LENGTH(N'sysmsg.record', N'seller_inbox') IS NULL
-    EXEC(N'ALTER TABLE sysmsg.record ADD seller_inbox AS (CASE WHEN msgto_seller_id IS NULL THEN NULL WHEN LEFT(msg_function,2) IN (''OA'',''OS'') THEN ''SYSTEM_NOTICE'' WHEN LEFT(msg_function,2)=''AS'' AND order_status=''CANCELLED'' THEN ''CANCELLED_ORDER'' WHEN LEFT(msg_function,2)=''AS'' THEN ''NEW_ORDER'' ELSE NULL END) PERSISTED');
+    EXEC(N'ALTER TABLE sysmsg.record ADD seller_inbox AS (CASE WHEN msgto_seller_id IS NULL THEN NULL WHEN LEFT(msg_function,2) IN (''OA'',''OS'') THEN ''SYSTEM_NOTICE'' WHEN LEFT(msg_function,2)=''AS'' AND order_status=''CANCELLED'' THEN ''CANCELLED_ORDER'' WHEN LEFT(msg_function,2)=''AS'' AND order_status IN (''PAID'',''PROCESSING'',''SHIPPED'',''DELIVERED'',''COMPLETED'') THEN ''NEW_ORDER'' ELSE NULL END) PERSISTED');
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.default_constraints dc JOIN sys.columns c ON c.object_id=dc.parent_object_id AND c.column_id=dc.parent_column_id WHERE dc.parent_object_id=OBJECT_ID(N'sysmsg.record') AND c.name=N'record_status')

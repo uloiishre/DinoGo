@@ -250,15 +250,15 @@ async function openInboxMessage(message) {
   }
 }
 function inboxMessageSource(message) {
-  return ['OA', 'OS', 'AS'].includes(message?.msgFunction)
+  return ['OA', 'OS', 'AS'].some((prefix) => message?.msgFunction?.startsWith(prefix))
     ? '系統自動訊息'
     : message?.storeName || '系統自動訊息'
 }
 function isNewSellerOrderMessage(message) {
-  return message?.msgFunction === 'AS' && ['PAID', 'PROCESSING'].includes(message?.orderStatus)
+  return message?.msgFunction?.startsWith('AS') && ['PAID', 'PROCESSING'].includes(message?.orderStatus)
 }
 function isSellerProgressMessage(message) {
-  return message?.msgFunction === 'AS' && ['SHIPPED', 'DELIVERED', 'COMPLETED'].includes(message?.orderStatus)
+  return message?.msgFunction?.startsWith('AS') && ['SHIPPED', 'DELIVERED', 'COMPLETED'].includes(message?.orderStatus)
 }
 function sellerProgressTitle(message) {
   return {
@@ -877,7 +877,7 @@ onMounted(() => {
           v-if="inboxDetail.orderStatus === 'CANCELLED' && inboxDetailOrder"
           class="inbox-detail-dialog__content inbox-cancelled-content"
         >
-          <span>親愛的 {{ inboxDetailStoreName || '商家' }} 您好：</span>
+          <span>親愛的 {{ inboxDetailStoreName || '商家' }} 您好:</span>
           <span>   感謝您支持本平台！</span>
           <span>   您有一筆訂單已取消，</span>
           <span
@@ -913,7 +913,7 @@ onMounted(() => {
           v-else-if="isNewSellerOrderMessage(inboxDetail) && inboxDetailOrder"
           class="inbox-detail-dialog__content inbox-cancelled-content"
         >
-          <span>親愛的 {{ inboxDetailStoreName || '商家' }} 您好：</span>
+          <span>親愛的 {{ inboxDetailStoreName || '商家' }} 您好:</span>
           <span>   感謝您支持本平台！</span>
           <span>   您有一筆新訂單，</span>
           <span
@@ -948,7 +948,7 @@ onMounted(() => {
           v-else-if="isSellerProgressMessage(inboxDetail) && inboxDetailOrder"
           class="inbox-detail-dialog__content inbox-cancelled-content"
         >
-          <span>親愛的 {{ inboxDetailStoreName || '商家' }} 您好：</span>
+          <span>親愛的 {{ inboxDetailStoreName || '商家' }} 您好:</span>
           <span>   感謝您支持本平台！</span>
           <span>   您有一筆{{ sellerProgressTitle(inboxDetail) }}，</span>
           <span

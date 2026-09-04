@@ -128,7 +128,9 @@ public class RecordServiceImpl implements RecordService {
             Integer id, String inbox, Integer page) {
         SellerInbox wanted = SellerInbox.valueOf(inbox.trim().toUpperCase());
         return OffsetPageResponse.from(records.findSellerInbox(
-                id, wanted, RecordStatus.DELETE, pageRequest(page))
+                id, wanted, RecordStatus.DELETE, SellerInbox.NEW_ORDER,
+                List.of("PAID", "PROCESSING", "SHIPPED", "DELIVERED", "COMPLETED"),
+                pageRequest(page))
                 .map(responseMapper::toInboxResponse));
     }
 

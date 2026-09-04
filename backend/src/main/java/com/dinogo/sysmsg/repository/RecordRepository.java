@@ -89,10 +89,13 @@ public interface RecordRepository
             select r from RecordEntity r
             where r.msgtoSellerId = :recipientId and r.sellerInbox = :inbox
               and r.recordStatus <> :excludedStatus
+              and (r.sellerInbox <> :newOrderInbox or r.orderStatus in :newOrderStatuses)
             """)
     Page<RecordEntity> findSellerInbox(
             @Param("recipientId") Integer recipientId, @Param("inbox") SellerInbox inbox,
             @Param("excludedStatus") RecordStatus excludedStatus,
+            @Param("newOrderInbox") SellerInbox newOrderInbox,
+            @Param("newOrderStatuses") List<String> newOrderStatuses,
             Pageable pageable);
 
     Page<RecordEntity>
