@@ -14,6 +14,12 @@ export const deleteSellerInboxMessage = (recordId) =>
 
 export const createSellerMessage = (payload) => api.post('/sysmsg/seller/messages', payload)
 
+export const getSellerOutbox = (page = 0) =>
+  api.get('/sysmsg/seller/messages/outbox', { params: { page } })
+
+export const deleteSellerOutboxMessage = (sendId) =>
+  api.delete(`/sysmsg/seller/messages/outbox/${sendId}`)
+
 export const uploadSellerMessageImages = (files) => {
   const formData = new FormData()
   files.forEach((file) => formData.append('files', file))

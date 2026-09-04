@@ -4,10 +4,12 @@ import { RouterLink } from 'vue-router'
 import {
   createSellerMessage,
   createSellerTemplate,
+  deleteSellerOutboxMessage,
   deleteSellerTemplate,
   deleteSellerInboxMessage,
   getSellerInbox,
   getSellerInboxMessage,
+  getSellerOutbox,
   getSellerTemplates,
   markSellerInboxMessageRead,
   uploadSellerMessageImages,
@@ -27,16 +29,7 @@ const outboxTabs = [
   { key: 'CREATE', label: '新增訊息' },
   { key: 'OUTBOX', label: '寄件備份' },
 ]
-const sentBackup = reactive(
-  Array.from({ length: 8 }, (_, index) => ({
-    sendId: index + 1,
-    sendTitle: ['訂單出貨通知', '商品補貨回覆', '售後服務回覆'][index % 3],
-    sendContent: `這是第 ${index + 1} 則已寄出的商家訊息內容。`,
-    msgLabel: ['出貨提醒', '補貨回覆', '售後服務'][index % 3],
-    orderNo: `DG2026${String(index + 1).padStart(4, '0')}`,
-    sendUpdAt: new Date(Date.now() - index * 7200000).toISOString(),
-  })),
-)
+const sentBackup = reactive([])
 const categoryTabs = inboxTabs.slice(1)
 const messages = reactive([])
 const activeTab = ref('ALL'),
@@ -81,6 +74,9 @@ const inboxDetailStoreName = ref('')
 const inboxDetailOrderLoading = ref(false)
 const outboxPageSize = 20
 const outboxCurrentPage = ref(1)
+const outboxLoading = ref(false)
+const outboxActionPending = ref(false)
+const outboxError = ref('')
 const createNotice = ref('')
 const canFilter = computed(() => categoryTabs.some((tab) => tab.key === activeTab.value))
 const sourceMessages = computed(() =>
@@ -520,11 +516,41 @@ function toggleAllOutbox() {
     ? new Set()
     : new Set(visibleSentBackup.value.map((item) => item.sendId))
 }
-function deleteSelectedOutbox() {
-  for (let i = sentBackup.length - 1; i >= 0; i--)
-    if (selectedOutboxIds.value.has(sentBackup[i].sendId)) sentBackup.splice(i, 1)
-  selectedOutboxIds.value = new Set()
+async function loadSellerOutbox() {
+  outboxLoading.value = true
+  outboxError.value = ''
+  try {
+    const firstResponse = await getSellerOutbox(0)
+    const firstPage = firstResponse.data
+    const remaining = await Promise.all(
+      Array.from({ length: Math.max(0, firstPage.totalPages - 1) }, (_, index) =>
+        getSellerOutbox(index + 1),
+      ),
+    )
+    const items = [
+      ...(firstPage.items ?? []),
+      ...remaining.flatMap((response) => response.data.items ?? []),
+    ].filter((item) => item.msgFunction?.startsWith('SC'))
+    sentBackup.splice(0, sentBackup.length, ...items)
+  } catch (error) {
+    outboxError.value = error.response?.data?.message || '寄件備份載入失敗，請稍後再試。'
+  } finally {
+    outboxLoading.value = false
+  }
+}
+async function deleteSelectedOutbox() {
+  const ids = [...selectedOutboxIds.value]
+  if (!ids.length || outboxActionPending.value || !window.confirm('是否確認刪除寄件備份')) return
+  outboxActionPending.value = true
+  outboxError.value = ''
+  const results = await Promise.allSettled(ids.map((id) => deleteSellerOutboxMessage(id)))
+  const deletedIds = new Set(ids.filter((id, index) => results[index].status === 'fulfilled'))
+  for (let index = sentBackup.length - 1; index >= 0; index -= 1)
+    if (deletedIds.has(sentBackup[index].sendId)) sentBackup.splice(index, 1)
+  selectedOutboxIds.value = new Set(ids.filter((id) => !deletedIds.has(id)))
   outboxCurrentPage.value = Math.min(outboxCurrentPage.value, outboxPageCount.value)
+  if (deletedIds.size !== ids.length) outboxError.value = '部分寄件備份刪除失敗，請稍後再試。'
+  outboxActionPending.value = false
 }
 function goToOutboxPage(page) {
   outboxCurrentPage.value = Math.min(Math.max(1, page), outboxPageCount.value)
@@ -546,6 +572,7 @@ function formatTime(value) {
 onMounted(() => {
   void loadSellerInbox()
   void loadCreateData()
+  void loadSellerOutbox()
 })
 </script>
 <template>
@@ -715,10 +742,11 @@ onMounted(() => {
               <h2>寄件備份</h2>
               <p>保留商家已實際寄出的訊息紀錄。</p>
             </div>
-            <button class="sent-backup-delete" :disabled="!selectedOutboxIds.size" @click="deleteSelectedOutbox">
+            <button class="sent-backup-delete" :disabled="outboxActionPending || !selectedOutboxIds.size" @click="deleteSelectedOutbox">
               刪除已選（{{ selectedOutboxIds.size }}）
             </button>
           </header>
+          <p v-if="outboxError" class="inbox-error" role="alert">{{ outboxError }}</p>
           <div class="sent-backup-columns">
             <label
               ><input
@@ -732,20 +760,24 @@ onMounted(() => {
             ><span>訂單編號</span
             ><span>寄件時間</span>
           </div>
-          <article v-for="message in visibleSentBackup" :key="message.sendId" class="sent-backup-row">
-            <input
-              type="checkbox"
-              :checked="selectedOutboxIds.has(message.sendId)"
-              @change="toggleOutbox(message.sendId)"
-            />
-            <button @click="outboxDetail = message">
-              <strong>{{ message.sendTitle }}</strong
-              ><small>{{ message.sendContent }}</small>
-            </button>
-            <span class="outbox-field">{{ message.msgLabel }}</span>
-            <span class="outbox-field">{{ message.orderNo }}</span
-            ><time>{{ formatTime(message.sendUpdAt) }}</time>
-          </article>
+          <div v-if="outboxLoading" class="feature-state">寄件備份載入中…</div>
+          <div v-else-if="!visibleSentBackup.length" class="feature-state">目前沒有寄件備份。</div>
+          <template v-else>
+            <article v-for="message in visibleSentBackup" :key="message.sendId" class="sent-backup-row">
+              <input
+                type="checkbox"
+                :checked="selectedOutboxIds.has(message.sendId)"
+                @change="toggleOutbox(message.sendId)"
+              />
+              <button @click="outboxDetail = message">
+                <strong>{{ message.sendTitle }}</strong
+                ><small>{{ message.sendContent }}</small>
+              </button>
+              <span class="outbox-field">{{ message.msgLabel }}</span>
+              <span class="outbox-field">{{ message.orderNo }}</span
+              ><time>{{ formatTime(message.sendUpdAt) }}</time>
+            </article>
+          </template>
           <nav class="pagination sent-backup-pagination" aria-label="寄件備份頁籤">
             <button :disabled="outboxCurrentPage === 1" @click="goToOutboxPage(1)">&lt;&lt;</button
             ><button :disabled="outboxCurrentPage === 1" @click="goToOutboxPage(outboxCurrentPage - 1)">&lt;</button

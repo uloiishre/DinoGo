@@ -4,10 +4,12 @@ import api from '../src/api/axios.js'
 import {
   createSellerMessage,
   createSellerTemplate,
+  deleteSellerOutboxMessage,
   deleteSellerTemplate,
   deleteSellerInboxMessage,
   getSellerInbox,
   getSellerInboxMessage,
+  getSellerOutbox,
   getSellerTemplates,
   getSellerMessages,
   markAllSellerMessagesRead,
@@ -46,6 +48,8 @@ test('seller message API uses the module F contract endpoints', async (t) => {
   await markSellerInboxMessageRead(51)
   await deleteSellerInboxMessage(51)
   await createSellerMessage({ orderId: 12, sendTitle: '標題', sendContent: '內容' })
+  await getSellerOutbox(4)
+  await deleteSellerOutboxMessage(19)
   await getSellerTemplates(3)
   await createSellerTemplate({ msgLabel: '範本', sendTitle: '標題', sendContent: '內容' })
   await updateSellerTemplate(7, { msgLabel: '更新', sendTitle: '標題', sendContent: '內容' })
@@ -62,6 +66,8 @@ test('seller message API uses the module F contract endpoints', async (t) => {
     ['patch', '/sysmsg/seller/inbox/51/status', { targetStatus: 'READ' }],
     ['delete', '/sysmsg/seller/inbox/51'],
     ['post', '/sysmsg/seller/messages', { orderId: 12, sendTitle: '標題', sendContent: '內容' }],
+    ['get', '/sysmsg/seller/messages/outbox', { params: { page: 4 } }],
+    ['delete', '/sysmsg/seller/messages/outbox/19'],
     ['get', '/sysmsg/seller/templates', { params: { page: 3 } }],
     ['post', '/sysmsg/seller/templates', { msgLabel: '範本', sendTitle: '標題', sendContent: '內容' }],
     ['put', '/sysmsg/seller/templates/7', { msgLabel: '更新', sendTitle: '標題', sendContent: '內容' }],
