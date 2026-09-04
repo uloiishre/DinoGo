@@ -35,7 +35,9 @@ public class OrderMessageContentFactory {
         return switch (status) {
             case "PROCESSING" -> cashOnDeliveryOrderCreatedContent(order);
             case "PAID" -> customer
-                    ? "訂單 " + order.getOrderNo() + " 已付款成功。"
+                    ? ("CREDIT_CARD".equals(order.getMethodCode())
+                            ? creditCardPaidCustomerContent(order)
+                            : "訂單 " + order.getOrderNo() + " 已付款成功。")
                     : "收到訂單 " + order.getOrderNo() + "，請開始處理。";
             case "SHIPPED" -> customer ? shippedCustomerContent(order)
                     : "訂單 " + order.getOrderNo() + " 已出貨。";
@@ -63,22 +65,37 @@ public class OrderMessageContentFactory {
             throw new IllegalStateException("訂單缺少 orderId、buyerId 或 createdAt，無法產生取消通知");
         }
         String reason = order.getCancelReason() == null ? "未提供原因" : order.getCancelReason();
-        return "親愛的會員-" + order.getBuyerId() + "您好:\n"
+        return "親愛的 會員-" + order.getBuyerId() + " 您好:\n"
                 + "   感謝您今日光臨！您於 " + order.getCreatedAt().format(ORDER_TIME_FORMATTER) + " 下單之商品已取消，\n"
-                + "   您的訂單編號為 \"/member/orders/" + order.getOrderId() + "\"，\n"
+                + "   您的訂單編號為 /member/orders/" + order.getOrderId() + "，\n"
                 + "   取消原因：\n"
                 + "       " + reason + "\n"
                 + "   歡迎您來信說明，並再次訂購，您的意見是我們最重要的支持！";
     }
 
     private String shippedCustomerContent(OrderInfoResponse order) {
-        if (order.getOrderId() == null || order.getCreatedAt() == null) {
-            throw new IllegalStateException("訂單缺少 orderId 或 createdAt，無法產生出貨通知");
+        if (order.getOrderId() == null || order.getBuyerId() == null || order.getCreatedAt() == null) {
+            throw new IllegalStateException("訂單缺少 orderId、buyerId 或 createdAt，無法產生出貨通知");
         }
-        return "親愛的消費者您好:\n"
-                + "   您於" + order.getCreatedAt().format(ORDER_TIME_FORMATTER) + "下單之商品已出貨，\n"
-                + "   追蹤進度連結：/member/orders/" + order.getOrderId() + "，\n"
-                + "   請於貨物送達7日內取貨，感謝您的惠顧!";
+        String orderPath = "/member/orders/" + order.getOrderId();
+        return "親愛的 會員-" + order.getBuyerId() + " 您好:\n"
+                + "   感謝您的訂購！您於 " + order.getCreatedAt().format(ORDER_TIME_FORMATTER) + " 下單之商品已出貨，\n"
+                + "   您的訂單編號為 " + orderPath + "，\n"
+                + "   隨時點此查詢進度：" + orderPath + "，\n"
+                + "   請於包裹送達後，7日內取貨，感謝您的惠顧！";
+    }
+
+    private String creditCardPaidCustomerContent(OrderInfoResponse order) {
+        if (order.getOrderId() == null || order.getBuyerId() == null || order.getCreatedAt() == null) {
+            throw new IllegalStateException("訂單缺少 orderId、buyerId 或 createdAt，無法產生信用卡付款通知");
+        }
+        String orderPath = "/member/orders/" + order.getOrderId();
+        return "親愛的 會員-" + order.getBuyerId() + " 您好:\n"
+                + "   感謝您的訂購！您於 " + order.getCreatedAt().format(ORDER_TIME_FORMATTER) + " 下單之商品已完成下單，\n"
+                + "   我們已收到您的信用卡款項，請核對為本人付款，\n"
+                + "   您的訂單編號為 " + orderPath + "，\n"
+                + "   隨時點此查詢進度：" + orderPath + "，\n"
+                + "   請於貨物送達後，7日內取貨，感謝您的惠顧！";
     }
 
     private String completedCustomerContent(OrderInfoResponse order) {
@@ -87,7 +104,7 @@ public class OrderMessageContentFactory {
         }
         return "親愛的 會員-" + order.getBuyerId() + " 您好:\n"
                 + "   感謝您的訂購！您於 " + order.getCreatedAt().format(ORDER_TIME_FORMATTER) + " 下單之商品已完成，\n"
-                + "   您的訂單編號為 \"/member/orders/" + order.getOrderId() + "\"，\n"
+                + "   您的訂單編號為 /member/orders/" + order.getOrderId() + "，\n"
                 + "   歡迎您留下評價，感謝您的惠顧！";
     }
 
@@ -98,7 +115,7 @@ public class OrderMessageContentFactory {
         String orderPath = "/member/orders/" + order.getOrderId();
         return "親愛的 會員-" + order.getBuyerId() + " 您好:\n"
                 + "   感謝您的訂購！您於 " + order.getCreatedAt().format(ORDER_TIME_FORMATTER) + " 下單之商品已到貨，\n"
-                + "   您的訂單編號為 \"" + orderPath + "\"，\n"
+                + "   您的訂單編號為 " + orderPath + "，\n"
                 + "   請於7日內取貨，並於" + orderPath + "按下\"完成訂單\"，感謝您的惠顧！";
     }
 
@@ -111,7 +128,7 @@ public class OrderMessageContentFactory {
         return "親愛的 會員-" + order.getBuyerId() + " 您好:\n"
                 + "   感謝您的訂購！您於 " + order.getCreatedAt().format(ORDER_TIME_FORMATTER) + " 下單之商品已完成下單，\n"
                 + "   我們已收到您的訂單，請於到貨後現金付款新台幣共" + order.getTotalAmount() + "元，\n"
-                + "   您的訂單編號為 \"" + orderPath + "\"，\n"
+                + "   您的訂單編號為 " + orderPath + "，\n"
                 + "   隨時點此查詢進度：" + orderPath + "，\n"
                 + "   請於貨物送達後，7日內取貨，感謝您的惠顧！";
     }

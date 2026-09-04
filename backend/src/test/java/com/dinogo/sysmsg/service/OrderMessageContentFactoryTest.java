@@ -23,7 +23,7 @@ class OrderMessageContentFactoryTest {
 
         assertEquals("親愛的 會員-14 您好:\n"
                 + "   感謝您的訂購！您於 2026/09/03 18:20 下單之商品已完成，\n"
-                + "   您的訂單編號為 \"/member/orders/60\"，\n"
+                + "   您的訂單編號為 /member/orders/60，\n"
                 + "   歡迎您留下評價，感謝您的惠顧！",
                 factory.content(order, "COMPLETED", true));
         assertEquals("訂單 ORD-001 已完成，收入金額為 1200。",
@@ -34,13 +34,15 @@ class OrderMessageContentFactoryTest {
     void createsCustomerShippedMessageWithOrderDetailLink() {
         OrderInfoResponse order = order("ORD-001", new BigDecimal("1200"));
         order.setOrderId(61);
+        order.setBuyerId(14);
         order.setCreatedAt(LocalDateTime.of(2026, 9, 4, 14, 30));
 
         assertEquals("訂單已出貨", factory.title(order, "SHIPPED", true));
-        assertEquals("親愛的消費者您好:\n"
-                + "   您於2026/09/04 14:30下單之商品已出貨，\n"
-                + "   追蹤進度連結：/member/orders/61，\n"
-                + "   請於貨物送達7日內取貨，感謝您的惠顧!",
+        assertEquals("親愛的 會員-14 您好:\n"
+                + "   感謝您的訂購！您於 2026/09/04 14:30 下單之商品已出貨，\n"
+                + "   您的訂單編號為 /member/orders/61，\n"
+                + "   隨時點此查詢進度：/member/orders/61，\n"
+                + "   請於包裹送達後，7日內取貨，感謝您的惠顧！",
                 factory.content(order, "SHIPPED", true));
         assertEquals("訂單已出貨", factory.title(order, "SHIPPED", false));
         assertEquals("訂單 ORD-001 已出貨。", factory.content(order, "SHIPPED", false));
@@ -55,9 +57,9 @@ class OrderMessageContentFactoryTest {
         order.setCancelReason("臨時不需要商品");
 
         assertEquals("訂單已取消", factory.cancelledTitle(order, true));
-        assertEquals("親愛的會員-15您好:\n"
+        assertEquals("親愛的 會員-15 您好:\n"
                 + "   感謝您今日光臨！您於 2026/09/04 09:05 下單之商品已取消，\n"
-                + "   您的訂單編號為 \"/member/orders/62\"，\n"
+                + "   您的訂單編號為 /member/orders/62，\n"
                 + "   取消原因：\n"
                 + "       臨時不需要商品\n"
                 + "   歡迎您來信說明，並再次訂購，您的意見是我們最重要的支持！",
@@ -77,7 +79,7 @@ class OrderMessageContentFactoryTest {
         assertEquals("訂單已到貨", factory.title(order, "DELIVERED", true));
         assertEquals("親愛的 會員-16 您好:\n"
                 + "   感謝您的訂購！您於 2026/09/04 16:45 下單之商品已到貨，\n"
-                + "   您的訂單編號為 \"/member/orders/63\"，\n"
+                + "   您的訂單編號為 /member/orders/63，\n"
                 + "   請於7日內取貨，並於/member/orders/63按下\"完成訂單\"，感謝您的惠顧！",
                 factory.content(order, "DELIVERED", true));
         assertEquals("訂單 ORD-003 已送達。", factory.content(order, "DELIVERED", false));
@@ -94,10 +96,27 @@ class OrderMessageContentFactoryTest {
         assertEquals("親愛的 會員-17 您好:\n"
                 + "   感謝您的訂購！您於 2026/09/04 20:10 下單之商品已完成下單，\n"
                 + "   我們已收到您的訂單，請於到貨後現金付款新台幣共1680元，\n"
-                + "   您的訂單編號為 \"/member/orders/64\"，\n"
+                + "   您的訂單編號為 /member/orders/64，\n"
                 + "   隨時點此查詢進度：/member/orders/64，\n"
                 + "   請於貨物送達後，7日內取貨，感謝您的惠顧！",
                 factory.content(order, "PROCESSING", true));
+    }
+
+    @Test
+    void createsCreditCardPaidMessage() {
+        OrderInfoResponse order = order("ORD-005", new BigDecimal("2500"));
+        order.setOrderId(65);
+        order.setBuyerId(18);
+        order.setMethodCode("CREDIT_CARD");
+        order.setCreatedAt(LocalDateTime.of(2026, 9, 4, 21, 15));
+
+        assertEquals("親愛的 會員-18 您好:\n"
+                + "   感謝您的訂購！您於 2026/09/04 21:15 下單之商品已完成下單，\n"
+                + "   我們已收到您的信用卡款項，請核對為本人付款，\n"
+                + "   您的訂單編號為 /member/orders/65，\n"
+                + "   隨時點此查詢進度：/member/orders/65，\n"
+                + "   請於貨物送達後，7日內取貨，感謝您的惠顧！",
+                factory.content(order, "PAID", true));
     }
 
     @Test

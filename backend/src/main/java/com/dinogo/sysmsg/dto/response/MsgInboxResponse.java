@@ -73,6 +73,9 @@ public class MsgInboxResponse {
 
     private String orderStatus;
 
+    /** sysmsg.send_order.order_no 的通知建立時快照。 */
+    private String orderNo;
+
     /**
      * 訊息標籤。
      */
@@ -178,6 +181,8 @@ public class MsgInboxResponse {
     public void setOrderId(Integer orderId) { this.orderId = orderId; }
     public String getOrderStatus() { return orderStatus; }
     public void setOrderStatus(String orderStatus) { this.orderStatus = orderStatus; }
+    public String getOrderNo() { return orderNo; }
+    public void setOrderNo(String orderNo) { this.orderNo = orderNo; }
 
     public String getMsgLabel() {
         return msgLabel;

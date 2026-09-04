@@ -28,6 +28,9 @@ public class RecordResponse {
 
     private String orderStatus;
 
+    /** sysmsg.send_order.order_no 的通知建立時快照。 */
+    private String orderNo;
+
     /** 訊息詳情由關聯的 SEND 唯讀取得，不由前端自行提供。 */
     private String msgLabel;
 
@@ -99,6 +102,8 @@ public class RecordResponse {
     public void setOrderId(Integer orderId) { this.orderId = orderId; }
     public String getOrderStatus() { return orderStatus; }
     public void setOrderStatus(String orderStatus) { this.orderStatus = orderStatus; }
+    public String getOrderNo() { return orderNo; }
+    public void setOrderNo(String orderNo) { this.orderNo = orderNo; }
     public String getMsgLabel() { return msgLabel; }
     public void setMsgLabel(String msgLabel) { this.msgLabel = msgLabel; }
     public String getSendTitle() { return sendTitle; }

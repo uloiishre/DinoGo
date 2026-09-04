@@ -19,6 +19,7 @@ const tabs = [
 const route = useRoute()
 const inboxes = reactive(Object.fromEntries(tabs.map((tab) => [tab.key, []])))
 const loadedTabs = reactive(Object.fromEntries(tabs.map((tab) => [tab.key, false])))
+const loadingTabs = reactive(Object.fromEntries(tabs.map((tab) => [tab.key, false])))
 const activeTab = ref('SYSTEM_INBOX')
 const statusFilter = ref('ALL')
 const pageSize = 12
@@ -29,9 +30,13 @@ const selectedOrder = ref(null)
 const selectedOrderItems = ref([])
 const selectedOrderItemsLoading = ref(false)
 const selectedOrderItemsError = ref('')
-const loading = ref(false)
 const actionPending = ref(false)
 const errorMessage = ref('')
+const loading = computed(() => loadingTabs[activeTab.value])
+const unreadCounts = computed(() => Object.fromEntries(tabs.map((tab) => [
+  tab.key,
+  inboxes[tab.key].filter((message) => message.recordStatus === 'UNREAD').length,
+])))
 const filteredItems = computed(() => inboxes[activeTab.value].filter((message) => statusFilter.value === 'ALL' || message.recordStatus === statusFilter.value))
 const totalPages = computed(() => Math.max(1, Math.ceil(filteredItems.value.length / pageSize)))
 const visibleMessages = computed(() => filteredItems.value.slice((currentPage.value - 1) * pageSize, currentPage.value * pageSize))
@@ -49,6 +54,9 @@ const isDeliveredMemberMessage = computed(() => selectedMessage.value?.orderStat
 const isShippedMemberMessage = computed(() => selectedMessage.value?.orderStatus === 'SHIPPED'
   && selectedMessage.value?.msgtoMemberId != null
   && selectedMessage.value?.orderId != null)
+const isPaidMemberMessage = computed(() => selectedMessage.value?.orderStatus === 'PAID'
+  && selectedMessage.value?.msgtoMemberId != null
+  && selectedMessage.value?.orderId != null)
 const isCashOnDeliveryCreatedMessage = computed(() => selectedMessage.value?.orderStatus === 'PROCESSING'
   && selectedMessage.value?.msgtoMemberId != null
   && selectedMessage.value?.orderId != null)
@@ -56,40 +64,43 @@ const isDetailedOrderMessage = computed(() => isCancelledMemberMessage.value
   || isCompletedMemberMessage.value
   || isDeliveredMemberMessage.value
   || isShippedMemberMessage.value
+  || isPaidMemberMessage.value
   || isCashOnDeliveryCreatedMessage.value)
 const detailedOrderTitle = computed(() => {
   if (isCompletedMemberMessage.value) return '訂單已完成'
   if (isDeliveredMemberMessage.value) return '訂單已到貨'
   if (isShippedMemberMessage.value) return '訂單已出貨'
+  if (isPaidMemberMessage.value) return '訂單付款成功'
   if (isCashOnDeliveryCreatedMessage.value) return '訂單下單成功'
   return '訂單已取消'
 })
 const cancelledOrderNo = computed(() => {
   if (!isDetailedOrderMessage.value) return ''
-  const storedOrderNo = selectedMessage.value.sendTitle?.match(/^訂單(?:已取消|已完成|已到貨|已出貨|下單成功)-(.+)$/)?.[1]
-  return selectedOrder.value?.orderNo
+  const storedOrderNo = selectedMessage.value.sendTitle?.match(/^訂單(?:已取消|已完成|已到貨|已出貨|付款成功|下單成功)-(.+)$/)?.[1]
+  return selectedMessage.value?.orderNo
+    || selectedOrder.value?.orderNo
     || storedOrderNo
     || ''
 })
 const messageContentParts = computed(() => {
   let content = selectedMessage.value?.sendContent ?? ''
   if (isCancelledMemberMessage.value && selectedOrder.value) {
-    content = `親愛的會員-${selectedMessage.value.msgtoMemberId}您好:\n`
+    content = `親愛的 會員-${selectedMessage.value.msgtoMemberId} 您好:\n`
       + `   感謝您今日光臨！您於 ${formatTemplateDate(selectedOrder.value.createdAt)} 下單之商品已取消，\n`
-      + `   您的訂單編號為 \"/member/orders/${selectedOrder.value.orderId}\"，\n`
+      + `   您的訂單編號為 /member/orders/${selectedOrder.value.orderId}，\n`
       + '   取消原因：\n'
       + `       ${selectedOrder.value.cancelReason || '未提供原因'}\n`
       + '   歡迎您來信說明，並再次訂購，您的意見是我們最重要的支持！'
   } else if (isCompletedMemberMessage.value && selectedOrder.value) {
     content = `親愛的 會員-${selectedMessage.value.msgtoMemberId} 您好:\n`
       + `   感謝您的訂購！您於 ${formatTemplateDate(selectedOrder.value.createdAt)} 下單之商品已完成，\n`
-      + `   您的訂單編號為 \"/member/orders/${selectedOrder.value.orderId}\"，\n`
+      + `   您的訂單編號為 /member/orders/${selectedOrder.value.orderId}，\n`
       + '   歡迎您留下評價，感謝您的惠顧！'
   } else if (isDeliveredMemberMessage.value && selectedOrder.value) {
     const orderPath = `/member/orders/${selectedOrder.value.orderId}`
     content = `親愛的 會員-${selectedMessage.value.msgtoMemberId} 您好:\n`
       + `   感謝您的訂購！您於 ${formatTemplateDate(selectedOrder.value.createdAt)} 下單之商品已到貨，\n`
-      + `   您的訂單編號為 \"${orderPath}\"，\n`
+      + `   您的訂單編號為 ${orderPath}，\n`
       + `   請於7日內取貨，並於${orderPath}按下\"完成訂單\"，感謝您的惠顧！`
   } else if (isShippedMemberMessage.value && selectedOrder.value) {
     const orderPath = `/member/orders/${selectedOrder.value.orderId}`
@@ -100,17 +111,25 @@ const messageContentParts = computed(() => {
       : '物流商通知期限'
     content = `親愛的 會員-${selectedMessage.value.msgtoMemberId} 您好:\n`
       + `   感謝您的訂購！您於 ${formatTemplateDate(selectedOrder.value.createdAt)} 下單之商品已出貨，\n`
-      + `   您的訂單編號為 \"${orderPath}\"，\n`
+      + `   您的訂單編號為 ${orderPath}，\n`
       + `   隨時點此查詢進度：${orderPath}，\n`
       + `   物流單號為 ${trackingNo}，預計於 ${estimatedDays} 內送達，\n`
       + '   物流追蹤：尚未提供\n'
       + '   請於包裹送達後，7日內取貨，感謝您的惠顧！'
+  } else if (isPaidMemberMessage.value && selectedOrder.value) {
+    const orderPath = `/member/orders/${selectedOrder.value.orderId}`
+    content = `親愛的 會員-${selectedMessage.value.msgtoMemberId} 您好:\n`
+      + `   感謝您的訂購！您於 ${formatTemplateDate(selectedOrder.value.createdAt)} 下單之商品已完成下單，\n`
+      + '   我們已收到您的信用卡款項，請核對為本人付款，\n'
+      + `   您的訂單編號為 ${orderPath}，\n`
+      + `   隨時點此查詢進度：${orderPath}，\n`
+      + '   請於貨物送達後，7日內取貨，感謝您的惠顧！'
   } else if (isCashOnDeliveryCreatedMessage.value && selectedOrder.value) {
     const orderPath = `/member/orders/${selectedOrder.value.orderId}`
     content = `親愛的 會員-${selectedMessage.value.msgtoMemberId} 您好:\n`
       + `   感謝您的訂購！您於 ${formatTemplateDate(selectedOrder.value.createdAt)} 下單之商品已完成下單，\n`
       + `   我們已收到您的訂單，請於到貨後現金付款新台幣共${formatAmount(selectedOrder.value.totalAmount)}元，\n`
-      + `   您的訂單編號為 \"${orderPath}\"，\n`
+      + `   您的訂單編號為 ${orderPath}，\n`
       + `   隨時點此查詢進度：${orderPath}，\n`
       + '   請於貨物送達後，7日內取貨，感謝您的惠顧！'
   }
@@ -120,7 +139,7 @@ const messageContentParts = computed(() => {
   const textParts = content.split(orderPath)
   const linkLabels = isDeliveredMemberMessage.value
     ? [cancelledOrderNo.value || '查看訂單詳情', '我的訂單-查看訂單-訂單詳情']
-    : isShippedMemberMessage.value || isCashOnDeliveryCreatedMessage.value
+    : isShippedMemberMessage.value || isPaidMemberMessage.value || isCashOnDeliveryCreatedMessage.value
       ? [cancelledOrderNo.value || '查看訂單詳情', cancelledOrderNo.value || '查看訂單詳情']
     : [isDetailedOrderMessage.value ? cancelledOrderNo.value || '查看訂單詳情' : '查看訂單詳情']
   return textParts.flatMap((text, index) => {
@@ -144,8 +163,8 @@ function sortNewestFirst(items) {
 }
 
 async function loadInbox(category, force = false) {
-  if (loadedTabs[category] && !force) return
-  loading.value = true
+  if ((loadedTabs[category] || loadingTabs[category]) && !force) return
+  loadingTabs[category] = true
   errorMessage.value = ''
   try {
     const firstResponse = await getMemberInbox(category, 0)
@@ -161,10 +180,18 @@ async function loadInbox(category, force = false) {
     ])
     loadedTabs[category] = true
   } catch (error) {
-    errorMessage.value = error.response?.data?.message || '會員收件匣載入失敗，請稍後再試。'
+    if (category === activeTab.value) {
+      errorMessage.value = error.response?.data?.message || '會員收件匣載入失敗，請稍後再試。'
+    }
   } finally {
-    loading.value = false
+    loadingTabs[category] = false
   }
+}
+
+function loadRemainingTabs(category) {
+  void Promise.allSettled(
+    tabs.filter((tab) => tab.key !== category).map((tab) => loadInbox(tab.key)),
+  )
 }
 
 async function selectTab(key) {
@@ -249,6 +276,22 @@ function formatTemplateDate(value) {
 }
 function formatCurrency(value) { return new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', maximumFractionDigits: 0 }).format(value ?? 0) }
 function formatAmount(value) { return new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 0 }).format(value ?? 0) }
+function messagePreview(message) {
+  const orderPathPattern = /\/member\/orders?\/\d+/g
+  let preview = message.sendContent ?? ''
+  if (message.orderNo) {
+    preview = preview.replace(orderPathPattern, message.orderNo)
+  } else {
+    preview = preview
+      .replace(orderPathPattern, '')
+      .replace(/您的訂單編號為\s*[「\"]?\s*[」\"]?，?/g, '')
+      .replace(/隨時點此查詢進度：\s*，?/g, '')
+      .replace(/追蹤進度連結：\s*，?/g, '')
+  }
+  return preview
+    .replace(/\s+/g, ' ')
+    .trim()
+}
 watch(statusFilter, () => { currentPage.value = 1; selectedIds.value = new Set() })
 watch(
   () => [route.query.recordId, route.query.category],
@@ -260,6 +303,7 @@ watch(
     currentPage.value = 1
     selectedIds.value = new Set()
     await loadInbox(category)
+    loadRemainingTabs(category)
 
     const recordId = Number(recordIdQuery)
     if (!Number.isInteger(recordId) || recordId <= 0) return
@@ -275,7 +319,7 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
   <main class="member-inbox-page container">
     <header class="inbox-heading"><p>會員中心 · 訊息</p><h1>會員收件匣</h1></header>
     <nav class="inbox-tabs" role="tablist" aria-label="收件匣分類">
-      <button v-for="tab in tabs" :key="tab.key" type="button" role="tab" :aria-selected="activeTab === tab.key" :class="{ active: activeTab === tab.key }" @click="selectTab(tab.key)">{{ tab.label }}</button>
+      <button v-for="tab in tabs" :key="tab.key" type="button" role="tab" :aria-selected="activeTab === tab.key" :class="{ active: activeTab === tab.key }" @click="selectTab(tab.key)"><span>{{ tab.label }}</span><span class="inbox-tab-count" :aria-label="`${unreadCounts[tab.key]} 則未讀`">({{ unreadCounts[tab.key] }})</span></button>
     </nav>
     <section class="inbox-card">
       <div class="inbox-toolbar">
@@ -290,7 +334,7 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
         <div v-else-if="visibleMessages.length === 0" class="inbox-state">目前沒有符合篩選條件的訊息。</div>
         <article v-for="message in visibleMessages" :key="message.recordId" class="message-row" :class="{ 'message-row--read': message.recordStatus === 'READ' }">
           <label class="message-check"><input type="checkbox" :checked="selectedIds.has(message.recordId)" :aria-label="`選取 ${message.sendTitle}`" @change="toggleMessage(message.recordId)" /></label>
-          <button type="button" class="message-open" @click="openMessage(message)"><span class="message-dot" :class="{ read: message.recordStatus === 'READ' }"></span><span class="message-copy"><strong>{{ message.sendTitle }}</strong><small>{{ message.sendContent }}</small></span><time :datetime="message.recordCreatedAt">{{ formatDate(message.recordCreatedAt) }}</time></button>
+          <button type="button" class="message-open" @click="openMessage(message)"><span class="message-dot" :class="{ read: message.recordStatus === 'READ' }"></span><span class="message-copy"><strong>{{ message.sendTitle }}</strong><small>{{ messagePreview(message) }}</small></span><time :datetime="message.recordCreatedAt">{{ formatDate(message.recordCreatedAt) }}</time></button>
         </article>
       </div>
       <nav v-if="!loading" class="inbox-pagination" aria-label="會員收件匣頁籤">
@@ -309,8 +353,8 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
         <div v-else-if="selectedOrderItems.length" class="message-dialog__items" :aria-label="`${detailedOrderTitle}商品明細`">
           <article v-for="item in selectedOrderItems" :key="item.orderItemId" class="message-dialog__item">
             <div class="message-dialog__item-image"><img v-if="item.productImageUrl" :src="getImageUrl(item.productImageUrl)" :alt="item.productName" /><i v-else class="bi bi-image" aria-hidden="true"></i></div>
-            <div class="message-dialog__item-copy"><strong>{{ item.productName }}</strong><span>{{ formatCurrency(item.unitPrice) }} × {{ item.quantity }}</span></div>
-            <strong class="message-dialog__item-price">{{ formatCurrency(selectedOrder.totalAmount) }}</strong>
+            <div class="message-dialog__item-copy"><strong>{{ item.productName }}</strong><span v-if="isPaidMemberMessage">數量：{{ item.quantity }}</span><span v-else>{{ formatCurrency(item.unitPrice) }} × {{ item.quantity }}</span></div>
+            <strong class="message-dialog__item-price">{{ formatCurrency(isPaidMemberMessage ? item.unitPrice : selectedOrder.totalAmount) }}</strong>
           </article>
         </div>
       </article>
@@ -320,7 +364,7 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
 
 <style scoped>
 .member-inbox-page { --bs-gutter-x: var(--space-6); max-width: 1232px; padding-block: 40px; }.inbox-heading p, .inbox-heading h1 { margin: 0; }.inbox-heading p { color: var(--color-primary-active); font-size: var(--font-size-sm); font-weight: 700; }.inbox-heading h1 { margin-top: var(--space-1); color: var(--color-text); font-family: var(--font-body); font-size: var(--font-size-xl); font-weight: 700; line-height: var(--line-height-heading); }
-.inbox-tabs { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: var(--space-5); }.inbox-tabs button { position: relative; min-height: var(--space-7); padding-inline: var(--space-5); color: var(--color-text-muted); font: inherit; font-weight: 600; background: transparent; border: 0; border-bottom: var(--space-1) solid transparent; border-radius: var(--radius-md) var(--radius-md) 0 0; }.inbox-tabs button + button::before { position: absolute; bottom: 0; left: 0; width: 1px; height: 66.6667%; content: ''; background: var(--color-border-strong); }.inbox-tabs button:hover { color: var(--color-primary-active); background: var(--color-primary-soft); }.inbox-tabs button.active { color: var(--color-primary-active); background: var(--color-primary-soft); border-bottom-color: var(--color-primary); }
+.inbox-tabs { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: var(--space-5); }.inbox-tabs button { position: relative; min-height: var(--space-7); padding-inline: var(--space-5); color: var(--color-text-muted); font: inherit; font-weight: 600; background: transparent; border: 0; border-bottom: var(--space-1) solid transparent; border-radius: var(--radius-md) var(--radius-md) 0 0; }.inbox-tabs button + button::before { position: absolute; bottom: 0; left: 0; width: 1px; height: 66.6667%; content: ''; background: var(--color-border-strong); }.inbox-tabs button:hover { color: var(--color-primary-active); background: var(--color-primary-soft); }.inbox-tabs button.active { color: var(--color-primary-active); background: var(--color-primary-soft); border-bottom-color: var(--color-primary); }.inbox-tab-count { color: var(--color-primary-active); font-variant-numeric: tabular-nums; }
 .inbox-card { overflow: hidden; margin-top: var(--space-4); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }.inbox-toolbar { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--color-surface-soft); border-bottom: 1px solid var(--color-border); }.inbox-toolbar label { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-text-muted); font-size: var(--font-size-sm); }.page-size { margin-left: auto; }.inbox-toolbar select, .delete-button { min-height: calc(var(--space-6) + var(--space-1)); padding-inline: var(--space-3); font: inherit; border-radius: var(--radius-md); }.inbox-toolbar select { background: var(--color-surface); border: 1px solid var(--color-border-strong); }.delete-button { color: var(--color-danger); background: var(--color-surface); border: 1px solid var(--color-danger); }.delete-button:disabled { color: var(--color-text-subtle); background: var(--color-disabled-bg); border-color: var(--color-disabled); }
 .message-list { min-height: 420px; }.message-row { display: grid; height: var(--inbox-message-row-height); overflow: hidden; grid-template-columns: var(--space-7) minmax(0, 1fr); border-bottom: 1px solid var(--color-border); }.message-check { display: grid; place-items: center; }.message-open { display: grid; width: 100%; min-width: 0; grid-template-columns: var(--space-3) minmax(0, 1fr); align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-4); color: var(--color-text); text-align: left; background: transparent; border: 0; }.message-row:hover { background: var(--color-primary-soft); }.message-dot { width: var(--space-2); height: var(--space-2); background: var(--color-primary); border-radius: var(--radius-pill); }.message-dot.read { background: var(--color-disabled); }.message-copy { display: grid; min-width: 0; gap: 0; }.message-copy strong, .message-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.message-copy small, .message-dialog time { color: var(--color-text-muted); font-size: var(--font-size-xs); }.message-row--read .message-open, .message-row--read .message-copy strong, .message-row--read .message-copy small, .message-row--read .message-open time { color: var(--color-text-subtle); }.inbox-state { display: grid; min-height: var(--inbox-message-row-height); place-items: center; color: var(--color-text-muted); }
 .message-overlay { position: fixed; z-index: 1050; inset: 0; display: grid; overflow-y: auto; place-items: center; padding: var(--space-5); background: color-mix(in srgb, var(--color-text) 65%, transparent); }.message-dialog { position: relative; width: min(100%, 720px); max-height: calc(100vh - (2 * var(--space-5))); overflow-y: auto; overscroll-behavior: contain; padding: var(--space-6); background: var(--color-surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }.message-dialog__close { position: absolute; top: var(--space-3); right: var(--space-3); width: var(--space-7); height: var(--space-7); color: var(--color-text-muted); font-size: var(--font-size-xl); background: transparent; border: 0; }.message-dialog header { padding-right: var(--space-7); }.message-dialog header p, .message-dialog h2 { margin: 0; }.message-dialog h2 { margin-block: var(--space-1); }.message-dialog__content { overflow-wrap: anywhere; margin-top: var(--space-5); padding-top: var(--space-5); white-space: pre-wrap; border-top: 1px solid var(--color-border); }
