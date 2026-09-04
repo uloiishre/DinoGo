@@ -4,6 +4,7 @@ import api from '../src/api/axios.js'
 import {
   createSellerMessage,
   createSellerTemplate,
+  deleteSellerTemplate,
   deleteSellerInboxMessage,
   getSellerInbox,
   getSellerInboxMessage,
@@ -13,23 +14,27 @@ import {
   markSellerInboxMessageRead,
   markSellerMessageRead,
   uploadSellerMessageImages,
+  updateSellerTemplate,
 } from '../src/api/sellerMessageApi.js'
 
 test('seller message API uses the module F contract endpoints', async (t) => {
   const originalGet = api.get
   const originalPatch = api.patch
   const originalPost = api.post
+  const originalPut = api.put
   const originalDelete = api.delete
   const calls = []
 
   api.get = async (...args) => calls.push(['get', ...args])
   api.patch = async (...args) => calls.push(['patch', ...args])
   api.post = async (...args) => calls.push(['post', ...args])
+  api.put = async (...args) => calls.push(['put', ...args])
   api.delete = async (...args) => calls.push(['delete', ...args])
   t.after(() => {
     api.get = originalGet
     api.patch = originalPatch
     api.post = originalPost
+    api.put = originalPut
     api.delete = originalDelete
   })
 
@@ -43,6 +48,8 @@ test('seller message API uses the module F contract endpoints', async (t) => {
   await createSellerMessage({ orderId: 12, sendTitle: '標題', sendContent: '內容' })
   await getSellerTemplates(3)
   await createSellerTemplate({ msgLabel: '範本', sendTitle: '標題', sendContent: '內容' })
+  await updateSellerTemplate(7, { msgLabel: '更新', sendTitle: '標題', sendContent: '內容' })
+  await deleteSellerTemplate(7)
   const image = new Blob(['image'], { type: 'image/png' })
   await uploadSellerMessageImages([image])
 
@@ -57,6 +64,8 @@ test('seller message API uses the module F contract endpoints', async (t) => {
     ['post', '/sysmsg/seller/messages', { orderId: 12, sendTitle: '標題', sendContent: '內容' }],
     ['get', '/sysmsg/seller/templates', { params: { page: 3 } }],
     ['post', '/sysmsg/seller/templates', { msgLabel: '範本', sendTitle: '標題', sendContent: '內容' }],
+    ['put', '/sysmsg/seller/templates/7', { msgLabel: '更新', sendTitle: '標題', sendContent: '內容' }],
+    ['delete', '/sysmsg/seller/templates/7'],
   ])
   const uploadCall = calls.at(-1)
   assert.equal(uploadCall[0], 'post')

@@ -3,11 +3,13 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import {
   createSellerMessage,
   createSellerTemplate,
+  deleteSellerTemplate,
   deleteSellerInboxMessage,
   getSellerInbox,
   getSellerTemplates,
   markSellerInboxMessageRead,
   uploadSellerMessageImages,
+  updateSellerTemplate,
 } from '@/api/sellerMessageApi.js'
 import { getSellerOrders } from '@/api/sellerOrderApi'
 const inboxTabs = [
@@ -55,6 +57,7 @@ const createOrders = reactive([])
 const createTemplates = reactive([])
 const createDataLoading = ref(false)
 const createSubmitting = ref(false)
+const templateActionPending = ref(false)
 const selectedTemplateIds = ref(new Set()),
   templateDetail = ref(null),
   templateEditor = reactive({
@@ -63,6 +66,8 @@ const selectedTemplateIds = ref(new Set()),
     msgLabel: '',
     sendTitle: '',
     sendContent: '',
+    sendRemark: '',
+    images: [],
   })
 const selectedOutboxIds = ref(new Set()),
   outboxDetail = ref(null)
@@ -303,62 +308,108 @@ function toggleAllTemplates() {
     : new Set(createTemplates.map((item) => item.sendId))
 }
 function openTemplateEditor(item = null) {
+  const images = ['One', 'Two', 'Three']
+    .map((position, index) => item?.[`img${position}`] ? {
+      name: `已上傳圖片 ${index + 1}`,
+      secureUrl: item[`img${position}`],
+      publicId: item[`img${position}PublicId`],
+    } : null)
+    .filter(Boolean)
   Object.assign(templateEditor, {
     open: true,
     sendId: item?.sendId ?? null,
     msgLabel: item?.msgLabel ?? '',
     sendTitle: item?.sendTitle ?? '',
     sendContent: item?.sendContent ?? '',
+    sendRemark: item?.sendRemark ?? '',
+    images,
   })
 }
-function deleteSelectedTemplates() {
-  for (let i = createTemplates.length - 1; i >= 0; i--) {
-    const item = createTemplates[i]
-    if (
-      selectedTemplateIds.value.has(item.sendId) &&
-      window.confirm(`是否確認刪除${item.msgLabel}範本`)
-    )
-      createTemplates.splice(i, 1)
-  }
-  selectedTemplateIds.value = new Set()
+function openTemplateDetail(item) {
+  openTemplateEditor(item)
+  templateEditor.open = false
+  templateDetail.value = item
+}
+function selectTemplateImages(event) {
+  templateEditor.images = [...(event.target.files ?? [])].slice(0, 3)
+  event.target.value = ''
+}
+async function deleteSelectedTemplates() {
+  if (templateActionPending.value) return
+  const confirmed = createTemplates.filter(
+    (item) => selectedTemplateIds.value.has(item.sendId)
+      && window.confirm(`是否確認刪除${item.msgLabel}範本`),
+  )
+  if (!confirmed.length) return
+  templateActionPending.value = true
+  const results = await Promise.allSettled(
+    confirmed.map((item) => deleteSellerTemplate(item.sendId)),
+  )
+  const deletedIds = new Set(
+    confirmed.filter((item, index) => results[index].status === 'fulfilled').map((item) => item.sendId),
+  )
+  for (let index = createTemplates.length - 1; index >= 0; index -= 1)
+    if (deletedIds.has(createTemplates[index].sendId)) createTemplates.splice(index, 1)
+  selectedTemplateIds.value = new Set(
+    [...selectedTemplateIds.value].filter((id) => !deletedIds.has(id)),
+  )
+  templateActionPending.value = false
 }
 function editTemplate(item) {
   openTemplateEditor(item)
 }
-function deleteTemplate(item) {
-  if (!window.confirm(`是否確認刪除${item.msgLabel}範本`)) return
-  const index = createTemplates.findIndex((value) => value.sendId === item.sendId)
-  if (index >= 0) createTemplates.splice(index, 1)
-  const next = new Set(selectedTemplateIds.value)
-  next.delete(item.sendId)
-  selectedTemplateIds.value = next
+async function deleteTemplate(item) {
+  if (templateActionPending.value || !window.confirm(`是否確認刪除${item.msgLabel}範本`)) return
+  templateActionPending.value = true
+  try {
+    await deleteSellerTemplate(item.sendId)
+    const index = createTemplates.findIndex((value) => value.sendId === item.sendId)
+    if (index >= 0) createTemplates.splice(index, 1)
+    const next = new Set(selectedTemplateIds.value)
+    next.delete(item.sendId)
+    selectedTemplateIds.value = next
+    if (templateDetail.value?.sendId === item.sendId) templateDetail.value = null
+    if (templateEditor.sendId === item.sendId) templateEditor.open = false
+  } finally {
+    templateActionPending.value = false
+  }
 }
 function editTemplateFromDetail() {
   const item = templateDetail.value
   templateDetail.value = null
   if (item) openTemplateEditor(item)
 }
-function deleteTemplateFromDetail() {
+async function deleteTemplateFromDetail() {
   const item = templateDetail.value
-  if (!item || !window.confirm(`是否確認刪除${item.msgLabel}範本`)) return
-  const index = createTemplates.findIndex((value) => value.sendId === item.sendId)
-  if (index >= 0) createTemplates.splice(index, 1)
-  const next = new Set(selectedTemplateIds.value)
-  next.delete(item.sendId)
-  selectedTemplateIds.value = next
-  templateDetail.value = null
+  if (item) await deleteTemplate(item)
 }
-function saveTemplateEditor() {
+async function saveTemplateEditor() {
+  if (templateActionPending.value) return
+  const payload = {
+    msgLabel: templateEditor.msgLabel.trim(),
+    sendTitle: templateEditor.sendTitle.trim(),
+    sendContent: templateEditor.sendContent.trim(),
+    sendRemark: templateEditor.sendRemark.trim() || null,
+  }
+  if (!payload.sendTitle || !payload.sendContent) return
+  templateActionPending.value = true
   const item = createTemplates.find((value) => value.sendId === templateEditor.sendId)
-  if (item) Object.assign(item, templateEditor)
-  else
-    createTemplates.push({
-      sendId: Date.now(),
-      msgLabel: templateEditor.msgLabel,
-      sendTitle: templateEditor.sendTitle,
-      sendContent: templateEditor.sendContent,
-    })
-  templateEditor.open = false
+  try {
+    const retainedAssets = templateEditor.images.filter((image) => image.secureUrl)
+    const newFiles = templateEditor.images.filter((image) => !image.secureUrl)
+    const uploadedAssets = newFiles.length
+      ? (await uploadSellerMessageImages(newFiles)).data.assets ?? []
+      : []
+    Object.assign(payload, imageFields([...retainedAssets, ...uploadedAssets]))
+    const response = item
+      ? await updateSellerTemplate(item.sendId, payload)
+      : await createSellerTemplate(payload)
+    if (item) Object.assign(item, response.data)
+    else createTemplates.unshift(response.data)
+    templateEditor.open = false
+  } finally {
+    templateActionPending.value = false
+  }
 }
 function toggleOutbox(id) {
   const next = new Set(selectedOutboxIds.value)
@@ -433,10 +484,10 @@ onMounted(() => {
               <i class="bi bi-plus-lg" aria-hidden="true"></i>新增範本</button
             ><button
               class="template-batch-delete"
-              :disabled="!selectedTemplateIds.size"
+              :disabled="templateActionPending || !selectedTemplateIds.size"
               @click="deleteSelectedTemplates"
             >
-              批次刪除
+              <span aria-hidden="true">×</span>批次刪除
             </button>
           </div>
           <article v-for="item in createTemplates" :key="item.sendId">
@@ -445,7 +496,7 @@ onMounted(() => {
                 type="checkbox"
                 :checked="selectedTemplateIds.has(item.sendId)"
                 @change="toggleTemplate(item.sendId)" /></label
-            ><button @click="templateDetail = item">
+            ><button @click="openTemplateDetail(item)">
               <strong>{{ item.msgLabel }}</strong
               ><small>{{ item.sendContent }}</small></button
             ><button
@@ -654,17 +705,38 @@ onMounted(() => {
         >
           ×
         </button>
-        <header>
-          <p>{{ templateDetail.msgLabel }}</p>
-          <h2>{{ templateDetail.sendTitle }}</h2>
+        <header class="template-detail-fields">
+          <div>
+            <span>自訂範本名稱</span>
+            <p>{{ templateEditor.msgLabel }}</p>
+          </div>
+          <div>
+            <span>訊息標題</span>
+            <h2>{{ templateEditor.sendTitle }}</h2>
+          </div>
         </header>
         <div class="template-detail-dialog__actions">
-          <button type="button" @click="editTemplateFromDetail">修改</button
-          ><button type="button" class="template-detail-delete" @click="deleteTemplateFromDetail">
-            刪除
+          <button type="button" class="template-row-action" @click="editTemplateFromDetail">
+            <i class="bi bi-pencil" aria-hidden="true"></i>修改</button
+          ><button type="button" class="template-row-action template-row-delete" @click="deleteTemplateFromDetail">
+            <span aria-hidden="true">×</span>刪除
           </button>
         </div>
-        <div class="template-detail-dialog__content">{{ templateDetail.sendContent }}</div>
+        <label class="textarea-field">訊息內容
+          <textarea v-model="templateEditor.sendContent" maxlength="1000" rows="8" readonly></textarea>
+          <small class="field-counter">{{ templateEditor.sendContent.length }}/1000</small>
+        </label>
+        <label class="textarea-field">備註
+          <textarea v-model="templateEditor.sendRemark" maxlength="1000" rows="4" readonly></textarea>
+          <small class="field-counter">{{ templateEditor.sendRemark.length }}/1000</small>
+        </label>
+        <label class="image-upload disabled">上傳圖片
+          <input type="file" accept="image/*" multiple disabled />
+          <small>至多三張</small>
+        </label>
+        <ul v-if="templateEditor.images.length" class="image-file-list">
+          <li v-for="image in templateEditor.images" :key="image.name">{{ image.name }}</li>
+        </ul>
       </article>
     </div>
     <div
@@ -672,12 +744,35 @@ onMounted(() => {
       class="template-overlay"
       @click.self="templateEditor.open = false"
     >
-      <form class="template-dialog" @submit.prevent="saveTemplateEditor">
-        <input v-model="templateEditor.msgLabel" placeholder="範本名稱" /><input
-          v-model="templateEditor.sendTitle"
-          placeholder="標題"
-        /><textarea v-model="templateEditor.sendContent" rows="8"></textarea
-        ><button type="submit">儲存範本</button>
+      <form class="template-dialog template-editor-dialog" @submit.prevent="saveTemplateEditor">
+        <button class="template-detail-dialog__close" type="button" aria-label="關閉範本編輯" @click="templateEditor.open = false">×</button>
+        <label>自訂範本名稱
+          <input v-model="templateEditor.msgLabel" maxlength="50" />
+        </label>
+        <label>訊息標題
+          <input v-model="templateEditor.sendTitle" maxlength="100" required />
+        </label>
+        <div v-if="templateEditor.sendId" class="template-editor-actions">
+        </div>
+        <label class="textarea-field">訊息內容
+          <textarea v-model="templateEditor.sendContent" maxlength="1000" rows="8" required></textarea>
+          <small class="field-counter">{{ templateEditor.sendContent.length }}/1000</small>
+        </label>
+        <label class="textarea-field">備註
+          <textarea v-model="templateEditor.sendRemark" maxlength="1000" rows="4"></textarea>
+          <small class="field-counter">{{ templateEditor.sendRemark.length }}/1000</small>
+        </label>
+        <label class="image-upload">上傳圖片(至多三張)
+          <input type="file" accept="image/*" multiple @change="selectTemplateImages" />
+        </label>
+        <ul v-if="templateEditor.images.length" class="image-file-list">
+          <li v-for="image in templateEditor.images" :key="image.name">{{ image.name }}</li>
+        </ul>
+        <div class="template-editor-save">
+          <button type="submit" class="send-template-button" :disabled="templateActionPending">
+            {{ templateActionPending ? '儲存中…' : '儲存' }}
+          </button>
+        </div>
       </form>
     </div>
   </section>
@@ -1154,6 +1249,7 @@ time {
   padding-inline: var(--space-3);
   font-weight: 600;
   border-radius: var(--radius-md);
+  width: 132px;
 }
 .template-create-action {
   color: var(--color-surface);
@@ -1290,21 +1386,80 @@ time {
   justify-content: flex-end;
   gap: var(--space-3);
   margin-top: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
 }
-.template-detail-dialog__actions button {
-  min-height: 38px;
-  padding-inline: var(--space-4);
+.template-detail-dialog__actions .template-row-action {
+  margin-right: 0;
+}
+.template-editor-dialog {
+  padding-top: var(--space-7);
+}
+.template-editor-dialog input,
+.template-editor-dialog textarea,
+.template-detail-dialog input,
+.template-detail-dialog textarea {
+  width: 100%;
+  padding: var(--space-3);
   font: inherit;
-  border: 1px solid var(--color-primary);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
 }
-.template-detail-dialog__actions button:first-child {
-  color: var(--color-primary-active);
-  background: var(--color-primary-soft);
+.template-editor-dialog label,
+.template-detail-dialog label {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
 }
-.template-detail-dialog__actions .template-detail-delete {
-  color: var(--color-danger);
-  background: var(--color-surface);
-  border-color: var(--color-danger);
+.template-detail-fields {
+  display: grid;
+  gap: var(--space-3);
+  padding-right: var(--space-7);
+}
+.template-detail-fields div {
+  display: grid;
+  gap: var(--space-1);
+}
+.template-detail-fields span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.template-detail-fields p,
+.template-detail-fields h2 {
+  margin: 0;
+  color: var(--color-text);
+}
+.template-detail-fields p {
+  font-size: var(--font-size-md);
+}
+.template-detail-fields h2 {
+  font-family: var(--font-heading);
+  font-size: var(--font-size-xl);
+}
+.template-detail-dialog [readonly] {
+  color: var(--color-text);
+  background: var(--color-bg-muted);
+}
+.template-detail-dialog .image-upload.disabled {
+  color: var(--color-text-subtle);
+}
+.template-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.template-editor-actions .template-row-action {
+  margin-right: 0;
+}
+.template-editor-save {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--space-2);
+}
+.template-editor-save button {
+  min-height: 40px;
+  padding-inline: var(--space-5);
+  border-radius: var(--radius-md);
 }
 </style>

@@ -25,6 +25,12 @@ export const getSellerTemplates = (page = 0) =>
 
 export const createSellerTemplate = (payload) => api.post('/sysmsg/seller/templates', payload)
 
+export const updateSellerTemplate = (sendId, payload) =>
+  api.put(`/sysmsg/seller/templates/${sendId}`, payload)
+
+export const deleteSellerTemplate = (sendId) =>
+  api.delete(`/sysmsg/seller/templates/${sendId}`)
+
 export const getSellerMessages = ({ category, page = 0, size = 20 } = {}) => {
   return api.get('/seller/messages', {
     params: {
