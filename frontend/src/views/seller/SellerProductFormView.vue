@@ -250,7 +250,7 @@ const generateSkuList = () => {
         // 編輯商品：資料庫原本存在才勾選
         enabled: oldSku?.enabled ?? (oldSku?.skuId ? true : !isEditMode.value),
 
-        price: oldSku?.price ?? '',
+        price: oldSku?.price ?? form.basePrice,
         stock: oldSku?.stock ?? '',
         status: oldSku?.status ?? 1,
       })
@@ -274,7 +274,7 @@ const generateSkuList = () => {
           // 編輯商品：既有 SKU 勾選，不存在的組合不勾
           enabled: oldSku?.enabled ?? (oldSku?.skuId ? true : !isEditMode.value),
 
-          price: oldSku?.price ?? '',
+          price: oldSku?.price ?? form.basePrice,
           stock: oldSku?.stock ?? '',
           status: oldSku?.status ?? 1,
         })
@@ -294,7 +294,6 @@ const generateSkuList = () => {
     }
   })
 
-  form.skus = newSkus
   form.skus = newSkus
 }
 
