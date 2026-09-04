@@ -43,6 +43,7 @@ const inboxActionPending = ref(false)
 const inboxError = ref('')
 const sellerUnreadCounts = reactive({ ALL: 0, SYSTEM_NOTICE: 0, NEW_ORDER: 0, CANCELLED_ORDER: 0 })
 let unreadCountsTimer = null
+let outboxCountTimer = null
 const createForm = reactive({
   saveAsTemplate: false,
   orderId: '',
@@ -80,6 +81,8 @@ const outboxCurrentPage = ref(1)
 const outboxLoading = ref(false)
 const outboxActionPending = ref(false)
 const outboxError = ref('')
+const outboxTotalCount = ref(0)
+let outboxRefreshPending = false
 const createNotice = ref('')
 const canFilter = computed(() => categoryTabs.some((tab) => tab.key === activeTab.value))
 const sourceMessages = computed(() =>
@@ -143,7 +146,7 @@ async function refreshSellerUnreadCounts() {
 }
 function outboxTabLabel(tab) {
   if (tab.key === 'TEMPLATES') return `${tab.label}(${createTemplates.length})`
-  if (tab.key === 'OUTBOX') return `${tab.label}(${sentBackup.length > 999 ? '999+' : sentBackup.length})`
+  if (tab.key === 'OUTBOX') return `${tab.label}(${outboxTotalCount.value > 999 ? '999+' : outboxTotalCount.value})`
   return tab.label
 }
 async function loadSellerInbox() {
@@ -174,6 +177,7 @@ function selectTab(key) {
   activeTab.value = key
   statusFilter.value = 'ALL'
   resetPage()
+  if (key === 'OUTBOX') void loadSellerOutbox()
 }
 function resetPage() {
   currentPage.value = 1
@@ -530,12 +534,13 @@ function toggleAllOutbox() {
     ? new Set()
     : new Set(visibleSentBackup.value.map((item) => item.sendId))
 }
-async function loadSellerOutbox() {
-  outboxLoading.value = true
+async function loadSellerOutbox(firstResponse = null, silent = false) {
+  if (!silent) outboxLoading.value = true
   outboxError.value = ''
   try {
-    const firstResponse = await getSellerOutbox(0)
-    const firstPage = firstResponse.data
+    const response = firstResponse ?? await getSellerOutbox(0)
+    const firstPage = response.data
+    outboxTotalCount.value = firstPage.totalElements ?? 0
     const remaining = await Promise.all(
       Array.from({ length: Math.max(0, firstPage.totalPages - 1) }, (_, index) =>
         getSellerOutbox(index + 1),
@@ -549,7 +554,24 @@ async function loadSellerOutbox() {
   } catch (error) {
     outboxError.value = error.response?.data?.message || '寄件備份載入失敗，請稍後再試。'
   } finally {
-    outboxLoading.value = false
+    if (!silent) outboxLoading.value = false
+  }
+}
+async function refreshSellerOutboxCount() {
+  if (outboxRefreshPending) return
+  outboxRefreshPending = true
+  try {
+    const response = await getSellerOutbox(0)
+    const firstPage = response.data
+    const firstIds = (firstPage.items ?? []).map((item) => item.sendId).join(',')
+    const currentFirstIds = sentBackup.slice(0, firstPage.size ?? 10).map((item) => item.sendId).join(',')
+    const changed = (firstPage.totalElements ?? 0) !== outboxTotalCount.value || firstIds !== currentFirstIds
+    outboxTotalCount.value = firstPage.totalElements ?? 0
+    if (activeTab.value === 'OUTBOX' && changed) await loadSellerOutbox(response, true)
+  } catch {
+    // 背景同步失敗時保留上一次成功數值。
+  } finally {
+    outboxRefreshPending = false
   }
 }
 async function deleteSelectedOutbox() {
@@ -562,6 +584,7 @@ async function deleteSelectedOutbox() {
   for (let index = sentBackup.length - 1; index >= 0; index -= 1)
     if (deletedIds.has(sentBackup[index].sendId)) sentBackup.splice(index, 1)
   selectedOutboxIds.value = new Set(ids.filter((id) => !deletedIds.has(id)))
+  outboxTotalCount.value = Math.max(0, outboxTotalCount.value - deletedIds.size)
   outboxCurrentPage.value = Math.min(outboxCurrentPage.value, outboxPageCount.value)
   if (deletedIds.size !== ids.length) outboxError.value = '部分寄件備份刪除失敗，請稍後再試。'
   outboxActionPending.value = false
@@ -589,9 +612,11 @@ onMounted(() => {
   void loadSellerOutbox()
   void refreshSellerUnreadCounts()
   unreadCountsTimer = window.setInterval(refreshSellerUnreadCounts, 1000)
+  outboxCountTimer = window.setInterval(refreshSellerOutboxCount, 1000)
 })
 onBeforeUnmount(() => {
   if (unreadCountsTimer != null) window.clearInterval(unreadCountsTimer)
+  if (outboxCountTimer != null) window.clearInterval(outboxCountTimer)
 })
 </script>
 <template>
