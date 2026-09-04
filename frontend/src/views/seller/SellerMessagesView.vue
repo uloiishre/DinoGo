@@ -98,6 +98,11 @@ const allTemplatesSelected = computed(
     createTemplates.length > 0 &&
     createTemplates.every((item) => selectedTemplateIds.value.has(item.sendId)),
 )
+const allOutboxSelected = computed(
+  () =>
+    sentBackup.length > 0 &&
+    sentBackup.every((item) => selectedOutboxIds.value.has(item.sendId)),
+)
 const selectedUnreadMessages = computed(() =>
   messages.filter(
     (item) => selectedIds.value.has(item.recordId) && item.recordStatus === 'UNREAD',
@@ -420,6 +425,11 @@ function toggleOutbox(id) {
   next.has(id) ? next.delete(id) : next.add(id)
   selectedOutboxIds.value = next
 }
+function toggleAllOutbox() {
+  selectedOutboxIds.value = allOutboxSelected.value
+    ? new Set()
+    : new Set(sentBackup.map((item) => item.sendId))
+}
 function deleteSelectedOutbox() {
   for (let i = sentBackup.length - 1; i >= 0; i--)
     if (selectedOutboxIds.value.has(sentBackup[i].sendId)) sentBackup.splice(i, 1)
@@ -475,24 +485,29 @@ onMounted(() => {
         <section v-if="activeTab === 'TEMPLATES'" class="template-manager">
           <header>
             <h2>範本管理</h2>
+            <div class="template-header-actions">
+              <button type="button" class="template-create-action" @click="openTemplateEditor()">
+                <i class="bi bi-plus-lg" aria-hidden="true"></i>新增範本</button
+              ><button
+                class="template-batch-delete"
+                :disabled="templateActionPending || !selectedTemplateIds.size"
+                @click="deleteSelectedTemplates"
+              >
+                <span aria-hidden="true">×</span>批次刪除
+              </button>
+            </div>
           </header>
-          <div class="template-toolbar">
+          <div class="template-columns">
             <label
               ><input
                 type="checkbox"
                 :checked="allTemplatesSelected"
                 @change="toggleAllTemplates"
               />全選</label
-            >
-            <button type="button" class="template-create-action" @click="openTemplateEditor()">
-              <i class="bi bi-plus-lg" aria-hidden="true"></i>新增範本</button
-            ><button
-              class="template-batch-delete"
-              :disabled="templateActionPending || !selectedTemplateIds.size"
-              @click="deleteSelectedTemplates"
-            >
-              <span aria-hidden="true">×</span>批次刪除
-            </button>
+            ><span>自訂範本名稱</span
+            ><span>訊息標題 / 訊息內容</span
+            ><span>最後修改時間</span
+            ><span aria-hidden="true"></span>
           </div>
           <article v-for="item in createTemplates" :key="item.sendId">
             <label class="template-check" @click.stop
@@ -500,24 +515,28 @@ onMounted(() => {
                 type="checkbox"
                 :checked="selectedTemplateIds.has(item.sendId)"
                 @change="toggleTemplate(item.sendId)" /></label
-            ><button @click="openTemplateDetail(item)">
-              <strong>{{ item.msgLabel }}</strong
+            ><span class="template-label">{{ item.msgLabel }}</span
+            ><button class="template-summary" @click="openTemplateDetail(item)">
+              <strong>{{ item.sendTitle }}</strong
               ><small>{{ item.sendContent }}</small></button
-            ><button
-              class="template-row-action"
-              type="button"
-              aria-label="修改範本"
-              @click="editTemplate(item)"
-            >
-              <i class="bi bi-pencil" aria-hidden="true"></i><span>修改</span></button
-            ><button
-              class="template-row-action template-row-delete"
-              type="button"
-              aria-label="刪除範本"
-              @click="deleteTemplate(item)"
-            >
-              <span aria-hidden="true">×</span><span>刪除</span>
-            </button>
+            ><time>{{ item.sendUpdAt ? formatTime(item.sendUpdAt) : '—' }}</time
+            ><div class="template-row-actions">
+              <button
+                class="template-row-action"
+                type="button"
+                aria-label="修改範本"
+                @click="editTemplate(item)"
+              >
+                <i class="bi bi-pencil" aria-hidden="true"></i><span>修改</span></button
+              ><button
+                class="template-row-action template-row-delete"
+                type="button"
+                aria-label="刪除範本"
+                @click="deleteTemplate(item)"
+              >
+                <span aria-hidden="true">×</span><span>刪除</span>
+              </button>
+            </div>
           </article>
         </section>
         <form v-else-if="activeTab === 'CREATE'" class="create-message-form" @submit.prevent="submitNewMessage">
@@ -598,10 +617,23 @@ onMounted(() => {
               <h2>寄件備份</h2>
               <p>保留商家已實際寄出的訊息紀錄。</p>
             </div>
-            <button :disabled="!selectedOutboxIds.size" @click="deleteSelectedOutbox">
+            <button class="sent-backup-delete" :disabled="!selectedOutboxIds.size" @click="deleteSelectedOutbox">
               刪除已選（{{ selectedOutboxIds.size }}）
             </button>
           </header>
+          <div class="sent-backup-columns">
+            <label
+              ><input
+                type="checkbox"
+                :checked="allOutboxSelected"
+                :disabled="!sentBackup.length"
+                @change="toggleAllOutbox"
+              />全選</label
+            ><span>訊息標題 / 訊息內容</span
+            ><span>自訂範本名稱</span
+            ><span>訂單編號</span
+            ><span>寄件時間</span>
+          </div>
           <article v-for="message in sentBackup" :key="message.sendId" class="sent-backup-row">
             <input
               type="checkbox"
@@ -1152,14 +1184,60 @@ time {
 .sent-backup > header p {
   margin: 0;
 }
+.sent-backup-delete {
+  width: 112px;
+  min-height: 32px;
+  padding-inline: var(--space-2);
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  background: var(--color-surface);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-md);
+}
+.sent-backup-delete:disabled {
+  color: var(--color-text-subtle);
+  background: var(--color-disabled-bg);
+  border-color: var(--color-disabled);
+}
+.sent-backup-columns,
 .sent-backup-row {
   display: grid;
-  min-height: 65px;
-  grid-template-columns: 20px minmax(0, 1fr) minmax(90px, 0.35fr) minmax(120px, 0.45fr) auto;
+  grid-template-columns: 76px minmax(0, 1fr) 120px 150px 160px;
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--color-border);
+}
+.sent-backup-columns {
+  min-height: 44px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  background: var(--color-surface-soft);
+}
+.sent-backup-columns label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+.sent-backup-columns label:first-child {
+  grid-column: 1;
+}
+.sent-backup-columns label:first-child + span {
+  grid-column: 2;
+}
+.sent-backup-columns > span:first-of-type {
+  text-align: left;
+}
+.sent-backup-columns > span:not(:first-of-type),
+.sent-backup-row .outbox-field,
+.sent-backup-row > time {
+  text-align: center;
+}
+.sent-backup-row {
+  min-height: 65px;
 }
 .sent-backup-row > button {
   display: grid;
@@ -1277,16 +1355,53 @@ time {
   gap: var(--space-2);
   padding: var(--space-3);
 }
-.template-toolbar button {
+.template-manager > .template-columns,
+.template-manager article {
+  display: grid;
+  grid-template-columns: 68px 120px minmax(0, 1fr) 150px 232px;
+  align-items: center;
+  justify-content: start;
+  gap: var(--space-2);
+}
+.template-columns {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  background: var(--color-surface-soft);
+  border-bottom: 1px solid var(--color-border);
+}
+.template-columns > span,
+.template-manager article > .template-label,
+.template-manager article > time {
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.template-columns > span:nth-of-type(2) {
+  text-align: left;
+}
+.template-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.template-header-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.template-header-actions button {
   display: inline-flex;
-  min-height: 36px;
+  width: 112px;
+  min-height: 32px;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  padding-inline: var(--space-3);
+  padding-inline: var(--space-2);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   border-radius: var(--radius-md);
-  width: 132px;
 }
 .template-create-action {
   color: var(--color-surface);
@@ -1306,16 +1421,21 @@ time {
   background: var(--color-disabled-bg);
   border-color: var(--color-disabled);
 }
-.template-toolbar label {
+.template-columns label {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  margin-right: auto;
+  justify-content: center;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
 .template-manager > header {
+  align-items: center;
   justify-content: space-between;
+  padding: var(--space-5);
+}
+.template-manager > header h2 {
+  margin: 0;
 }
 .template-add {
   display: grid;
@@ -1328,8 +1448,7 @@ time {
   border-radius: var(--radius-pill);
 }
 .template-manager article {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto auto;
+  padding-inline: var(--space-3);
   border-top: 1px solid var(--color-border);
 }
 .template-check {
@@ -1337,22 +1456,33 @@ time {
   min-height: 65px;
   place-items: center;
 }
-.template-manager article > button:not(.template-row-action) {
+.template-manager article > .template-summary {
   display: grid;
+  min-width: 0;
   padding: var(--space-3);
   text-align: left;
   background: transparent;
   border: 0;
 }
+.template-summary strong,
+.template-summary small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.template-manager article > time {
+  font-size: var(--font-size-xs);
+}
 .template-row-action {
   display: inline-flex;
   align-self: center;
-  min-height: 36px;
   align-items: center;
   justify-content: center;
   gap: var(--space-1);
-  margin-right: var(--space-2);
-  padding: 0 var(--space-3);
+  width: 80px;
+  min-height: 28px;
+  margin-right: 0;
+  padding: 0 var(--space-2);
   color: var(--color-surface);
   font-weight: 600;
   background: var(--color-primary);
