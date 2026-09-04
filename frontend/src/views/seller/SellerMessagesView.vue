@@ -1,5 +1,15 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import {
+  createSellerMessage,
+  createSellerTemplate,
+  deleteSellerInboxMessage,
+  getSellerInbox,
+  getSellerTemplates,
+  markSellerInboxMessageRead,
+  uploadSellerMessageImages,
+} from '@/api/sellerMessageApi.js'
+import { getSellerOrders } from '@/api/sellerOrderApi'
 const inboxTabs = [
   { key: 'ALL', label: '全部訊息' },
   { key: 'SYSTEM_NOTICE', label: '平台公告' },
@@ -22,29 +32,17 @@ const sentBackup = reactive(
   })),
 )
 const categoryTabs = inboxTabs.slice(1)
-const titleMap = {
-  SYSTEM_NOTICE: ['平台維護公告', '商家政策更新', '服務功能通知'],
-  NEW_ORDER: ['收到新訂單', '訂單付款完成', '訂單等待出貨'],
-  CANCELLED_ORDER: ['買家取消訂單', '訂單取消完成', '退款處理通知'],
-}
-const messages = reactive(
-  categoryTabs.flatMap((category, categoryIndex) =>
-    Array.from({ length: 36 }, (_, index) => ({
-      recordId: categoryIndex * 100 + index + 1,
-      category: category.key,
-      recordStatus: index % 4 === 0 ? 'READ' : 'UNREAD',
-      sendTitle: titleMap[category.key][index % 3],
-      sendContent: `這是第 ${index + 1} 則${category.label}內容，點擊可標示為已讀。`,
-      recordCreatedAt: new Date(Date.now() - (categoryIndex * 36 + index) * 3600000).toISOString(),
-    })),
-  ),
-)
+const messages = reactive([])
 const activeTab = ref('ALL'),
   statusFilter = ref('ALL'),
   pageSize = 20,
   currentPage = ref(1),
   selectedIds = ref(new Set())
+const inboxLoading = ref(false)
+const inboxActionPending = ref(false)
+const inboxError = ref('')
 const createForm = reactive({
+  saveAsTemplate: false,
   orderId: '',
   templateId: '',
   msgLabel: '',
@@ -53,25 +51,10 @@ const createForm = reactive({
   sendRemark: '',
   images: [],
 })
-const createOrders = [
-  { orderId: 101, orderNo: 'DG20260001', status: 'PAID' },
-  { orderId: 102, orderNo: 'DG20260002', status: 'PROCESSING' },
-  { orderId: 103, orderNo: 'DG20260003', status: 'SHIPPED' },
-]
-const createTemplates = reactive([
-  {
-    sendId: 1,
-    msgLabel: '出貨提醒',
-    sendTitle: '商品已出貨',
-    sendContent: '您的商品已完成出貨，請留意物流進度。',
-  },
-  {
-    sendId: 2,
-    msgLabel: '訂單確認',
-    sendTitle: '訂單內容確認',
-    sendContent: '感謝您的訂購，我們正在處理您的訂單。',
-  },
-])
+const createOrders = reactive([])
+const createTemplates = reactive([])
+const createDataLoading = ref(false)
+const createSubmitting = ref(false)
 const selectedTemplateIds = ref(new Set()),
   templateDetail = ref(null),
   templateEditor = reactive({
@@ -113,10 +96,39 @@ const allTemplatesSelected = computed(
 const unreadFilteredMessages = computed(() =>
   filteredMessages.value.filter((item) => item.recordStatus === 'UNREAD'),
 )
-function hasUnread(category) {
-  return messages.some(
+function unreadCount(category) {
+  return messages.filter(
     (item) => (category === 'ALL' || item.category === category) && item.recordStatus === 'UNREAD',
-  )
+  ).length
+}
+function outboxTabLabel(tab) {
+  if (tab.key === 'TEMPLATES') return `${tab.label}(${createTemplates.length})`
+  if (tab.key === 'OUTBOX') return `${tab.label}(${sentBackup.length > 999 ? '999+' : sentBackup.length})`
+  return tab.label
+}
+async function loadSellerInbox() {
+  inboxLoading.value = true
+  inboxError.value = ''
+  try {
+    const categoryResults = await Promise.all(categoryTabs.map(async (category) => {
+      const firstResponse = await getSellerInbox(category.key, 0)
+      const firstPage = firstResponse.data
+      const remaining = await Promise.all(
+        Array.from({ length: Math.max(0, firstPage.totalPages - 1) }, (_, index) =>
+          getSellerInbox(category.key, index + 1),
+        ),
+      )
+      return [
+        ...(firstPage.items ?? []),
+        ...remaining.flatMap((response) => response.data.items ?? []),
+      ].map((message) => ({ ...message, category: category.key }))
+    }))
+    messages.splice(0, messages.length, ...categoryResults.flat())
+  } catch (error) {
+    inboxError.value = error.response?.data?.message || '商家收件匣載入失敗，請稍後再試。'
+  } finally {
+    inboxLoading.value = false
+  }
 }
 function selectTab(key) {
   activeTab.value = key
@@ -148,15 +160,40 @@ function toggleAll() {
   )
   selectedIds.value = next
 }
-function deleteSelected() {
+async function deleteSelected() {
+  const ids = [...selectedIds.value]
+  if (!ids.length || inboxActionPending.value) return
+  inboxActionPending.value = true
+  const results = await Promise.allSettled(ids.map((id) => deleteSellerInboxMessage(id)))
+  const deletedIds = new Set(ids.filter((id, index) => results[index].status === 'fulfilled'))
   for (let index = messages.length - 1; index >= 0; index -= 1)
-    if (selectedIds.value.has(messages[index].recordId)) messages.splice(index, 1)
-  resetPage()
+    if (deletedIds.has(messages[index].recordId)) messages.splice(index, 1)
+  selectedIds.value = new Set(ids.filter((id) => !deletedIds.has(id)))
+  currentPage.value = Math.min(currentPage.value, pageCount.value)
+  if (deletedIds.size !== ids.length) inboxError.value = '部分訊息刪除失敗，請稍後再試。'
+  inboxActionPending.value = false
 }
-function markAllFilteredRead() {
-  unreadFilteredMessages.value.forEach((item) => {
-    item.recordStatus = 'READ'
+async function markAllFilteredRead() {
+  const unread = [...unreadFilteredMessages.value]
+  if (!unread.length || inboxActionPending.value) return
+  inboxActionPending.value = true
+  const results = await Promise.allSettled(
+    unread.map((item) => markSellerInboxMessageRead(item.recordId)),
+  )
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled') unread[index].recordStatus = 'READ'
   })
+  if (results.some((result) => result.status === 'rejected')) inboxError.value = '部分訊息設為已讀失敗，請稍後再試。'
+  inboxActionPending.value = false
+}
+async function openInboxMessage(message) {
+  if (message.recordStatus !== 'UNREAD' || inboxActionPending.value) return
+  try {
+    await markSellerInboxMessageRead(message.recordId)
+    message.recordStatus = 'READ'
+  } catch (error) {
+    inboxError.value = error.response?.data?.message || '訊息設為已讀失敗，請稍後再試。'
+  }
 }
 function applySelectedTemplate() {
   const template = createTemplates.find((item) => item.sendId === Number(createForm.templateId))
@@ -165,25 +202,95 @@ function applySelectedTemplate() {
       msgLabel: template.msgLabel,
       sendTitle: template.sendTitle,
       sendContent: template.sendContent,
+      sendRemark: template.sendRemark ?? '',
     })
 }
 async function selectImages(event) {
   const files = [...(event.target.files ?? [])].slice(0, 3)
-  createForm.images = files.map((file) => ({ name: file.name }))
+  createForm.images = files
   event.target.value = ''
 }
-function submitNewMessage(mode) {
-  if (!createForm.sendTitle.trim() || !createForm.sendContent.trim() || !createForm.orderId) return
-  createNotice.value = mode === 'SEND_ONLY' ? '訊息已寄出。' : '訊息已寄出，並已儲存為範本。'
-  Object.assign(createForm, {
-    orderId: '',
-    templateId: '',
-    msgLabel: '',
-    sendTitle: '',
-    sendContent: '',
-    sendRemark: '',
-    images: [],
-  })
+function imageFields(assets = []) {
+  return assets.slice(0, 3).reduce((fields, asset, index) => {
+    const position = ['One', 'Two', 'Three'][index]
+    fields[`img${position}`] = asset.secureUrl
+    fields[`img${position}PublicId`] = asset.publicId
+    return fields
+  }, {})
+}
+async function loadCreateData() {
+  createDataLoading.value = true
+  try {
+    const [ordersResponse, firstTemplateResponse] = await Promise.all([
+      getSellerOrders(),
+      getSellerTemplates(0),
+    ])
+    const orders = Array.isArray(ordersResponse.data) ? ordersResponse.data : []
+    createOrders.splice(
+      0,
+      createOrders.length,
+      ...orders.filter((order) => !['COMPLETED', 'CANCELLED'].includes(order.status)),
+    )
+    const firstPage = firstTemplateResponse.data
+    const remaining = await Promise.all(
+      Array.from({ length: Math.max(0, firstPage.totalPages - 1) }, (_, index) =>
+        getSellerTemplates(index + 1),
+      ),
+    )
+    createTemplates.splice(
+      0,
+      createTemplates.length,
+      ...(firstPage.items ?? []),
+      ...remaining.flatMap((response) => response.data.items ?? []),
+    )
+  } catch (error) {
+    createNotice.value = error.response?.data?.message || '訂單或範本載入失敗，請稍後再試。'
+  } finally {
+    createDataLoading.value = false
+  }
+}
+async function submitNewMessage() {
+  if (
+    createSubmitting.value ||
+    !createForm.sendTitle.trim() ||
+    !createForm.sendContent.trim() ||
+    !createForm.orderId
+  ) return
+  createSubmitting.value = true
+  createNotice.value = ''
+  try {
+    const assets = createForm.images.length
+      ? (await uploadSellerMessageImages(createForm.images)).data.assets ?? []
+      : []
+    const sharedPayload = {
+      sendTitle: createForm.sendTitle.trim(),
+      sendContent: createForm.sendContent.trim(),
+      sendRemark: createForm.sendRemark.trim() || null,
+      ...imageFields(assets),
+    }
+    await createSellerMessage({ orderId: Number(createForm.orderId), ...sharedPayload })
+    if (createForm.saveAsTemplate) {
+      try {
+        const response = await createSellerTemplate({
+          msgLabel: createForm.msgLabel.trim() || createForm.sendTitle.trim(),
+          ...sharedPayload,
+        })
+        createTemplates.unshift(response.data)
+      } catch (error) {
+        createNotice.value = '訊息已寄出，但範本儲存失敗，請稍後至範本管理重試。'
+        return
+      }
+    }
+    createNotice.value = createForm.saveAsTemplate ? '訊息已寄出，並已儲存為範本。' : '訊息已寄出。'
+    Object.assign(createForm, {
+      orderId: '', templateId: '', msgLabel: '', sendTitle: '', sendContent: '',
+      sendRemark: '', images: [], saveAsTemplate: false,
+    })
+  } catch (error) {
+    createNotice.value = error.response?.data?.message || '訊息寄出失敗，請稍後再試。'
+  } finally {
+    createSubmitting.value = false
+  }
 }
 function toggleTemplate(id) {
   const next = new Set(selectedTemplateIds.value)
@@ -273,6 +380,10 @@ function formatTime(value) {
     hour12: false,
   }).format(new Date(value))
 }
+onMounted(() => {
+  void loadSellerInbox()
+  void loadCreateData()
+})
 </script>
 <template>
   <section class="seller-page">
@@ -290,8 +401,7 @@ function formatTime(value) {
           :class="{ active: activeTab === tab.key }"
           @click="selectTab(tab.key)"
         >
-          <span>{{ tab.label }}</span
-          ><span v-if="hasUnread(tab.key)" class="category-unread-dot"></span>
+          <span>{{ tab.label }}({{ unreadCount(tab.key) }})</span>
         </button>
         <p class="category-heading outbox-heading">寄件匣</p>
         <button
@@ -300,7 +410,7 @@ function formatTime(value) {
           :class="{ active: activeTab === tab.key }"
           @click="selectTab(tab.key)"
         >
-          {{ tab.label }}
+          {{ outboxTabLabel(tab) }}
         </button>
       </nav>
       <div
@@ -355,22 +465,31 @@ function formatTime(value) {
             </button>
           </article>
         </section>
-        <form v-else-if="activeTab === 'CREATE'" class="create-message-form" @submit.prevent>
+        <form v-else-if="activeTab === 'CREATE'" class="create-message-form" @submit.prevent="submitNewMessage">
           <header>
             <h2>新增訊息</h2>
-            <p>編寫訊息並選擇寄出或儲存方式。</p>
           </header>
+          <label class="save-template-check">
+            <input v-model="createForm.saveAsTemplate" type="checkbox" />
+            寄出訊息並同時儲存為範本
+          </label>
           <p v-if="createNotice" class="create-notice">{{ createNotice }}</p>
           <label
-            >選擇訂單（寄出時必填）<select v-model="createForm.orderId">
-              <option value="">請選擇未完成且未取消的訂單</option>
+            >*選擇訂單（必填）<select v-model="createForm.orderId" required :disabled="createDataLoading">
+              <option value="">{{ createDataLoading ? '資料載入中…' : '請選擇未完成且未取消的訂單' }}</option>
               <option v-for="order in createOrders" :key="order.orderId" :value="order.orderId">
                 {{ order.orderNo }} · {{ order.status }}
               </option>
             </select></label
           ><label
-            >套用現有範本<select v-model="createForm.templateId" @change="applySelectedTemplate">
-              <option value="">不套用範本</option>
+            >套用現有範本<select
+              v-model="createForm.templateId"
+              :disabled="createDataLoading || !createTemplates.length"
+              @change="applySelectedTemplate"
+            >
+              <option value="">
+                {{ createDataLoading ? '範本載入中…' : createTemplates.length ? '不套用範本' : '目前無可用範本' }}
+              </option>
               <option
                 v-for="template in createTemplates"
                 :key="template.sendId"
@@ -380,13 +499,14 @@ function formatTime(value) {
               </option>
             </select></label
           ><label
-            >範本名稱<input
+            >自訂範本名稱<input
               v-model="createForm.msgLabel"
               maxlength="50"
-              placeholder="未填時使用訊息標題" /></label
-          ><label>訊息標題<input v-model="createForm.sendTitle" maxlength="100" required /></label
+              :disabled="!createForm.saveAsTemplate"
+              placeholder="未填則同訊息標題" /></label
+          ><label>*訊息標題（必填）<input v-model="createForm.sendTitle" maxlength="100" required /></label
           ><label class="textarea-field"
-            >訊息內容<textarea
+            >*訊息內容（必填）<textarea
               v-model="createForm.sendContent"
               maxlength="1000"
               rows="8"
@@ -402,26 +522,18 @@ function formatTime(value) {
               accept="image/*"
               multiple
               @change="selectImages"
-            /><small>{{ createForm.images.length }}/3</small></label
+            /></label
           >
           <ul v-if="createForm.images.length" class="image-file-list">
             <li v-for="image in createForm.images" :key="image.name">{{ image.name }}</li>
           </ul>
           <div class="create-actions">
-            <button type="button" class="send-only-button" @click="submitNewMessage('SEND_ONLY')">
-              只寄出訊息</button
-            ><button
-              type="button"
-              class="save-template-button"
-              @click="submitNewMessage('SAVE_ONLY')"
-            >
-              只儲存範本</button
-            ><button
-              type="button"
+            <button
+              type="submit"
               class="send-template-button"
-              @click="submitNewMessage('SEND_AND_SAVE')"
+              :disabled="createSubmitting || createDataLoading || !createOrders.length"
             >
-              寄出並儲存範本
+              {{ createSubmitting ? '送出中…' : '送出' }}
             </button>
           </div>
         </form>
@@ -451,8 +563,9 @@ function formatTime(value) {
           </article>
         </div>
         <template v-else>
+          <p v-if="inboxError" class="inbox-error" role="alert">{{ inboxError }}</p>
           <div class="message-toolbar">
-            <label><input type="checkbox" :checked="allSelected" @change="toggleAll" />全選</label
+            <label><input type="checkbox" :checked="allSelected" :disabled="inboxLoading || inboxActionPending || !visibleMessages.length" @change="toggleAll" />全選</label
             ><label v-if="canFilter" class="status-filter"
               ><select v-model="statusFilter" @change="resetPage">
                 <option value="ALL">全部訊息</option>
@@ -461,15 +574,16 @@ function formatTime(value) {
               </select></label
             ><button
               class="read-all-button"
-              :disabled="!unreadFilteredMessages.length"
+              :disabled="inboxActionPending || !unreadFilteredMessages.length"
               @click="markAllFilteredRead"
             >
               全部設為已讀</button
-            ><button class="delete-button" :disabled="!selectedIds.size" @click="deleteSelected">
+            ><button class="delete-button" :disabled="inboxActionPending || !selectedIds.size" @click="deleteSelected">
               刪除已選（{{ selectedIds.size }}）
             </button>
           </div>
-          <div v-if="!visibleMessages.length" class="feature-state">目前沒有符合條件的訊息。</div>
+          <div v-if="inboxLoading" class="feature-state">訊息載入中…</div>
+          <div v-else-if="!visibleMessages.length" class="feature-state">目前沒有符合條件的訊息。</div>
           <div v-else>
             <article
               v-for="message in visibleMessages"
@@ -482,7 +596,7 @@ function formatTime(value) {
                   type="checkbox"
                   :checked="selectedIds.has(message.recordId)"
                   @change="toggleOne(message.recordId)" /></label
-              ><button class="message-row" @click="message.recordStatus = 'READ'">
+              ><button class="message-row" @click="openInboxMessage(message)">
                 <span class="status-dot" :class="{ read: message.recordStatus === 'READ' }"></span
                 ><span class="message-copy"
                   ><strong>{{ message.sendTitle }}</strong
@@ -491,7 +605,7 @@ function formatTime(value) {
               </button>
             </article>
           </div>
-          <nav class="pagination">
+          <nav v-if="!inboxLoading" class="pagination" aria-label="商家收件匣頁籤">
             <button :disabled="currentPage === 1" @click="goToPage(1)">&lt;&lt;</button
             ><button :disabled="currentPage === 1" @click="goToPage(currentPage - 1)">&lt;</button
             ><button
@@ -630,15 +744,6 @@ h1 {
   font-weight: 700;
   background: var(--color-primary-soft);
 }
-.category-unread-dot {
-  position: absolute;
-  top: var(--space-2);
-  right: var(--space-2);
-  width: var(--space-2);
-  height: var(--space-2);
-  background: var(--color-primary);
-  border-radius: 50%;
-}
 .message-panel {
   min-width: 0;
   overflow: hidden;
@@ -745,6 +850,14 @@ time {
   place-content: center;
   justify-items: center;
   color: var(--color-text-muted);
+}
+.inbox-error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  background: var(--color-danger-soft);
+  border-bottom: 1px solid var(--color-danger);
 }
 @media (max-width: 767px) {
   .message-layout {
@@ -867,7 +980,7 @@ time {
 }
 .create-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   gap: var(--space-3);
 }
 .create-actions button {
@@ -1011,8 +1124,14 @@ time {
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
 }
-.create-actions .save-template-button {
-  display: none;
+.create-message-form .save-template-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.create-message-form .save-template-check input {
+  width: auto;
+  margin: 0;
 }
 .template-manager {
   background: transparent;

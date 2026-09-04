@@ -1,5 +1,30 @@
 import api from './axios.js'
 
+export const getSellerInbox = (category, page = 0) =>
+  api.get('/sysmsg/seller/inbox', { params: { category, page } })
+
+export const getSellerInboxMessage = (recordId) =>
+  api.get(`/sysmsg/seller/inbox/${recordId}`)
+
+export const markSellerInboxMessageRead = (recordId) =>
+  api.patch(`/sysmsg/seller/inbox/${recordId}/status`, { targetStatus: 'READ' })
+
+export const deleteSellerInboxMessage = (recordId) =>
+  api.delete(`/sysmsg/seller/inbox/${recordId}`)
+
+export const createSellerMessage = (payload) => api.post('/sysmsg/seller/messages', payload)
+
+export const uploadSellerMessageImages = (files) => {
+  const formData = new FormData()
+  files.forEach((file) => formData.append('files', file))
+  return api.post('/sysmsg/seller/messages/images', formData)
+}
+
+export const getSellerTemplates = (page = 0) =>
+  api.get('/sysmsg/seller/templates', { params: { page } })
+
+export const createSellerTemplate = (payload) => api.post('/sysmsg/seller/templates', payload)
+
 export const getSellerMessages = ({ category, page = 0, size = 20 } = {}) => {
   return api.get('/seller/messages', {
     params: {
