@@ -168,12 +168,10 @@ function toggleAll() {
   selectedIds.value = next
 }
 async function deleteSelected() {
-  const selected = messages.filter((item) => selectedIds.value.has(item.recordId))
-  const confirmed = selected.filter((item) =>
-    window.confirm(`是否確認刪除${item.msgLabel ?? item.sendTitle}範本`),
-  )
-  const ids = confirmed.map((item) => item.recordId)
-  if (!ids.length || inboxActionPending.value) return
+  const ids = messages
+    .filter((item) => selectedIds.value.has(item.recordId))
+    .map((item) => item.recordId)
+  if (!ids.length || inboxActionPending.value || !window.confirm('是否確認刪除訊息')) return
   inboxActionPending.value = true
   const results = await Promise.allSettled(ids.map((id) => deleteSellerInboxMessage(id)))
   const deletedIds = new Set(ids.filter((id, index) => results[index].status === 'fulfilled'))
@@ -871,9 +869,10 @@ h1 {
 .message-toolbar select,
 .delete-button,
 .read-all-button {
-  width: 124px;
-  min-height: 36px;
-  padding-inline: var(--space-3);
+  width: 112px;
+  min-height: 32px;
+  padding-inline: var(--space-2);
+  font-size: var(--font-size-sm);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
 }
@@ -1027,7 +1026,7 @@ time {
 }
 .message-title-line strong {
   min-width: 0;
-  flex: 1;
+  flex: 0 1 auto;
   font-size: var(--font-size-base);
 }
 .message-title-line .status-dot {
@@ -1049,7 +1048,7 @@ time {
   padding-right: var(--space-5);
 }
 .message-panel--inbox {
-  --seller-message-row-height: 65px;
+  --seller-message-row-height: 75px;
   padding-bottom: var(--seller-message-row-height);
   scroll-margin-top: var(--space-5);
 }
@@ -1065,8 +1064,8 @@ time {
   }
 }
 .read-all-button {
-  min-height: 36px;
-  padding-inline: var(--space-3);
+  min-height: 32px;
+  padding-inline: var(--space-2);
   color: var(--color-primary-active);
   background: var(--color-surface);
   border: 1px solid var(--color-primary);
