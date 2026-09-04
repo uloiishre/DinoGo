@@ -276,6 +276,7 @@ function formatTemplateDate(value) {
 }
 function formatCurrency(value) { return new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', maximumFractionDigits: 0 }).format(value ?? 0) }
 function formatAmount(value) { return new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 0 }).format(value ?? 0) }
+function formatItemTotal(item) { return formatCurrency(Number(item?.unitPrice ?? 0) * Number(item?.quantity ?? 0)) }
 function messagePreview(message) {
   const orderPathPattern = /\/member\/orders?\/\d+/g
   let preview = message.sendContent ?? ''
@@ -353,8 +354,8 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
         <div v-else-if="selectedOrderItems.length" class="message-dialog__items" :aria-label="`${detailedOrderTitle}商品明細`">
           <article v-for="item in selectedOrderItems" :key="item.orderItemId" class="message-dialog__item">
             <div class="message-dialog__item-image"><img v-if="item.productImageUrl" :src="getImageUrl(item.productImageUrl)" :alt="item.productName" /><i v-else class="bi bi-image" aria-hidden="true"></i></div>
-            <div class="message-dialog__item-copy"><strong>{{ item.productName }}</strong><span v-if="isPaidMemberMessage">數量：{{ item.quantity }}</span><span v-else>{{ formatCurrency(item.unitPrice) }} × {{ item.quantity }}</span></div>
-            <strong class="message-dialog__item-price">{{ formatCurrency(isPaidMemberMessage ? item.unitPrice : selectedOrder.totalAmount) }}</strong>
+            <div class="message-dialog__item-copy"><strong>{{ item.productName }}</strong><span>{{ formatCurrency(item.unitPrice) }} × {{ item.quantity }}</span></div>
+            <strong class="message-dialog__item-price">{{ formatItemTotal(item) }}</strong>
           </article>
         </div>
       </article>

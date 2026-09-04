@@ -897,10 +897,11 @@ onMounted(() => {
           class="inbox-detail-dialog__content inbox-cancelled-content"
         >
           <span>親愛的 {{ inboxDetailStoreName || '商家' }} 您好:</span>
-          <span>   感謝您支持本平台！</span>
-          <span>   您有一筆訂單已取消，</span>
+          <span class="inbox-message-line--indented">感謝您支持本平台！</span>
+          <span class="inbox-message-line--indented">您有一筆訂單已取消，</span>
           <span
-            >   訂單編號為
+            class="inbox-message-line--indented"
+            >訂單編號為
             <RouterLink
               :to="{ name: 'SellerOrderDetail', params: { id: inboxDetail.orderId } }"
               class="inbox-order-link"
@@ -908,7 +909,7 @@ onMounted(() => {
               >{{ inboxDetail.orderNo || inboxDetailOrder.orderNo }}</RouterLink
             >，</span
           >
-          <span>   取消原因：</span>
+          <span class="inbox-message-line--indented">取消原因：</span>
           <span class="inbox-cancel-reason">{{ inboxDetailOrder.cancelReason || '未提供原因' }}</span>
           <div v-if="inboxDetailOrder.items?.length" class="inbox-order-items inbox-order-items--indented">
             <article v-for="item in inboxDetailOrder.items" :key="item.orderItemId" class="inbox-order-item">
@@ -933,10 +934,11 @@ onMounted(() => {
           class="inbox-detail-dialog__content inbox-cancelled-content"
         >
           <span>親愛的 {{ inboxDetailStoreName || '商家' }} 您好:</span>
-          <span>   感謝您支持本平台！</span>
-          <span>   您有一筆新訂單，</span>
+          <span class="inbox-message-line--indented">感謝您支持本平台！</span>
+          <span class="inbox-message-line--indented">您有一筆新訂單，</span>
           <span
-            >   訂單編號為
+            class="inbox-message-line--indented"
+            >訂單編號為
             <RouterLink
               :to="{ name: 'SellerOrderDetail', params: { id: inboxDetail.orderId } }"
               class="inbox-order-link"
@@ -944,7 +946,7 @@ onMounted(() => {
               >{{ inboxDetail.orderNo || inboxDetailOrder.orderNo }}</RouterLink
             >，</span
           >
-          <span>   {{ sellerPaymentLabel(inboxDetailOrder) }} 新台幣 $ {{ formatAmount(inboxDetailOrder.totalAmount) }} 元</span>
+          <span class="inbox-message-line--indented">{{ sellerPaymentLabel(inboxDetailOrder) }} 新台幣 $ {{ formatAmount(inboxDetailOrder.totalAmount) }} 元</span>
           <div v-if="inboxDetailOrder.items?.length" class="inbox-order-items inbox-order-items--indented">
             <article v-for="item in inboxDetailOrder.items" :key="item.orderItemId" class="inbox-order-item">
               <div class="inbox-order-item__image">
@@ -968,13 +970,15 @@ onMounted(() => {
           class="inbox-detail-dialog__content inbox-cancelled-content"
         >
           <span>親愛的 {{ inboxDetailStoreName || '商家' }} 您好:</span>
-          <span>   感謝您支持本平台！</span>
+          <span class="inbox-message-line--indented">感謝您支持本平台！</span>
           <span v-if="inboxDetail.orderStatus === 'COMPLETED'"
-            >   您有一筆訂單已完成，{{ sellerPaymentLabel(inboxDetailOrder) }} 新台幣 $ {{ formatAmount(inboxDetailOrder.totalAmount) }} 元</span
+            class="inbox-message-line--indented"
+            >您有一筆訂單已完成，{{ sellerPaymentLabel(inboxDetailOrder) }} 新台幣 $ {{ formatAmount(inboxDetailOrder.totalAmount) }} 元</span
           >
-          <span v-else>   您有一筆{{ sellerProgressTitle(inboxDetail, inboxDetailOrder) }}，</span>
+          <span v-else class="inbox-message-line--indented">您有一筆{{ sellerProgressTitle(inboxDetail, inboxDetailOrder) }}，</span>
           <span
-            >   訂單編號為
+            class="inbox-message-line--indented"
+            >訂單編號為
             <RouterLink
               :to="{ name: 'SellerOrderDetail', params: { id: inboxDetail.orderId } }"
               class="inbox-order-link"
@@ -982,7 +986,7 @@ onMounted(() => {
               >{{ inboxDetail.orderNo || inboxDetailOrder.orderNo }}</RouterLink
             ><template v-if="inboxDetail.orderStatus === 'DELIVERED'">，</template></span
           >
-          <span v-if="inboxDetail.orderStatus === 'DELIVERED'">   請於7日內提醒客戶取貨，並提醒客戶於「我的訂單-查看訂單-訂單詳情」按下「完成訂單」。</span>
+          <span v-if="inboxDetail.orderStatus === 'DELIVERED'" class="inbox-message-line--indented">請於7日內提醒客戶取貨，並提醒客戶於「我的訂單-查看訂單-訂單詳情」按下「完成訂單」。</span>
           <div v-if="inboxDetailOrder.items?.length" class="inbox-order-items inbox-order-items--indented">
             <article v-for="item in inboxDetailOrder.items" :key="item.orderItemId" class="inbox-order-item">
               <div class="inbox-order-item__image">
@@ -1882,8 +1886,11 @@ time {
 .inbox-cancelled-content {
   display: grid;
 }
+.inbox-message-line--indented {
+  padding-left: var(--space-3);
+}
 .inbox-cancel-reason {
-  padding-left: var(--space-6);
+  padding-left: var(--space-7);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
