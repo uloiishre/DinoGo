@@ -11,6 +11,7 @@ import com.dinogo.sales.entity.OrderStatus;
 import com.dinogo.sales.entity.Payment;
 import com.dinogo.sales.entity.PaymentStatus;
 import com.dinogo.sales.entity.ShipmentStatus;
+import com.dinogo.sales.entity.Shipment;
 import com.dinogo.sales.exception.OrderNotFoundException;
 import com.dinogo.sales.repository.OrderRepository;
 import com.dinogo.sales.repository.ShipmentRepository;
@@ -37,7 +38,7 @@ public class OrderSysmsgProviderService {
     public OrderSysmsgResponse getOrder(Integer orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException("Order does not exist"));
-        return toResponse(order, order.getStatus().name());
+        return toResponse(order, order.getStatus().name(), null);
     }
 
     /**
@@ -48,18 +49,17 @@ public class OrderSysmsgProviderService {
     public OrderSysmsgResponse getOrderForSysmsg(Integer orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException("Order does not exist"));
-        String notificationStatus = effectiveNotificationStatus(order);
-        return toResponse(order, notificationStatus);
+        Shipment shipment = shipmentRepository.findByOrderOrderId(order.getOrderId()).orElse(null);
+        String notificationStatus = effectiveNotificationStatus(order, shipment);
+        return toResponse(order, notificationStatus, shipment);
     }
 
-    private String effectiveNotificationStatus(Order order) {
+    private String effectiveNotificationStatus(Order order, Shipment shipment) {
         if (order.getStatus() == OrderStatus.COMPLETED
                 || order.getStatus() == OrderStatus.CANCELLED) {
             return order.getStatus().name();
         }
-        boolean delivered = shipmentRepository.findByOrderOrderId(order.getOrderId())
-                .filter(shipment -> shipment.getStatus() == ShipmentStatus.DELIVERED)
-                .isPresent();
+        boolean delivered = shipment != null && shipment.getStatus() == ShipmentStatus.DELIVERED;
         if (delivered) {
             return "DELIVERED";
         }
@@ -71,7 +71,7 @@ public class OrderSysmsgProviderService {
         return order.getStatus().name();
     }
 
-    private OrderSysmsgResponse toResponse(Order order, String status) {
+    private OrderSysmsgResponse toResponse(Order order, String status, Shipment shipment) {
         java.util.stream.Stream<Payment> paymentCandidates = order.getPayments().stream();
         if ("PAID".equals(status)) {
             paymentCandidates = paymentCandidates
@@ -99,9 +99,17 @@ public class OrderSysmsgProviderService {
                 order.getTotalAmount(),
                 payment == null ? null : payment.getPaymentMethod().getPaymentMethodId(),
                 payment == null ? null : payment.getPaymentMethod().getMethodName(),
+                payment == null ? null : payment.getPaymentMethod().getMethodCode(),
                 order.getCreatedAt(),
                 order.getCancelReason(),
-                order.getCancelledAt());
+                order.getCancelledAt(),
+                order.getStatus().name(),
+                payment == null ? null : payment.getStatus().name(),
+                payment == null ? null : payment.getPaidAt(),
+                shipment == null ? null : shipment.getStatus().name(),
+                shipment == null ? null : shipment.getShippedAt(),
+                shipment == null ? null : shipment.getDeliveredAt(),
+                order.getCompletedAt());
     }
 }
 //rev+msg-end，總共1次修改，第1次//

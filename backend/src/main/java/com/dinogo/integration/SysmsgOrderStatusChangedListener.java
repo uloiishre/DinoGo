@@ -25,7 +25,7 @@ public class SysmsgOrderStatusChangedListener {
     @Async
     @TransactionalEventListener(
             phase = TransactionPhase.AFTER_COMMIT,
-            fallbackExecution = false)
+            fallbackExecution = true)
     public void onOrderStatusChanged(OrderStatusChangedEvent event) {
         OrderEventRequest request = new OrderEventRequest();
         request.setOrderId(event.orderId());

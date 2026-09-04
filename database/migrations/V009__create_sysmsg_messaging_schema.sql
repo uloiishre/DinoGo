@@ -153,7 +153,7 @@ CREATE TABLE sysmsg.send_order
     CONSTRAINT CK_send_order_total_amount CHECK (total_amount >= 0),
     CONSTRAINT CK_send_order_order_no_not_blank CHECK (LEN(LTRIM(RTRIM(order_no))) > 0),
     CONSTRAINT CK_send_order_payment_snapshot CHECK ((payment_method_id IS NULL AND method_name IS NULL) OR (payment_method_id IS NOT NULL AND method_name IS NOT NULL AND LEN(LTRIM(RTRIM(method_name))) > 0)),
-    CONSTRAINT CK_send_order_status CHECK (status IN ('PAID', 'SHIPPED', 'DELIVERED', 'COMPLETED')),
+    CONSTRAINT CK_send_order_status CHECK (status IN ('PENDING_PAYMENT', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'CANCELLED')),
     CONSTRAINT FK_send_order_send FOREIGN KEY (send_order_id)
         REFERENCES sysmsg.send(send_id) ON DELETE CASCADE
 );
@@ -174,7 +174,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_order') AND name=N'CK_send_order_payment_snapshot')
     ALTER TABLE sysmsg.send_order WITH CHECK ADD CONSTRAINT CK_send_order_payment_snapshot CHECK ((payment_method_id IS NULL AND method_name IS NULL) OR (payment_method_id IS NOT NULL AND method_name IS NOT NULL AND LEN(LTRIM(RTRIM(method_name))) > 0));
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_order') AND name=N'CK_send_order_status')
-    ALTER TABLE sysmsg.send_order WITH CHECK ADD CONSTRAINT CK_send_order_status CHECK (status IN ('PAID', 'SHIPPED', 'DELIVERED', 'COMPLETED'));
+    ALTER TABLE sysmsg.send_order WITH CHECK ADD CONSTRAINT CK_send_order_status CHECK (status IN ('PENDING_PAYMENT', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'CANCELLED'));
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_order') AND name=N'FK_send_order_send')
     ALTER TABLE sysmsg.send_order WITH CHECK ADD CONSTRAINT FK_send_order_send FOREIGN KEY (send_order_id) REFERENCES sysmsg.send(send_id) ON DELETE CASCADE;
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'sysmsg.send_order') AND name=N'IX_sysmsg_send_order_event')
@@ -335,13 +335,13 @@ CREATE TABLE sysmsg.record
     ),
     CONSTRAINT CK_sysmsg_record_order_contract CHECK
     (
-        (LEFT(msg_function, 2) IN ('AC', 'AS') AND order_id IS NOT NULL AND order_status IS NOT NULL AND order_status IN ('PAID', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'CANCELLED')) OR
+        (LEFT(msg_function, 2) IN ('AC', 'AS') AND order_id IS NOT NULL AND order_status IS NOT NULL AND order_status IN ('PENDING_PAYMENT', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'CANCELLED')) OR
         (LEFT(msg_function, 2) IN ('OA', 'OC', 'OS', 'SC') AND order_id IS NULL AND order_status IS NULL)
     ),
     CONSTRAINT CK_sysmsg_record_order_snapshot CHECK
     (
         (order_id IS NULL AND order_status IS NULL) OR
-        (order_id IS NOT NULL AND order_status IS NOT NULL AND order_status IN ('PAID', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'CANCELLED'))
+        (order_id IS NOT NULL AND order_status IS NOT NULL AND order_status IN ('PENDING_PAYMENT', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'CANCELLED'))
     )
 );
 END;
@@ -394,9 +394,9 @@ IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.record') AND name=N'CK_sysmsg_record_recipient_function')
     ALTER TABLE sysmsg.record WITH CHECK ADD CONSTRAINT CK_sysmsg_record_recipient_function CHECK ((msgto_member_id IS NOT NULL AND LEFT(msg_function,2) IN ('OA','OC','AC','SC')) OR (msgto_seller_id IS NOT NULL AND LEFT(msg_function,2) IN ('OA','OS','AS')));
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.record') AND name=N'CK_sysmsg_record_order_contract')
-    ALTER TABLE sysmsg.record WITH CHECK ADD CONSTRAINT CK_sysmsg_record_order_contract CHECK ((LEFT(msg_function,2) IN ('AC','AS') AND order_id IS NOT NULL AND order_status IS NOT NULL AND order_status IN ('PAID','SHIPPED','DELIVERED','COMPLETED','CANCELLED')) OR (LEFT(msg_function,2) IN ('OA','OC','OS','SC') AND order_id IS NULL AND order_status IS NULL));
+    ALTER TABLE sysmsg.record WITH CHECK ADD CONSTRAINT CK_sysmsg_record_order_contract CHECK ((LEFT(msg_function,2) IN ('AC','AS') AND order_id IS NOT NULL AND order_status IS NOT NULL AND order_status IN ('PENDING_PAYMENT','PAID','PROCESSING','SHIPPED','DELIVERED','COMPLETED','CANCELLED')) OR (LEFT(msg_function,2) IN ('OA','OC','OS','SC') AND order_id IS NULL AND order_status IS NULL));
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.record') AND name=N'CK_sysmsg_record_order_snapshot')
-    ALTER TABLE sysmsg.record WITH CHECK ADD CONSTRAINT CK_sysmsg_record_order_snapshot CHECK ((order_id IS NULL AND order_status IS NULL) OR (order_id IS NOT NULL AND order_status IS NOT NULL AND order_status IN ('PAID','SHIPPED','DELIVERED','COMPLETED','CANCELLED')));
+    ALTER TABLE sysmsg.record WITH CHECK ADD CONSTRAINT CK_sysmsg_record_order_snapshot CHECK ((order_id IS NULL AND order_status IS NULL) OR (order_id IS NOT NULL AND order_status IS NOT NULL AND order_status IN ('PENDING_PAYMENT','PAID','PROCESSING','SHIPPED','DELIVERED','COMPLETED','CANCELLED')));
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE parent_object_id=OBJECT_ID(N'sysmsg.record') AND name=N'FK_sysmsg_record_send_function')
     ALTER TABLE sysmsg.record WITH CHECK ADD CONSTRAINT FK_sysmsg_record_send_function FOREIGN KEY (send_id,msg_function) REFERENCES sysmsg.send(send_id,msg_function);
 GO
@@ -619,3 +619,51 @@ BEGIN
 END;
 GO
 -- //sysmsg-end，總共1次修改，第1次//
+
+-- 原 V011 constraint 升級內容直接整併於 V009：
+-- 即使 sysmsg schema 已存在，重新執行 V009 仍會更新訂單通知狀態白名單。
+SET XACT_ABORT ON;
+GO
+
+BEGIN TRY
+    BEGIN TRANSACTION;
+
+    IF OBJECT_ID(N'sysmsg.send_order', N'U') IS NULL
+        THROW 51020, N'找不到 sysmsg.send_order，無法擴充訂單通知狀態', 1;
+    IF OBJECT_ID(N'sysmsg.record', N'U') IS NULL
+        THROW 51021, N'找不到 sysmsg.record，無法擴充訂單通知狀態', 1;
+
+    IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_order') AND name=N'CK_send_order_status')
+        ALTER TABLE sysmsg.send_order DROP CONSTRAINT CK_send_order_status;
+    ALTER TABLE sysmsg.send_order WITH CHECK ADD CONSTRAINT CK_send_order_status CHECK
+    (status IN ('PENDING_PAYMENT', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'CANCELLED'));
+    ALTER TABLE sysmsg.send_order CHECK CONSTRAINT CK_send_order_status;
+
+    IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.record') AND name=N'CK_sysmsg_record_order_contract')
+        ALTER TABLE sysmsg.record DROP CONSTRAINT CK_sysmsg_record_order_contract;
+    ALTER TABLE sysmsg.record WITH CHECK ADD CONSTRAINT CK_sysmsg_record_order_contract CHECK
+    (
+        (LEFT(msg_function, 2) IN ('AC', 'AS') AND order_id IS NOT NULL
+            AND order_status IN ('PENDING_PAYMENT', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'CANCELLED')) OR
+        (LEFT(msg_function, 2) IN ('OA', 'OC', 'OS', 'SC') AND order_id IS NULL AND order_status IS NULL)
+    );
+    ALTER TABLE sysmsg.record CHECK CONSTRAINT CK_sysmsg_record_order_contract;
+
+    IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.record') AND name=N'CK_sysmsg_record_order_snapshot')
+        ALTER TABLE sysmsg.record DROP CONSTRAINT CK_sysmsg_record_order_snapshot;
+    ALTER TABLE sysmsg.record WITH CHECK ADD CONSTRAINT CK_sysmsg_record_order_snapshot CHECK
+    (
+        (order_id IS NULL AND order_status IS NULL) OR
+        (order_id IS NOT NULL
+            AND order_status IN ('PENDING_PAYMENT', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'CANCELLED'))
+    );
+    ALTER TABLE sysmsg.record CHECK CONSTRAINT CK_sysmsg_record_order_snapshot;
+
+    COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF @@TRANCOUNT > 0
+        ROLLBACK TRANSACTION;
+    THROW;
+END CATCH;
+GO

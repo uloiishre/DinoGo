@@ -12,6 +12,7 @@ import com.dinogo.sysmsg.dto.external.OrderInfoResponse;
 public class OrderMessageContentFactory {
     private static final DateTimeFormatter ORDER_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm");
     private static final Map<String, String> CUSTOMER_TITLES = Map.of(
+            "PROCESSING", "訂單下單成功",
             "PAID", "訂單付款成功",
             "SHIPPED", "訂單已出貨",
             "DELIVERED", "訂單已到貨",
@@ -27,22 +28,21 @@ public class OrderMessageContentFactory {
     }
 
     public String title(OrderInfoResponse order, String status, boolean customer) {
-        if (customer && "SHIPPED".equals(status)) {
-            return "訂單已出貨-" + order.getOrderNo();
-        }
         return title(status, customer);
     }
 
     public String content(OrderInfoResponse order, String status, boolean customer) {
         return switch (status) {
+            case "PROCESSING" -> cashOnDeliveryOrderCreatedContent(order);
             case "PAID" -> customer
                     ? "訂單 " + order.getOrderNo() + " 已付款成功。"
                     : "收到訂單 " + order.getOrderNo() + "，請開始處理。";
             case "SHIPPED" -> customer ? shippedCustomerContent(order)
                     : "訂單 " + order.getOrderNo() + " 已出貨。";
-            case "DELIVERED" -> "訂單 " + order.getOrderNo() + " 已送達。";
+            case "DELIVERED" -> customer ? deliveredCustomerContent(order)
+                    : "訂單 " + order.getOrderNo() + " 已送達。";
             case "COMPLETED" -> customer
-                    ? "訂單 " + order.getOrderNo() + " 已完成。"
+                    ? completedCustomerContent(order)
                     : "訂單 " + order.getOrderNo() + " 已完成，收入金額為 " + order.getTotalAmount() + "。";
             default -> throw new IllegalStateException("無法產生訂單通知內容：" + status);
         };
@@ -79,5 +79,40 @@ public class OrderMessageContentFactory {
                 + "   您於" + order.getCreatedAt().format(ORDER_TIME_FORMATTER) + "下單之商品已出貨，\n"
                 + "   追蹤進度連結：/member/orders/" + order.getOrderId() + "，\n"
                 + "   請於貨物送達7日內取貨，感謝您的惠顧!";
+    }
+
+    private String completedCustomerContent(OrderInfoResponse order) {
+        if (order.getOrderId() == null || order.getBuyerId() == null || order.getCreatedAt() == null) {
+            throw new IllegalStateException("訂單缺少 orderId、buyerId 或 createdAt，無法產生完成通知");
+        }
+        return "親愛的 會員-" + order.getBuyerId() + " 您好:\n"
+                + "   感謝您的訂購！您於 " + order.getCreatedAt().format(ORDER_TIME_FORMATTER) + " 下單之商品已完成，\n"
+                + "   您的訂單編號為 \"/member/orders/" + order.getOrderId() + "\"，\n"
+                + "   歡迎您留下評價，感謝您的惠顧！";
+    }
+
+    private String deliveredCustomerContent(OrderInfoResponse order) {
+        if (order.getOrderId() == null || order.getBuyerId() == null || order.getCreatedAt() == null) {
+            throw new IllegalStateException("訂單缺少 orderId、buyerId 或 createdAt，無法產生到貨通知");
+        }
+        String orderPath = "/member/orders/" + order.getOrderId();
+        return "親愛的 會員-" + order.getBuyerId() + " 您好:\n"
+                + "   感謝您的訂購！您於 " + order.getCreatedAt().format(ORDER_TIME_FORMATTER) + " 下單之商品已到貨，\n"
+                + "   您的訂單編號為 \"" + orderPath + "\"，\n"
+                + "   請於7日內取貨，並於" + orderPath + "按下\"完成訂單\"，感謝您的惠顧！";
+    }
+
+    private String cashOnDeliveryOrderCreatedContent(OrderInfoResponse order) {
+        if (order.getOrderId() == null || order.getBuyerId() == null
+                || order.getCreatedAt() == null || order.getTotalAmount() == null) {
+            throw new IllegalStateException("訂單缺少 orderId、buyerId、createdAt 或 totalAmount，無法產生貨到付款下單通知");
+        }
+        String orderPath = "/member/orders/" + order.getOrderId();
+        return "親愛的 會員-" + order.getBuyerId() + " 您好:\n"
+                + "   感謝您的訂購！您於 " + order.getCreatedAt().format(ORDER_TIME_FORMATTER) + " 下單之商品已完成下單，\n"
+                + "   我們已收到您的訂單，請於到貨後現金付款新台幣共" + order.getTotalAmount() + "元，\n"
+                + "   您的訂單編號為 \"" + orderPath + "\"，\n"
+                + "   隨時點此查詢進度：" + orderPath + "，\n"
+                + "   請於貨物送達後，7日內取貨，感謝您的惠顧！";
     }
 }

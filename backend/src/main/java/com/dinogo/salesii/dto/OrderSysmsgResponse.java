@@ -19,6 +19,7 @@ public record OrderSysmsgResponse(
         BigDecimal totalAmount,
         Integer paymentMethodId,
         String methodName,
+        String methodCode,
         LocalDateTime createdAt,
         String cancelReason,
         LocalDateTime cancelledAt,
@@ -49,7 +50,26 @@ public record OrderSysmsgResponse(
             String cancelReason,
             LocalDateTime cancelledAt) {
         this(orderId, orderNo, buyerId, sellerId, status, items,
-                totalAmount, paymentMethodId, methodName, createdAt, cancelReason, cancelledAt,
+                totalAmount, paymentMethodId, methodName, null, createdAt, cancelReason, cancelledAt,
+                status, null, null, null, null, null, null);
+    }
+
+    public OrderSysmsgResponse(
+            Integer orderId,
+            String orderNo,
+            Integer buyerId,
+            Integer sellerId,
+            String status,
+            List<OrderReviewItemResponse> items,
+            BigDecimal totalAmount,
+            Integer paymentMethodId,
+            String methodName,
+            String methodCode,
+            LocalDateTime createdAt,
+            String cancelReason,
+            LocalDateTime cancelledAt) {
+        this(orderId, orderNo, buyerId, sellerId, status, items,
+                totalAmount, paymentMethodId, methodName, methodCode, createdAt, cancelReason, cancelledAt,
                 status, null, null, null, null, null, null);
     }
 
@@ -62,7 +82,7 @@ public record OrderSysmsgResponse(
             String status,
             List<OrderReviewItemResponse> items) {
         this(orderId, orderNo, buyerId, sellerId, status, items,
-                null, null, null, null, null, null,
+                null, null, null, null, null, null, null,
                 status, null, null, null, null, null, null);
     }
 }

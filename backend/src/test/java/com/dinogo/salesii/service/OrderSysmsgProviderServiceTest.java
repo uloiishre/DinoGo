@@ -97,6 +97,28 @@ class OrderSysmsgProviderServiceTest {
     }
 
     @Test
+    void cashOnDeliverySnapshotExposesStablePaymentMethodCode() {
+        Order order = order(12, OrderStatus.PROCESSING);
+        Payment payment = new Payment();
+        payment.setPaymentId(102);
+        payment.setStatus(PaymentStatus.PENDING);
+        PaymentMethod method = new PaymentMethod();
+        method.setPaymentMethodId(3);
+        method.setMethodCode("CASH_ON_DELIVERY");
+        method.setMethodName("可調整的顯示名稱");
+        payment.setPaymentMethod(method);
+        order.getPayments().add(payment);
+        when(orders.findById(12)).thenReturn(Optional.of(order));
+        when(shipments.findByOrderOrderId(12)).thenReturn(Optional.empty());
+
+        OrderSysmsgResponse snapshot = new OrderSysmsgProviderService(orders, shipments)
+                .getOrderForSysmsg(12);
+
+        assertEquals("PROCESSING", snapshot.status());
+        assertEquals("CASH_ON_DELIVERY", snapshot.methodCode());
+    }
+
+    @Test
     void paidSnapshotUsesSuccessfulPaymentInsteadOfNewerFailedPayment() {
         Order order = order(11, OrderStatus.PROCESSING);
         PaymentMethod successfulMethod = new PaymentMethod();

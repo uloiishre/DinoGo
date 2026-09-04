@@ -40,37 +40,100 @@ const allVisibleSelected = computed(() => visibleMessages.value.length > 0 && vi
 const isCancelledMemberMessage = computed(() => selectedMessage.value?.orderStatus === 'CANCELLED'
   && selectedMessage.value?.msgtoMemberId != null
   && selectedMessage.value?.orderId != null)
+const isCompletedMemberMessage = computed(() => selectedMessage.value?.orderStatus === 'COMPLETED'
+  && selectedMessage.value?.msgtoMemberId != null
+  && selectedMessage.value?.orderId != null)
+const isDeliveredMemberMessage = computed(() => selectedMessage.value?.orderStatus === 'DELIVERED'
+  && selectedMessage.value?.msgtoMemberId != null
+  && selectedMessage.value?.orderId != null)
+const isShippedMemberMessage = computed(() => selectedMessage.value?.orderStatus === 'SHIPPED'
+  && selectedMessage.value?.msgtoMemberId != null
+  && selectedMessage.value?.orderId != null)
+const isCashOnDeliveryCreatedMessage = computed(() => selectedMessage.value?.orderStatus === 'PROCESSING'
+  && selectedMessage.value?.msgtoMemberId != null
+  && selectedMessage.value?.orderId != null)
+const isDetailedOrderMessage = computed(() => isCancelledMemberMessage.value
+  || isCompletedMemberMessage.value
+  || isDeliveredMemberMessage.value
+  || isShippedMemberMessage.value
+  || isCashOnDeliveryCreatedMessage.value)
+const detailedOrderTitle = computed(() => {
+  if (isCompletedMemberMessage.value) return '訂單已完成'
+  if (isDeliveredMemberMessage.value) return '訂單已到貨'
+  if (isShippedMemberMessage.value) return '訂單已出貨'
+  if (isCashOnDeliveryCreatedMessage.value) return '訂單下單成功'
+  return '訂單已取消'
+})
 const cancelledOrderNo = computed(() => {
-  if (!isCancelledMemberMessage.value) return ''
-  const storedOrderNo = selectedMessage.value.sendTitle?.match(/^訂單已取消-(.+)$/)?.[1]
+  if (!isDetailedOrderMessage.value) return ''
+  const storedOrderNo = selectedMessage.value.sendTitle?.match(/^訂單(?:已取消|已完成|已到貨|已出貨|下單成功)-(.+)$/)?.[1]
   return selectedOrder.value?.orderNo
     || storedOrderNo
     || ''
 })
 const messageContentParts = computed(() => {
-  const content = isCancelledMemberMessage.value && selectedOrder.value
-    ? `親愛的會員-${selectedMessage.value.msgtoMemberId}您好:\n`
+  let content = selectedMessage.value?.sendContent ?? ''
+  if (isCancelledMemberMessage.value && selectedOrder.value) {
+    content = `親愛的會員-${selectedMessage.value.msgtoMemberId}您好:\n`
       + `   感謝您今日光臨！您於 ${formatTemplateDate(selectedOrder.value.createdAt)} 下單之商品已取消，\n`
       + `   您的訂單編號為 \"/member/orders/${selectedOrder.value.orderId}\"，\n`
       + '   取消原因：\n'
       + `       ${selectedOrder.value.cancelReason || '未提供原因'}\n`
       + '   歡迎您來信說明，並再次訂購，您的意見是我們最重要的支持！'
-    : selectedMessage.value?.sendContent ?? ''
+  } else if (isCompletedMemberMessage.value && selectedOrder.value) {
+    content = `親愛的 會員-${selectedMessage.value.msgtoMemberId} 您好:\n`
+      + `   感謝您的訂購！您於 ${formatTemplateDate(selectedOrder.value.createdAt)} 下單之商品已完成，\n`
+      + `   您的訂單編號為 \"/member/orders/${selectedOrder.value.orderId}\"，\n`
+      + '   歡迎您留下評價，感謝您的惠顧！'
+  } else if (isDeliveredMemberMessage.value && selectedOrder.value) {
+    const orderPath = `/member/orders/${selectedOrder.value.orderId}`
+    content = `親愛的 會員-${selectedMessage.value.msgtoMemberId} 您好:\n`
+      + `   感謝您的訂購！您於 ${formatTemplateDate(selectedOrder.value.createdAt)} 下單之商品已到貨，\n`
+      + `   您的訂單編號為 \"${orderPath}\"，\n`
+      + `   請於7日內取貨，並於${orderPath}按下\"完成訂單\"，感謝您的惠顧！`
+  } else if (isShippedMemberMessage.value && selectedOrder.value) {
+    const orderPath = `/member/orders/${selectedOrder.value.orderId}`
+    const shipment = selectedOrder.value.shipment
+    const trackingNo = shipment?.trackingNo || '尚未提供'
+    const estimatedDays = shipment?.shippedAt && shipment?.availablePickupAt
+      ? `${Math.max(1, Math.ceil((Date.parse(shipment.availablePickupAt) - Date.parse(shipment.shippedAt)) / 86400000))}日`
+      : '物流商通知期限'
+    content = `親愛的 會員-${selectedMessage.value.msgtoMemberId} 您好:\n`
+      + `   感謝您的訂購！您於 ${formatTemplateDate(selectedOrder.value.createdAt)} 下單之商品已出貨，\n`
+      + `   您的訂單編號為 \"${orderPath}\"，\n`
+      + `   隨時點此查詢進度：${orderPath}，\n`
+      + `   物流單號為 ${trackingNo}，預計於 ${estimatedDays} 內送達，\n`
+      + '   物流追蹤：尚未提供\n'
+      + '   請於包裹送達後，7日內取貨，感謝您的惠顧！'
+  } else if (isCashOnDeliveryCreatedMessage.value && selectedOrder.value) {
+    const orderPath = `/member/orders/${selectedOrder.value.orderId}`
+    content = `親愛的 會員-${selectedMessage.value.msgtoMemberId} 您好:\n`
+      + `   感謝您的訂購！您於 ${formatTemplateDate(selectedOrder.value.createdAt)} 下單之商品已完成下單，\n`
+      + `   我們已收到您的訂單，請於到貨後現金付款新台幣共${formatAmount(selectedOrder.value.totalAmount)}元，\n`
+      + `   您的訂單編號為 \"${orderPath}\"，\n`
+      + `   隨時點此查詢進度：${orderPath}，\n`
+      + '   請於貨物送達後，7日內取貨，感謝您的惠顧！'
+  }
   const orderId = selectedMessage.value?.orderId
   const orderPath = orderId == null ? '' : `/member/orders/${orderId}`
   if (!orderPath || !content.includes(orderPath)) return [{ type: 'text', value: content }]
-  const [before, after] = content.split(orderPath, 2)
-  return [
-    { type: 'text', value: before },
-    {
-      type: 'link',
-      value: selectedMessage.value.orderStatus === 'CANCELLED'
-        ? cancelledOrderNo.value || '查看訂單詳情'
-        : '查看訂單詳情',
-      to: { name: 'MemberOrderDetail', params: { id: orderId } },
-    },
-    { type: 'text', value: after },
-  ]
+  const textParts = content.split(orderPath)
+  const linkLabels = isDeliveredMemberMessage.value
+    ? [cancelledOrderNo.value || '查看訂單詳情', '我的訂單-查看訂單-訂單詳情']
+    : isShippedMemberMessage.value || isCashOnDeliveryCreatedMessage.value
+      ? [cancelledOrderNo.value || '查看訂單詳情', cancelledOrderNo.value || '查看訂單詳情']
+    : [isDetailedOrderMessage.value ? cancelledOrderNo.value || '查看訂單詳情' : '查看訂單詳情']
+  return textParts.flatMap((text, index) => {
+    const result = [{ type: 'text', value: text }]
+    if (index < textParts.length - 1) {
+      result.push({
+        type: 'link',
+        value: linkLabels[index] || '查看訂單詳情',
+        to: { name: 'MemberOrderDetail', params: { id: orderId } },
+      })
+    }
+    return result
+  })
 })
 
 function sortNewestFirst(items) {
@@ -154,7 +217,7 @@ async function openMessage(message) {
     message.recordStatus = 'READ'
     selectedMessage.value = { ...message, ...response.data }
     if (wasUnread) announceMemberUnreadChanged()
-    if (isCancelledMemberMessage.value) {
+    if (isDetailedOrderMessage.value) {
       selectedOrderItemsLoading.value = true
       try {
         const orderResponse = await getOrder(selectedMessage.value.orderId)
@@ -185,6 +248,7 @@ function formatTemplateDate(value) {
   return `${part('year')}/${part('month')}/${part('day')} ${part('hour')}:${part('minute')}`
 }
 function formatCurrency(value) { return new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', maximumFractionDigits: 0 }).format(value ?? 0) }
+function formatAmount(value) { return new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 0 }).format(value ?? 0) }
 watch(statusFilter, () => { currentPage.value = 1; selectedIds.value = new Set() })
 watch(
   () => [route.query.recordId, route.query.category],
@@ -238,11 +302,11 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
     <div v-if="selectedMessage" class="message-overlay" @click.self="closeMessage">
       <article class="message-dialog" role="dialog" aria-modal="true" aria-labelledby="preview-message-detail-title">
         <button type="button" class="message-dialog__close" aria-label="關閉詳細訊息" @click="closeMessage">×</button>
-        <header><div><p>from：{{ senderLabel(selectedMessage) }}</p><h2 id="preview-message-detail-title"><template v-if="cancelledOrderNo"><span>訂單已取消</span><RouterLink :to="{ name: 'MemberOrderDetail', params: { id: selectedMessage.orderId } }" class="message-dialog__title-link" @click="closeMessage">{{ cancelledOrderNo }}</RouterLink></template><template v-else>{{ selectedMessage.sendTitle }}</template></h2><time :datetime="selectedMessage.recordCreatedAt">{{ formatDate(selectedMessage.recordCreatedAt) }}</time></div></header>
+        <header><div><p>from：{{ senderLabel(selectedMessage) }}</p><h2 id="preview-message-detail-title"><template v-if="cancelledOrderNo"><span>{{ detailedOrderTitle }}</span><RouterLink :to="{ name: 'MemberOrderDetail', params: { id: selectedMessage.orderId } }" class="message-dialog__title-link" @click="closeMessage">{{ cancelledOrderNo }}</RouterLink></template><template v-else>{{ selectedMessage.sendTitle }}</template></h2><time :datetime="selectedMessage.recordCreatedAt">{{ formatDate(selectedMessage.recordCreatedAt) }}</time></div></header>
         <div class="message-dialog__content"><template v-for="(part, index) in messageContentParts" :key="index"><RouterLink v-if="part.type === 'link'" :to="part.to" class="message-dialog__order-link" @click="closeMessage">{{ part.value }}</RouterLink><span v-else>{{ part.value }}</span></template></div>
         <div v-if="selectedOrderItemsLoading" class="message-dialog__items-state">商品明細載入中…</div>
         <p v-else-if="selectedOrderItemsError" class="message-dialog__items-state">{{ selectedOrderItemsError }}</p>
-        <div v-else-if="selectedOrderItems.length" class="message-dialog__items" aria-label="取消訂單商品明細">
+        <div v-else-if="selectedOrderItems.length" class="message-dialog__items" :aria-label="`${detailedOrderTitle}商品明細`">
           <article v-for="item in selectedOrderItems" :key="item.orderItemId" class="message-dialog__item">
             <div class="message-dialog__item-image"><img v-if="item.productImageUrl" :src="getImageUrl(item.productImageUrl)" :alt="item.productName" /><i v-else class="bi bi-image" aria-hidden="true"></i></div>
             <div class="message-dialog__item-copy"><strong>{{ item.productName }}</strong><span>{{ formatCurrency(item.unitPrice) }} × {{ item.quantity }}</span></div>

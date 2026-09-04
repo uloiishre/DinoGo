@@ -17,8 +17,15 @@ class OrderMessageContentFactoryTest {
     @Test
     void createsDifferentCompletedContentForCustomerAndSeller() {
         OrderInfoResponse order = order("ORD-001", new BigDecimal("1200"));
+        order.setOrderId(60);
+        order.setBuyerId(14);
+        order.setCreatedAt(LocalDateTime.of(2026, 9, 3, 18, 20));
 
-        assertEquals("訂單 ORD-001 已完成。", factory.content(order, "COMPLETED", true));
+        assertEquals("親愛的 會員-14 您好:\n"
+                + "   感謝您的訂購！您於 2026/09/03 18:20 下單之商品已完成，\n"
+                + "   您的訂單編號為 \"/member/orders/60\"，\n"
+                + "   歡迎您留下評價，感謝您的惠顧！",
+                factory.content(order, "COMPLETED", true));
         assertEquals("訂單 ORD-001 已完成，收入金額為 1200。",
                 factory.content(order, "COMPLETED", false));
     }
@@ -29,7 +36,7 @@ class OrderMessageContentFactoryTest {
         order.setOrderId(61);
         order.setCreatedAt(LocalDateTime.of(2026, 9, 4, 14, 30));
 
-        assertEquals("訂單已出貨-ORD-001", factory.title(order, "SHIPPED", true));
+        assertEquals("訂單已出貨", factory.title(order, "SHIPPED", true));
         assertEquals("親愛的消費者您好:\n"
                 + "   您於2026/09/04 14:30下單之商品已出貨，\n"
                 + "   追蹤進度連結：/member/orders/61，\n"
@@ -58,6 +65,39 @@ class OrderMessageContentFactoryTest {
         assertEquals("訂單已取消", factory.cancelledTitle(order, false));
         assertEquals("訂單 ORD-002 已取消，原因：臨時不需要商品。",
                 factory.cancelledContent(order, false));
+    }
+
+    @Test
+    void createsCustomerDeliveredMessageWithOrderLinks() {
+        OrderInfoResponse order = order("ORD-003", new BigDecimal("900"));
+        order.setOrderId(63);
+        order.setBuyerId(16);
+        order.setCreatedAt(LocalDateTime.of(2026, 9, 4, 16, 45));
+
+        assertEquals("訂單已到貨", factory.title(order, "DELIVERED", true));
+        assertEquals("親愛的 會員-16 您好:\n"
+                + "   感謝您的訂購！您於 2026/09/04 16:45 下單之商品已到貨，\n"
+                + "   您的訂單編號為 \"/member/orders/63\"，\n"
+                + "   請於7日內取貨，並於/member/orders/63按下\"完成訂單\"，感謝您的惠顧！",
+                factory.content(order, "DELIVERED", true));
+        assertEquals("訂單 ORD-003 已送達。", factory.content(order, "DELIVERED", false));
+    }
+
+    @Test
+    void createsCashOnDeliveryPlacedMessage() {
+        OrderInfoResponse order = order("ORD-004", new BigDecimal("1680"));
+        order.setOrderId(64);
+        order.setBuyerId(17);
+        order.setCreatedAt(LocalDateTime.of(2026, 9, 4, 20, 10));
+
+        assertEquals("訂單下單成功", factory.title(order, "PROCESSING", true));
+        assertEquals("親愛的 會員-17 您好:\n"
+                + "   感謝您的訂購！您於 2026/09/04 20:10 下單之商品已完成下單，\n"
+                + "   我們已收到您的訂單，請於到貨後現金付款新台幣共1680元，\n"
+                + "   您的訂單編號為 \"/member/orders/64\"，\n"
+                + "   隨時點此查詢進度：/member/orders/64，\n"
+                + "   請於貨物送達後，7日內取貨，感謝您的惠顧！",
+                factory.content(order, "PROCESSING", true));
     }
 
     @Test

@@ -22,7 +22,8 @@ import com.dinogo.sysmsg.service.mapper.SendResponseMapper;
 
 @Service
 public class OrderMessageServiceImpl implements OrderMessageService {
-    private static final Set<String> CUSTOMER = Set.of("PAID","SHIPPED","DELIVERED","COMPLETED");
+    private static final String COD_ORDER_CREATED = "PROCESSING";
+    private static final Set<String> CUSTOMER = Set.of(COD_ORDER_CREATED,"PAID","SHIPPED","DELIVERED","COMPLETED");
     private static final Set<String> SELLER = Set.of("PAID","SHIPPED","DELIVERED","COMPLETED");
     private final OrderSysmsgProviderService orders;
     private final SendRepository sends;
@@ -54,6 +55,12 @@ public class OrderMessageServiceImpl implements OrderMessageService {
         OrderInfoResponse order=require(ModuleDataMapper.order(orders.getOrderForSysmsg(r.getOrderId())));
         List<SendResponse> result=new ArrayList<>();
         for (String status : notificationStatuses(order)) {
+            if (COD_ORDER_CREATED.equals(status)) {
+                boolean customerExists = records.existsByOrderIdAndOrderStatusAndMsgtoMemberId(
+                        order.getOrderId(), status, order.getBuyerId());
+                if (!customerExists) result.add(normalFromOrder(order, status, true));
+                continue;
+            }
             boolean customerExists = records.existsByOrderIdAndOrderStatusAndMsgtoMemberId(
                     order.getOrderId(), status, order.getBuyerId());
             boolean sellerExists = records.existsByOrderIdAndOrderStatusAndMsgtoSellerId(
@@ -80,6 +87,9 @@ public class OrderMessageServiceImpl implements OrderMessageService {
         if ("CANCELLED".equals(orderStatus)) {
             return List.of("CANCELLED");
         }
+        if ("CASH_ON_DELIVERY".equals(order.getMethodCode())) {
+            statuses.add(COD_ORDER_CREATED);
+        }
         if ("SUCCESS".equalsIgnoreCase(order.getPaymentStatus()) && order.getPaidAt() != null) {
             statuses.add("PAID");
         }
@@ -94,7 +104,7 @@ public class OrderMessageServiceImpl implements OrderMessageService {
         }
         if (statuses.isEmpty()) {
             String projected = normalize(order.getStatus());
-            if (CUSTOMER.contains(projected)) {
+            if (CUSTOMER.contains(projected) && !COD_ORDER_CREATED.equals(projected)) {
                 statuses.add(projected);
             }
         }
