@@ -234,7 +234,9 @@ async function openInboxMessage(message) {
     } else inboxError.value = readResult?.reason?.response?.data?.message || '訊息設為已讀失敗，請稍後再試。'
   }
   if (
-    ['CANCELLED', 'PAID', 'PROCESSING'].includes(inboxDetail.value?.orderStatus) &&
+    ['CANCELLED', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'COMPLETED'].includes(
+      inboxDetail.value?.orderStatus,
+    ) &&
     inboxDetail.value?.orderId
   ) {
     inboxDetailOrderLoading.value = true
@@ -254,6 +256,16 @@ function inboxMessageSource(message) {
 }
 function isNewSellerOrderMessage(message) {
   return message?.msgFunction === 'AS' && ['PAID', 'PROCESSING'].includes(message?.orderStatus)
+}
+function isSellerProgressMessage(message) {
+  return message?.msgFunction === 'AS' && ['SHIPPED', 'DELIVERED', 'COMPLETED'].includes(message?.orderStatus)
+}
+function sellerProgressTitle(message) {
+  return {
+    SHIPPED: '訂單已出貨',
+    DELIVERED: '訂單已送達',
+    COMPLETED: '訂單已完成',
+  }[message?.orderStatus] ?? ''
 }
 function sellerPaymentLabel(order) {
   return order?.payment?.paymentMethodCode === 'CASH_ON_DELIVERY' ? '貨到付款' : '信用卡付款'
@@ -848,6 +860,16 @@ onMounted(() => {
               {{ inboxDetail.orderNo || inboxDetailOrder?.orderNo || '查看訂單' }}
             </RouterLink>
           </h2>
+          <h2 v-else-if="isSellerProgressMessage(inboxDetail)" class="inbox-cancelled-title">
+            <span>{{ sellerProgressTitle(inboxDetail) }}</span>
+            <RouterLink
+              :to="{ name: 'SellerOrderDetail', params: { id: inboxDetail.orderId } }"
+              class="inbox-order-link inbox-order-link--title"
+              @click="inboxDetail = null"
+            >
+              {{ inboxDetail.orderNo || inboxDetailOrder?.orderNo || '查看訂單' }}
+            </RouterLink>
+          </h2>
           <h2 v-else>{{ inboxDetail.sendTitle }}</h2>
           <time>{{ formatTime(inboxDetail.recordCreatedAt) }}</time>
         </header>
@@ -869,7 +891,7 @@ onMounted(() => {
           >
           <span>   取消原因：</span>
           <span class="inbox-cancel-reason">{{ inboxDetailOrder.cancelReason || '未提供原因' }}</span>
-          <div v-if="inboxDetailOrder.items?.length" class="inbox-order-items">
+          <div v-if="inboxDetailOrder.items?.length" class="inbox-order-items inbox-order-items--indented">
             <article v-for="item in inboxDetailOrder.items" :key="item.orderItemId" class="inbox-order-item">
               <div class="inbox-order-item__image">
                 <img
@@ -919,6 +941,41 @@ onMounted(() => {
                 <span>數量：{{ item.quantity }}</span>
               </div>
               <strong class="inbox-order-item__total">{{ formatCurrency(item.unitPrice) }}</strong>
+            </article>
+          </div>
+        </div>
+        <div
+          v-else-if="isSellerProgressMessage(inboxDetail) && inboxDetailOrder"
+          class="inbox-detail-dialog__content inbox-cancelled-content"
+        >
+          <span>親愛的 {{ inboxDetailStoreName || '商家' }} 您好：</span>
+          <span>   感謝您支持本平台！</span>
+          <span>   您有一筆{{ sellerProgressTitle(inboxDetail) }}，</span>
+          <span
+            >   訂單編號為
+            <RouterLink
+              :to="{ name: 'SellerOrderDetail', params: { id: inboxDetail.orderId } }"
+              class="inbox-order-link"
+              @click="inboxDetail = null"
+              >{{ inboxDetail.orderNo || inboxDetailOrder.orderNo }}</RouterLink
+            ><template v-if="inboxDetail.orderStatus === 'DELIVERED'">，</template></span
+          >
+          <span v-if="inboxDetail.orderStatus === 'DELIVERED'">   請於7日內提醒客戶取貨，並提醒客戶於「我的訂單-查看訂單-訂單詳情」按下「完成訂單」。</span>
+          <div v-if="inboxDetailOrder.items?.length" class="inbox-order-items inbox-order-items--indented">
+            <article v-for="item in inboxDetailOrder.items" :key="item.orderItemId" class="inbox-order-item">
+              <div class="inbox-order-item__image">
+                <img
+                  v-if="item.productImageUrl"
+                  :src="getImageUrl(item.productImageUrl)"
+                  :alt="item.productName"
+                />
+                <i v-else class="bi bi-image" aria-hidden="true"></i>
+              </div>
+              <div class="inbox-order-item__copy">
+                <strong>{{ item.productName }}</strong>
+                <span>{{ formatCurrency(item.unitPrice) }} × {{ item.quantity }}</span>
+              </div>
+              <strong class="inbox-order-item__total">{{ formatCurrency(inboxDetailOrder.totalAmount) }}</strong>
             </article>
           </div>
         </div>
