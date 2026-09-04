@@ -1,5 +1,6 @@
 <script setup>
 import { RouterView } from 'vue-router'
+import DinoChatWidget from '@/components/chat/DinoChatWidget.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import UtilityBar from '@/components/layout/UtilityBar.vue'
@@ -10,6 +11,7 @@ import UtilityBar from '@/components/layout/UtilityBar.vue'
     <UtilityBar />
     <AppHeader />
     <main class="flex-grow-1"><RouterView /></main>
+    <DinoChatWidget />
     <AppFooter />
   </div>
 </template>
