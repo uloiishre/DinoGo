@@ -18,6 +18,7 @@ public class OrderMessageContentFactory {
             "DELIVERED", "訂單已到貨",
             "COMPLETED", "訂單已完成");
     private static final Map<String, String> SELLER_TITLES = Map.of(
+            "PROCESSING", "收到新訂單",
             "PAID", "收到新訂單",
             "SHIPPED", "訂單已出貨",
             "DELIVERED", "訂單已送達",
@@ -33,7 +34,9 @@ public class OrderMessageContentFactory {
 
     public String content(OrderInfoResponse order, String status, boolean customer) {
         return switch (status) {
-            case "PROCESSING" -> cashOnDeliveryOrderCreatedContent(order);
+            case "PROCESSING" -> customer
+                    ? cashOnDeliveryOrderCreatedContent(order)
+                    : cashOnDeliverySellerContent(order);
             case "PAID" -> customer
                     ? ("CREDIT_CARD".equals(order.getMethodCode())
                             ? creditCardPaidCustomerContent(order)
@@ -131,5 +134,13 @@ public class OrderMessageContentFactory {
                 + "   您的訂單編號為 " + orderPath + "，\n"
                 + "   隨時點此查詢進度：" + orderPath + "，\n"
                 + "   請於貨物送達後，7日內取貨，感謝您的惠顧！";
+    }
+
+    private String cashOnDeliverySellerContent(OrderInfoResponse order) {
+        if (order.getOrderNo() == null || order.getTotalAmount() == null) {
+            throw new IllegalStateException("訂單缺少 orderNo 或 totalAmount，無法產生商家貨到付款通知");
+        }
+        return "收到貨到付款訂單 " + order.getOrderNo()
+                + "，訂單金額為新台幣 " + order.getTotalAmount() + " 元，請開始處理。";
     }
 }

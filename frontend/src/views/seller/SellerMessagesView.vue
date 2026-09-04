@@ -98,8 +98,10 @@ const allTemplatesSelected = computed(
     createTemplates.length > 0 &&
     createTemplates.every((item) => selectedTemplateIds.value.has(item.sendId)),
 )
-const unreadFilteredMessages = computed(() =>
-  filteredMessages.value.filter((item) => item.recordStatus === 'UNREAD'),
+const selectedUnreadMessages = computed(() =>
+  messages.filter(
+    (item) => selectedIds.value.has(item.recordId) && item.recordStatus === 'UNREAD',
+  ),
 )
 function unreadCount(category) {
   return messages.filter(
@@ -166,7 +168,11 @@ function toggleAll() {
   selectedIds.value = next
 }
 async function deleteSelected() {
-  const ids = [...selectedIds.value]
+  const selected = messages.filter((item) => selectedIds.value.has(item.recordId))
+  const confirmed = selected.filter((item) =>
+    window.confirm(`是否確認刪除${item.msgLabel ?? item.sendTitle}範本`),
+  )
+  const ids = confirmed.map((item) => item.recordId)
   if (!ids.length || inboxActionPending.value) return
   inboxActionPending.value = true
   const results = await Promise.allSettled(ids.map((id) => deleteSellerInboxMessage(id)))
@@ -178,8 +184,8 @@ async function deleteSelected() {
   if (deletedIds.size !== ids.length) inboxError.value = '部分訊息刪除失敗，請稍後再試。'
   inboxActionPending.value = false
 }
-async function markAllFilteredRead() {
-  const unread = [...unreadFilteredMessages.value]
+async function markSelectedRead() {
+  const unread = [...selectedUnreadMessages.value]
   if (!unread.length || inboxActionPending.value) return
   inboxActionPending.value = true
   const results = await Promise.allSettled(
@@ -625,10 +631,11 @@ onMounted(() => {
               </select></label
             ><button
               class="read-all-button"
-              :disabled="inboxActionPending || !unreadFilteredMessages.length"
-              @click="markAllFilteredRead"
+              :class="{ 'push-right': !canFilter }"
+              :disabled="inboxActionPending || !selectedUnreadMessages.length"
+              @click="markSelectedRead"
             >
-              全部設為已讀</button
+              設為已讀</button
             ><button class="delete-button" :disabled="inboxActionPending || !selectedIds.size" @click="deleteSelected">
               刪除已選（{{ selectedIds.size }}）
             </button>
@@ -648,12 +655,13 @@ onMounted(() => {
                   :checked="selectedIds.has(message.recordId)"
                   @change="toggleOne(message.recordId)" /></label
               ><button class="message-row" @click="openInboxMessage(message)">
-                <span class="status-dot" :class="{ read: message.recordStatus === 'READ' }"></span
-                ><span class="message-copy"
-                  ><strong>{{ message.sendTitle }}</strong
-                  ><span>{{ message.sendContent }}</span></span
-                ><time>{{ formatTime(message.recordCreatedAt) }}</time>
+                <span class="message-copy"
+                  ><span class="message-title-line"
+                    ><strong>{{ message.sendTitle }}</strong
+                    ><span v-if="message.recordStatus === 'UNREAD'" class="status-dot"></span></span
+                  ><span>{{ message.sendContent }}</span></span>
               </button>
+              <time>{{ formatTime(message.recordCreatedAt) }}</time>
             </article>
           </div>
           <nav v-if="!inboxLoading" class="pagination" aria-label="商家收件匣頁籤">
@@ -749,12 +757,12 @@ onMounted(() => {
         <label>自訂範本名稱
           <input v-model="templateEditor.msgLabel" maxlength="50" />
         </label>
-        <label>訊息標題
+        <label>{{ templateEditor.sendId ? '訊息標題' : '*訊息標題 (必填)' }}
           <input v-model="templateEditor.sendTitle" maxlength="100" required />
         </label>
         <div v-if="templateEditor.sendId" class="template-editor-actions">
         </div>
-        <label class="textarea-field">訊息內容
+        <label class="textarea-field">{{ templateEditor.sendId ? '訊息內容' : '*訊息內容 (必填)' }}
           <textarea v-model="templateEditor.sendContent" maxlength="1000" rows="8" required></textarea>
           <small class="field-counter">{{ templateEditor.sendContent.length }}/1000</small>
         </label>
@@ -861,7 +869,9 @@ h1 {
   margin-left: auto;
 }
 .message-toolbar select,
-.delete-button {
+.delete-button,
+.read-all-button {
+  width: 124px;
   min-height: 36px;
   padding-inline: var(--space-3);
   border: 1px solid var(--color-border-strong);
@@ -898,9 +908,7 @@ h1 {
   height: var(--space-2);
   background: var(--color-primary);
   border-radius: 50%;
-}
-.status-dot.read {
-  background: var(--color-disabled);
+  place-self: center;
 }
 .message-copy {
   display: grid;
@@ -993,49 +1001,79 @@ time {
   height: var(--seller-message-row-height);
   min-height: 0;
   overflow: hidden;
-  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  padding-left: var(--space-2);
   background: var(--color-surface);
 }
 .message-row {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  grid-template-columns: var(--space-2) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
-  padding: var(--space-2) var(--space-4) var(--space-2) 0;
+  padding: var(--space-1) var(--space-3) var(--space-1) 0;
   background: transparent;
 }
 .message-copy {
-  gap: 0;
+  gap: var(--space-1);
+  line-height: 1.2;
+}
+.message-title-line {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.message-title-line strong {
+  min-width: 0;
+  flex: 1;
+  font-size: var(--font-size-base);
+}
+.message-title-line .status-dot {
+  flex: 0 0 auto;
+  margin-top: 2px;
 }
 .message-copy strong,
 .message-copy span,
-.message-row time {
+.message-item > time {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.message-copy > span:not(.message-title-line),
+.message-item > time {
+  font-size: var(--font-size-sm);
+}
+.message-item > time {
+  padding-right: var(--space-5);
+}
 .message-panel--inbox {
   --seller-message-row-height: 65px;
-  padding-bottom: calc(3 * var(--seller-message-row-height));
+  padding-bottom: var(--seller-message-row-height);
   scroll-margin-top: var(--space-5);
 }
 @media (max-width: 767px) {
   .message-row {
-    grid-template-columns: var(--space-2) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
-  .message-row time {
-    grid-column: 2;
+  .message-item {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+  .message-item > time {
+    display: none;
   }
 }
 .read-all-button {
   min-height: 36px;
-  margin-left: auto;
   padding-inline: var(--space-3);
   color: var(--color-primary-active);
   background: var(--color-surface);
   border: 1px solid var(--color-primary);
   border-radius: var(--radius-md);
+}
+.read-all-button.push-right {
+  margin-left: auto;
 }
 .status-filter + .read-all-button {
   margin-left: 0;

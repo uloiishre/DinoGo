@@ -87,19 +87,23 @@ class OrderMessageServiceImplTest {
     }
 
     @Test
-    void cashOnDeliveryProcessingCreatesCustomerPlacedMessageOnly() {
+    void cashOnDeliveryProcessingCreatesCustomerAndSellerPlacedMessages() {
         OrderSysmsgResponse snapshot = new OrderSysmsgResponse(
                 62, "ORD-62", 7, 5, "PROCESSING", List.of(),
                 new BigDecimal("1680.00"), 1, "任意顯示名稱", "CASH_ON_DELIVERY",
                 LocalDateTime.now(), null, null);
         when(orders.getOrderForSysmsg(62)).thenReturn(snapshot);
         when(numbers.generateMsgFunction("AC")).thenReturn("AC-001");
+        when(numbers.generateMsgFunction("AS")).thenReturn("AS-001");
 
-        assertEquals(1, service.createOrderEventMessages(request(62)).size());
+        assertEquals(2, service.createOrderEventMessages(request(62)).size());
         verify(recordService).createOrderRecord(any(), org.mockito.ArgumentMatchers.eq(7),
                 org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.eq(62),
                 org.mockito.ArgumentMatchers.eq("PROCESSING"));
-        verify(numbers, never()).generateMsgFunction("AS");
+        verify(recordService).createOrderRecord(any(), org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq(5), org.mockito.ArgumentMatchers.eq(62),
+                org.mockito.ArgumentMatchers.eq("PROCESSING"));
+        verify(numbers).generateMsgFunction("AS");
     }
 
     @Test

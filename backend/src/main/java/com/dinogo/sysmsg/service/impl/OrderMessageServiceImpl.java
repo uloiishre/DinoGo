@@ -24,7 +24,7 @@ import com.dinogo.sysmsg.service.mapper.SendResponseMapper;
 public class OrderMessageServiceImpl implements OrderMessageService {
     private static final String COD_ORDER_CREATED = "PROCESSING";
     private static final Set<String> CUSTOMER = Set.of(COD_ORDER_CREATED,"PAID","SHIPPED","DELIVERED","COMPLETED");
-    private static final Set<String> SELLER = Set.of("PAID","SHIPPED","DELIVERED","COMPLETED");
+    private static final Set<String> SELLER = Set.of(COD_ORDER_CREATED,"PAID","SHIPPED","DELIVERED","COMPLETED");
     private final OrderSysmsgProviderService orders;
     private final SendRepository sends;
     private final RecordRepository records;
@@ -58,7 +58,10 @@ public class OrderMessageServiceImpl implements OrderMessageService {
             if (COD_ORDER_CREATED.equals(status)) {
                 boolean customerExists = records.existsByOrderIdAndOrderStatusAndMsgtoMemberId(
                         order.getOrderId(), status, order.getBuyerId());
+                boolean sellerExists = records.existsByOrderIdAndOrderStatusAndMsgtoSellerId(
+                        order.getOrderId(), status, order.getSellerId());
                 if (!customerExists) result.add(normalFromOrder(order, status, true));
+                if (!sellerExists) result.add(normalFromOrder(order, status, false));
                 continue;
             }
             boolean customerExists = records.existsByOrderIdAndOrderStatusAndMsgtoMemberId(

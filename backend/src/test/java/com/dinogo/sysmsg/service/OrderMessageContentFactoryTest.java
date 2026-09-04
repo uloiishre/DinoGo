@@ -2,6 +2,7 @@ package com.dinogo.sysmsg.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -13,6 +14,16 @@ import com.dinogo.sysmsg.service.content.OrderMessageContentFactory;
 
 class OrderMessageContentFactoryTest {
     private final OrderMessageContentFactory factory = new OrderMessageContentFactory();
+
+    @Test
+    void cashOnDeliveryProcessingCreatesSellerNewOrderMessage() {
+        OrderInfoResponse order = order("ORD-COD-001", new BigDecimal("1680.00"));
+
+        assertEquals("收到新訂單", factory.title(order, "PROCESSING", false));
+        String content = factory.content(order, "PROCESSING", false);
+        assertTrue(content.contains("貨到付款訂單"));
+        assertTrue(content.contains(order.getOrderNo()));
+    }
 
     @Test
     void createsDifferentCompletedContentForCustomerAndSeller() {
