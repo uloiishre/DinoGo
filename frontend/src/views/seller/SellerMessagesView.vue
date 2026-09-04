@@ -1,17 +1,21 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import {
   createSellerMessage,
   createSellerTemplate,
   deleteSellerTemplate,
   deleteSellerInboxMessage,
   getSellerInbox,
+  getSellerInboxMessage,
   getSellerTemplates,
   markSellerInboxMessageRead,
   uploadSellerMessageImages,
   updateSellerTemplate,
 } from '@/api/sellerMessageApi.js'
-import { getSellerOrders } from '@/api/sellerOrderApi'
+import { getSellerOrder, getSellerOrders } from '@/api/sellerOrderApi'
+import { getSellerProfile } from '@/api/sellerProfileApi.js'
+import { getImageUrl } from '@/utils/imageUrl.js'
 const inboxTabs = [
   { key: 'ALL', label: '全部訊息' },
   { key: 'SYSTEM_NOTICE', label: '平台公告' },
@@ -71,6 +75,12 @@ const selectedTemplateIds = ref(new Set()),
   })
 const selectedOutboxIds = ref(new Set()),
   outboxDetail = ref(null)
+const inboxDetail = ref(null)
+const inboxDetailOrder = ref(null)
+const inboxDetailStoreName = ref('')
+const inboxDetailOrderLoading = ref(false)
+const outboxPageSize = 20
+const outboxCurrentPage = ref(1)
 const createNotice = ref('')
 const canFilter = computed(() => categoryTabs.some((tab) => tab.key === activeTab.value))
 const sourceMessages = computed(() =>
@@ -98,10 +108,18 @@ const allTemplatesSelected = computed(
     createTemplates.length > 0 &&
     createTemplates.every((item) => selectedTemplateIds.value.has(item.sendId)),
 )
+const outboxPageCount = computed(() => Math.max(1, Math.ceil(sentBackup.length / outboxPageSize)))
+const visibleSentBackup = computed(() =>
+  sentBackup.slice(
+    (outboxCurrentPage.value - 1) * outboxPageSize,
+    outboxCurrentPage.value * outboxPageSize,
+  ),
+)
+const outboxPageButtons = computed(() => [1, 2].filter((page) => page <= outboxPageCount.value))
 const allOutboxSelected = computed(
   () =>
-    sentBackup.length > 0 &&
-    sentBackup.every((item) => selectedOutboxIds.value.has(item.sendId)),
+    visibleSentBackup.value.length > 0 &&
+    visibleSentBackup.value.every((item) => selectedOutboxIds.value.has(item.sendId)),
 )
 const selectedUnreadMessages = computed(() =>
   messages.filter(
@@ -201,13 +219,54 @@ async function markSelectedRead() {
   inboxActionPending.value = false
 }
 async function openInboxMessage(message) {
-  if (message.recordStatus !== 'UNREAD' || inboxActionPending.value) return
-  try {
-    await markSellerInboxMessageRead(message.recordId)
-    message.recordStatus = 'READ'
-  } catch (error) {
-    inboxError.value = error.response?.data?.message || '訊息設為已讀失敗，請稍後再試。'
+  inboxDetail.value = { ...message }
+  inboxDetailOrder.value = null
+  inboxDetailStoreName.value = ''
+  const requests = [getSellerInboxMessage(message.recordId)]
+  if (message.recordStatus === 'UNREAD') requests.push(markSellerInboxMessageRead(message.recordId))
+  const [detailResult, readResult] = await Promise.allSettled(requests)
+  if (detailResult.status === 'fulfilled') inboxDetail.value = detailResult.value.data
+  else inboxError.value = detailResult.reason?.response?.data?.message || '訊息詳情載入失敗，請稍後再試。'
+  if (message.recordStatus === 'UNREAD') {
+    if (readResult?.status === 'fulfilled') {
+      message.recordStatus = 'READ'
+      if (inboxDetail.value) inboxDetail.value.recordStatus = 'READ'
+    } else inboxError.value = readResult?.reason?.response?.data?.message || '訊息設為已讀失敗，請稍後再試。'
   }
+  if (
+    ['CANCELLED', 'PAID', 'PROCESSING'].includes(inboxDetail.value?.orderStatus) &&
+    inboxDetail.value?.orderId
+  ) {
+    inboxDetailOrderLoading.value = true
+    const [orderResult, profileResult] = await Promise.allSettled([
+      getSellerOrder(inboxDetail.value.orderId),
+      getSellerProfile(),
+    ])
+    if (orderResult.status === 'fulfilled') inboxDetailOrder.value = orderResult.value.data
+    if (profileResult.status === 'fulfilled') inboxDetailStoreName.value = profileResult.value.data.storeName ?? ''
+    inboxDetailOrderLoading.value = false
+  }
+}
+function inboxMessageSource(message) {
+  return ['OA', 'OS', 'AS'].includes(message?.msgFunction)
+    ? '系統自動訊息'
+    : message?.storeName || '系統自動訊息'
+}
+function isNewSellerOrderMessage(message) {
+  return message?.msgFunction === 'AS' && ['PAID', 'PROCESSING'].includes(message?.orderStatus)
+}
+function sellerPaymentLabel(order) {
+  return order?.payment?.paymentMethodCode === 'CASH_ON_DELIVERY' ? '貨到付款' : '信用卡付款'
+}
+function formatCurrency(value) {
+  return new Intl.NumberFormat('zh-TW', {
+    style: 'currency',
+    currency: 'TWD',
+    maximumFractionDigits: 0,
+  }).format(value ?? 0)
+}
+function formatAmount(value) {
+  return new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 0 }).format(value ?? 0)
 }
 function applySelectedTemplate() {
   const template = createTemplates.find((item) => item.sendId === Number(createForm.templateId))
@@ -428,12 +487,20 @@ function toggleOutbox(id) {
 function toggleAllOutbox() {
   selectedOutboxIds.value = allOutboxSelected.value
     ? new Set()
-    : new Set(sentBackup.map((item) => item.sendId))
+    : new Set(visibleSentBackup.value.map((item) => item.sendId))
 }
 function deleteSelectedOutbox() {
   for (let i = sentBackup.length - 1; i >= 0; i--)
     if (selectedOutboxIds.value.has(sentBackup[i].sendId)) sentBackup.splice(i, 1)
   selectedOutboxIds.value = new Set()
+  outboxCurrentPage.value = Math.min(outboxCurrentPage.value, outboxPageCount.value)
+}
+function goToOutboxPage(page) {
+  outboxCurrentPage.value = Math.min(Math.max(1, page), outboxPageCount.value)
+  selectedOutboxIds.value = new Set()
+  requestAnimationFrame(() =>
+    document.querySelector('.sent-backup')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+  )
 }
 function formatTime(value) {
   return new Intl.DateTimeFormat('zh-TW', {
@@ -634,7 +701,7 @@ onMounted(() => {
             ><span>訂單編號</span
             ><span>寄件時間</span>
           </div>
-          <article v-for="message in sentBackup" :key="message.sendId" class="sent-backup-row">
+          <article v-for="message in visibleSentBackup" :key="message.sendId" class="sent-backup-row">
             <input
               type="checkbox"
               :checked="selectedOutboxIds.has(message.sendId)"
@@ -648,6 +715,35 @@ onMounted(() => {
             <span class="outbox-field">{{ message.orderNo }}</span
             ><time>{{ formatTime(message.sendUpdAt) }}</time>
           </article>
+          <nav class="pagination sent-backup-pagination" aria-label="寄件備份頁籤">
+            <button :disabled="outboxCurrentPage === 1" @click="goToOutboxPage(1)">&lt;&lt;</button
+            ><button :disabled="outboxCurrentPage === 1" @click="goToOutboxPage(outboxCurrentPage - 1)">&lt;</button
+            ><button
+              v-for="page in outboxPageButtons"
+              :key="page"
+              :class="{ active: outboxCurrentPage === page }"
+              @click="goToOutboxPage(page)"
+            >
+              {{ page }}</button
+            ><span v-if="outboxPageCount > 2">…</span
+            ><button
+              v-if="outboxPageCount > 2"
+              :class="{ active: outboxCurrentPage === outboxPageCount }"
+              @click="goToOutboxPage(outboxPageCount)"
+            >
+              {{ outboxPageCount }}</button
+            ><button
+              :disabled="outboxCurrentPage === outboxPageCount"
+              @click="goToOutboxPage(outboxCurrentPage + 1)"
+            >
+              &gt;</button
+            ><button
+              :disabled="outboxCurrentPage === outboxPageCount"
+              @click="goToOutboxPage(outboxPageCount)"
+            >
+              &gt;&gt;
+            </button>
+          </nav>
         </div>
         <template v-else>
           <p v-if="inboxError" class="inbox-error" role="alert">{{ inboxError }}</p>
@@ -719,6 +815,117 @@ onMounted(() => {
           </nav></template
         >
       </div>
+    </div>
+    <div v-if="inboxDetail" class="template-overlay" @click.self="inboxDetail = null">
+      <article class="template-dialog inbox-detail-dialog" role="dialog" aria-modal="true">
+        <button
+          class="template-detail-dialog__close"
+          type="button"
+          aria-label="關閉訊息詳情"
+          @click="inboxDetail = null"
+        >
+          ×
+        </button>
+        <header>
+          <p>from:{{ inboxMessageSource(inboxDetail) }}</p>
+          <h2 v-if="inboxDetail.orderStatus === 'CANCELLED' && inboxDetail.orderId" class="inbox-cancelled-title">
+            <span>訂單已取消</span>
+            <RouterLink
+              :to="{ name: 'SellerOrderDetail', params: { id: inboxDetail.orderId } }"
+              class="inbox-order-link inbox-order-link--title"
+              @click="inboxDetail = null"
+            >
+              {{ inboxDetail.orderNo || inboxDetailOrder?.orderNo || '查看訂單' }}
+            </RouterLink>
+          </h2>
+          <h2 v-else-if="isNewSellerOrderMessage(inboxDetail)" class="inbox-cancelled-title">
+            <span>收到新訂單</span>
+            <RouterLink
+              :to="{ name: 'SellerOrderDetail', params: { id: inboxDetail.orderId } }"
+              class="inbox-order-link inbox-order-link--title"
+              @click="inboxDetail = null"
+            >
+              {{ inboxDetail.orderNo || inboxDetailOrder?.orderNo || '查看訂單' }}
+            </RouterLink>
+          </h2>
+          <h2 v-else>{{ inboxDetail.sendTitle }}</h2>
+          <time>{{ formatTime(inboxDetail.recordCreatedAt) }}</time>
+        </header>
+        <div
+          v-if="inboxDetail.orderStatus === 'CANCELLED' && inboxDetailOrder"
+          class="inbox-detail-dialog__content inbox-cancelled-content"
+        >
+          <span>親愛的 {{ inboxDetailStoreName || '商家' }} 您好：</span>
+          <span>   感謝您支持本平台！</span>
+          <span>   您有一筆訂單已取消，</span>
+          <span
+            >   訂單編號為
+            <RouterLink
+              :to="{ name: 'SellerOrderDetail', params: { id: inboxDetail.orderId } }"
+              class="inbox-order-link"
+              @click="inboxDetail = null"
+              >{{ inboxDetail.orderNo || inboxDetailOrder.orderNo }}</RouterLink
+            >，</span
+          >
+          <span>   取消原因：</span>
+          <span class="inbox-cancel-reason">{{ inboxDetailOrder.cancelReason || '未提供原因' }}</span>
+          <div v-if="inboxDetailOrder.items?.length" class="inbox-order-items">
+            <article v-for="item in inboxDetailOrder.items" :key="item.orderItemId" class="inbox-order-item">
+              <div class="inbox-order-item__image">
+                <img
+                  v-if="item.productImageUrl"
+                  :src="getImageUrl(item.productImageUrl)"
+                  :alt="item.productName"
+                />
+                <i v-else class="bi bi-image" aria-hidden="true"></i>
+              </div>
+              <div class="inbox-order-item__copy">
+                <strong>{{ item.productName }}</strong>
+                <span>{{ formatCurrency(item.unitPrice) }} × {{ item.quantity }}</span>
+              </div>
+              <strong class="inbox-order-item__total">{{ formatCurrency(inboxDetailOrder.totalAmount) }}</strong>
+            </article>
+          </div>
+        </div>
+        <div
+          v-else-if="isNewSellerOrderMessage(inboxDetail) && inboxDetailOrder"
+          class="inbox-detail-dialog__content inbox-cancelled-content"
+        >
+          <span>親愛的 {{ inboxDetailStoreName || '商家' }} 您好：</span>
+          <span>   感謝您支持本平台！</span>
+          <span>   您有一筆新訂單，</span>
+          <span
+            >   訂單編號為
+            <RouterLink
+              :to="{ name: 'SellerOrderDetail', params: { id: inboxDetail.orderId } }"
+              class="inbox-order-link"
+              @click="inboxDetail = null"
+              >{{ inboxDetail.orderNo || inboxDetailOrder.orderNo }}</RouterLink
+            >，</span
+          >
+          <span>   {{ sellerPaymentLabel(inboxDetailOrder) }} 金額共新台幣{{ formatAmount(inboxDetailOrder.totalAmount) }}元</span>
+          <div v-if="inboxDetailOrder.items?.length" class="inbox-order-items inbox-order-items--indented">
+            <article v-for="item in inboxDetailOrder.items" :key="item.orderItemId" class="inbox-order-item">
+              <div class="inbox-order-item__image">
+                <img
+                  v-if="item.productImageUrl"
+                  :src="getImageUrl(item.productImageUrl)"
+                  :alt="item.productName"
+                />
+                <i v-else class="bi bi-image" aria-hidden="true"></i>
+              </div>
+              <div class="inbox-order-item__copy">
+                <strong>{{ item.productName }}</strong>
+                <span>數量：{{ item.quantity }}</span>
+              </div>
+              <strong class="inbox-order-item__total">{{ formatCurrency(item.unitPrice) }}</strong>
+            </article>
+          </div>
+        </div>
+        <div v-else class="inbox-detail-dialog__content">
+          {{ inboxDetailOrderLoading ? '訂單內容載入中…' : inboxDetail.sendContent }}
+        </div>
+      </article>
     </div>
     <div v-if="outboxDetail" class="template-overlay" @click.self="outboxDetail = null">
       <article class="template-dialog outbox-dialog" role="dialog" aria-modal="true">
@@ -1171,6 +1378,8 @@ time {
 }
 .sent-backup {
   display: grid;
+  padding-bottom: 65px;
+  scroll-margin-top: var(--space-5);
 }
 .sent-backup > header {
   display: flex;
@@ -1547,6 +1756,107 @@ time {
   padding-top: var(--space-5);
   white-space: pre-wrap;
   border-top: 1px solid var(--color-border);
+}
+.inbox-detail-dialog header {
+  padding-right: var(--space-7);
+}
+.inbox-detail-dialog {
+  width: min(100%, 720px);
+  overscroll-behavior: contain;
+  box-shadow: var(--shadow-card);
+}
+.inbox-detail-dialog header p,
+.inbox-detail-dialog h2 {
+  margin: 0;
+}
+.inbox-detail-dialog header p,
+.inbox-detail-dialog time {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.inbox-detail-dialog h2 {
+  margin-block: var(--space-1);
+}
+.inbox-detail-dialog__content {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-top: 1px solid var(--color-border);
+}
+.inbox-cancelled-title {
+  display: grid;
+}
+.inbox-order-link {
+  width: fit-content;
+  color: var(--color-primary-active);
+  text-decoration: none;
+}
+.inbox-order-link:hover {
+  font-weight: 700;
+}
+.inbox-order-link--title {
+  font-size: 15px;
+  font-weight: 400;
+}
+.inbox-cancelled-content {
+  display: grid;
+}
+.inbox-cancel-reason {
+  padding-left: var(--space-6);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.inbox-order-items {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+.inbox-order-items--indented {
+  margin-left: var(--space-3);
+}
+.inbox-order-item {
+  display: grid;
+  grid-template-columns: var(--space-8) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface-soft);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+.inbox-order-item__image {
+  display: grid;
+  width: var(--space-8);
+  height: var(--space-8);
+  overflow: hidden;
+  place-items: center;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+}
+.inbox-order-item__image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.inbox-order-item__copy {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+.inbox-order-item__copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inbox-order-item__copy span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.inbox-order-item__total {
+  white-space: nowrap;
 }
 .template-detail-dialog__actions {
   display: flex;

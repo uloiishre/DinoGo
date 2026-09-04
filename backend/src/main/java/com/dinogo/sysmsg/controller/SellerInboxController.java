@@ -23,6 +23,8 @@ public class SellerInboxController {
             @RequestParam(defaultValue = "0") Integer page) {
         return service.getSellerInbox(auth.sellerId(), category, page);
     }
+    //msg-訊息title// 詳情端點回傳 Send 的完整標題。
+    //msg-訊息content// 詳情端點回傳 Send 的完整內容。
     @GetMapping("/{recordId}") public RecordResponse get(@PathVariable Integer recordId){return service.searchRecord(recordId,auth.memberId());}
     @PatchMapping("/{recordId}/status") public RecordResponse status(@PathVariable Integer recordId,@Valid @RequestBody RecordStatusUpdateRequest request){
         if(request.getTargetStatus()!=RecordStatus.READ)throw new IllegalArgumentException("收件匣狀態端點只允許 UNREAD → READ");
