@@ -59,6 +59,7 @@ const createTemplates = reactive([])
 const createDataLoading = ref(false)
 const createSubmitting = ref(false)
 const templateActionPending = ref(false)
+const templateEditorError = ref('')
 const selectedTemplateIds = ref(new Set()),
   templateDetail = ref(null),
   templateEditor = reactive({
@@ -421,6 +422,7 @@ function toggleAllTemplates() {
     : new Set(createTemplates.map((item) => item.sendId))
 }
 function openTemplateEditor(item = null) {
+  templateEditorError.value = ''
   const images = ['One', 'Two', 'Three']
     .map((position, index) => item?.[`img${position}`] ? {
       name: `已上傳圖片 ${index + 1}`,
@@ -506,6 +508,7 @@ async function saveTemplateEditor() {
   }
   if (!payload.sendTitle || !payload.sendContent) return
   templateActionPending.value = true
+  templateEditorError.value = ''
   const item = createTemplates.find((value) => value.sendId === templateEditor.sendId)
   try {
     const retainedAssets = templateEditor.images.filter((image) => image.secureUrl)
@@ -520,6 +523,8 @@ async function saveTemplateEditor() {
     if (item) Object.assign(item, response.data)
     else createTemplates.unshift(response.data)
     templateEditor.open = false
+  } catch (error) {
+    templateEditorError.value = error.response?.data?.message || '範本儲存失敗，請稍後再試。'
   } finally {
     templateActionPending.value = false
   }
@@ -1150,6 +1155,7 @@ onBeforeUnmount(() => {
     >
       <form class="template-dialog template-editor-dialog" @submit.prevent="saveTemplateEditor">
         <button class="template-detail-dialog__close" type="button" aria-label="關閉範本編輯" @click="templateEditor.open = false">×</button>
+        <h2 class="template-editor-title">{{ templateEditor.sendId ? '修改範本' : '新增範本' }}</h2>
         <label>自訂範本名稱
           <input v-model="templateEditor.msgLabel" maxlength="50" />
         </label>
@@ -1162,6 +1168,7 @@ onBeforeUnmount(() => {
           <textarea v-model="templateEditor.sendContent" maxlength="1000" rows="8" required></textarea>
           <small class="field-counter">{{ templateEditor.sendContent.length }}/1000</small>
         </label>
+        <p v-if="templateEditorError" class="template-editor-error" role="alert">{{ templateEditorError }}</p>
         <label class="textarea-field">備註
           <textarea v-model="templateEditor.sendRemark" maxlength="1000" rows="4"></textarea>
           <small class="field-counter">{{ templateEditor.sendRemark.length }}/1000</small>
@@ -2034,6 +2041,14 @@ time {
 .template-editor-dialog {
   padding-top: var(--space-7);
 }
+.template-editor-title {
+  margin: 0;
+  padding-right: var(--space-7);
+  color: var(--color-text);
+  font-family: var(--font-heading);
+  font-size: var(--font-size-xl);
+  line-height: var(--line-height-heading);
+}
 .template-editor-dialog input,
 .template-editor-dialog textarea,
 .template-detail-dialog input,
@@ -2099,6 +2114,14 @@ time {
 .template-editor-save button {
   min-height: 40px;
   padding-inline: var(--space-5);
+  border-radius: var(--radius-md);
+}
+.template-editor-error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  background: var(--color-danger-soft);
   border-radius: var(--radius-md);
 }
 </style>

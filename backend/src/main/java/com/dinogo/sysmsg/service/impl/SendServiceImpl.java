@@ -82,29 +82,25 @@ public class SendServiceImpl implements SendService {
         validateImageReferences(r.getImgOne(), r.getImgOnePublicId(),
                 r.getImgTwo(), r.getImgTwoPublicId(), r.getImgThree(), r.getImgThreePublicId(), loginId);
         SendEntity old=require(sendId); requireStatus(old,SendStatus.SAVE); permissions.validateTemplateOwner(old,loginId);
-        if (!sends.existsByMsgFunctionAndSendStatus(old.getMsgFunction(),SendStatus.SEND)) {
-            old.setMsgLabel(label(r.getMsgLabel(),r.getSendTitle())); old.setSendTitle(required(r.getSendTitle(),"標題")); old.setSendContent(required(r.getSendContent(),"內容"));
-            if (old instanceof SendSellerEntity sc) {
-                sc.setImgOne(r.getImgOne());
-                sc.setImgOnePublicId(r.getImgOnePublicId());
-                sc.setImgTwo(r.getImgTwo());
-                sc.setImgTwoPublicId(r.getImgTwoPublicId());
-                sc.setImgThree(r.getImgThree());
-                sc.setImgThreePublicId(r.getImgThreePublicId());
-                sc.setSendRemark(r.getSendRemark());
+        if (!(old instanceof SendSellerEntity) && r.getMsgType() != null && !r.getMsgType().isBlank()) {
+            String targetPrefix=systemPrefix(r.getMsgType());
+            if (!targetPrefix.equals(prefix(old))) {
+                SendEntity replacement=base(old.getMsgfromSellerId(),numbers.generateMsgFunction(targetPrefix),r.getMsgLabel(),r.getSendTitle(),r.getSendContent(),SendStatus.SAVE);
+                sends.delete(old);
+                return responseMapper.toTemplateResponse(sends.save(replacement));
             }
-            return responseMapper.toTemplateResponse(sends.save(old));
         }
-        SendEntity replacement;
-        String function=numbers.generateMsgFunction(prefix(old));
-        if(old instanceof SendSellerEntity) {
-            SendSellerEntity sellerReplacement=new SendSellerEntity(old.getMsgfromSellerId(),function,label(r.getMsgLabel(),r.getSendTitle()),r.getSendTitle(),r.getSendContent(),SendStatus.SAVE,null,r.getImgOne(),r.getImgTwo(),r.getImgThree(),r.getSendRemark());
-            setImagePublicIds(sellerReplacement, r.getImgOnePublicId(), r.getImgTwoPublicId(), r.getImgThreePublicId());
-            replacement=sellerReplacement;
+        old.setMsgLabel(label(r.getMsgLabel(),r.getSendTitle())); old.setSendTitle(required(r.getSendTitle(),"標題")); old.setSendContent(required(r.getSendContent(),"內容"));
+        if (old instanceof SendSellerEntity sc) {
+            sc.setImgOne(r.getImgOne());
+            sc.setImgOnePublicId(r.getImgOnePublicId());
+            sc.setImgTwo(r.getImgTwo());
+            sc.setImgTwoPublicId(r.getImgTwoPublicId());
+            sc.setImgThree(r.getImgThree());
+            sc.setImgThreePublicId(r.getImgThreePublicId());
+            sc.setSendRemark(r.getSendRemark());
         }
-        else replacement=base(old.getMsgfromSellerId(),function,r.getMsgLabel(),r.getSendTitle(),r.getSendContent(),SendStatus.SAVE);
-        sends.delete(old);
-        return responseMapper.toTemplateResponse(sends.save(replacement));
+        return responseMapper.toTemplateResponse(sends.save(old));
     }
 
     @Override @Transactional
