@@ -24,6 +24,8 @@ class RecordResponseMapperTest {
         RecordEntity record = new RecordEntity(send, 18, null);
 
         assertEquals("ORD-20260904-001", mapper.toInboxResponse(record).getOrderNo());
+        assertEquals(new BigDecimal("2500"), mapper.toInboxResponse(record).getTotalAmount());
+        assertEquals("信用卡", mapper.toInboxResponse(record).getPaymentMethodName());
         assertEquals("ORD-20260904-001", mapper.toResponse(record).getOrderNo());
     }
 
@@ -36,6 +38,8 @@ class RecordResponseMapperTest {
         RecordEntity record = new RecordEntity(send, 19, null);
 
         assertEquals("ORD-20260904-002", mapper.toInboxResponse(record).getOrderNo());
+        assertEquals(new BigDecimal("680"), mapper.toInboxResponse(record).getTotalAmount());
+        assertEquals("貨到付款", mapper.toInboxResponse(record).getPaymentMethodName());
         assertEquals("ORD-20260904-002", mapper.toResponse(record).getOrderNo());
     }
 }

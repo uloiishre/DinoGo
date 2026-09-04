@@ -260,15 +260,31 @@ function isNewSellerOrderMessage(message) {
 function isSellerProgressMessage(message) {
   return message?.msgFunction?.startsWith('AS') && ['SHIPPED', 'DELIVERED', 'COMPLETED'].includes(message?.orderStatus)
 }
-function sellerProgressTitle(message) {
+function sellerProgressTitle(message, order = null) {
   return {
     SHIPPED: '訂單已出貨',
     DELIVERED: '訂單已送達',
-    COMPLETED: '訂單已完成',
+    COMPLETED:
+      order?.payment?.paymentMethodCode === 'CASH_ON_DELIVERY' ? '訂單完成與收款' : '訂單已完成',
   }[message?.orderStatus] ?? ''
 }
 function sellerPaymentLabel(order) {
   return order?.payment?.paymentMethodCode === 'CASH_ON_DELIVERY' ? '貨到付款' : '信用卡付款'
+}
+function sellerInboxPreview(message) {
+  if (!message?.msgFunction?.startsWith('AS') || !message.orderNo) return message?.sendContent ?? ''
+  if (message.orderStatus === 'SHIPPED') return `訂單 ${message.orderNo} 已出貨，物流將盡速處理。`
+  if (message.orderStatus === 'DELIVERED') return `訂單 ${message.orderNo} 已送達，請於7日內提醒客戶取貨。`
+  if (message.totalAmount == null) return message?.sendContent ?? ''
+  const amount = formatAmount(message.totalAmount)
+  const paymentMethod = message.paymentMethodName?.trim()
+  if (['PAID', 'PROCESSING'].includes(message.orderStatus) && paymentMethod) {
+    const paymentText = paymentMethod === '信用卡' ? '信用卡付款' : paymentMethod
+    return `收到訂單 ${message.orderNo} ，${paymentText}訂單金額總計 $ ${amount}。`
+  }
+  if (message.orderStatus === 'COMPLETED')
+    return `訂單 ${message.orderNo} 已完成，訂單金額總計 $ ${amount}`
+  return message?.sendContent ?? ''
 }
 function formatCurrency(value) {
   return new Intl.NumberFormat('zh-TW', {
@@ -279,6 +295,9 @@ function formatCurrency(value) {
 }
 function formatAmount(value) {
   return new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 0 }).format(value ?? 0)
+}
+function formatItemTotal(item) {
+  return formatCurrency(Number(item?.unitPrice ?? 0) * Number(item?.quantity ?? 0))
 }
 function applySelectedTemplate() {
   const template = createTemplates.find((item) => item.sendId === Number(createForm.templateId))
@@ -797,7 +816,7 @@ onMounted(() => {
                   ><span class="message-title-line"
                     ><strong>{{ message.sendTitle }}</strong
                     ><span v-if="message.recordStatus === 'UNREAD'" class="status-dot"></span></span
-                  ><span>{{ message.sendContent }}</span></span>
+                  ><span>{{ sellerInboxPreview(message) }}</span></span>
               </button>
               <time>{{ formatTime(message.recordCreatedAt) }}</time>
             </article>
@@ -861,7 +880,7 @@ onMounted(() => {
             </RouterLink>
           </h2>
           <h2 v-else-if="isSellerProgressMessage(inboxDetail)" class="inbox-cancelled-title">
-            <span>{{ sellerProgressTitle(inboxDetail) }}</span>
+            <span>{{ sellerProgressTitle(inboxDetail, inboxDetailOrder) }}</span>
             <RouterLink
               :to="{ name: 'SellerOrderDetail', params: { id: inboxDetail.orderId } }"
               class="inbox-order-link inbox-order-link--title"
@@ -925,7 +944,7 @@ onMounted(() => {
               >{{ inboxDetail.orderNo || inboxDetailOrder.orderNo }}</RouterLink
             >，</span
           >
-          <span>   {{ sellerPaymentLabel(inboxDetailOrder) }} 金額共新台幣{{ formatAmount(inboxDetailOrder.totalAmount) }}元</span>
+          <span>   {{ sellerPaymentLabel(inboxDetailOrder) }} 新台幣 $ {{ formatAmount(inboxDetailOrder.totalAmount) }} 元</span>
           <div v-if="inboxDetailOrder.items?.length" class="inbox-order-items inbox-order-items--indented">
             <article v-for="item in inboxDetailOrder.items" :key="item.orderItemId" class="inbox-order-item">
               <div class="inbox-order-item__image">
@@ -938,9 +957,9 @@ onMounted(() => {
               </div>
               <div class="inbox-order-item__copy">
                 <strong>{{ item.productName }}</strong>
-                <span>數量：{{ item.quantity }}</span>
+                <span>{{ formatCurrency(item.unitPrice) }} × {{ item.quantity }}</span>
               </div>
-              <strong class="inbox-order-item__total">{{ formatCurrency(item.unitPrice) }}</strong>
+              <strong class="inbox-order-item__total">{{ formatItemTotal(item) }}</strong>
             </article>
           </div>
         </div>
@@ -950,7 +969,10 @@ onMounted(() => {
         >
           <span>親愛的 {{ inboxDetailStoreName || '商家' }} 您好:</span>
           <span>   感謝您支持本平台！</span>
-          <span>   您有一筆{{ sellerProgressTitle(inboxDetail) }}，</span>
+          <span v-if="inboxDetail.orderStatus === 'COMPLETED'"
+            >   您有一筆訂單已完成，{{ sellerPaymentLabel(inboxDetailOrder) }} 新台幣 $ {{ formatAmount(inboxDetailOrder.totalAmount) }} 元</span
+          >
+          <span v-else>   您有一筆{{ sellerProgressTitle(inboxDetail, inboxDetailOrder) }}，</span>
           <span
             >   訂單編號為
             <RouterLink
@@ -975,7 +997,7 @@ onMounted(() => {
                 <strong>{{ item.productName }}</strong>
                 <span>{{ formatCurrency(item.unitPrice) }} × {{ item.quantity }}</span>
               </div>
-              <strong class="inbox-order-item__total">{{ formatCurrency(inboxDetailOrder.totalAmount) }}</strong>
+              <strong class="inbox-order-item__total">{{ formatItemTotal(item) }}</strong>
             </article>
           </div>
         </div>
@@ -1344,7 +1366,7 @@ time {
   padding-right: var(--space-5);
 }
 .message-panel--inbox {
-  --seller-message-row-height: 75px;
+  --seller-message-row-height: 70px;
   padding-bottom: var(--seller-message-row-height);
   scroll-margin-top: var(--space-5);
 }
