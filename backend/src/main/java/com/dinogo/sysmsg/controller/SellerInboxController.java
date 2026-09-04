@@ -23,6 +23,10 @@ public class SellerInboxController {
             @RequestParam(defaultValue = "0") Integer page) {
         return service.getSellerInbox(auth.sellerId(), category, page);
     }
+    @GetMapping("/unread-counts")
+    public SellerUnreadCountsResponse unreadCounts() {
+        return service.countSellerUnread(auth.sellerId());
+    }
     //msg-訊息title// 詳情端點回傳 Send 的完整標題。
     //msg-訊息content// 詳情端點回傳 Send 的完整內容。
     @GetMapping("/{recordId}") public RecordResponse get(@PathVariable Integer recordId){return service.searchRecord(recordId,auth.memberId());}

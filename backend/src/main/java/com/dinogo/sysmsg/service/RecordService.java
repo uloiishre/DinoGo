@@ -5,6 +5,7 @@ import java.util.List;
 import com.dinogo.sysmsg.dto.response.MsgInboxResponse;
 import com.dinogo.sysmsg.dto.response.RecordResponse;
 import com.dinogo.sysmsg.dto.response.OffsetPageResponse;
+import com.dinogo.sysmsg.dto.response.SellerUnreadCountsResponse;
 
 public interface RecordService {
 
@@ -56,4 +57,6 @@ public interface RecordService {
     long countMemberUnread(Integer memberId);
 
     OffsetPageResponse<MsgInboxResponse> getSellerInbox(Integer sellerId, String inbox, Integer page);
+
+    SellerUnreadCountsResponse countSellerUnread(Integer sellerId);
 }

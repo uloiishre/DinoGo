@@ -98,6 +98,18 @@ public interface RecordRepository
             @Param("newOrderStatuses") List<String> newOrderStatuses,
             Pageable pageable);
 
+    @Query("""
+            select count(r) from RecordEntity r
+            where r.msgtoSellerId = :recipientId and r.sellerInbox = :inbox
+              and r.recordStatus = :status
+              and (r.sellerInbox <> :newOrderInbox or r.orderStatus in :newOrderStatuses)
+            """)
+    long countSellerInbox(
+            @Param("recipientId") Integer recipientId, @Param("inbox") SellerInbox inbox,
+            @Param("status") RecordStatus status,
+            @Param("newOrderInbox") SellerInbox newOrderInbox,
+            @Param("newOrderStatuses") List<String> newOrderStatuses);
+
     Page<RecordEntity>
     findByMsgtoSellerIdAndRecordStatusOrderByRecordCreatedAtDescRecordIdDesc(
             Integer msgtoSellerId,

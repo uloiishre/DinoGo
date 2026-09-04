@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import {
   createSellerMessage,
@@ -11,6 +11,7 @@ import {
   getSellerInboxMessage,
   getSellerOutbox,
   getSellerTemplates,
+  getSellerUnreadCounts,
   markSellerInboxMessageRead,
   uploadSellerMessageImages,
   updateSellerTemplate,
@@ -40,6 +41,8 @@ const activeTab = ref('ALL'),
 const inboxLoading = ref(false)
 const inboxActionPending = ref(false)
 const inboxError = ref('')
+const sellerUnreadCounts = reactive({ ALL: 0, SYSTEM_NOTICE: 0, NEW_ORDER: 0, CANCELLED_ORDER: 0 })
+let unreadCountsTimer = null
 const createForm = reactive({
   saveAsTemplate: false,
   orderId: '',
@@ -123,9 +126,20 @@ const selectedUnreadMessages = computed(() =>
   ),
 )
 function unreadCount(category) {
-  return messages.filter(
-    (item) => (category === 'ALL' || item.category === category) && item.recordStatus === 'UNREAD',
-  ).length
+  return sellerUnreadCounts[category] ?? 0
+}
+async function refreshSellerUnreadCounts() {
+  try {
+    const { data } = await getSellerUnreadCounts()
+    Object.assign(sellerUnreadCounts, {
+      ALL: data.all ?? 0,
+      SYSTEM_NOTICE: data.systemNotice ?? 0,
+      NEW_ORDER: data.newOrder ?? 0,
+      CANCELLED_ORDER: data.cancelledOrder ?? 0,
+    })
+  } catch {
+    // 背景輪詢失敗時保留上一次成功數值，避免徽章閃爍。
+  }
 }
 function outboxTabLabel(tab) {
   if (tab.key === 'TEMPLATES') return `${tab.label}(${createTemplates.length})`
@@ -573,6 +587,11 @@ onMounted(() => {
   void loadSellerInbox()
   void loadCreateData()
   void loadSellerOutbox()
+  void refreshSellerUnreadCounts()
+  unreadCountsTimer = window.setInterval(refreshSellerUnreadCounts, 1000)
+})
+onBeforeUnmount(() => {
+  if (unreadCountsTimer != null) window.clearInterval(unreadCountsTimer)
 })
 </script>
 <template>

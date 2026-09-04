@@ -11,6 +11,7 @@ import {
   getSellerInboxMessage,
   getSellerOutbox,
   getSellerTemplates,
+  getSellerUnreadCounts,
   getSellerMessages,
   markAllSellerMessagesRead,
   markSellerInboxMessageRead,
@@ -44,6 +45,7 @@ test('seller message API uses the module F contract endpoints', async (t) => {
   await markSellerMessageRead(42)
   await markAllSellerMessagesRead()
   await getSellerInbox('NEW_ORDER', 2)
+  await getSellerUnreadCounts()
   await getSellerInboxMessage(51)
   await markSellerInboxMessageRead(51)
   await deleteSellerInboxMessage(51)
@@ -62,6 +64,7 @@ test('seller message API uses the module F contract endpoints', async (t) => {
     ['patch', '/seller/messages/42/read'],
     ['patch', '/seller/messages/read-all'],
     ['get', '/sysmsg/seller/inbox', { params: { category: 'NEW_ORDER', page: 2 } }],
+    ['get', '/sysmsg/seller/inbox/unread-counts'],
     ['get', '/sysmsg/seller/inbox/51'],
     ['patch', '/sysmsg/seller/inbox/51/status', { targetStatus: 'READ' }],
     ['delete', '/sysmsg/seller/inbox/51'],

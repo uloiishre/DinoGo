@@ -3,6 +3,8 @@ import api from './axios.js'
 export const getSellerInbox = (category, page = 0) =>
   api.get('/sysmsg/seller/inbox', { params: { category, page } })
 
+export const getSellerUnreadCounts = () => api.get('/sysmsg/seller/inbox/unread-counts')
+
 export const getSellerInboxMessage = (recordId) =>
   api.get(`/sysmsg/seller/inbox/${recordId}`)
 

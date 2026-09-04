@@ -134,6 +134,20 @@ public class RecordServiceImpl implements RecordService {
                 .map(responseMapper::toInboxResponse));
     }
 
+    @Override @Transactional(readOnly=true)
+    public SellerUnreadCountsResponse countSellerUnread(Integer sellerId) {
+        Integer recipientId = positive(sellerId, "seller_id");
+        List<String> newOrderStatuses = List.of("PAID", "PROCESSING", "SHIPPED", "DELIVERED", "COMPLETED");
+        long systemNotice = records.countSellerInbox(recipientId, SellerInbox.SYSTEM_NOTICE,
+                RecordStatus.UNREAD, SellerInbox.NEW_ORDER, newOrderStatuses);
+        long newOrder = records.countSellerInbox(recipientId, SellerInbox.NEW_ORDER,
+                RecordStatus.UNREAD, SellerInbox.NEW_ORDER, newOrderStatuses);
+        long cancelledOrder = records.countSellerInbox(recipientId, SellerInbox.CANCELLED_ORDER,
+                RecordStatus.UNREAD, SellerInbox.NEW_ORDER, newOrderStatuses);
+        return new SellerUnreadCountsResponse(
+                systemNotice + newOrder + cancelledOrder, systemNotice, newOrder, cancelledOrder);
+    }
+
     private PageRequest pageRequest(Integer requestedPage) {
         int page = requestedPage == null ? 0 : requestedPage;
         if (page < 0) {
