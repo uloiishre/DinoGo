@@ -38,6 +38,14 @@ public class SellerSysmsgProviderService {
         return toResponse(seller);
     }
 
+    /** 管理端訊息歷史需顯示當時寄件商家的名稱；歷史資料不受目前啟用狀態限制。 */
+    @Transactional(readOnly = true)
+    public String getSellerName(Integer sellerId) {
+        return sellerRepository.findBySellerId(sellerId)
+                .map(Seller::getStoreName)
+                .orElse(null);
+    }
+
     /** OA 廣播取得全部 ACTIVE 商家；每位商家建立獨立 Record。 */
     @Transactional(readOnly = true)
     public List<SellerSysmsgResponse> getAllSellers() {

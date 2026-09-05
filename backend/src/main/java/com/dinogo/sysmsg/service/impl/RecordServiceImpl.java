@@ -151,8 +151,18 @@ public class RecordServiceImpl implements RecordService {
     @Override @Transactional(readOnly=true)
     public OffsetPageResponse<RecordResponse> getSystemRecords(Integer loginMemberId, Integer page) {
         permissions.validateSystemAdmin(loginMemberId);
+        Map<Integer, String> sellerNames = new HashMap<>();
         return OffsetPageResponse.from(records.findAllByOrderByRecordCreatedAtDescRecordIdDesc(systemRecordPageRequest(page))
-                .map(responseMapper::toResponse));
+                .map(record -> {
+                    RecordResponse response = responseMapper.toResponse(record);
+                    if (record.getMsgFunction() != null
+                            && record.getMsgFunction().startsWith("SC")
+                            && record.getMsgfromSellerId() != null) {
+                        response.setStoreName(sellerNames.computeIfAbsent(
+                                record.getMsgfromSellerId(), sellers::getSellerName));
+                    }
+                    return response;
+                }));
     }
 
     private PageRequest systemRecordPageRequest(Integer requestedPage) {
