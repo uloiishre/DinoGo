@@ -36,7 +36,7 @@ const templatesLoaded = ref(false)
 const recordsLoaded = ref(false)
 const recordLoading = ref(false)
 const recordError = ref('')
-const recordFilters = reactive({ msgPrefix: '', msgNumber: '', status: '', createdDate: '' })
+const recordFilters = reactive({ msgPrefix: '', msgNumber: '', status: '', senderName: '', senderId: '', recipientId: '', createdDate: '' })
 const form = reactive({ saveAsTemplate: false, msgType: '', recipientId: '', templateId: '', msgLabel: '', sendTitle: '', sendContent: '', submitting: false, error: '' })
 const templateCreate = reactive({ open: false, sendId: null, msgType: 'OA', msgLabel: '', sendTitle: '', sendContent: '', submitting: false, error: '' })
 
@@ -98,10 +98,16 @@ const filteredRecords = computed(() => recordItems.value.filter((item) =>
   (!recordFilters.msgPrefix || prefixOf(item) === recordFilters.msgPrefix)
   && (!recordFilters.msgNumber || item.msgFunction?.split('-')[1] === recordFilters.msgNumber)
   && (!recordFilters.status || item.recordStatus === recordFilters.status)
+  && (!recordFilters.senderName.trim() || recordSenderName(item).includes(recordFilters.senderName.trim()))
+  && (!recordFilters.senderId.trim() || String(item.msgfromSellerId ?? '').includes(recordFilters.senderId.trim()))
+  && (!recordFilters.recipientId.trim() || String(recordRecipientId(item) ?? '').includes(recordFilters.recipientId.trim()))
   && (!recordFilters.createdDate || item.recordCreatedAt?.slice(0, 10) === recordFilters.createdDate)))
 const recordPageCount = computed(() => pageCount(filteredRecords.value))
 const visibleRecords = computed(() => filteredRecords.value.slice((recordPage.value - 1) * PAGE_SIZE, recordPage.value * PAGE_SIZE))
 const recordNumberSuggestions = computed(() => [...new Set(recordItems.value.filter((item) => !recordFilters.msgPrefix || prefixOf(item) === recordFilters.msgPrefix).map((item) => item.msgFunction?.split('-')[1]).filter(Boolean))].sort())
+const recordSenderNameSuggestions = computed(() => [...new Set(recordItems.value.map(recordSenderName).filter(Boolean))].sort((left, right) => left.localeCompare(right, 'zh-TW')))
+const recordSenderIdSuggestions = computed(() => [...new Set(recordItems.value.filter((item) => !recordFilters.senderName || recordSenderName(item) === recordFilters.senderName).map((item) => item.msgfromSellerId).filter((value) => value != null))].map(String).sort((left, right) => left.localeCompare(right, 'zh-TW', { numeric: true })))
+const recordRecipientIdSuggestions = computed(() => [...new Set(recordItems.value.map(recordRecipientId).filter((value) => value != null))].map(String).sort((left, right) => left.localeCompare(right, 'zh-TW', { numeric: true })))
 const recordDateSuggestions = computed(() => [...new Set(recordItems.value.map((item) => item.recordCreatedAt?.slice(0, 10)).filter(Boolean))].sort().reverse())
 const firstPages = (total) => Array.from({ length: Math.min(2, total) }, (_, index) => index + 1)
 const formatTime = (value) => new Intl.DateTimeFormat('zh-TW', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
@@ -109,6 +115,8 @@ const senderLabel = (item) => prefixOf(item) === 'SC'
   ? `商家 ${item.msgfromSellerId ?? '—'}`
   : `系統管理員 ${item.systemAdminMemberId ?? item.memberId ?? item.msgfromSellerId ?? '—'}`
 const templateEditorLabel = (item) => `系統管理員 ${item.lastModifiedMemberId ?? item.memberId ?? item.msgfromSellerId ?? '—'}`
+function recordSenderName(item) { return prefixOf(item) === 'SC' ? (item.storeName || '商家') : '系統自動訊息' }
+function recordRecipientId(item) { return item.msgtoMemberId ?? item.msgtoSellerId }
 const selectedTemplateIds = ref(new Set())
 const allVisibleTemplatesSelected = computed(() => visibleTemplates.value.length > 0 && visibleTemplates.value.every((item) => selectedTemplateIds.value.has(item.sendId)))
 
@@ -327,7 +335,33 @@ async function selectTab(key) {
   }
   if (key === 'SEND_HISTORY' && !recordsLoaded.value) await loadRecords()
 }
-function changeRecordFilter() { recordPage.value = 1 }
+function activateRecordFilter(group) {
+  if (group !== 'function' && group !== 'status' && group !== 'date') {
+    recordFilters.msgPrefix = ''
+    recordFilters.msgNumber = ''
+  }
+  if (group !== 'sender' && group !== 'status' && group !== 'date') {
+    recordFilters.senderName = ''
+    recordFilters.senderId = ''
+  }
+  if (group !== 'recipient' && group !== 'status' && group !== 'date') recordFilters.recipientId = ''
+  recordPage.value = 1
+}
+function changeRecordPrefix() {
+  recordFilters.msgNumber = ''
+  activateRecordFilter('function')
+}
+function changeRecordSenderName() {
+  recordFilters.senderId = ''
+  activateRecordFilter('sender')
+}
+function selectRecordSuggestion(field, event, group) {
+  const value = event.target.value
+  if (!value) return
+  recordFilters[field] = value
+  activateRecordFilter(group)
+  event.target.selectedIndex = 0
+}
 async function changeRecordPage(page) {
   recordPage.value = Math.min(Math.max(1, page), recordPageCount.value)
   await nextTick()
@@ -394,10 +428,19 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
     <section v-else ref="messagePanel" class="content-panel paged-panel">
       <header class="panel-toolbar"><div><h2>{{ isSendHistory ? '發送紀錄' : '訊息總覽' }}</h2><p>{{ isSendHistory ? '顯示 record_status = READ、UNREAD、DELETE 的完整發送紀錄。' : '只顯示 send_status = SEND。' }}</p></div></header>
       <div v-if="isSendHistory" class="record-history">
-        <div class="record-filters"><span></span><div class="function-filter-pair"><label><select v-model="recordFilters.msgPrefix" aria-label="篩選 msg_function 前綴" @change="recordFilters.msgNumber='';changeRecordFilter()"><option value="">全部</option><option v-for="prefix in messageFilters.slice(1)" :key="prefix" :value="prefix">{{ prefix }}</option></select></label><b>-</b><label><select v-model="recordFilters.msgNumber" aria-label="篩選 msg_function 流水號" @change="changeRecordFilter"><option value="">全部</option><option v-for="number in recordNumberSuggestions" :key="number" :value="number">{{ number }}</option></select></label></div><label><select v-model="recordFilters.status" aria-label="篩選紀錄狀態" @change="changeRecordFilter"><option value="">全部</option><option value="READ">READ</option><option value="UNREAD">UNREAD</option><option value="DELETE">DELETE</option></select></label><span></span><span></span><span></span><label class="filter-combobox"><input v-model="recordFilters.createdDate" aria-label="篩選寄件時間" placeholder="輸入寄件日期" @input="changeRecordFilter" /><select class="combobox-menu" aria-label="選擇寄件時間" tabindex="-1" @change="recordFilters.createdDate=$event.target.value;$event.target.selectedIndex=0;changeRecordFilter()"><option value="" hidden></option><option v-for="date in recordDateSuggestions" :key="date" :value="date">{{ date }}</option></select><button type="button" class="combobox-trigger" aria-label="開啟寄件時間選單" @click="openOverviewOptions"><i class="bi bi-chevron-down"></i></button></label></div>
-        <div class="record-columns"><span>send_id</span><span>msg_function</span><span>狀態</span><span>寄件人</span><span>收件人</span><span>訊息標題 / 訊息內容</span><span>寄件時間</span></div>
+        <div class="record-filters">
+          <span></span>
+          <div class="function-filter-pair"><label><select v-model="recordFilters.msgPrefix" aria-label="篩選 msg_function 前綴" @change="changeRecordPrefix"><option value="">全部</option><option v-for="prefix in messageFilters.slice(1)" :key="prefix" :value="prefix">{{ prefix }}</option></select></label><b>-</b><label><select v-model="recordFilters.msgNumber" aria-label="篩選 msg_function 流水號" @change="activateRecordFilter('function')"><option value="">全部</option><option v-for="number in recordNumberSuggestions" :key="number" :value="number">{{ number }}</option></select></label></div>
+          <label><select v-model="recordFilters.status" aria-label="篩選紀錄狀態" @change="activateRecordFilter('status')"><option value="">全部</option><option value="READ">READ</option><option value="UNREAD">UNREAD</option><option value="DELETE">DELETE</option></select></label>
+          <label class="filter-combobox"><input v-model="recordFilters.senderName" aria-label="篩選 from" placeholder="手動輸入" @input="activateRecordFilter('sender')" /><select class="combobox-menu" aria-label="選擇 from" tabindex="-1" @change="selectRecordSuggestion('senderName', $event, 'sender')"><option value="" hidden></option><option v-for="value in recordSenderNameSuggestions" :key="value" :value="value">{{ value }}</option></select><button type="button" class="combobox-trigger" aria-label="開啟 from 選單" @click="openOverviewOptions"><i class="bi bi-chevron-down"></i></button></label>
+          <label class="filter-combobox"><input v-model="recordFilters.senderId" aria-label="篩選寄件人 ID" placeholder="手動輸入" @input="activateRecordFilter('sender')" /><select class="combobox-menu" aria-label="選擇寄件人 ID" tabindex="-1" @change="selectRecordSuggestion('senderId', $event, 'sender')"><option value="" hidden></option><option v-for="value in recordSenderIdSuggestions" :key="value" :value="value">{{ value }}</option></select><button type="button" class="combobox-trigger" aria-label="開啟寄件人 ID 選單" @click="openOverviewOptions"><i class="bi bi-chevron-down"></i></button></label>
+          <label class="filter-combobox"><input v-model="recordFilters.recipientId" aria-label="篩選收件人 ID" placeholder="手動輸入" @input="activateRecordFilter('recipient')" /><select class="combobox-menu" aria-label="選擇收件人 ID" tabindex="-1" @change="selectRecordSuggestion('recipientId', $event, 'recipient')"><option value="" hidden></option><option v-for="value in recordRecipientIdSuggestions" :key="value" :value="value">{{ value }}</option></select><button type="button" class="combobox-trigger" aria-label="開啟收件人 ID 選單" @click="openOverviewOptions"><i class="bi bi-chevron-down"></i></button></label>
+          <span></span>
+          <label class="filter-combobox"><input v-model="recordFilters.createdDate" aria-label="篩選寄件時間" placeholder="輸入寄件日期" @input="activateRecordFilter('date')" /><select class="combobox-menu" aria-label="選擇寄件時間" tabindex="-1" @change="selectRecordSuggestion('createdDate', $event, 'date')"><option value="" hidden></option><option v-for="date in recordDateSuggestions" :key="date" :value="date">{{ date }}</option></select><button type="button" class="combobox-trigger" aria-label="開啟寄件時間選單" @click="openOverviewOptions"><i class="bi bi-chevron-down"></i></button></label>
+        </div>
+        <div class="record-columns"><span>send_id</span><span>msg_function</span><span>狀態</span><span>from</span><span>寄件人ID</span><span>收件人ID</span><span>訊息標題 / 訊息內容</span><span>寄件時間</span></div>
         <p v-if="recordError" class="template-feedback error" role="alert">{{ recordError }}</p><p v-else-if="recordLoading" class="template-feedback">發送紀錄載入中…</p>
-        <article v-for="item in visibleRecords" v-else :key="item.recordId" class="record-row"><span>#{{ item.sendId }}</span><span>{{ item.msgFunction }}</span><span>{{ item.recordStatus }}</span><span>{{ item.msgfromSellerId }}</span><span>{{ item.msgtoMemberId ?? item.msgtoSellerId ?? '—' }}</span><span class="message-copy"><strong>{{ item.sendTitle }}</strong><small>{{ item.sendContent }}</small></span><time>{{ formatTime(item.recordCreatedAt) }}</time></article>
+        <article v-for="item in visibleRecords" v-else :key="item.recordId" class="record-row"><span>#{{ item.sendId }}</span><span>{{ item.msgFunction }}</span><span>{{ item.recordStatus }}</span><span>{{ recordSenderName(item) }}</span><span>{{ item.msgfromSellerId ?? '—' }}</span><span>{{ recordRecipientId(item) ?? '—' }}</span><span class="message-copy"><strong>{{ item.sendTitle }}</strong><small>{{ item.sendContent }}</small></span><time>{{ formatTime(item.recordCreatedAt) }}</time></article>
         <p v-if="!recordLoading && !recordError && visibleRecords.length === 0" class="template-feedback">目前沒有符合條件的發送紀錄。</p>
       </div>
       <div v-else class="overview-list">
@@ -468,5 +511,5 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
 .admin-template-create-dialog>h2{margin:0;padding-right:var(--space-7);font-family:var(--font-heading);font-size:var(--font-size-xl)}.admin-template-create-dialog>label{display:grid;gap:var(--space-2);color:var(--color-text-muted);font-size:var(--font-size-sm)}.admin-template-create-dialog input,.admin-template-create-dialog select,.admin-template-create-dialog textarea{width:100%;padding:var(--space-3);font:inherit;color:var(--color-text);background:var(--color-surface);border:1px solid var(--color-border-strong);border-radius:var(--radius-md)}.template-create-textarea{position:relative}.template-create-textarea textarea{padding-bottom:var(--space-5)}.template-create-textarea>small{position:absolute;right:var(--space-2);bottom:var(--space-1);color:var(--color-text-subtle);font-size:var(--font-size-xs)}.template-create-error{margin:0;padding:var(--space-2) var(--space-3);color:var(--color-danger);font-size:var(--font-size-sm);background:var(--color-danger-soft);border-radius:var(--radius-md)}.template-create-save{justify-self:center;min-width:112px}
 .template-create-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);padding-right:var(--space-7)}.template-create-heading h2{margin:0;font-family:var(--font-heading);font-size:var(--font-size-xl)}
 .create-save-template{display:flex!important;align-items:center;gap:var(--space-2);color:var(--color-text)!important;font-size:var(--font-size-base)!important}.create-save-template input{width:18px;height:18px;padding:0}.create-message-textarea{position:relative}.create-message-textarea textarea{padding-bottom:var(--space-5)}.create-message-textarea small{position:absolute;right:var(--space-2);bottom:var(--space-1);color:var(--color-text-subtle);font-size:var(--font-size-xs)}.create-message-submit{justify-self:center;min-width:112px}
-.record-filters,.record-columns,.record-row{display:grid;grid-template-columns:80px 150px 110px 120px 120px minmax(280px,1fr) 170px;align-items:center;gap:var(--space-3);padding-inline:var(--space-4)}.record-filters{min-height:50px;background:var(--color-bg-muted)}.record-filters label{position:relative;display:block;min-width:0}.record-filters input,.record-filters select{width:100%;height:30px;min-width:0;padding:2px 24px 2px 7px;font:inherit;font-size:var(--font-size-xs);background:var(--color-surface);border:1px solid var(--color-border-strong);border-radius:var(--radius-sm)}.record-columns{min-height:36px;color:var(--color-text-muted);font-size:var(--font-size-xs);font-weight:700;background:var(--color-bg-muted);border-bottom:1px solid var(--color-border)}.record-row{height:65px;border-bottom:1px solid var(--color-border)}.record-columns>span:not(:nth-child(6)),.record-row>span:not(:nth-child(6)),.record-row>time{text-align:center}.record-row>span,.record-row time,.record-row strong,.record-row small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.record-row time,.record-row small{color:var(--color-text-muted);font-size:var(--font-size-sm)}@media(max-width:1200px){.record-filters,.record-columns,.record-row{min-width:1150px}}
+.record-filters,.record-columns,.record-row{display:grid;grid-template-columns:80px 150px 100px 140px 110px 110px minmax(280px,1fr) 170px;align-items:center;gap:var(--space-3);padding-inline:var(--space-4)}.record-filters{min-height:50px;background:var(--color-bg-muted)}.record-filters label{position:relative;display:block;min-width:0}.record-filters input,.record-filters select{width:100%;height:30px;min-width:0;padding:2px 24px 2px 7px;font:inherit;font-size:var(--font-size-xs);background:var(--color-surface);border:1px solid var(--color-border-strong);border-radius:var(--radius-sm)}.record-columns{min-height:36px;color:var(--color-text-muted);font-size:var(--font-size-xs);font-weight:700;background:var(--color-bg-muted);border-bottom:1px solid var(--color-border)}.record-row{height:65px;border-bottom:1px solid var(--color-border)}.record-columns>span:not(:nth-child(7)),.record-row>span:not(:nth-child(7)),.record-row>time{text-align:center}.record-row>span,.record-row time,.record-row strong,.record-row small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.record-row time,.record-row small{color:var(--color-text-muted);font-size:var(--font-size-sm)}@media(max-width:1200px){.record-filters,.record-columns,.record-row{min-width:1250px}}
 </style>
