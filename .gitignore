@@ -51,6 +51,7 @@ application-local.yml
 AGENTS.local.md
 
 # Frontend (Vue)
+node_modules/
 frontend/node_modules/
 frontend/dist/
 frontend/*.local
