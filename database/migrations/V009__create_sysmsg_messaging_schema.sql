@@ -259,13 +259,76 @@ IF COL_LENGTH(N'sysmsg.send_seller', N'send_seller_id') IS NULL
     THROW 51013, N'既有 sysmsg.send_seller 缺少 send_seller_id，無法自動升級', 1;
 IF COL_LENGTH(N'sysmsg.send_seller', N'order_no') IS NULL ALTER TABLE sysmsg.send_seller ADD order_no nvarchar(30) NULL;
 IF COL_LENGTH(N'sysmsg.send_seller', N'img_one') IS NULL ALTER TABLE sysmsg.send_seller ADD img_one nvarchar(500) NULL;
-IF COL_LENGTH(N'sysmsg.send_seller', N'img_one_public_id') IS NULL ALTER TABLE sysmsg.send_seller ADD img_one_public_id nvarchar(255) NULL;
 IF COL_LENGTH(N'sysmsg.send_seller', N'img_two') IS NULL ALTER TABLE sysmsg.send_seller ADD img_two nvarchar(500) NULL;
-IF COL_LENGTH(N'sysmsg.send_seller', N'img_two_public_id') IS NULL ALTER TABLE sysmsg.send_seller ADD img_two_public_id nvarchar(255) NULL;
 IF COL_LENGTH(N'sysmsg.send_seller', N'img_three') IS NULL ALTER TABLE sysmsg.send_seller ADD img_three nvarchar(500) NULL;
+GO
+
+-- 舊版 schema 將附件直接存成 varbinary；目前 Entity 改存 Cloudinary URL。
+-- 無法由二進位內容無損推導 URL/public_id，存在舊附件時明確停止升級。
+IF EXISTS
+(
+    SELECT 1
+    FROM sys.columns
+    WHERE object_id = OBJECT_ID(N'sysmsg.send_seller')
+      AND [name] IN (N'img_one', N'img_two', N'img_three')
+      AND system_type_id = TYPE_ID(N'varbinary')
+)
+AND EXISTS
+(
+    SELECT 1
+    FROM sysmsg.send_seller
+    WHERE img_one IS NOT NULL OR img_two IS NOT NULL OR img_three IS NOT NULL
+)
+BEGIN
+    THROW 51018, N'sysmsg.send_seller 尚有舊版 varbinary 圖片，請先搬移至 Cloudinary 並回填 URL/public_id，再執行 V009', 1;
+END;
+
+IF EXISTS
+(
+    SELECT 1
+    FROM sys.columns
+    WHERE object_id = OBJECT_ID(N'sysmsg.send_seller')
+      AND [name] IN (N'img_one', N'img_two', N'img_three')
+      AND (system_type_id <> TYPE_ID(N'nvarchar') OR max_length <> 1000)
+)
+BEGIN
+    IF EXISTS
+    (
+        SELECT 1 FROM sys.check_constraints
+        WHERE parent_object_id = OBJECT_ID(N'sysmsg.send_seller')
+          AND [name] = N'CK_sysmsg_send_seller_cloudinary_refs'
+    )
+        ALTER TABLE sysmsg.send_seller DROP CONSTRAINT CK_sysmsg_send_seller_cloudinary_refs;
+
+    IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID(N'sysmsg.send_seller') AND [name]=N'img_one' AND (system_type_id<>TYPE_ID(N'nvarchar') OR max_length<>1000))
+        ALTER TABLE sysmsg.send_seller ALTER COLUMN img_one nvarchar(500) NULL;
+    IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID(N'sysmsg.send_seller') AND [name]=N'img_two' AND (system_type_id<>TYPE_ID(N'nvarchar') OR max_length<>1000))
+        ALTER TABLE sysmsg.send_seller ALTER COLUMN img_two nvarchar(500) NULL;
+    IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID(N'sysmsg.send_seller') AND [name]=N'img_three' AND (system_type_id<>TYPE_ID(N'nvarchar') OR max_length<>1000))
+        ALTER TABLE sysmsg.send_seller ALTER COLUMN img_three nvarchar(500) NULL;
+END;
+GO
+
+IF COL_LENGTH(N'sysmsg.send_seller', N'img_one_public_id') IS NULL ALTER TABLE sysmsg.send_seller ADD img_one_public_id nvarchar(255) NULL;
+IF COL_LENGTH(N'sysmsg.send_seller', N'img_two_public_id') IS NULL ALTER TABLE sysmsg.send_seller ADD img_two_public_id nvarchar(255) NULL;
 IF COL_LENGTH(N'sysmsg.send_seller', N'img_three_public_id') IS NULL ALTER TABLE sysmsg.send_seller ADD img_three_public_id nvarchar(255) NULL;
 IF COL_LENGTH(N'sysmsg.send_seller', N'send_remark') IS NULL ALTER TABLE sysmsg.send_seller ADD send_remark nvarchar(1000) NULL;
 GO
+
+-- 已是 URL 但缺少 public_id 的舊資料同樣不能安全管理 Cloudinary 資產；禁止以清空資料繞過約束。
+IF EXISTS
+(
+    SELECT 1
+    FROM sysmsg.send_seller
+    WHERE (img_one IS NOT NULL AND img_one_public_id IS NULL)
+       OR (img_two IS NOT NULL AND img_two_public_id IS NULL)
+       OR (img_three IS NOT NULL AND img_three_public_id IS NULL)
+)
+BEGIN
+    THROW 51017, N'sysmsg.send_seller 圖片缺少 Cloudinary public_id，請先完成回填再執行 V009', 1;
+END;
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.key_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_seller') AND name=N'PK_sysmsg_send_seller')
     ALTER TABLE sysmsg.send_seller ADD CONSTRAINT PK_sysmsg_send_seller PRIMARY KEY (send_seller_id);
 IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'sysmsg.send_seller') AND name=N'CK_sysmsg_send_seller_order_no_not_blank')
