@@ -6,6 +6,12 @@ export const getSystemTemplates = (page = 0) =>
 export const createSystemTemplate = (payload) =>
   api.post('/sysmsg/system/templates', payload)
 
+export const createSystemMessage = (payload) =>
+  api.post('/sysmsg/system/messages', payload)
+
+export const getSystemRecords = (page = 0) =>
+  api.get('/sysmsg/system/messages/records', { params: { page } })
+
 export const updateSystemTemplate = (sendId, payload) =>
   api.put(`/sysmsg/system/templates/${sendId}`, payload)
 

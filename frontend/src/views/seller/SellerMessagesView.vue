@@ -866,7 +866,7 @@ onBeforeUnmount(() => {
                 <option value="ALL">全部訊息</option>
                 <option value="UNREAD">未讀取</option>
                 <option value="READ">已讀取</option>
-              </select></label
+              </select><i class="bi bi-chevron-down" aria-hidden="true"></i></label
             ><button
               class="read-all-button"
               :class="{ 'push-right': !canFilter }"
@@ -1269,6 +1269,7 @@ h1 {
   font-size: var(--font-size-sm);
 }
 .status-filter {
+  position: relative;
   margin-left: auto;
 }
 .message-toolbar select,
@@ -1568,6 +1569,32 @@ time {
   background: var(--color-surface);
   border: 1px solid var(--color-danger);
   border-radius: var(--radius-md);
+}
+.status-filter select {
+  appearance: none;
+  padding-right: 34px;
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+.status-filter > i {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  display: grid;
+  width: 29px;
+  height: calc(100% - 2px);
+  place-items: center;
+  color: var(--color-primary-700);
+  font-size: 11px;
+  background: var(--color-primary-soft);
+  border-left: 1px solid var(--color-border);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  pointer-events: none;
+}
+.status-filter:hover > i,
+.status-filter:focus-within > i {
+  color: var(--color-primary-active);
+  background: var(--color-primary-200);
 }
 .sent-backup-delete:disabled {
   color: var(--color-text-subtle);

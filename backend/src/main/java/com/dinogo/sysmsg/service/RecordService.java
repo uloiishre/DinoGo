@@ -59,4 +59,6 @@ public interface RecordService {
     OffsetPageResponse<MsgInboxResponse> getSellerInbox(Integer sellerId, String inbox, Integer page);
 
     SellerUnreadCountsResponse countSellerUnread(Integer sellerId);
+
+    OffsetPageResponse<RecordResponse> getSystemRecords(Integer loginMemberId, Integer page);
 }

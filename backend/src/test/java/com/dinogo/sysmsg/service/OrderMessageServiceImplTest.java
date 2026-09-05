@@ -53,6 +53,8 @@ class OrderMessageServiceImplTest {
         when(numbers.generateMsgFunction("AS")).thenReturn("AS-001");
 
         assertEquals(1, service.createOrderEventMessages(request(45)).size());
+        verify(records, times(1)).existsByOrderIdAndOrderStatusAndMsgtoMemberId(45, "PAID", 7);
+        verify(records, times(1)).existsByOrderIdAndOrderStatusAndMsgtoSellerId(45, "PAID", 5);
         verify(recordService).createOrderRecord(any(), org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.eq(5), org.mockito.ArgumentMatchers.eq(45),
                 org.mockito.ArgumentMatchers.eq("PAID"));

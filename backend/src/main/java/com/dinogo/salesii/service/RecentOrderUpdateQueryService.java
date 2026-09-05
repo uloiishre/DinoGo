@@ -3,8 +3,8 @@ package com.dinogo.salesii.service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,18 +34,18 @@ public class RecentOrderUpdateQueryService {
     }
 
     @Transactional(readOnly = true)
-    public Page<Integer> findOrderIds(LocalDateTime since, Pageable pageable) {
+    public Slice<Integer> findOrderIds(LocalDateTime since, Pageable pageable) {
         List<Integer> ids = entityManager.createQuery(
                         "SELECT orders.orderId " + FILTER + " ORDER BY orders.orderId", Integer.class)
                 .setParameter("since", since)
                 .setFirstResult(Math.toIntExact(pageable.getOffset()))
-                .setMaxResults(pageable.getPageSize())
+                .setMaxResults(pageable.getPageSize() + 1)
                 .getResultList();
-        long total = entityManager.createQuery(
-                        "SELECT COUNT(orders.orderId) " + FILTER, Long.class)
-                .setParameter("since", since)
-                .getSingleResult();
-        return new PageImpl<>(ids, pageable, total);
+        boolean hasNext = ids.size() > pageable.getPageSize();
+        List<Integer> content = hasNext
+                ? ids.subList(0, pageable.getPageSize())
+                : ids;
+        return new SliceImpl<>(content, pageable, hasNext);
     }
 }
 //rev+msg-end，總共1次修改，第1次//
