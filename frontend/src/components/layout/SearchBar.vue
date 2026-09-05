@@ -54,7 +54,28 @@ const handleSearch = () => {
   >
     <label class="visually-hidden" for="site-search"> 搜尋 </label>
 
-    <select v-model="searchType" class="search-category">
+    <div v-if="compact" class="search-mode-tabs" role="group" aria-label="搜尋類型">
+      <button
+        type="button"
+        class="search-mode-tab"
+        :class="{ 'is-active': searchType === 'product' }"
+        :aria-pressed="searchType === 'product'"
+        @click="searchType = 'product'"
+      >
+        商品
+      </button>
+      <button
+        type="button"
+        class="search-mode-tab"
+        :class="{ 'is-active': searchType === 'store' }"
+        :aria-pressed="searchType === 'store'"
+        @click="searchType = 'store'"
+      >
+        商家
+      </button>
+    </div>
+
+    <select v-if="!compact" v-model="searchType" class="search-category">
       <option value="product">搜尋商品</option>
       <option value="store">搜尋賣家</option>
     </select>
@@ -134,9 +155,59 @@ const handleSearch = () => {
 .search-bar--compact .search-category {
   display: none;
 }
-.search-bar--compact .search-input {
-  border-left: 0;
+.search-bar--compact {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) 44px;
+  column-gap: var(--space-1);
+  min-height: 0;
+  overflow: visible;
+  border: 0;
   border-radius: 0;
+}
+.search-mode-tabs {
+  display: flex;
+  grid-column: 1;
+  justify-self: start;
+  align-items: center;
+  gap: var(--space-2);
+}
+.search-mode-tab {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 var(--space-1);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  white-space: nowrap;
+}
+.search-mode-tab.is-active {
+  color: var(--color-primary-700);
+  font-weight: 700;
+  background: transparent;
+  border-bottom-color: var(--color-primary-700);
+}
+.search-mode-tab:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+.search-bar--compact .search-input {
+  grid-column: 2;
+  min-width: 0;
+  border: 1px solid var(--color-primary-500);
+  border-radius: var(--radius-md);
+}
+.search-bar--compact .search-submit {
+  grid-column: 3;
+  width: 44px;
+  flex-basis: 44px;
+  border-radius: var(--radius-md);
 }
 
 @media (max-width: 575.98px) {

@@ -1,5 +1,6 @@
 <script setup>
 import { RouterLink } from 'vue-router'
+import footerLogoUrl from '@/assets/images/dinogo-logo-s.png'
 </script>
 
 <template>
@@ -7,9 +8,12 @@ import { RouterLink } from 'vue-router'
     <div class="container py-5">
       <div class="row g-4">
         <div class="col-12 col-md-4">
-          <RouterLink class="footer-brand" to="/"
-            ><span aria-hidden="true">D</span>DINO-GO</RouterLink
-          >
+          <RouterLink class="footer-brand" to="/">
+            <span class="footer-brand__mark" aria-hidden="true">
+              <img :src="footerLogoUrl" alt="" />
+            </span>
+            DINO-GO
+          </RouterLink>
           <p class="mt-3 footer-copy">
             讓消費者安心選物，也讓商家專注經營。平台交易、訂單與售後資訊清楚可查。
           </p>
@@ -73,7 +77,7 @@ import { RouterLink } from 'vue-router'
   font-weight: 700;
   text-decoration: none;
 }
-.footer-brand span {
+.footer-brand__mark {
   display: grid;
   width: 36px;
   height: 36px;
@@ -83,6 +87,12 @@ import { RouterLink } from 'vue-router'
   place-items: center;
   border-radius: var(--radius-sm);
   background: var(--color-surface);
+}
+.footer-brand__mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 .footer-copy,
 .footer-bottom {

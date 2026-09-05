@@ -128,6 +128,17 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeAccountMe
             </li>
           </ul>
         </div>
+
+        <!-- Mobile does not use a dropdown: account destinations remain direct, scrollable nav links. -->
+        <RouterLink
+          v-for="item in accountItems"
+          :key="`mobile-${item.routeName}`"
+          :to="{ name: item.routeName }"
+          class="dg-member-nav-link dg-member-account-mobile"
+        >
+          <i class="bi" :class="item.icon" aria-hidden="true"></i>
+          <span>{{ item.label }}</span>
+        </RouterLink>
       </div>
     </div>
   </nav>
@@ -293,6 +304,10 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeAccountMe
   flex: 0 0 auto;
 }
 
+.dg-member-account-mobile {
+  display: none;
+}
+
 /* 面板與帳戶設定按鈕共用寬度，延續同一塊背景。 */
 .dg-member-account-dropdown {
   width: 100%;
@@ -367,8 +382,42 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeAccountMe
 }
 
 @media (max-width: 767.98px) {
+  .dg-member-nav {
+    --member-nav-height: 56px;
+    scrollbar-width: none;
+  }
+
+  .dg-member-nav::-webkit-scrollbar {
+    display: none;
+  }
+
   .dg-member-nav-inner {
+    height: calc(var(--member-nav-height) - 1px);
     padding-inline: var(--space-4);
+    gap: var(--space-2);
+  }
+
+  .dg-member-profile,
+  .dg-member-account-menu {
+    display: none;
+  }
+
+  .dg-member-menu {
+    width: max-content;
+    min-width: 100%;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: var(--space-1);
+  }
+
+  .dg-member-nav-link {
+    min-height: 44px;
+    flex: 0 0 auto;
+    padding-inline: var(--space-3);
+  }
+
+  .dg-member-account-mobile {
+    display: inline-flex;
   }
 }
 </style>
