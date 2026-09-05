@@ -248,6 +248,11 @@ public class SendServiceImpl implements SendService {
     }
     private void createSystemRecords(SendEntity send,String p,Integer memberId,Integer sellerId){
         if ("OA".equals(p)) {
+            // OA 預設為全體廣播；管理員若輸入個別會員 ID，則只建立該會員的 Record。
+            if (memberId != null) {
+                records.createSingleMemberRecord(send.getSendId(), memberId);
+                return;
+            }
             events.publishEvent(new OaBroadcastRequested(send.getSendId()));
             return;
         }
