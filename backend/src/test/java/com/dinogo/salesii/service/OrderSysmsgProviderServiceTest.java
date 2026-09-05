@@ -1,7 +1,6 @@
 package com.dinogo.salesii.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -22,7 +21,6 @@ import com.dinogo.sales.entity.PaymentStatus;
 import com.dinogo.sales.entity.Shipment;
 import com.dinogo.sales.entity.ShipmentStatus;
 import com.dinogo.sales.repository.OrderRepository;
-import com.dinogo.sales.repository.ShipmentRepository;
 
 //sysmsg-start，總共1次修改，第1次//
 /** 驗證 Shipment DELIVERED 只形成 sysmsg 唯讀投影，不改寫 Sales Order。 */
@@ -32,19 +30,16 @@ class OrderSysmsgProviderServiceTest {
     @Mock
     private OrderRepository orders;
 
-    @Mock
-    private ShipmentRepository shipments;
-
     @Test
     void projectsDeliveredShipmentWithoutChangingOrderStatus() {
         Order order = order(7, OrderStatus.SHIPPED);
         Shipment shipment = new Shipment();
         shipment.setOrder(order);
         shipment.setStatus(ShipmentStatus.DELIVERED);
-        when(orders.findById(7)).thenReturn(Optional.of(order));
-        when(shipments.findByOrderOrderId(7)).thenReturn(Optional.of(shipment));
+        order.setShipment(shipment);
+        when(orders.findForSysmsgSnapshot(7)).thenReturn(Optional.of(order));
 
-        OrderSysmsgProviderService provider = new OrderSysmsgProviderService(orders, shipments);
+        OrderSysmsgProviderService provider = new OrderSysmsgProviderService(orders);
 
         assertEquals("DELIVERED", provider.getOrderForSysmsg(7).status());
         assertEquals(OrderStatus.SHIPPED, order.getStatus());
@@ -55,10 +50,9 @@ class OrderSysmsgProviderServiceTest {
         Order order = order(8, OrderStatus.COMPLETED);
         when(orders.findById(8)).thenReturn(Optional.of(order));
 
-        OrderSysmsgProviderService provider = new OrderSysmsgProviderService(orders, shipments);
+        OrderSysmsgProviderService provider = new OrderSysmsgProviderService(orders);
 
         assertEquals("COMPLETED", provider.getOrder(8).status());
-        verifyNoInteractions(shipments);
     }
 
     @Test
@@ -67,10 +61,10 @@ class OrderSysmsgProviderServiceTest {
         Shipment shipment = new Shipment();
         shipment.setOrder(order);
         shipment.setStatus(ShipmentStatus.DELIVERED);
-        when(orders.findById(9)).thenReturn(Optional.of(order));
-        when(shipments.findByOrderOrderId(9)).thenReturn(Optional.of(shipment));
+        order.setShipment(shipment);
+        when(orders.findForSysmsgSnapshot(9)).thenReturn(Optional.of(order));
 
-        OrderSysmsgProviderService provider = new OrderSysmsgProviderService(orders, shipments);
+        OrderSysmsgProviderService provider = new OrderSysmsgProviderService(orders);
 
         OrderSysmsgResponse response = provider.getOrderForSysmsg(9);
         assertEquals("COMPLETED", response.status());
@@ -87,10 +81,9 @@ class OrderSysmsgProviderServiceTest {
         method.setMethodName("信用卡");
         payment.setPaymentMethod(method);
         order.getPayments().add(payment);
-        when(orders.findById(10)).thenReturn(Optional.of(order));
-        when(shipments.findByOrderOrderId(10)).thenReturn(Optional.empty());
+        when(orders.findForSysmsgSnapshot(10)).thenReturn(Optional.of(order));
 
-        OrderSysmsgProviderService provider = new OrderSysmsgProviderService(orders, shipments);
+        OrderSysmsgProviderService provider = new OrderSysmsgProviderService(orders);
 
         assertEquals("PAID", provider.getOrderForSysmsg(10).status());
         assertEquals(OrderStatus.PROCESSING, order.getStatus());
@@ -108,10 +101,9 @@ class OrderSysmsgProviderServiceTest {
         method.setMethodName("可調整的顯示名稱");
         payment.setPaymentMethod(method);
         order.getPayments().add(payment);
-        when(orders.findById(12)).thenReturn(Optional.of(order));
-        when(shipments.findByOrderOrderId(12)).thenReturn(Optional.empty());
+        when(orders.findForSysmsgSnapshot(12)).thenReturn(Optional.of(order));
 
-        OrderSysmsgResponse snapshot = new OrderSysmsgProviderService(orders, shipments)
+        OrderSysmsgResponse snapshot = new OrderSysmsgProviderService(orders)
                 .getOrderForSysmsg(12);
 
         assertEquals("PROCESSING", snapshot.status());
@@ -138,10 +130,9 @@ class OrderSysmsgProviderServiceTest {
         failed.setPaymentMethod(failedMethod);
         order.getPayments().add(successful);
         order.getPayments().add(failed);
-        when(orders.findById(11)).thenReturn(Optional.of(order));
-        when(shipments.findByOrderOrderId(11)).thenReturn(Optional.empty());
+        when(orders.findForSysmsgSnapshot(11)).thenReturn(Optional.of(order));
 
-        OrderSysmsgResponse snapshot = new OrderSysmsgProviderService(orders, shipments)
+        OrderSysmsgResponse snapshot = new OrderSysmsgProviderService(orders)
                 .getOrderForSysmsg(11);
 
         assertEquals("PAID", snapshot.status());

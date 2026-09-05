@@ -1,8 +1,10 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
+  createSystemMessage,
   createSystemTemplate,
   deleteSystemTemplate,
+  getSystemRecords,
   getSystemTemplates,
   updateSystemTemplate,
 } from '../../api/adminMessageApi.js'
@@ -23,6 +25,7 @@ const messageFilter = ref('ALL')
 const overviewFilters = reactive({ msgPrefix: '', msgNumber: '', sendStatus: '', senderType: 'ALL', senderId: '', sentDate: '' })
 const templatePage = ref(1)
 const messagePage = ref(1)
+const recordPage = ref(1)
 const templatePanel = ref(null)
 const selectedTemplate = ref(null)
 const messagePanel = ref(null)
@@ -30,10 +33,15 @@ const notice = ref('')
 const templateLoading = ref(false)
 const templateError = ref('')
 const templatesLoaded = ref(false)
-const form = reactive({ msgType: 'OA', sendTitle: '', sendContent: '' })
+const recordsLoaded = ref(false)
+const recordLoading = ref(false)
+const recordError = ref('')
+const recordFilters = reactive({ msgPrefix: '', msgNumber: '', status: '', createdDate: '' })
+const form = reactive({ saveAsTemplate: false, msgType: '', recipientId: '', templateId: '', msgLabel: '', sendTitle: '', sendContent: '', submitting: false, error: '' })
 const templateCreate = reactive({ open: false, sendId: null, msgType: 'OA', msgLabel: '', sendTitle: '', sendContent: '', submitting: false, error: '' })
 
 const templateItems = ref([])
+const recordItems = ref([])
 const messageItems = Array.from({ length: 73 }, (_, index) => ({
   sendId: 3000 + index,
   msgfromSellerId: index % 7 === 6 ? 200 + index : 1,
@@ -56,9 +64,6 @@ const filteredTemplates = computed(() => templateItems.value
     return templateSort.direction === 'asc' ? comparison : -comparison
   }))
 const isSendHistory = computed(() => activeTab.value === 'SEND_HISTORY')
-const activeMessageFilters = computed(() => isSendHistory.value
-  ? messageFilters.filter((filter) => ['ALL', 'OA', 'OS', 'OC'].includes(filter))
-  : messageFilters)
 const messageSenderType = (item) => prefixOf(item) === 'SC' ? 'SELLER' : 'ADMIN'
 const messageSenderId = (item) => messageSenderType(item) === 'SELLER'
   ? item.msgfromSellerId
@@ -89,6 +94,15 @@ const templatePageCount = computed(() => pageCount(filteredTemplates.value))
 const messagePageCount = computed(() => pageCount(filteredMessages.value))
 const visibleTemplates = computed(() => filteredTemplates.value.slice((templatePage.value - 1) * PAGE_SIZE, templatePage.value * PAGE_SIZE))
 const visibleMessages = computed(() => filteredMessages.value.slice((messagePage.value - 1) * PAGE_SIZE, messagePage.value * PAGE_SIZE))
+const filteredRecords = computed(() => recordItems.value.filter((item) =>
+  (!recordFilters.msgPrefix || prefixOf(item) === recordFilters.msgPrefix)
+  && (!recordFilters.msgNumber || item.msgFunction?.split('-')[1] === recordFilters.msgNumber)
+  && (!recordFilters.status || item.recordStatus === recordFilters.status)
+  && (!recordFilters.createdDate || item.recordCreatedAt?.slice(0, 10) === recordFilters.createdDate)))
+const recordPageCount = computed(() => pageCount(filteredRecords.value))
+const visibleRecords = computed(() => filteredRecords.value.slice((recordPage.value - 1) * PAGE_SIZE, recordPage.value * PAGE_SIZE))
+const recordNumberSuggestions = computed(() => [...new Set(recordItems.value.filter((item) => !recordFilters.msgPrefix || prefixOf(item) === recordFilters.msgPrefix).map((item) => item.msgFunction?.split('-')[1]).filter(Boolean))].sort())
+const recordDateSuggestions = computed(() => [...new Set(recordItems.value.map((item) => item.recordCreatedAt?.slice(0, 10)).filter(Boolean))].sort().reverse())
 const firstPages = (total) => Array.from({ length: Math.min(2, total) }, (_, index) => index + 1)
 const formatTime = (value) => new Intl.DateTimeFormat('zh-TW', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
 const senderLabel = (item) => prefixOf(item) === 'SC'
@@ -136,6 +150,22 @@ async function loadTemplates() {
     templateError.value = apiErrorMessage(error, '系統範本載入失敗')
   } finally {
     templateLoading.value = false
+  }
+}
+
+async function loadRecords() {
+  recordLoading.value = true
+  recordError.value = ''
+  try {
+    const first = (await getSystemRecords(0)).data
+    const remaining = first.totalPages > 1 ? await Promise.all(Array.from({ length: first.totalPages - 1 }, (_, index) => getSystemRecords(index + 1))) : []
+    recordItems.value = [...(first.items || []), ...remaining.flatMap((response) => response.data?.items || [])]
+    recordsLoaded.value = true
+    recordPage.value = 1
+  } catch (error) {
+    recordError.value = apiErrorMessage(error, '發送紀錄載入失敗')
+  } finally {
+    recordLoading.value = false
   }
 }
 
@@ -275,6 +305,14 @@ function selectOverviewSuggestion(field, event) {
   activateOverviewFilter(field === 'senderId' ? 'sender' : 'date')
   event.target.selectedIndex = 0
 }
+function selectMessageTemplate() {
+  const item = templateItems.value.find((entry) => entry.sendId === Number(form.templateId))
+  if (!item) return
+  form.msgType = prefixOf(item)
+  form.msgLabel = item.msgLabel || ''
+  form.sendTitle = item.sendTitle || ''
+  form.sendContent = item.sendContent || ''
+}
 function openOverviewOptions(event) {
   const select = event.currentTarget.previousElementSibling
   if (typeof select?.showPicker === 'function') select.showPicker()
@@ -287,12 +325,42 @@ async function selectTab(key) {
     messageFilter.value = 'ALL'
     messagePage.value = 1
   }
+  if (key === 'SEND_HISTORY' && !recordsLoaded.value) await loadRecords()
 }
-function submitMessage() {
-  notice.value = '檢視版：訊息已模擬送出。'
-  form.sendTitle = ''
-  form.sendContent = ''
+function changeRecordFilter() { recordPage.value = 1 }
+async function changeRecordPage(page) {
+  recordPage.value = Math.min(Math.max(1, page), recordPageCount.value)
+  await nextTick()
+  messagePanel.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
+async function submitMessage() {
+  if (form.submitting) return
+  form.submitting = true
+  form.error = ''
+  notice.value = ''
+  const recipientId = form.recipientId === '' ? null : Number(form.recipientId)
+  const sendPayload = {
+    msgType: form.msgType,
+    sendTitle: form.sendTitle.trim(),
+    sendContent: form.sendContent.trim(),
+    msgtoMemberId: form.msgType === 'OC' ? recipientId : null,
+    msgtoSellerId: form.msgType === 'OS' ? recipientId : null,
+  }
+  try {
+    await createSystemMessage(sendPayload)
+    if (form.saveAsTemplate) {
+      await createSystemTemplate({ msgType: form.msgType, msgLabel: form.msgLabel.trim() || form.sendTitle.trim(), sendTitle: form.sendTitle.trim(), sendContent: form.sendContent.trim() })
+      await loadTemplates()
+    }
+    notice.value = form.saveAsTemplate ? '訊息已送出並儲存為範本。' : '訊息已送出。'
+    Object.assign(form, { saveAsTemplate: false, recipientId: '', templateId: '', msgLabel: '', sendTitle: '', sendContent: '' })
+  } catch (error) {
+    form.error = apiErrorMessage(error, '訊息送出失敗')
+  } finally {
+    form.submitting = false
+  }
+}
+onMounted(loadTemplates)
 onBeforeUnmount(() => { document.body.style.overflow = '' })
 </script>
 
@@ -304,12 +372,17 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
     </nav>
 
     <form v-if="activeTab === 'CREATE'" class="content-panel create-form" @submit.prevent="submitMessage">
-      <header><h2>新增訊息</h2><p>建立並送出管理端系統訊息。</p></header>
+      <header><h2>新增訊息</h2></header>
+      <label class="create-save-template"><input v-model="form.saveAsTemplate" type="checkbox" />寄出訊息並同時儲存為範本</label>
       <p v-if="notice" class="notice" role="status">{{ notice }}</p>
-      <label>訊息類型<select v-model="form.msgType"><option value="OA">OA</option><option value="OS">OS</option><option value="OC">OC</option></select></label>
-      <label>標題<input v-model="form.sendTitle" maxlength="100" required /></label>
-      <label>內容<textarea v-model="form.sendContent" maxlength="1000" rows="8" required></textarea></label>
-      <button class="primary-action" type="submit">送出訊息</button>
+      <label>*寄送對象 (必填)<select v-model="form.msgType" required><option value="" disabled>請選擇寄送對象</option><option value="OA">全部</option><option value="OS">商家會員</option><option value="OC">一般會員</option></select></label>
+      <label>輸入個別會員ID<input v-model="form.recipientId" type="number" min="1" inputmode="numeric" placeholder="留空則依寄送對象處理" /></label>
+      <label>可選擇現有範本<select v-model="form.templateId" :disabled="templateLoading" @change="selectMessageTemplate"><option value="">不使用範本</option><option v-for="item in templateItems" :key="item.sendId" :value="item.sendId">{{ item.msgFunction }}｜{{ item.msgLabel }}</option></select></label>
+      <label>範本名稱<input v-model="form.msgLabel" maxlength="50" :disabled="!form.saveAsTemplate" /></label>
+      <label>*訊息標題 (必填)<input v-model="form.sendTitle" maxlength="100" required /></label>
+      <label class="create-message-textarea">*訊息內容 (必填)<textarea v-model="form.sendContent" maxlength="1000" rows="8" required></textarea><small>{{ form.sendContent.length }}/1000</small></label>
+      <p v-if="form.error" class="template-create-error" role="alert">{{ form.error }}</p>
+      <button class="primary-action create-message-submit" type="submit" :disabled="form.submitting">{{ form.submitting ? '送出中…' : '送出' }}</button>
     </form>
 
     <section v-else-if="activeTab === 'TEMPLATES'" ref="templatePanel" class="content-panel paged-panel">
@@ -319,8 +392,14 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
     </section>
 
     <section v-else ref="messagePanel" class="content-panel paged-panel">
-      <header class="panel-toolbar"><div><h2>{{ isSendHistory ? '發送紀錄' : '訊息總覽' }}</h2><p>{{ isSendHistory ? '顯示管理端 OA／OS／OC 發送紀錄。' : '只顯示 send_status = SEND。' }}</p></div><label v-if="isSendHistory">訊息類型<select v-model="messageFilter" @change="changeFilter('message')"><option v-for="filter in activeMessageFilters" :key="filter" :value="filter">{{ filter === 'ALL' ? '全部訊息' : filter }}</option></select></label></header>
-      <div v-if="isSendHistory" class="message-list"><div class="message-columns"><span>send_id</span><span>msg_function</span><span>msg_label</span><span>訊息內容</span><span>寄件時間</span></div><article v-for="item in visibleMessages" :key="item.sendId" class="message-row"><span>#{{ item.sendId }}</span><span>{{ item.msgFunction }}</span><span class="message-label"><strong>{{ item.msgLabel }}</strong><small>{{ senderLabel(item) }}</small></span><span class="message-copy"><strong>{{ item.sendTitle }}</strong><small>{{ item.sendContent }}</small></span><time>{{ formatTime(item.sendUpdAt) }}</time></article></div>
+      <header class="panel-toolbar"><div><h2>{{ isSendHistory ? '發送紀錄' : '訊息總覽' }}</h2><p>{{ isSendHistory ? '顯示 record_status = READ、UNREAD、DELETE 的完整發送紀錄。' : '只顯示 send_status = SEND。' }}</p></div></header>
+      <div v-if="isSendHistory" class="record-history">
+        <div class="record-filters"><span></span><div class="function-filter-pair"><label><select v-model="recordFilters.msgPrefix" aria-label="篩選 msg_function 前綴" @change="recordFilters.msgNumber='';changeRecordFilter()"><option value="">全部</option><option v-for="prefix in messageFilters.slice(1)" :key="prefix" :value="prefix">{{ prefix }}</option></select></label><b>-</b><label><select v-model="recordFilters.msgNumber" aria-label="篩選 msg_function 流水號" @change="changeRecordFilter"><option value="">全部</option><option v-for="number in recordNumberSuggestions" :key="number" :value="number">{{ number }}</option></select></label></div><label><select v-model="recordFilters.status" aria-label="篩選紀錄狀態" @change="changeRecordFilter"><option value="">全部</option><option value="READ">READ</option><option value="UNREAD">UNREAD</option><option value="DELETE">DELETE</option></select></label><span></span><span></span><span></span><label class="filter-combobox"><input v-model="recordFilters.createdDate" aria-label="篩選寄件時間" placeholder="輸入寄件日期" @input="changeRecordFilter" /><select class="combobox-menu" aria-label="選擇寄件時間" tabindex="-1" @change="recordFilters.createdDate=$event.target.value;$event.target.selectedIndex=0;changeRecordFilter()"><option value="" hidden></option><option v-for="date in recordDateSuggestions" :key="date" :value="date">{{ date }}</option></select><button type="button" class="combobox-trigger" aria-label="開啟寄件時間選單" @click="openOverviewOptions"><i class="bi bi-chevron-down"></i></button></label></div>
+        <div class="record-columns"><span>send_id</span><span>msg_function</span><span>狀態</span><span>寄件人</span><span>收件人</span><span>訊息標題 / 訊息內容</span><span>寄件時間</span></div>
+        <p v-if="recordError" class="template-feedback error" role="alert">{{ recordError }}</p><p v-else-if="recordLoading" class="template-feedback">發送紀錄載入中…</p>
+        <article v-for="item in visibleRecords" v-else :key="item.recordId" class="record-row"><span>#{{ item.sendId }}</span><span>{{ item.msgFunction }}</span><span>{{ item.recordStatus }}</span><span>{{ item.msgfromSellerId }}</span><span>{{ item.msgtoMemberId ?? item.msgtoSellerId ?? '—' }}</span><span class="message-copy"><strong>{{ item.sendTitle }}</strong><small>{{ item.sendContent }}</small></span><time>{{ formatTime(item.recordCreatedAt) }}</time></article>
+        <p v-if="!recordLoading && !recordError && visibleRecords.length === 0" class="template-feedback">目前沒有符合條件的發送紀錄。</p>
+      </div>
       <div v-else class="overview-list">
         <div class="overview-filters">
           <span aria-hidden="true"></span>
@@ -340,7 +419,8 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
         <article v-for="item in visibleMessages" :key="item.sendId" class="overview-row"><span>#{{ item.sendId }}</span><span>{{ item.msgFunction }}</span><span>{{ item.sendStatus }}</span><span>{{ item.msgLabel }}</span><span>{{ messageSenderType(item) === 'SELLER' ? '商家' : '系統管理員' }}</span><span>{{ messageSenderId(item) ?? '—' }}</span><span class="message-copy"><strong>{{ item.sendTitle }}</strong><small>{{ item.sendContent }}</small></span><time>{{ formatTime(item.sendUpdAt) }}</time></article>
         <p v-if="visibleMessages.length === 0" class="template-feedback">目前沒有符合篩選條件的訊息。</p>
       </div>
-      <nav class="pagination" :aria-label="`${isSendHistory ? '發送紀錄' : '訊息總覽'}頁籤`"><button :disabled="messagePage === 1" @click="changePage('message', 1, messagePageCount)">&lt;&lt;</button><button :disabled="messagePage === 1" @click="changePage('message', messagePage - 1, messagePageCount)">&lt;</button><button v-for="page in firstPages(messagePageCount)" :key="page" :class="{ active: messagePage === page }" @click="changePage('message', page, messagePageCount)">{{ page }}</button><span v-if="messagePageCount > 2">…</span><button v-if="messagePageCount > 2" :class="{ active: messagePage === messagePageCount }" @click="changePage('message', messagePageCount, messagePageCount)">{{ messagePageCount }}</button><button :disabled="messagePage === messagePageCount" @click="changePage('message', messagePage + 1, messagePageCount)">&gt;</button><button :disabled="messagePage === messagePageCount" @click="changePage('message', messagePageCount, messagePageCount)">&gt;&gt;</button></nav>
+      <nav v-if="isSendHistory" class="pagination" aria-label="發送紀錄頁籤"><button :disabled="recordPage === 1" @click="changeRecordPage(1)">&lt;&lt;</button><button :disabled="recordPage === 1" @click="changeRecordPage(recordPage-1)">&lt;</button><button v-for="page in firstPages(recordPageCount)" :key="page" :class="{ active: recordPage === page }" @click="changeRecordPage(page)">{{ page }}</button><span v-if="recordPageCount > 2">…</span><button v-if="recordPageCount > 2" :class="{ active: recordPage === recordPageCount }" @click="changeRecordPage(recordPageCount)">{{ recordPageCount }}</button><button :disabled="recordPage === recordPageCount" @click="changeRecordPage(recordPage+1)">&gt;</button><button :disabled="recordPage === recordPageCount" @click="changeRecordPage(recordPageCount)">&gt;&gt;</button></nav>
+      <nav v-else class="pagination" aria-label="訊息總覽頁籤"><button :disabled="messagePage === 1" @click="changePage('message', 1, messagePageCount)">&lt;&lt;</button><button :disabled="messagePage === 1" @click="changePage('message', messagePage - 1, messagePageCount)">&lt;</button><button v-for="page in firstPages(messagePageCount)" :key="page" :class="{ active: messagePage === page }" @click="changePage('message', page, messagePageCount)">{{ page }}</button><span v-if="messagePageCount > 2">…</span><button v-if="messagePageCount > 2" :class="{ active: messagePage === messagePageCount }" @click="changePage('message', messagePageCount, messagePageCount)">{{ messagePageCount }}</button><button :disabled="messagePage === messagePageCount" @click="changePage('message', messagePage + 1, messagePageCount)">&gt;</button><button :disabled="messagePage === messagePageCount" @click="changePage('message', messagePageCount, messagePageCount)">&gt;&gt;</button></nav>
     </section>
 
     <div v-if="selectedTemplate" class="template-detail-overlay" @click.self="closeTemplateDetail">
@@ -387,4 +467,6 @@ onBeforeUnmount(() => { document.body.style.overflow = '' })
 .template-row[role="button"]{cursor:pointer}.template-row[role="button"]:hover,.template-row[role="button"]:focus-visible{background:var(--color-primary-soft)}.template-detail-overlay{position:fixed;z-index:1050;inset:0;display:grid;overflow-y:auto;place-items:center;padding:var(--space-5);background:color-mix(in srgb,var(--color-text) 65%,transparent)}.admin-template-dialog{position:relative;display:grid;width:min(100%,720px);max-height:calc(100vh - (2 * var(--space-5)));overflow-y:auto;overscroll-behavior:contain;gap:var(--space-4);padding:var(--space-6);background:var(--color-surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-card)}.admin-template-dialog__close{position:absolute;top:var(--space-3);right:var(--space-3);width:var(--space-7);height:var(--space-7);padding:0;color:var(--color-text-muted);font-size:var(--font-size-xl);background:transparent;border:0}.admin-template-dialog>header{display:grid;gap:var(--space-1);padding-right:var(--space-7)}.admin-template-dialog>header small,.template-detail-field>label{color:var(--color-text-muted);font-size:var(--font-size-xs);font-weight:600}.admin-template-dialog>header p,.admin-template-dialog>header h2{margin:0}.admin-template-dialog>header p{font-size:var(--font-size-base);font-weight:600}.admin-template-dialog>header h2{font-family:var(--font-body);font-size:var(--font-size-xl);line-height:var(--line-height-heading)}.admin-template-dialog__actions{display:flex;justify-content:flex-end;gap:var(--space-2)}.admin-template-dialog__actions button{display:inline-flex;width:80px;height:28px;align-items:center;justify-content:center;gap:var(--space-1);font-weight:600;border-radius:var(--radius-md)}.admin-template-dialog>hr{width:100%;margin:0;color:var(--color-border);opacity:1}.template-detail-field{position:relative;display:grid;gap:var(--space-2)}.template-detail-field>div{min-height:112px;overflow-wrap:anywhere;padding:var(--space-3);white-space:pre-wrap;background:var(--color-surface-soft);border:1px solid var(--color-border-strong);border-radius:var(--radius-md)}.template-detail-field>small{position:absolute;right:var(--space-2);bottom:var(--space-1);color:var(--color-text-subtle);font-size:var(--font-size-xs)}
 .admin-template-create-dialog>h2{margin:0;padding-right:var(--space-7);font-family:var(--font-heading);font-size:var(--font-size-xl)}.admin-template-create-dialog>label{display:grid;gap:var(--space-2);color:var(--color-text-muted);font-size:var(--font-size-sm)}.admin-template-create-dialog input,.admin-template-create-dialog select,.admin-template-create-dialog textarea{width:100%;padding:var(--space-3);font:inherit;color:var(--color-text);background:var(--color-surface);border:1px solid var(--color-border-strong);border-radius:var(--radius-md)}.template-create-textarea{position:relative}.template-create-textarea textarea{padding-bottom:var(--space-5)}.template-create-textarea>small{position:absolute;right:var(--space-2);bottom:var(--space-1);color:var(--color-text-subtle);font-size:var(--font-size-xs)}.template-create-error{margin:0;padding:var(--space-2) var(--space-3);color:var(--color-danger);font-size:var(--font-size-sm);background:var(--color-danger-soft);border-radius:var(--radius-md)}.template-create-save{justify-self:center;min-width:112px}
 .template-create-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--space-4);padding-right:var(--space-7)}.template-create-heading h2{margin:0;font-family:var(--font-heading);font-size:var(--font-size-xl)}
+.create-save-template{display:flex!important;align-items:center;gap:var(--space-2);color:var(--color-text)!important;font-size:var(--font-size-base)!important}.create-save-template input{width:18px;height:18px;padding:0}.create-message-textarea{position:relative}.create-message-textarea textarea{padding-bottom:var(--space-5)}.create-message-textarea small{position:absolute;right:var(--space-2);bottom:var(--space-1);color:var(--color-text-subtle);font-size:var(--font-size-xs)}.create-message-submit{justify-self:center;min-width:112px}
+.record-filters,.record-columns,.record-row{display:grid;grid-template-columns:80px 150px 110px 120px 120px minmax(280px,1fr) 170px;align-items:center;gap:var(--space-3);padding-inline:var(--space-4)}.record-filters{min-height:50px;background:var(--color-bg-muted)}.record-filters label{position:relative;display:block;min-width:0}.record-filters input,.record-filters select{width:100%;height:30px;min-width:0;padding:2px 24px 2px 7px;font:inherit;font-size:var(--font-size-xs);background:var(--color-surface);border:1px solid var(--color-border-strong);border-radius:var(--radius-sm)}.record-columns{min-height:36px;color:var(--color-text-muted);font-size:var(--font-size-xs);font-weight:700;background:var(--color-bg-muted);border-bottom:1px solid var(--color-border)}.record-row{height:65px;border-bottom:1px solid var(--color-border)}.record-columns>span:not(:nth-child(6)),.record-row>span:not(:nth-child(6)),.record-row>time{text-align:center}.record-row>span,.record-row time,.record-row strong,.record-row small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.record-row time,.record-row small{color:var(--color-text-muted);font-size:var(--font-size-sm)}@media(max-width:1200px){.record-filters,.record-columns,.record-row{min-width:1150px}}
 </style>

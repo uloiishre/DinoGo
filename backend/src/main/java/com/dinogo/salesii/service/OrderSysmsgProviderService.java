@@ -14,7 +14,6 @@ import com.dinogo.sales.entity.ShipmentStatus;
 import com.dinogo.sales.entity.Shipment;
 import com.dinogo.sales.exception.OrderNotFoundException;
 import com.dinogo.sales.repository.OrderRepository;
-import com.dinogo.sales.repository.ShipmentRepository;
 /**
  * 單體應用內提供 review 與 sysmsg 所需訂單資料；不是前端 HTTP API。
  * 從正式 Order/Payment/Shipment 資料取得權威唯讀快照，呼叫端不得自行提供狀態。
@@ -25,13 +24,8 @@ import com.dinogo.sales.repository.ShipmentRepository;
 public class OrderSysmsgProviderService {
 
     private final OrderRepository orderRepository;
-    private final ShipmentRepository shipmentRepository;
-
-    public OrderSysmsgProviderService(
-            OrderRepository orderRepository,
-            ShipmentRepository shipmentRepository) {
+    public OrderSysmsgProviderService(OrderRepository orderRepository) {
         this.orderRepository = orderRepository;
-        this.shipmentRepository = shipmentRepository;
     }
 
     @Transactional(readOnly = true)
@@ -47,9 +41,9 @@ public class OrderSysmsgProviderService {
      */
     @Transactional(readOnly = true)
     public OrderSysmsgResponse getOrderForSysmsg(Integer orderId) {
-        Order order = orderRepository.findById(orderId)
+        Order order = orderRepository.findForSysmsgSnapshot(orderId)
                 .orElseThrow(() -> new OrderNotFoundException("Order does not exist"));
-        Shipment shipment = shipmentRepository.findByOrderOrderId(order.getOrderId()).orElse(null);
+        Shipment shipment = order.getShipment();
         String notificationStatus = effectiveNotificationStatus(order, shipment);
         return toResponse(order, notificationStatus, shipment);
     }

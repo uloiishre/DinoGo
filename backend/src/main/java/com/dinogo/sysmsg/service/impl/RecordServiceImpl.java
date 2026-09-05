@@ -148,6 +148,23 @@ public class RecordServiceImpl implements RecordService {
                 systemNotice + newOrder + cancelledOrder, systemNotice, newOrder, cancelledOrder);
     }
 
+    @Override @Transactional(readOnly=true)
+    public OffsetPageResponse<RecordResponse> getSystemRecords(Integer loginMemberId, Integer page) {
+        permissions.validateSystemAdmin(loginMemberId);
+        return OffsetPageResponse.from(records.findAllByOrderByRecordCreatedAtDescRecordIdDesc(systemRecordPageRequest(page))
+                .map(responseMapper::toResponse));
+    }
+
+    private PageRequest systemRecordPageRequest(Integer requestedPage) {
+        int page = requestedPage == null ? 0 : requestedPage;
+        if (page < 0) {
+            throw new IllegalArgumentException("page 不可小於 0");
+        }
+        // Repository 方法名稱已固定 recordCreatedAt、recordId 倒序；此處不可再加入相同 Sort，
+        // 否則 Hibernate 會產生重複 ORDER BY，SQL Server 會拒絕執行。
+        return PageRequest.of(page, 20);
+    }
+
     private PageRequest pageRequest(Integer requestedPage) {
         int page = requestedPage == null ? 0 : requestedPage;
         if (page < 0) {

@@ -111,4 +111,12 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
             WHERE orders.orderId = :orderId
             """)
     Optional<Order> findForEcpayCallback(@Param("orderId") Integer orderId);
+
+    /**
+     * 通知快照一次載入付款、付款方式與物流；orderItems 維持同交易內的單獨 Lazy 查詢，
+     * 避免同時 join-fetch 兩個 List 集合造成 MultipleBagFetchException。
+     */
+    @EntityGraph(attributePaths = { "payments", "payments.paymentMethod", "shipment" })
+    @Query("SELECT orders FROM Order orders WHERE orders.orderId = :orderId")
+    Optional<Order> findForSysmsgSnapshot(@Param("orderId") Integer orderId);
 }

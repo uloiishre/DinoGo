@@ -18,6 +18,9 @@ import com.dinogo.sysmsg.entity.SellerInbox;
 public interface RecordRepository
         extends JpaRepository<RecordEntity, Integer> {
 
+    @EntityGraph(attributePaths = "send")
+    Page<RecordEntity> findAllByOrderByRecordCreatedAtDescRecordIdDesc(Pageable pageable);
+
     /** Email dispatcher 需在同一次查詢取得 Record 與訊息母件。 */
     @EntityGraph(attributePaths = "send")
     Optional<RecordEntity> findWithSendByRecordId(Integer recordId);
