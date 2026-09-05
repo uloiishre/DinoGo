@@ -82,13 +82,18 @@ public class SendServiceImpl implements SendService {
         validateImageReferences(r.getImgOne(), r.getImgOnePublicId(),
                 r.getImgTwo(), r.getImgTwoPublicId(), r.getImgThree(), r.getImgThreePublicId(), loginId);
         SendEntity old=require(sendId); requireStatus(old,SendStatus.SAVE); permissions.validateTemplateOwner(old,loginId);
+        String currentPrefix=prefix(old);
+        String targetPrefix=currentPrefix;
         if (!(old instanceof SendSellerEntity) && r.getMsgType() != null && !r.getMsgType().isBlank()) {
-            String targetPrefix=systemPrefix(r.getMsgType());
-            if (!targetPrefix.equals(prefix(old))) {
-                SendEntity replacement=base(old.getMsgfromSellerId(),numbers.generateMsgFunction(targetPrefix),r.getMsgLabel(),r.getSendTitle(),r.getSendContent(),SendStatus.SAVE);
-                sends.delete(old);
-                return responseMapper.toTemplateResponse(sends.save(replacement));
-            }
+            targetPrefix=systemPrefix(r.getMsgType());
+        }
+        boolean targetChanged=!targetPrefix.equals(currentPrefix);
+        boolean sentHistoryExists=!targetChanged
+                && sends.existsByMsgFunctionAndSendStatus(old.getMsgFunction(),SendStatus.SEND);
+        if (targetChanged || sentHistoryExists) {
+            SendEntity replacement=replacementTemplate(old,r,targetPrefix);
+            sends.delete(old);
+            return responseMapper.toTemplateResponse(sends.save(replacement));
         }
         old.setMsgLabel(label(r.getMsgLabel(),r.getSendTitle())); old.setSendTitle(required(r.getSendTitle(),"標題")); old.setSendContent(required(r.getSendContent(),"內容"));
         if (old instanceof SendSellerEntity sc) {
@@ -101,6 +106,19 @@ public class SendServiceImpl implements SendService {
             sc.setSendRemark(r.getSendRemark());
         }
         return responseMapper.toTemplateResponse(sends.save(old));
+    }
+
+    private SendEntity replacementTemplate(SendEntity old, SendTemplateUpdateRequest r, String targetPrefix) {
+        String msgFunction=numbers.generateMsgFunction(targetPrefix);
+        if (old instanceof SendSellerEntity) {
+            SendSellerEntity replacement=new SendSellerEntity(old.getMsgfromSellerId(),msgFunction,
+                    label(r.getMsgLabel(),r.getSendTitle()),required(r.getSendTitle(),"標題"),
+                    required(r.getSendContent(),"內容"),SendStatus.SAVE,null,
+                    r.getImgOne(),r.getImgTwo(),r.getImgThree(),r.getSendRemark());
+            setImagePublicIds(replacement,r.getImgOnePublicId(),r.getImgTwoPublicId(),r.getImgThreePublicId());
+            return replacement;
+        }
+        return base(old.getMsgfromSellerId(),msgFunction,r.getMsgLabel(),r.getSendTitle(),r.getSendContent(),SendStatus.SAVE);
     }
 
     @Override @Transactional
