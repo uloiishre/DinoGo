@@ -74,7 +74,7 @@ class ReviewServiceLifecycleTest {
         OrderSysmsgResponse order = order("CANCELLED");
         HistoryEntity history = new HistoryEntity();
         when(validation.requireCancelledOrder(order)).thenReturn(order);
-        when(histories.findByOrderId(10)).thenReturn(Optional.of(history), Optional.empty());
+        when(histories.findByOrderId(10)).thenReturn(Optional.of(history)).thenReturn(Optional.empty());
 
         service.deleteHistoryForCancelledOrder(order);
         service.deleteHistoryForCancelledOrder(order);

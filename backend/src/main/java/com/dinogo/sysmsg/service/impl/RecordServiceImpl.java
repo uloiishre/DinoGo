@@ -181,7 +181,8 @@ public class RecordServiceImpl implements RecordService {
             throw new IllegalArgumentException("page 不可小於 0");
         }
         return PageRequest.of(page, 10,
-                Sort.by(Sort.Order.desc("recordCreatedAt"), Sort.Order.desc("recordId")));
+                Sort.sort(RecordEntity.class).by(RecordEntity::getRecordCreatedAt).descending()
+                        .and(Sort.sort(RecordEntity.class).by(RecordEntity::getRecordId).descending()));
     }
 
     private SendEntity requireSend(Integer id) {

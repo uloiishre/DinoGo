@@ -232,7 +232,8 @@ public class SendServiceImpl implements SendService {
             throw new IllegalArgumentException("page 不可小於 0");
         }
         return PageRequest.of(page, 10,
-                Sort.by(Sort.Order.desc("sendUpdAt"), Sort.Order.desc("sendId")));
+                Sort.sort(SendEntity.class).by(SendEntity::getSendUpdAt).descending()
+                        .and(Sort.sort(SendEntity.class).by(SendEntity::getSendId).descending()));
     }
 
     private SendEntity base(Integer from, String function, String label, String title,

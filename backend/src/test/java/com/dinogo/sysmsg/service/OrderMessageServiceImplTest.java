@@ -21,7 +21,6 @@ import com.dinogo.salesii.service.OrderSysmsgProviderService;
 //sysmsg-end，總共1次修改，第1次//
 import com.dinogo.sysmsg.dto.request.auto.OrderEventRequest;
 import com.dinogo.sysmsg.dto.response.SendResponse;
-import com.dinogo.sysmsg.entity.SendEntity;
 import com.dinogo.sysmsg.repository.RecordRepository;
 import com.dinogo.sysmsg.repository.SendRepository;
 import com.dinogo.sysmsg.service.content.OrderMessageContentFactory;

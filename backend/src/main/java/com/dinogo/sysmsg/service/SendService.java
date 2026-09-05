@@ -1,7 +1,6 @@
 package com.dinogo.sysmsg.service;
 
 
-import java.util.List;
 
 import com.dinogo.sysmsg.dto.request.record.SendStatusUpdateRequest;
 import com.dinogo.sysmsg.dto.request.send.SellerCreateRequest;

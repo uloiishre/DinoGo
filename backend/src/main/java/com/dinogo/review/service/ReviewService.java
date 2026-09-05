@@ -40,10 +40,10 @@ import com.dinogo.salesii.dto.OrderSysmsgResponse;
 public class ReviewService {
 
     private static final int PAGE_SIZE = 10;
-    private static final Sort PRODUCT_REVIEW_SORT = Sort.by(
-            Sort.Order.desc("reviewPriority"),
-            Sort.Order.desc("starUpdAt"),
-            Sort.Order.desc("id"));
+    private static final Sort PRODUCT_REVIEW_SORT = Sort.sort(StarEntity.class)
+            .by(StarEntity::getReviewPriority).descending()
+            .and(Sort.sort(StarEntity.class).by(StarEntity::getStarUpdAt).descending())
+            .and(Sort.sort(StarEntity.class).by(StarEntity::getId).descending());
     private final HistoryRepository historyRepository;
     private final StarRepository starRepository;
     private final MonolithValidationService monolithValidationService;

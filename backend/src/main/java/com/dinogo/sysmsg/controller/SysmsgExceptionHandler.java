@@ -99,7 +99,7 @@ public class SysmsgExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<SysmsgApiErrorResponse> unprocessable(
             IllegalStateException exception, HttpServletRequest request) {
-        return response(HttpStatus.UNPROCESSABLE_ENTITY,
+        return response(HttpStatus.UNPROCESSABLE_CONTENT,
                 safeMessage(exception, "目前資料狀態無法處理此要求"), request);
     }
 
@@ -115,7 +115,8 @@ public class SysmsgExceptionHandler {
         SysmsgApiErrorResponse body = new SysmsgApiErrorResponse(
                 LocalDateTime.now(),
                 status.value(),
-                status.getReasonPhrase(),
+                // Preserve the existing API error text when using Spring 7's renamed 422 constant.
+                status == HttpStatus.UNPROCESSABLE_CONTENT ? "Unprocessable Entity" : status.getReasonPhrase(),
                 message,
                 request.getRequestURI());
         return ResponseEntity.status(status).body(body);

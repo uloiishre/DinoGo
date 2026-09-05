@@ -56,8 +56,12 @@ class SysmsgExceptionHandlerTest {
 
     @Test
     void illegalStateReturns422() {
-        assertResponse(HttpStatus.UNPROCESSABLE_ENTITY,
-                handler.unprocessable(new IllegalStateException("state"), request).getBody());
+        var response = handler.unprocessable(new IllegalStateException("state"), request);
+        assertEquals(HttpStatus.UNPROCESSABLE_CONTENT, response.getStatusCode());
+        assertEquals(422, response.getBody().status());
+        assertEquals("Unprocessable Entity", response.getBody().error());
+        assertEquals("state", response.getBody().message());
+        assertEquals("/api/sysmsg/test", response.getBody().path());
     }
 
     private void assertResponse(HttpStatus expected, SysmsgApiErrorResponse body) {
