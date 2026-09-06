@@ -9,8 +9,6 @@ services:
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD}
     expose:
       - "1433"
-    ports:
-      - "1433:1433"
     volumes:
       - db_data:/var/opt/mssql
     networks:

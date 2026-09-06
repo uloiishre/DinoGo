@@ -26,24 +26,37 @@ public class ProductSemanticSearchService {
     private final RestClient restClient;
     private final String apiKey;
     private final String model;
+    private final boolean enabled;
 
     public ProductSemanticSearchService(VectorStoreStateService stateService, ObjectMapper objectMapper,
             @Value("${app.ai.openai.api-key:}") String configuredApiKey,
             @Value("${OPENAI_API_KEY:}") String environmentApiKey,
-            @Value("${app.ai.openai.model:gpt-4.1-mini}") String model) {
-        this.stateService = stateService; this.objectMapper = objectMapper;
+            @Value("${app.ai.openai.model:gpt-4.1-mini}") String model,
+            @Value("${app.ai.openai.enabled:false}") boolean enabled) {
+        this(stateService, objectMapper, configuredApiKey, environmentApiKey, model, enabled, createRestClient());
+    }
+
+    ProductSemanticSearchService(VectorStoreStateService stateService, ObjectMapper objectMapper,
+            String configuredApiKey, String environmentApiKey, String model, boolean enabled, RestClient restClient) {
+        this.stateService = stateService;
+        this.objectMapper = objectMapper;
+        this.restClient = restClient;
+        this.apiKey = configuredApiKey == null || configuredApiKey.isBlank() ? environmentApiKey : configuredApiKey;
+        this.model = model;
+        this.enabled = enabled;
+    }
+
+    private static RestClient createRestClient() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(java.time.Duration.ofSeconds(3));
         factory.setReadTimeout(java.time.Duration.ofSeconds(8));
-        this.restClient = RestClient.builder().baseUrl("https://api.openai.com/v1").requestFactory(factory).build();
-        this.apiKey = configuredApiKey == null || configuredApiKey.isBlank() ? environmentApiKey : configuredApiKey;
-        this.model = model;
+        return RestClient.builder().baseUrl("https://api.openai.com/v1").requestFactory(factory).build();
     }
 
     public List<Integer> searchProductIds(String query) {
         String vectorStoreId = stateService.getVectorStoreId();
-        if (vectorStoreId == null || vectorStoreId.isBlank() || apiKey == null || apiKey.isBlank()) {
-            log.warn("Semantic product search skipped: vector store ID or OpenAI API key is unavailable");
+        if (!enabled || vectorStoreId == null || vectorStoreId.isBlank() || apiKey == null || apiKey.isBlank()) {
+            log.warn("Semantic product search skipped: OpenAI is disabled, or its Vector Store ID/API key is unavailable");
             return List.of();
         }
         try {

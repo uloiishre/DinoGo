@@ -25,18 +25,30 @@ public class ShoppingAdvisorLlmClient {
     private final RestClient restClient;
     private final String apiKey;
     private final String model;
+    private final boolean enabled;
 
     public ShoppingAdvisorLlmClient(ObjectMapper objectMapper,
             @Value("${app.ai.openai.api-key:}") String configuredApiKey,
             @Value("${OPENAI_API_KEY:}") String environmentApiKey,
-            @Value("${app.ai.openai.model:gpt-4.1-mini}") String model) {
+            @Value("${app.ai.openai.model:gpt-4.1-mini}") String model,
+            @Value("${app.ai.openai.enabled:false}") boolean enabled) {
+        this(objectMapper, configuredApiKey, environmentApiKey, model, enabled, createRestClient());
+    }
+
+    ShoppingAdvisorLlmClient(ObjectMapper objectMapper, String configuredApiKey, String environmentApiKey,
+            String model, boolean enabled, RestClient restClient) {
         this.objectMapper = objectMapper;
+        this.restClient = restClient;
+        this.apiKey = configuredApiKey == null || configuredApiKey.isBlank() ? environmentApiKey : configuredApiKey;
+        this.model = model;
+        this.enabled = enabled;
+    }
+
+    private static RestClient createRestClient() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(3));
         factory.setReadTimeout(Duration.ofSeconds(8));
-        this.restClient = RestClient.builder().baseUrl("https://api.openai.com/v1").requestFactory(factory).build();
-        this.apiKey = configuredApiKey == null || configuredApiKey.isBlank() ? environmentApiKey : configuredApiKey;
-        this.model = model;
+        return RestClient.builder().baseUrl("https://api.openai.com/v1").requestFactory(factory).build();
     }
 
     public Result parse(String message) {
@@ -44,7 +56,7 @@ public class ShoppingAdvisorLlmClient {
     }
 
     public Result parse(String message, List<CategoryResponse> categories) {
-        if (apiKey == null || apiKey.isBlank()) return new Result(null, false, null);
+        if (!enabled || apiKey == null || apiKey.isBlank()) return new Result(null, false, null);
         try {
             Map<String, Object> schema = Map.of("type", "object", "additionalProperties", false,
                     "required", List.of("keyword", "categoryId", "maxPrice", "intentSummary"), "properties", Map.of(

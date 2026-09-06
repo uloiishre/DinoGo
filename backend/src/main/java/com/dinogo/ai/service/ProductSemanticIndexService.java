@@ -16,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
@@ -45,18 +46,28 @@ public class ProductSemanticIndexService {
     private final RestClient restClient;
     private final String apiKey;
     private final VectorStoreStateService vectorStoreStateService;
+    private final boolean enabled;
 
+    @Autowired
     public ProductSemanticIndexService(ProductService productService, @Value("${app.ai.openai.api-key:}") String apiKey,
-            @Value("${OPENAI_API_KEY:}") String environmentApiKey, VectorStoreStateService vectorStoreStateService) {
-        this(productService, apiKey, environmentApiKey, vectorStoreStateService, createRestClient());
+            @Value("${OPENAI_API_KEY:}") String environmentApiKey,
+            @Value("${app.ai.openai.enabled:false}") boolean enabled,
+            VectorStoreStateService vectorStoreStateService) {
+        this(productService, apiKey, environmentApiKey, vectorStoreStateService, createRestClient(), enabled);
     }
 
     ProductSemanticIndexService(ProductService productService, String apiKey, String environmentApiKey,
             VectorStoreStateService vectorStoreStateService, RestClient restClient) {
+        this(productService, apiKey, environmentApiKey, vectorStoreStateService, restClient, true);
+    }
+
+    ProductSemanticIndexService(ProductService productService, String apiKey, String environmentApiKey,
+            VectorStoreStateService vectorStoreStateService, RestClient restClient, boolean enabled) {
         this.productService = productService;
         this.restClient = restClient;
         this.apiKey = apiKey == null || apiKey.isBlank() ? environmentApiKey : apiKey;
         this.vectorStoreStateService = vectorStoreStateService;
+        this.enabled = enabled;
     }
 
     private static RestClient createRestClient() {
@@ -67,6 +78,7 @@ public class ProductSemanticIndexService {
     }
 
     public synchronized SemanticIndexRebuildResponse rebuild() {
+        if (!enabled) return new SemanticIndexRebuildResponse(null, 0, "disabled");
         if (apiKey == null || apiKey.isBlank()) throw new IllegalStateException("OpenAI API key is not configured");
 
         List<ProductResponse> products = loadAllActiveProducts();

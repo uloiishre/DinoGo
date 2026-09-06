@@ -6,6 +6,7 @@ services:
     restart: unless-stopped
     environment:
       FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:?Set FRONTEND_BASE_URL}
+      SYSMSG_RECONCILIATION_ENABLED: "false"
 
   frontend:
     restart: unless-stopped
