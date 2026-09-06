@@ -918,7 +918,7 @@ onMounted(() => {
                   </span>
                 </div>
 
-                <p class="item-price">NT$ {{ formatPrice(item.price) }}</p>
+                <p class="item-price item-price--desktop">NT$ {{ formatPrice(item.price) }}</p>
               </div>
 
               <!-- 數量 + 小計 -->
@@ -956,6 +956,10 @@ onMounted(() => {
                     </button>
                   </div>
 
+                  <span class="item-price item-price--mobile">
+                    NT$ {{ formatPrice(getItemSubtotal(item)) }}
+                  </span>
+
                   <!-- 庫存上限提示 -->
                   <span
                     v-if="isItemAvailable(item) && item.stock !== null && item.stock !== undefined"
@@ -974,9 +978,11 @@ onMounted(() => {
 
                 <!-- 小計 -->
                 <div class="item-total">
-                  <span class="item-total-label">小計</span>
+                  <div class="item-subtotal-row">
+                    <span class="item-total-label">小計</span>
 
-                  <strong> NT$ {{ formatPrice(getItemSubtotal(item)) }} </strong>
+                    <strong> NT$ {{ formatPrice(getItemSubtotal(item)) }} </strong>
+                  </div>
 
                   <span
                     v-if="!isItemAvailable(item) && item.stock !== null"
@@ -1085,7 +1091,7 @@ onMounted(() => {
                   </select>
                 </div>
 
-                <p class="item-price">NT$ {{ formatPrice(item.price) }}</p>
+                <p class="item-price item-price--desktop">NT$ {{ formatPrice(item.price) }}</p>
               </div>
 
               <!-- 數量 -->
@@ -1106,17 +1112,23 @@ onMounted(() => {
                     <i class="bi bi-plus"></i>
                   </button>
                 </div>
+
+                <span class="item-price item-price--mobile">
+                  NT$ {{ formatPrice(getItemSubtotal(item)) }}
+                </span>
               </div>
 
               <!-- 小計 / 庫存 / 移除 -->
 
               <div class="item-total">
-                <span class="item-total-label"> 小計 </span>
+                <div class="item-subtotal-row">
+                  <span class="item-total-label"> 小計 </span>
 
-                <strong>
-                  NT$
-                  {{ formatPrice(getItemSubtotal(item)) }}
-                </strong>
+                  <strong>
+                    NT$
+                    {{ formatPrice(getItemSubtotal(item)) }}
+                  </strong>
+                </div>
 
                 <span
                   v-if="item.stock !== null && item.stock !== undefined"
@@ -1678,6 +1690,15 @@ onMounted(() => {
   white-space: nowrap;
 }
 
+/* Keeps the desktop subtotal stacked while allowing the mobile row to become one group. */
+.item-subtotal-row {
+  display: contents;
+}
+
+.item-price--mobile {
+  display: none;
+}
+
 /* ========================================
    Remove
 ======================================== */
@@ -2193,6 +2214,130 @@ onMounted(() => {
     padding: var(--space-5);
   }
 }
+
+/* Mobile commerce row: checkbox, image, and a single concentrated content column. */
+@media (max-width: 767.98px) {
+  .seller-header {
+    flex-wrap: nowrap;
+    gap: var(--space-2);
+  }
+
+  .seller-select-label {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .seller-select-label span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .seller-item-count {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .cart-item-card {
+    grid-template-columns: auto 72px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .item-image-wrapper {
+    width: 72px;
+    height: 72px;
+  }
+
+  .cart-image {
+    object-fit: cover;
+  }
+
+  .item-info {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+  }
+
+  .item-name {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .item-price {
+    margin: var(--space-1) 0 0;
+    align-self: flex-start;
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+  }
+
+  .item-sku-select {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .sku-label {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .item-sku-select select {
+    width: auto;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .item-purchase-info {
+    grid-column: 3;
+    min-width: 0;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+
+  .item-purchase-info .item-quantity {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .quantity-label {
+    display: none;
+  }
+
+  .quantity-stock-info {
+    margin-top: 0;
+  }
+
+  .item-purchase-info .item-total {
+    align-items: flex-end;
+  }
+
+  .item-total strong {
+    font-size: var(--font-size-md);
+  }
+
+  .remove-button {
+    padding-right: 0;
+  }
+
+  .remove-button i {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .cart-item-card {
+    grid-template-columns: auto 64px minmax(0, 1fr);
+  }
+
+  .item-image-wrapper {
+    width: 64px;
+    height: 64px;
+  }
+}
+
 /* ========================================
    SKU Select
 ======================================== */
@@ -3008,6 +3153,125 @@ onMounted(() => {
     flex: 1;
 
     min-width: 0;
+  }
+
+  /* Keep the mobile card's content within its remaining grid column. */
+  .cart-item-card,
+  .item-info,
+  .item-quantity,
+  .item-total {
+    min-width: 0;
+  }
+
+  .item-sku-select,
+  .item-sku-select select {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .item-name,
+  .item-unavailable-message,
+  .quantity-stock-info {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .item-unavailable-message {
+    max-width: 100%;
+    align-items: flex-start;
+  }
+}
+
+/* Final mobile cart reading order: spec, quantity with current item total, remove. */
+@media (max-width: 767.98px) {
+  .item-sku-select {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+  }
+
+  .item-sku-select .sku-label {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .item-sku-select select {
+    width: auto;
+    min-width: 0;
+    max-width: 100%;
+    flex: 1 1 auto;
+  }
+
+  .item-price--desktop,
+  .quantity-stock-info {
+    display: none;
+  }
+
+  .item-price--mobile {
+    display: inline;
+    flex: 0 0 auto;
+    margin: 0;
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+  }
+
+  .item-purchase-info,
+  .unavailable-section .item-quantity,
+  .unavailable-section .item-total {
+    min-width: 0;
+  }
+
+  .item-purchase-info {
+    display: contents;
+  }
+
+  .item-purchase-info .item-quantity,
+  .unavailable-section .item-quantity {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    gap: var(--space-2);
+  }
+
+  .item-purchase-info .item-quantity {
+    grid-column: 3;
+  }
+
+  .item-purchase-info .quantity-label,
+  .unavailable-section .quantity-label {
+    display: inline;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .item-purchase-info .item-total,
+  .unavailable-section .item-total {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: flex-start;
+    width: auto;
+    gap: var(--space-1);
+  }
+
+  .item-purchase-info .item-total,
+  .unavailable-section .item-total {
+    grid-column: 3;
+    margin-top: var(--space-2);
+  }
+
+  .item-subtotal-row,
+  .item-total .stock-info {
+    display: none;
+  }
+
+  .item-total .remove-button {
+    align-self: flex-end;
   }
 }
 </style>

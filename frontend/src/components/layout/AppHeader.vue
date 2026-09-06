@@ -195,8 +195,16 @@ onBeforeUnmount(() => {
           ><span class="header-action__label">購物車</span></RouterLink
         >
         <RouterLink
+          class="header-action member-action d-inline-flex d-lg-none"
+          :to="{ name: 'MemberOverview' }"
+          aria-label="會員中心"
+        >
+          <i class="bi bi-person-circle" aria-hidden="true"></i>
+          <span class="header-action__label">會員中心</span>
+        </RouterLink>
+        <RouterLink
           class="header-action member-action d-none d-lg-inline-flex"
-          to="/member/overview"
+          :to="{ name: 'MemberOverview' }"
         >
           <i class="bi bi-person-circle" aria-hidden="true"></i
           ><span class="header-action__label">會員中心</span>
@@ -427,8 +435,17 @@ onBeforeUnmount(() => {
     display: none;
   }
   .header-action {
-    min-width: 40px;
-    min-height: 48px;
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    flex-basis: 44px;
+  }
+  .header-actions {
+    width: auto;
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    margin-left: auto;
+    gap: var(--space-1) !important;
   }
   .header-action__label {
     display: none;
