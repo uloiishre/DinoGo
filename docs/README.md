@@ -13,6 +13,7 @@
 | 工作規範 | [security-rules.md](security-rules.md) | 跨模組 JWT、Spring Security、401／403 與前端認證整合規則。 |
 | 模組 API | [member-api.md](member-api.md) | A 會員、認證與地址 API 的 request、response、錯誤格式與 JWT 規則。 |
 | 測試指南 | [password-reset-team-guide.md](password-reset-team-guide.md) | 忘記密碼功能的本機設定、Postman API 與手動測試流程。 |
+| 部署交接 | [ai-shopping-advisor-docker-deployment.md](ai-shopping-advisor-docker-deployment.md) | AI 購物顧問 Docker 設定、持久化索引、重建與驗證流程。 |
 | 模組 API | [payment-api.md](payment-api.md) | D 付款建立、MVP 模擬結果、狀態與 JWT 規則。 |
 | 模組 API | [review-api.md](review-api.md) | F 公開商品評價的篩選、分頁、彙總與遮罩規則。 |
 | 模組架構 | [review架構.md](review架構.md) | F Review 模組生命週期、資料責任、API 與產品頁顯示的功能確立文件。 |

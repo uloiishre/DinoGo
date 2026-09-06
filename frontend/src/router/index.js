@@ -20,6 +20,12 @@ const routes = [
         component: () => import('@/views/product/ProductListView.vue'),
       },
       {
+        path: 'ai-shopping-advisor',
+        name: 'AiShoppingAdvisor',
+        component: () => import('@/views/product/AiShoppingAdvisorView.vue'),
+        meta: { requiresAuth: true },
+      },
+      {
         path: 'products/:id',
         name: 'ProductDetail',
         component: () => import('@/views/product/ProductDetailView.vue'),

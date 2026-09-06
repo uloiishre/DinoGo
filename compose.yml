@@ -62,6 +62,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       APP_AI_OPENAI_ENABLED: ${APP_AI_OPENAI_ENABLED:-false}
       APP_AI_OPENAI_MODEL: ${APP_AI_OPENAI_MODEL:-gpt-4.1-mini}
+      AI_VECTOR_STORE_STATE_PATH: ${AI_VECTOR_STORE_STATE_PATH:-/app/data/ai-vector-store.json}
       SERVER_FORWARD_HEADERS_STRATEGY: framework
     entrypoint:
       - /bin/sh
@@ -86,6 +87,7 @@ services:
       - "8080"
     volumes:
       - uploads:/app/uploads
+      - ai_vector_store_data:/app/data
     networks:
       edge:
         gw_priority: 1
@@ -130,5 +132,6 @@ networks:
 volumes:
   db_data:
   uploads:
+  ai_vector_store_data:
   caddy_data:
   caddy_config:
