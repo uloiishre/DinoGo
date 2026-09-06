@@ -491,7 +491,12 @@ onUnmounted(() => {
     gap: var(--space-3);
   }
   .home-hero__visual {
-    display: none;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 16 / 9;
+    flex: 0 0 auto;
+    order: 2;
   }
   .category-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -509,6 +514,9 @@ onUnmounted(() => {
   }
   .home-hero__title {
     font-size: var(--font-size-xl);
+  }
+  .home-hero__visual {
+    aspect-ratio: 4 / 3;
   }
   .category-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

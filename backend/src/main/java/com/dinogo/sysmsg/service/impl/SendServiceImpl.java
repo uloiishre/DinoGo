@@ -82,29 +82,43 @@ public class SendServiceImpl implements SendService {
         validateImageReferences(r.getImgOne(), r.getImgOnePublicId(),
                 r.getImgTwo(), r.getImgTwoPublicId(), r.getImgThree(), r.getImgThreePublicId(), loginId);
         SendEntity old=require(sendId); requireStatus(old,SendStatus.SAVE); permissions.validateTemplateOwner(old,loginId);
-        if (!sends.existsByMsgFunctionAndSendStatus(old.getMsgFunction(),SendStatus.SEND)) {
-            old.setMsgLabel(label(r.getMsgLabel(),r.getSendTitle())); old.setSendTitle(required(r.getSendTitle(),"標題")); old.setSendContent(required(r.getSendContent(),"內容"));
-            if (old instanceof SendSellerEntity sc) {
-                sc.setImgOne(r.getImgOne());
-                sc.setImgOnePublicId(r.getImgOnePublicId());
-                sc.setImgTwo(r.getImgTwo());
-                sc.setImgTwoPublicId(r.getImgTwoPublicId());
-                sc.setImgThree(r.getImgThree());
-                sc.setImgThreePublicId(r.getImgThreePublicId());
-                sc.setSendRemark(r.getSendRemark());
-            }
-            return responseMapper.toTemplateResponse(sends.save(old));
+        String currentPrefix=prefix(old);
+        String targetPrefix=currentPrefix;
+        if (!(old instanceof SendSellerEntity) && r.getMsgType() != null && !r.getMsgType().isBlank()) {
+            targetPrefix=systemPrefix(r.getMsgType());
         }
-        SendEntity replacement;
-        String function=numbers.generateMsgFunction(prefix(old));
-        if(old instanceof SendSellerEntity) {
-            SendSellerEntity sellerReplacement=new SendSellerEntity(old.getMsgfromSellerId(),function,label(r.getMsgLabel(),r.getSendTitle()),r.getSendTitle(),r.getSendContent(),SendStatus.SAVE,null,r.getImgOne(),r.getImgTwo(),r.getImgThree(),r.getSendRemark());
-            setImagePublicIds(sellerReplacement, r.getImgOnePublicId(), r.getImgTwoPublicId(), r.getImgThreePublicId());
-            replacement=sellerReplacement;
+        boolean targetChanged=!targetPrefix.equals(currentPrefix);
+        boolean sentHistoryExists=!targetChanged
+                && sends.existsByMsgFunctionAndSendStatus(old.getMsgFunction(),SendStatus.SEND);
+        if (targetChanged || sentHistoryExists) {
+            SendEntity replacement=replacementTemplate(old,r,targetPrefix);
+            sends.delete(old);
+            return responseMapper.toTemplateResponse(sends.save(replacement));
         }
-        else replacement=base(old.getMsgfromSellerId(),function,r.getMsgLabel(),r.getSendTitle(),r.getSendContent(),SendStatus.SAVE);
-        sends.delete(old);
-        return responseMapper.toTemplateResponse(sends.save(replacement));
+        old.setMsgLabel(label(r.getMsgLabel(),r.getSendTitle())); old.setSendTitle(required(r.getSendTitle(),"標題")); old.setSendContent(required(r.getSendContent(),"內容"));
+        if (old instanceof SendSellerEntity sc) {
+            sc.setImgOne(r.getImgOne());
+            sc.setImgOnePublicId(r.getImgOnePublicId());
+            sc.setImgTwo(r.getImgTwo());
+            sc.setImgTwoPublicId(r.getImgTwoPublicId());
+            sc.setImgThree(r.getImgThree());
+            sc.setImgThreePublicId(r.getImgThreePublicId());
+            sc.setSendRemark(r.getSendRemark());
+        }
+        return responseMapper.toTemplateResponse(sends.save(old));
+    }
+
+    private SendEntity replacementTemplate(SendEntity old, SendTemplateUpdateRequest r, String targetPrefix) {
+        String msgFunction=numbers.generateMsgFunction(targetPrefix);
+        if (old instanceof SendSellerEntity) {
+            SendSellerEntity replacement=new SendSellerEntity(old.getMsgfromSellerId(),msgFunction,
+                    label(r.getMsgLabel(),r.getSendTitle()),required(r.getSendTitle(),"標題"),
+                    required(r.getSendContent(),"內容"),SendStatus.SAVE,null,
+                    r.getImgOne(),r.getImgTwo(),r.getImgThree(),r.getSendRemark());
+            setImagePublicIds(replacement,r.getImgOnePublicId(),r.getImgTwoPublicId(),r.getImgThreePublicId());
+            return replacement;
+        }
+        return base(old.getMsgfromSellerId(),msgFunction,r.getMsgLabel(),r.getSendTitle(),r.getSendContent(),SendStatus.SAVE);
     }
 
     @Override @Transactional
@@ -252,6 +266,11 @@ public class SendServiceImpl implements SendService {
     }
     private void createSystemRecords(SendEntity send,String p,Integer memberId,Integer sellerId){
         if ("OA".equals(p)) {
+            // OA 預設為全體廣播；管理員若輸入個別會員 ID，則只建立該會員的 Record。
+            if (memberId != null) {
+                records.createSingleMemberRecord(send.getSendId(), memberId);
+                return;
+            }
             events.publishEvent(new OaBroadcastRequested(send.getSendId()));
             return;
         }
@@ -260,16 +279,18 @@ public class SendServiceImpl implements SendService {
     private List<Integer> memberRecipients(String p,Integer id){
         if("OS".equals(p))return List.of();
         if("OA".equals(p))return List.of();
-        if(id==null)throw new IllegalArgumentException("OC 必須提供會員收件人");
+        if(id==null)return members.getAllMembers().stream().map(member->member.memberId()).distinct().toList(); //Client-sysmsg
         members.getMember(id); //Client-sysmsg
         return List.of(id);
     }
     private List<Integer> sellerRecipients(String p,Integer id){
         if("OC".equals(p))return List.of();
         if("OA".equals(p))return List.of();
-        if(id==null)throw new IllegalArgumentException("OS 必須提供商家收件人");
-        if(!sellers.getSeller(id).active())throw new IllegalStateException("收件商家未啟用："+id); //Client-sysmsg
-        return List.of(id);
+        if(id==null)return sellers.getAllSellers().stream().filter(seller->seller.active()).map(seller->seller.sellerId()).distinct().toList(); //Client-sysmsg
+        var seller=sellers.getAllSellers().stream().filter(candidate->id.equals(candidate.memberId())||id.equals(candidate.sellerId())).findFirst()
+                .orElseThrow(()->new NoSuchElementException("找不到商家會員："+id)); //Client-sysmsg
+        if(!seller.active())throw new IllegalStateException("收件商家未啟用："+seller.sellerId());
+        return List.of(seller.sellerId());
     }
     private void requireOrderOwner(OrderInfoResponse order, Integer sellerId) {
         if (!sellerId.equals(order.getSellerId())) {

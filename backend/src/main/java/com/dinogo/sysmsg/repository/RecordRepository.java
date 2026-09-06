@@ -18,6 +18,9 @@ import com.dinogo.sysmsg.entity.SellerInbox;
 public interface RecordRepository
         extends JpaRepository<RecordEntity, Integer> {
 
+    @EntityGraph(attributePaths = "send")
+    Page<RecordEntity> findAllByOrderByRecordCreatedAtDescRecordIdDesc(Pageable pageable);
+
     /** Email dispatcher 需在同一次查詢取得 Record 與訊息母件。 */
     @EntityGraph(attributePaths = "send")
     Optional<RecordEntity> findWithSendByRecordId(Integer recordId);
@@ -89,11 +92,26 @@ public interface RecordRepository
             select r from RecordEntity r
             where r.msgtoSellerId = :recipientId and r.sellerInbox = :inbox
               and r.recordStatus <> :excludedStatus
+              and (r.sellerInbox <> :newOrderInbox or r.orderStatus in :newOrderStatuses)
             """)
     Page<RecordEntity> findSellerInbox(
             @Param("recipientId") Integer recipientId, @Param("inbox") SellerInbox inbox,
             @Param("excludedStatus") RecordStatus excludedStatus,
+            @Param("newOrderInbox") SellerInbox newOrderInbox,
+            @Param("newOrderStatuses") List<String> newOrderStatuses,
             Pageable pageable);
+
+    @Query("""
+            select count(r) from RecordEntity r
+            where r.msgtoSellerId = :recipientId and r.sellerInbox = :inbox
+              and r.recordStatus = :status
+              and (r.sellerInbox <> :newOrderInbox or r.orderStatus in :newOrderStatuses)
+            """)
+    long countSellerInbox(
+            @Param("recipientId") Integer recipientId, @Param("inbox") SellerInbox inbox,
+            @Param("status") RecordStatus status,
+            @Param("newOrderInbox") SellerInbox newOrderInbox,
+            @Param("newOrderStatuses") List<String> newOrderStatuses);
 
     Page<RecordEntity>
     findByMsgtoSellerIdAndRecordStatusOrderByRecordCreatedAtDescRecordIdDesc(

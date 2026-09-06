@@ -50,6 +50,8 @@ const checkoutSellerId = ref(null)
 
 const addresses = ref([])
 const selectedAddressId = ref(null)
+const addressLoading = ref(false)
+const addressErrorMessage = ref('')
 
 // ========================================
 // 配送方式
@@ -109,6 +111,8 @@ const totalAmount = ref(0)
 const selectedAddress = computed(() => {
   return addresses.value.find((address) => address.addressId === selectedAddressId.value)
 })
+
+const defaultAddress = computed(() => addresses.value.find((address) => address.isDefault) ?? null)
 
 // ========================================
 // 目前選擇的優惠券
@@ -257,20 +261,24 @@ const loadCheckoutItems = () => {
 
 const loadAddresses = async () => {
   try {
+    addressLoading.value = true
+    addressErrorMessage.value = ''
     const response = await api.get('/addresses')
 
     addresses.value = response.data || []
 
-    // 優先選擇預設地址
-    const defaultAddress = addresses.value.find((address) => address.isDefault)
-
-    selectedAddressId.value = defaultAddress?.addressId ?? addresses.value[0]?.addressId ?? null
+    // 結帳只能使用 API 明確標記的預設地址，不以第一筆地址替代。
+    selectedAddressId.value = defaultAddress.value?.addressId ?? null
   } catch (error) {
     logSafeError('取得地址失敗：', error)
 
-    errorMessage.value = error.response?.data?.message || '無法取得收件地址'
+    addressErrorMessage.value = error.response?.data?.message || '無法取得收件地址'
+  } finally {
+    addressLoading.value = false
   }
 }
+
+const goToAddressManagement = () => router.push({ name: 'MemberAddresses' })
 
 // ========================================
 // 取得可用優惠券
@@ -907,14 +915,24 @@ onMounted(() => {
               </h2>
             </div>
 
-            <!-- 沒有地址 -->
+            <div v-if="addressLoading" class="empty-address" role="status">
+              <span>正在取得收件地址…</span>
+            </div>
 
-            <div v-if="addresses.length === 0" class="empty-address">
+            <div v-else-if="addressErrorMessage" class="empty-address empty-address--error" role="alert">
+              <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+              <strong>無法取得收件地址</strong>
+              <span>{{ addressErrorMessage }}</span>
+            </div>
+
+            <!-- 無預設地址：不把 addresses[0] 當作預設地址。 -->
+            <div v-else-if="!defaultAddress" class="empty-address">
               <i class="bi bi-geo-alt"></i>
-
-              <strong> 目前沒有收件地址 </strong>
-
-              <span> 請先新增收件地址 </span>
+              <strong>尚未設定預設收件地址</strong>
+              <span>請先到會員中心新增地址並設為預設地址</span>
+              <button type="button" class="empty-address__action" @click="goToAddressManagement">
+                新增地址
+              </button>
             </div>
 
             <!-- 地址 -->
@@ -1367,7 +1385,7 @@ onMounted(() => {
   ======================================== */
 
 .checkout-page {
-  min-height: 100vh;
+  min-height: 0;
   background: var(--color-bg);
   color: var(--color-text);
 }
@@ -2087,6 +2105,37 @@ onMounted(() => {
 
 .empty-address span {
   font-size: var(--font-size-sm);
+}
+
+.empty-address__action {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: 0 var(--space-4);
+  color: var(--color-surface);
+  font: inherit;
+  font-weight: 600;
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+}
+
+.empty-address__action:hover {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.empty-address__action:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.empty-address--error strong,
+.empty-address--error i {
+  color: var(--color-danger);
 }
 
 /* ========================================

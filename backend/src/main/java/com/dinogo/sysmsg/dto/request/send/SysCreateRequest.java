@@ -46,7 +46,8 @@ public class SysCreateRequest {
      *     指定商家
      *
      * 如果是 OA：
-     *     由 Service 取得所有 member / seller。
+     *     未指定 msgtoMemberId 時由 Service 取得所有 member / seller；
+     *     有指定時只寄送給該會員。
      */
     private Integer msgtoMemberId;
 

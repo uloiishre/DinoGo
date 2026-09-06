@@ -3,6 +3,8 @@ package com.dinogo.sysmsg.entity;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import org.junit.jupiter.api.Test;
 
@@ -12,16 +14,13 @@ import org.junit.jupiter.api.Test;
  */
 class SysmsgMigrationUpgradeContractTest {
 
+    private static final String MIGRATION_NAME = "V009__create_sysmsg_messaging_schema.sql";
+
     @Test
     void v006GuardsEveryTableAndAllNamedIndexesAndConstraints() throws Exception {
-        String sql;
-        try (var input = getClass().getResourceAsStream(
-                "/db/migration/V009__create_sysmsg_messaging_schema.sql")) {
-            if (input == null) {
-                throw new AssertionError("找不到 V009 migration classpath resource");
-            }
-            sql = new String(input.readAllBytes(), StandardCharsets.UTF_8);
-        }
+        Path migration = locateMigration();
+        assertTrue(Files.isRegularFile(migration), "找不到 DinoGo 實際 V009 migration: " + migration.toAbsolutePath());
+        String sql = Files.readString(migration, StandardCharsets.UTF_8);
 
         for (String table : new String[] {
                 "send", "msg_function_sequence", "send_order", "send_disorder",
@@ -61,5 +60,15 @@ class SysmsgMigrationUpgradeContractTest {
         assertTrue(sql.contains("COL_LENGTH(N'sysmsg.record_channel', N'notification_type') IS NULL"));
         assertTrue(sql.contains("THROW 51010"));
         assertTrue(sql.contains("THROW 51016"));
+        assertTrue(sql.contains("status IN ('PENDING_PAYMENT', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'COMPLETED', 'CANCELLED')"));
+        assertTrue(sql.contains("LEFT(msg_function, 2) IN ('AC', 'AS')"));
+    }
+
+    private Path locateMigration() {
+        Path repositoryRootRun = Path.of("database", "migrations", MIGRATION_NAME);
+        if (Files.isRegularFile(repositoryRootRun)) {
+            return repositoryRootRun;
+        }
+        return Path.of("..", "database", "migrations", MIGRATION_NAME);
     }
 }

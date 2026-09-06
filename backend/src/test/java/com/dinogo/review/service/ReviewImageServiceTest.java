@@ -1,6 +1,7 @@
 package com.dinogo.review.service;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.mock;
@@ -55,6 +56,25 @@ class ReviewImageServiceTest {
         assertThrows(IllegalArgumentException.class, () -> service.validateReference(
                 "https://res.cloudinary.com/other/image/upload/v1/dinogo/reviews/7/a.png",
                 "dinogo/reviews/7/a", "dinogo/reviews/7"));
+    }
+
+    @Test
+    void acceptsPngJpegGifAndWebpSignatures() throws IOException {
+        when(cloudinary.uploader()).thenReturn(uploader);
+        when(uploader.upload(any(byte[].class), anyMap()))
+                .thenAnswer(invocation -> response(invocation.getArgument(1)));
+
+        assertEquals(1, service.upload(List.of(file("a.png", "image/png", pngBytes())), 7).size());
+        assertEquals(1, service.upload(List.of(file("a.jpg", "image/jpeg",
+                new byte[] {(byte) 0xff, (byte) 0xd8, (byte) 0xff})), 7).size());
+        assertEquals(1, service.upload(List.of(file("a.gif", "image/gif",
+                new byte[] {'G', 'I', 'F', '8', '9', 'a'})), 7).size());
+        assertEquals(1, service.upload(List.of(file("a.webp", "image/webp",
+                new byte[] {'R', 'I', 'F', 'F', 0, 0, 0, 0, 'W', 'E', 'B', 'P'})), 7).size());
+    }
+
+    private MockMultipartFile file(String name, String type, byte[] bytes) {
+        return new MockMultipartFile("files", name, type, bytes);
     }
 
     private Map<String, Object> response(Map<String, Object> options) {

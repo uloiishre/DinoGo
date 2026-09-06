@@ -92,13 +92,13 @@ public class RecordServiceImpl implements RecordService {
     @Override @Transactional(readOnly=true) public RecordResponse searchRecord(Integer id, Integer loginId) {
         RecordEntity r = requireRecord(id);
         permissions.validateRecordOwner(r, loginId);
-        return responseMapper.toResponse(r);
+        return toDetailResponse(r);
     }
     @Override @Transactional public RecordResponse readRecord(Integer id, Integer loginId) {
         RecordEntity r = requireRecord(id); permissions.validateRecordOwner(r, loginId);
         if (r.getRecordStatus() == RecordStatus.DELETE) throw new IllegalStateException("DELETE 訊息不能閱讀");
         if (r.getRecordStatus() == RecordStatus.UNREAD) r.setRecordStatus(RecordStatus.READ);
-        return responseMapper.toResponse(records.save(r));
+        return toDetailResponse(records.save(r));
     }
     @Override @Transactional public void deleteRecord(Integer id, Integer loginId) {
         RecordEntity r = requireRecord(id); permissions.validateRecordOwner(r, loginId);
@@ -128,8 +128,51 @@ public class RecordServiceImpl implements RecordService {
             Integer id, String inbox, Integer page) {
         SellerInbox wanted = SellerInbox.valueOf(inbox.trim().toUpperCase());
         return OffsetPageResponse.from(records.findSellerInbox(
-                id, wanted, RecordStatus.DELETE, pageRequest(page))
+                id, wanted, RecordStatus.DELETE, SellerInbox.NEW_ORDER,
+                List.of("PAID", "PROCESSING", "SHIPPED", "DELIVERED", "COMPLETED"),
+                pageRequest(page))
                 .map(responseMapper::toInboxResponse));
+    }
+
+    @Override @Transactional(readOnly=true)
+    public SellerUnreadCountsResponse countSellerUnread(Integer sellerId) {
+        Integer recipientId = positive(sellerId, "seller_id");
+        List<String> newOrderStatuses = List.of("PAID", "PROCESSING", "SHIPPED", "DELIVERED", "COMPLETED");
+        long systemNotice = records.countSellerInbox(recipientId, SellerInbox.SYSTEM_NOTICE,
+                RecordStatus.UNREAD, SellerInbox.NEW_ORDER, newOrderStatuses);
+        long newOrder = records.countSellerInbox(recipientId, SellerInbox.NEW_ORDER,
+                RecordStatus.UNREAD, SellerInbox.NEW_ORDER, newOrderStatuses);
+        long cancelledOrder = records.countSellerInbox(recipientId, SellerInbox.CANCELLED_ORDER,
+                RecordStatus.UNREAD, SellerInbox.NEW_ORDER, newOrderStatuses);
+        return new SellerUnreadCountsResponse(
+                systemNotice + newOrder + cancelledOrder, systemNotice, newOrder, cancelledOrder);
+    }
+
+    @Override @Transactional(readOnly=true)
+    public OffsetPageResponse<RecordResponse> getSystemRecords(Integer loginMemberId, Integer page) {
+        permissions.validateSystemAdmin(loginMemberId);
+        Map<Integer, String> sellerNames = new HashMap<>();
+        return OffsetPageResponse.from(records.findAllByOrderByRecordCreatedAtDescRecordIdDesc(systemRecordPageRequest(page))
+                .map(record -> {
+                    RecordResponse response = responseMapper.toResponse(record);
+                    if (record.getMsgFunction() != null
+                            && record.getMsgFunction().startsWith("SC")
+                            && record.getMsgfromSellerId() != null) {
+                        response.setStoreName(sellerNames.computeIfAbsent(
+                                record.getMsgfromSellerId(), sellers::getSellerName));
+                    }
+                    return response;
+                }));
+    }
+
+    private PageRequest systemRecordPageRequest(Integer requestedPage) {
+        int page = requestedPage == null ? 0 : requestedPage;
+        if (page < 0) {
+            throw new IllegalArgumentException("page 不可小於 0");
+        }
+        // Repository 方法名稱已固定 recordCreatedAt、recordId 倒序；此處不可再加入相同 Sort，
+        // 否則 Hibernate 會產生重複 ORDER BY，SQL Server 會拒絕執行。
+        return PageRequest.of(page, 20);
     }
 
     private PageRequest pageRequest(Integer requestedPage) {
@@ -149,6 +192,18 @@ public class RecordServiceImpl implements RecordService {
     private RecordEntity requireRecord(Integer id) {
         return records.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("找不到 Record：" + id));
+    }
+
+    private RecordResponse toDetailResponse(RecordEntity record) {
+        RecordResponse response = responseMapper.toResponse(record);
+        if (record.getMsgFunction() != null
+                && record.getMsgFunction().startsWith("SC")
+                && record.getMsgfromSellerId() != null) {
+            SellerInfoResponse seller = ModuleDataMapper.seller(
+                    sellers.getSeller(record.getMsgfromSellerId()));
+            response.setStoreName(seller.getSellerName());
+        }
+        return response;
     }
 
     private List<Integer> distinct(List<Integer> ids) {

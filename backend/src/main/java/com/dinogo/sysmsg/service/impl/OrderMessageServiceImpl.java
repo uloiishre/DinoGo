@@ -13,17 +13,18 @@ import com.dinogo.sysmsg.dto.request.auto.*;
 import com.dinogo.sysmsg.dto.response.SendResponse;
 //sysmsg-start，總共1次修改，第1次//
 import com.dinogo.salesii.service.OrderSysmsgProviderService;
+import com.dinogo.salesii.dto.OrderSysmsgResponse;
 //sysmsg-end，總共1次修改，第1次//
 import com.dinogo.sysmsg.repository.*;
 import com.dinogo.sysmsg.service.*;
-import com.dinogo.sysmsg.exception.SysmsgConflictException;
 import com.dinogo.sysmsg.service.content.OrderMessageContentFactory;
 import com.dinogo.sysmsg.service.mapper.SendResponseMapper;
 
 @Service
 public class OrderMessageServiceImpl implements OrderMessageService {
-    private static final Set<String> CUSTOMER = Set.of("PAID","SHIPPED","DELIVERED","COMPLETED");
-    private static final Set<String> SELLER = Set.of("PAID","SHIPPED","DELIVERED","COMPLETED");
+    private static final String COD_ORDER_CREATED = "PROCESSING";
+    private static final Set<String> CUSTOMER = Set.of(COD_ORDER_CREATED,"PAID","SHIPPED","DELIVERED","COMPLETED");
+    private static final Set<String> SELLER = Set.of(COD_ORDER_CREATED,"PAID","SHIPPED","DELIVERED","COMPLETED");
     private final OrderSysmsgProviderService orders;
     private final SendRepository sends;
     private final RecordRepository records;
@@ -51,9 +52,24 @@ public class OrderMessageServiceImpl implements OrderMessageService {
     @Override
     @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
     public List<SendResponse> createOrderEventMessages(OrderEventRequest r){
-        OrderInfoResponse order=require(ModuleDataMapper.order(orders.getOrderForSysmsg(r.getOrderId())));
+        return createOrderEventMessagesFromSnapshot(orders.getOrderForSysmsg(r.getOrderId()));
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
+    public List<SendResponse> createOrderEventMessagesFromSnapshot(OrderSysmsgResponse snapshot){
+        OrderInfoResponse order=require(ModuleDataMapper.order(snapshot));
         List<SendResponse> result=new ArrayList<>();
         for (String status : notificationStatuses(order)) {
+            if (COD_ORDER_CREATED.equals(status)) {
+                boolean customerExists = records.existsByOrderIdAndOrderStatusAndMsgtoMemberId(
+                        order.getOrderId(), status, order.getBuyerId());
+                boolean sellerExists = records.existsByOrderIdAndOrderStatusAndMsgtoSellerId(
+                        order.getOrderId(), status, order.getSellerId());
+                if (!customerExists) result.add(normalFromOrder(order, status, true));
+                if (!sellerExists) result.add(normalFromOrder(order, status, false));
+                continue;
+            }
             boolean customerExists = records.existsByOrderIdAndOrderStatusAndMsgtoMemberId(
                     order.getOrderId(), status, order.getBuyerId());
             boolean sellerExists = records.existsByOrderIdAndOrderStatusAndMsgtoSellerId(
@@ -80,6 +96,9 @@ public class OrderMessageServiceImpl implements OrderMessageService {
         if ("CANCELLED".equals(orderStatus)) {
             return List.of("CANCELLED");
         }
+        if ("CASH_ON_DELIVERY".equals(order.getMethodCode())) {
+            statuses.add(COD_ORDER_CREATED);
+        }
         if ("SUCCESS".equalsIgnoreCase(order.getPaymentStatus()) && order.getPaidAt() != null) {
             statuses.add("PAID");
         }
@@ -94,7 +113,7 @@ public class OrderMessageServiceImpl implements OrderMessageService {
         }
         if (statuses.isEmpty()) {
             String projected = normalize(order.getStatus());
-            if (CUSTOMER.contains(projected)) {
+            if (CUSTOMER.contains(projected) && !COD_ORDER_CREATED.equals(projected)) {
                 statuses.add(projected);
             }
         }
@@ -102,8 +121,9 @@ public class OrderMessageServiceImpl implements OrderMessageService {
     }
     private SendResponse normalFromOrder(OrderInfoResponse o,String status,boolean customer){
         if(!(customer?CUSTOMER:SELLER).contains(status))throw new IllegalStateException((customer?"AC":"AS")+" 不支援訂單狀態："+status);
-        rejectDuplicate(o,status,customer); String prefix=customer?"AC":"AS"; String title=contentFactory.title(status, customer);
-        String content=contentFactory.content(o,status,customer);
+        String prefix=customer?"AC":"AS";
+        String title=contentFactory.title(o, status, customer); //msg-title//
+        String content=contentFactory.content(o,status,customer); //msg-content//
         SendOrderEntity send=new SendOrderEntity(1,numbers.generateMsgFunction(prefix),o.getOrderNo(),title,content,SendStatus.SEND,o.getOrderId(),o.getOrderNo(),o.getTotalAmount(),o.getPaymentMethodId(),o.getMethodName(),o.getCreatedAt(),status);
         sends.save(send);
         recordService.createOrderRecord(send.getSendId(), customer ? o.getBuyerId() : null,
@@ -114,23 +134,14 @@ public class OrderMessageServiceImpl implements OrderMessageService {
         if (!"CANCELLED".equals(status)) {
             throw new IllegalStateException("訂單不是 CANCELLED");
         }
-        rejectDuplicate(o, status, customer);
-        String prefix=customer?"AC":"AS";String title="訂單已取消";
-        SendDisorderEntity send=new SendDisorderEntity(1,numbers.generateMsgFunction(prefix),o.getOrderNo(),title,contentFactory.cancelledContent(o),SendStatus.SEND,o.getOrderId(),o.getOrderNo(),o.getTotalAmount(),o.getPaymentMethodId(),o.getMethodName(),o.getCancelReason(),o.getCancelledAt(),status);
+        String prefix=customer?"AC":"AS";
+        String title=contentFactory.cancelledTitle(o, customer); //msg-title//
+        String content=contentFactory.cancelledContent(o, customer); //msg-content//
+        SendDisorderEntity send=new SendDisorderEntity(1,numbers.generateMsgFunction(prefix),o.getOrderNo(),title,content,SendStatus.SEND,o.getOrderId(),o.getOrderNo(),o.getTotalAmount(),o.getPaymentMethodId(),o.getMethodName(),o.getCancelReason(),o.getCancelledAt(),status);
         sends.save(send);
         recordService.createOrderRecord(send.getSendId(), customer ? o.getBuyerId() : null,
                 customer ? null : o.getSellerId(), o.getOrderId(), status);
         return responseMapper.toResponse(send);
-    }
-    private void rejectDuplicate(OrderInfoResponse order, String status, boolean customer) {
-        boolean exists = customer
-                ? records.existsByOrderIdAndOrderStatusAndMsgtoMemberId(
-                        order.getOrderId(), status, order.getBuyerId())
-                : records.existsByOrderIdAndOrderStatusAndMsgtoSellerId(
-                        order.getOrderId(), status, order.getSellerId());
-        if (exists) {
-            throw new SysmsgConflictException("訂單通知已存在：" + order.getOrderId() + "/" + status);
-        }
     }
     private OrderInfoResponse require(OrderInfoResponse o){
         if(o==null||o.getOrderId()==null||o.getBuyerId()==null||o.getSellerId()==null||o.getOrderNo()==null
