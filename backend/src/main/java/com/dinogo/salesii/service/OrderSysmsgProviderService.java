@@ -11,9 +11,9 @@ import com.dinogo.sales.entity.OrderStatus;
 import com.dinogo.sales.entity.Payment;
 import com.dinogo.sales.entity.PaymentStatus;
 import com.dinogo.sales.entity.ShipmentStatus;
+import com.dinogo.sales.entity.Shipment;
 import com.dinogo.sales.exception.OrderNotFoundException;
 import com.dinogo.sales.repository.OrderRepository;
-import com.dinogo.sales.repository.ShipmentRepository;
 /**
  * 單體應用內提供 review 與 sysmsg 所需訂單資料；不是前端 HTTP API。
  * 從正式 Order/Payment/Shipment 資料取得權威唯讀快照，呼叫端不得自行提供狀態。
@@ -24,20 +24,15 @@ import com.dinogo.sales.repository.ShipmentRepository;
 public class OrderSysmsgProviderService {
 
     private final OrderRepository orderRepository;
-    private final ShipmentRepository shipmentRepository;
-
-    public OrderSysmsgProviderService(
-            OrderRepository orderRepository,
-            ShipmentRepository shipmentRepository) {
+    public OrderSysmsgProviderService(OrderRepository orderRepository) {
         this.orderRepository = orderRepository;
-        this.shipmentRepository = shipmentRepository;
     }
 
     @Transactional(readOnly = true)
     public OrderSysmsgResponse getOrder(Integer orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException("Order does not exist"));
-        return toResponse(order, order.getStatus().name());
+        return toResponse(order, order.getStatus().name(), null);
     }
 
     /**
@@ -46,20 +41,19 @@ public class OrderSysmsgProviderService {
      */
     @Transactional(readOnly = true)
     public OrderSysmsgResponse getOrderForSysmsg(Integer orderId) {
-        Order order = orderRepository.findById(orderId)
+        Order order = orderRepository.findForSysmsgSnapshot(orderId)
                 .orElseThrow(() -> new OrderNotFoundException("Order does not exist"));
-        String notificationStatus = effectiveNotificationStatus(order);
-        return toResponse(order, notificationStatus);
+        Shipment shipment = order.getShipment();
+        String notificationStatus = effectiveNotificationStatus(order, shipment);
+        return toResponse(order, notificationStatus, shipment);
     }
 
-    private String effectiveNotificationStatus(Order order) {
+    private String effectiveNotificationStatus(Order order, Shipment shipment) {
         if (order.getStatus() == OrderStatus.COMPLETED
                 || order.getStatus() == OrderStatus.CANCELLED) {
             return order.getStatus().name();
         }
-        boolean delivered = shipmentRepository.findByOrderOrderId(order.getOrderId())
-                .filter(shipment -> shipment.getStatus() == ShipmentStatus.DELIVERED)
-                .isPresent();
+        boolean delivered = shipment != null && shipment.getStatus() == ShipmentStatus.DELIVERED;
         if (delivered) {
             return "DELIVERED";
         }
@@ -71,7 +65,7 @@ public class OrderSysmsgProviderService {
         return order.getStatus().name();
     }
 
-    private OrderSysmsgResponse toResponse(Order order, String status) {
+    private OrderSysmsgResponse toResponse(Order order, String status, Shipment shipment) {
         java.util.stream.Stream<Payment> paymentCandidates = order.getPayments().stream();
         if ("PAID".equals(status)) {
             paymentCandidates = paymentCandidates
@@ -99,9 +93,17 @@ public class OrderSysmsgProviderService {
                 order.getTotalAmount(),
                 payment == null ? null : payment.getPaymentMethod().getPaymentMethodId(),
                 payment == null ? null : payment.getPaymentMethod().getMethodName(),
+                payment == null ? null : payment.getPaymentMethod().getMethodCode(),
                 order.getCreatedAt(),
                 order.getCancelReason(),
-                order.getCancelledAt());
+                order.getCancelledAt(),
+                order.getStatus().name(),
+                payment == null ? null : payment.getStatus().name(),
+                payment == null ? null : payment.getPaidAt(),
+                shipment == null ? null : shipment.getStatus().name(),
+                shipment == null ? null : shipment.getShippedAt(),
+                shipment == null ? null : shipment.getDeliveredAt(),
+                order.getCompletedAt());
     }
 }
 //rev+msg-end，總共1次修改，第1次//

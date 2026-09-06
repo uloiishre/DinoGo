@@ -26,6 +26,8 @@ public class OrderInfoResponse {
 
     private String methodName;
 
+    private String methodCode;
+
     private LocalDateTime createdAt;
 
     private String status;
@@ -99,6 +101,14 @@ public class OrderInfoResponse {
 
     public void setMethodName(String methodName) {
         this.methodName = methodName;
+    }
+
+    public String getMethodCode() {
+        return methodCode;
+    }
+
+    public void setMethodCode(String methodCode) {
+        this.methodCode = methodCode;
     }
 
     public LocalDateTime getCreatedAt() {

@@ -23,6 +23,15 @@ public class SendTemplateResponse {
 
     private String sendContent;
 
+    private String sendRemark;
+
+    private String imgOne;
+    private String imgOnePublicId;
+    private String imgTwo;
+    private String imgTwoPublicId;
+    private String imgThree;
+    private String imgThreePublicId;
+
     private LocalDateTime sendUpdAt;
 
     private SendStatus sendStatus;
@@ -77,6 +86,21 @@ public class SendTemplateResponse {
     public void setSendContent(String sendContent) {
         this.sendContent = sendContent;
     }
+
+    public String getSendRemark() { return sendRemark; }
+    public void setSendRemark(String sendRemark) { this.sendRemark = sendRemark; }
+    public String getImgOne() { return imgOne; }
+    public void setImgOne(String imgOne) { this.imgOne = imgOne; }
+    public String getImgOnePublicId() { return imgOnePublicId; }
+    public void setImgOnePublicId(String imgOnePublicId) { this.imgOnePublicId = imgOnePublicId; }
+    public String getImgTwo() { return imgTwo; }
+    public void setImgTwo(String imgTwo) { this.imgTwo = imgTwo; }
+    public String getImgTwoPublicId() { return imgTwoPublicId; }
+    public void setImgTwoPublicId(String imgTwoPublicId) { this.imgTwoPublicId = imgTwoPublicId; }
+    public String getImgThree() { return imgThree; }
+    public void setImgThree(String imgThree) { this.imgThree = imgThree; }
+    public String getImgThreePublicId() { return imgThreePublicId; }
+    public void setImgThreePublicId(String imgThreePublicId) { this.imgThreePublicId = imgThreePublicId; }
 
     public LocalDateTime getSendUpdAt() {
         return sendUpdAt;

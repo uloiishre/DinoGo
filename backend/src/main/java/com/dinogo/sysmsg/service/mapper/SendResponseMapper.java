@@ -34,6 +34,15 @@ public class SendResponseMapper {
         target.setMsgLabel(source.getMsgLabel());
         target.setSendTitle(source.getSendTitle());
         target.setSendContent(source.getSendContent());
+        if (source instanceof SendSellerEntity seller) {
+            target.setSendRemark(seller.getSendRemark());
+            target.setImgOne(seller.getImgOne());
+            target.setImgOnePublicId(seller.getImgOnePublicId());
+            target.setImgTwo(seller.getImgTwo());
+            target.setImgTwoPublicId(seller.getImgTwoPublicId());
+            target.setImgThree(seller.getImgThree());
+            target.setImgThreePublicId(seller.getImgThreePublicId());
+        }
         target.setSendStatus(source.getSendStatus());
         target.setSendUpdAt(source.getSendUpdAt());
         return target;

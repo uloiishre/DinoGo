@@ -56,20 +56,19 @@ class PersistenceContractTest {
 
     @Test
     void sqlScriptsDeclareRequiredChecksForeignKeysAndUniqueIndexes() throws Exception {
-        String sendSql = Files.readString(Path.of("sysmsg基本資料", "SendEntity.sql"));
-        String recordSql = Files.readString(Path.of("sysmsg基本資料", "RecordEntity.sql"));
-        String channelSql = Files.readString(Path.of("sysmsg基本資料", "RecordChannelEntity.sql"));
+        String migration = Files.readString(Path.of("..", "database", "migrations",
+                "V009__create_sysmsg_messaging_schema.sql"));
 
-        assertTrue(sendSql.contains("CK_send_msg_function"));
-        assertTrue(sendSql.contains("UX_sysmsg_send_msg_function_save"));
-        assertTrue(recordSql.contains("CK_sysmsg_record_exactly_one_recipient"));
-        assertTrue(recordSql.contains("UX_sysmsg_record_order_member_once"));
-        assertTrue(recordSql.contains("UX_sysmsg_record_order_seller_once"));
-        assertTrue(channelSql.contains("UX_sysmsg_record_channel_type"));
-        assertTrue(channelSql.contains("FK_sysmsg_record_channel_record_send"));
-        assertTrue(channelSql.contains("attempt_count INT NOT NULL"));
-        assertTrue(channelSql.contains("IX_sysmsg_record_channel_retry_due"));
-        assertTrue(channelSql.contains("IX_sysmsg_record_channel_dead_letter"));
+        assertTrue(migration.contains("CK_send_msg_function"));
+        assertTrue(migration.contains("UX_sysmsg_send_msg_function_save"));
+        assertTrue(migration.contains("CK_sysmsg_record_exactly_one_recipient"));
+        assertTrue(migration.contains("UX_sysmsg_record_order_member_once"));
+        assertTrue(migration.contains("UX_sysmsg_record_order_seller_once"));
+        assertTrue(migration.contains("UX_sysmsg_record_channel_type"));
+        assertTrue(migration.contains("FK_sysmsg_record_channel_record_send"));
+        assertTrue(migration.contains("attempt_count INT NOT NULL"));
+        assertTrue(migration.contains("IX_sysmsg_record_channel_retry_due"));
+        assertTrue(migration.contains("IX_sysmsg_record_channel_dead_letter"));
     }
 
     private void invoke(Object target, String methodName) throws Exception {

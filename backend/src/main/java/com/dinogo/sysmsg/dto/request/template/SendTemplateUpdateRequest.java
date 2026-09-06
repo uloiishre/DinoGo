@@ -15,6 +15,9 @@ import jakarta.validation.constraints.Size;
  */
 public class SendTemplateUpdateRequest {
 
+    @Size(max = 2)
+    private String msgType;
+
     @Size(max = 50)
     private String msgLabel;
 
@@ -54,6 +57,14 @@ public class SendTemplateUpdateRequest {
      */
 
     public SendTemplateUpdateRequest() {
+    }
+
+    public String getMsgType() {
+        return msgType;
+    }
+
+    public void setMsgType(String msgType) {
+        this.msgType = msgType;
     }
 
     public String getMsgLabel() {

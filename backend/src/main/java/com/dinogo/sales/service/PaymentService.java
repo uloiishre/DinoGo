@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.dinogo.sales.dto.payment.CreatePaymentRequest;
 import com.dinogo.sales.dto.payment.PaymentResponse;
@@ -23,6 +24,7 @@ import com.dinogo.sales.exception.OrderNotFoundException;
 import com.dinogo.sales.repository.OrderRepository;
 import com.dinogo.sales.repository.PaymentMethodRepository;
 import com.dinogo.sales.repository.PaymentRepository;
+import com.dinogo.salesii.event.OrderStatusChangedEvent;
 
 @Service
 public class PaymentService {
@@ -35,6 +37,7 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final PaymentMethodRepository paymentMethodRepository;
     private final OrderRepository orderRepository;
+    private final ApplicationEventPublisher events;
     private final boolean simulationEnabled;
     private final EcpayPaymentGateway ecpayPaymentGateway;
 
@@ -42,11 +45,13 @@ public class PaymentService {
             PaymentRepository paymentRepository,
             PaymentMethodRepository paymentMethodRepository,
             OrderRepository orderRepository,
+            ApplicationEventPublisher events,
             @Value("${app.payment.simulation-enabled:false}") boolean simulationEnabled,
             EcpayPaymentGateway ecpayPaymentGateway) {
         this.paymentRepository = paymentRepository;
         this.paymentMethodRepository = paymentMethodRepository;
         this.orderRepository = orderRepository;
+        this.events = events;
         this.simulationEnabled = simulationEnabled;
         this.ecpayPaymentGateway = ecpayPaymentGateway;
     }
@@ -78,6 +83,7 @@ public class PaymentService {
             if (!existingPayment.getPaymentMethod().getMethodCode().equals(request.paymentMethodCode())) {
                 throw new InvalidOrderException("Idempotency-Key was already used with a different payment method");
             }
+            publishCashOnDeliveryOrderCreated(request.paymentMethodCode(), orderId);
             return toResponse(existingPayment, checkoutFor(existingPayment));
         }
 
@@ -104,6 +110,7 @@ public class PaymentService {
                     pendingPayment.setFailureReason("Superseded by payment retry");
                     paymentRepository.save(pendingPayment);
                 } else {
+                    publishCashOnDeliveryOrderCreated(request.paymentMethodCode(), orderId);
                     return toResponse(pendingPayment, checkoutFor(pendingPayment));
                 }
             }
@@ -136,7 +143,14 @@ public class PaymentService {
         }
 
         Payment savedPayment = paymentRepository.save(payment);
+        publishCashOnDeliveryOrderCreated(method.getMethodCode(), order.getOrderId());
         return toResponse(savedPayment, checkoutFor(savedPayment));
+    }
+
+    private void publishCashOnDeliveryOrderCreated(String paymentMethodCode, Integer orderId) {
+        if (CASH_ON_DELIVERY.equals(paymentMethodCode)) {
+            events.publishEvent(new OrderStatusChangedEvent(orderId));
+        }
     }
 
     @Transactional

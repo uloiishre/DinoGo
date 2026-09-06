@@ -432,7 +432,8 @@ onUnmounted(() => {
                 <!-- //review-未評價// -->
                 <i v-if="!isItemReviewed(item)" class="bi bi-star-fill" aria-hidden="true"></i>
                 <!-- //review-已評價// -->
-                <i v-else class="bi bi-star" aria-hidden="true"></i>
+                <i v-else class="bi bi-star-fill" aria-hidden="true"></i>
+                <span>{{ isItemReviewed(item) ? '修改' : '評價' }}</span>
               </button>
             </article>
 
@@ -985,6 +986,7 @@ onUnmounted(() => {
   align-self: stretch;
   align-content: center;
   place-items: center;
+  gap: var(--space-1);
   margin-block: calc(var(--space-3) * -1);
   font-size: var(--font-size-lg);
   text-decoration: none;
@@ -993,6 +995,12 @@ onUnmounted(() => {
   border-left: 1px solid var(--color-border);
   border-radius: 0 var(--radius-md) var(--radius-md) 0;
   box-shadow: none;
+}
+
+.review-endcap span {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  line-height: 1;
 }
 
 /* 未評價：強烈主視覺綠色 */

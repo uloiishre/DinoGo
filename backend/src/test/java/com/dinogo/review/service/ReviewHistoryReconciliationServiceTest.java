@@ -43,6 +43,18 @@ class ReviewHistoryReconciliationServiceTest {
         verify(reviews).deleteHistoryForCancelledOrder(order);
     }
 
+    @Test
+    void notificationProjectionDoesNotReplaceRawReviewStatus() {
+        OrderSysmsgResponse order = new OrderSysmsgResponse(
+                10, "ORD-10", 7, 9, "DELIVERED", List.of(),
+                null, null, null, null, null, null, null,
+                "COMPLETED", null, null, "DELIVERED", null, null, null);
+
+        service.reconcile(order);
+
+        verify(reviews).createHistoryFromCompletedOrder(order);
+    }
+
     private OrderSysmsgResponse order(String status) {
         return new OrderSysmsgResponse(10, "ORD-10", 7, 9, status, List.of());
     }

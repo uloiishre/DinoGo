@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.dinogo.sales.dto.payment.SimulatePaymentRequest;
 import com.dinogo.sales.dto.payment.CreatePaymentRequest;
@@ -33,6 +34,7 @@ import com.dinogo.sales.repository.OrderRepository;
 import com.dinogo.sales.repository.PaymentMethodRepository;
 import com.dinogo.sales.repository.PaymentRepository;
 import com.dinogo.sales.service.EcpayPaymentGateway;
+import com.dinogo.salesii.event.OrderStatusChangedEvent;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceTest {
@@ -45,6 +47,8 @@ class PaymentServiceTest {
     private OrderRepository orderRepository;
     @Mock
     private EcpayPaymentGateway ecpayPaymentGateway;
+    @Mock
+    private ApplicationEventPublisher events;
 
     private PaymentService paymentService;
 
@@ -54,6 +58,7 @@ class PaymentServiceTest {
                 paymentRepository,
                 paymentMethodRepository,
                 orderRepository,
+                events,
                 true, ecpayPaymentGateway);
     }
 
@@ -158,6 +163,7 @@ class PaymentServiceTest {
                 paymentRepository,
                 paymentMethodRepository,
                 orderRepository,
+                events,
                 false, ecpayPaymentGateway);
 
         assertThrows(
@@ -196,6 +202,7 @@ class PaymentServiceTest {
         assertEquals(OrderStatus.PROCESSING, order.getStatus());
         assertEquals(PaymentStatus.PENDING, response.status());
         assertEquals("CASH_ON_DELIVERY", response.paymentMethodCode());
+        verify(events).publishEvent(any(OrderStatusChangedEvent.class));
     }
 
     @Test
@@ -217,6 +224,7 @@ class PaymentServiceTest {
 
         assertEquals(pendingPayment.getPaymentId(), response.paymentId());
         verify(paymentRepository, never()).save(any(Payment.class));
+        verify(events).publishEvent(any(OrderStatusChangedEvent.class));
     }
 
     @Test
