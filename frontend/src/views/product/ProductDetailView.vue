@@ -910,6 +910,13 @@ onUnmounted(() => {
                 </div>
 
                 <div class="purchase-actions">
+                  <RouterLink
+                    :to="{ name: 'AiShoppingAdvisor' }"
+                    class="ai-advisor-button"
+                  >
+                    <i class="bi bi-stars"></i>
+                    問 AI 幫我挑
+                  </RouterLink>
                   <div class="favorite-action">
                     <button
                       type="button"
@@ -1737,6 +1744,26 @@ onUnmounted(() => {
   font-weight: 600;
 
   cursor: pointer;
+}
+
+.ai-advisor-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid #175b49;
+  border-radius: 8px;
+  color: #175b49;
+  background: #f0fbf6;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.ai-advisor-button:hover {
+  color: #fff;
+  background: #175b49;
 }
 
 .favorite-button {

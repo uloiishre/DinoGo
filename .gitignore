@@ -57,6 +57,7 @@ frontend/*.local
 
 # Uploaded runtime files
 backend/uploads/
+backend/data/
 /.metadata/
 
 # Local Maven runtime

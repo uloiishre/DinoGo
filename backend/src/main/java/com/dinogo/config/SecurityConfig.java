@@ -76,6 +76,7 @@ public class SecurityConfig {
                                                 .hasRole("SELLER")
                                                 .requestMatchers(
                                                                 "/api/cart/**",
+                                                                "/api/ai-shopping-advisor/**",
                                                                 "/api/favorites/**",
                                                                 "/api/checkout/**",
                                                                 "/api/orders/**",
