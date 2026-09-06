@@ -4,6 +4,7 @@ import com.dinogo.sysmsg.entity.MemberInbox;
 import com.dinogo.sysmsg.entity.RecordStatus;
 import com.dinogo.sysmsg.entity.SellerInbox;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -72,6 +73,15 @@ public class MsgInboxResponse {
     private Integer orderId;
 
     private String orderStatus;
+
+    /** sysmsg.send_order.order_no 的通知建立時快照。 */
+    private String orderNo;
+
+    /** sysmsg.send_order / send_disorder.total_amount 的通知建立時快照。 */
+    private BigDecimal totalAmount;
+
+    /** sysmsg.send_order / send_disorder.method_name 的通知建立時快照。 */
+    private String paymentMethodName;
 
     /**
      * 訊息標籤。
@@ -178,6 +188,12 @@ public class MsgInboxResponse {
     public void setOrderId(Integer orderId) { this.orderId = orderId; }
     public String getOrderStatus() { return orderStatus; }
     public void setOrderStatus(String orderStatus) { this.orderStatus = orderStatus; }
+    public String getOrderNo() { return orderNo; }
+    public void setOrderNo(String orderNo) { this.orderNo = orderNo; }
+    public BigDecimal getTotalAmount() { return totalAmount; }
+    public void setTotalAmount(BigDecimal totalAmount) { this.totalAmount = totalAmount; }
+    public String getPaymentMethodName() { return paymentMethodName; }
+    public void setPaymentMethodName(String paymentMethodName) { this.paymentMethodName = paymentMethodName; }
 
     public String getMsgLabel() {
         return msgLabel;

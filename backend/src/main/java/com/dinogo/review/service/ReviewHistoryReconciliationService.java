@@ -27,7 +27,8 @@ public class ReviewHistoryReconciliationService {
         if (order == null || order.orderId() == null || order.status() == null) {
             throw new IllegalArgumentException("訂單快照缺少自檢必要欄位");
         }
-        String status = order.status().trim().toUpperCase(java.util.Locale.ROOT);
+        String rawStatus = order.orderStatus() == null ? order.status() : order.orderStatus();
+        String status = rawStatus.trim().toUpperCase(java.util.Locale.ROOT);
         if ("COMPLETED".equals(status)) {
             createIfMissing(order);
         } else if ("CANCELLED".equals(status)) {

@@ -178,6 +178,62 @@ IF COL_LENGTH(N'review.star', N'base_price') IS NOT NULL
     ALTER TABLE review.star ALTER COLUMN base_price decimal(12,2) NOT NULL;
 GO
 
+IF COL_LENGTH(N'review.star', N'img_one') IS NULL
+    ALTER TABLE review.star ADD img_one nvarchar(500) NULL;
+IF COL_LENGTH(N'review.star', N'img_two') IS NULL
+    ALTER TABLE review.star ADD img_two nvarchar(500) NULL;
+IF COL_LENGTH(N'review.star', N'img_three') IS NULL
+    ALTER TABLE review.star ADD img_three nvarchar(500) NULL;
+GO
+
+-- 舊版 schema 將評論圖片直接存成 varbinary；目前 Entity 改存 Cloudinary URL。
+-- 非空二進位內容無法無損推導為 URL，因此明確中止，避免 ALTER 隱式轉型後污染資料。
+IF EXISTS
+(
+    SELECT 1
+    FROM sys.columns
+    WHERE object_id = OBJECT_ID(N'review.star')
+      AND [name] IN (N'img_one', N'img_two', N'img_three')
+      AND system_type_id = TYPE_ID(N'varbinary')
+)
+AND EXISTS
+(
+    SELECT 1
+    FROM review.star
+    WHERE img_one IS NOT NULL OR img_two IS NOT NULL OR img_three IS NOT NULL
+)
+BEGIN
+    THROW 51030, N'review.star 尚有舊版 varbinary 圖片，請先搬移至 Cloudinary 並回填 URL，再執行 V008', 1;
+END;
+GO
+
+-- 只有欄位型別不符時才移除依賴約束並轉型；重跑 migration 不會反覆重建約束。
+IF EXISTS
+(
+    SELECT 1
+    FROM sys.columns
+    WHERE object_id = OBJECT_ID(N'review.star')
+      AND [name] IN (N'img_one', N'img_two', N'img_three')
+      AND (system_type_id <> TYPE_ID(N'nvarchar') OR max_length <> 1000)
+)
+BEGIN
+    IF EXISTS
+    (
+        SELECT 1 FROM sys.check_constraints
+        WHERE parent_object_id = OBJECT_ID(N'review.star')
+          AND [name] = N'CK_review_star_cloudinary_refs'
+    )
+        ALTER TABLE review.star DROP CONSTRAINT CK_review_star_cloudinary_refs;
+
+    IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID(N'review.star') AND [name]=N'img_one' AND (system_type_id<>TYPE_ID(N'nvarchar') OR max_length<>1000))
+        ALTER TABLE review.star ALTER COLUMN img_one nvarchar(500) NULL;
+    IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID(N'review.star') AND [name]=N'img_two' AND (system_type_id<>TYPE_ID(N'nvarchar') OR max_length<>1000))
+        ALTER TABLE review.star ALTER COLUMN img_two nvarchar(500) NULL;
+    IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID(N'review.star') AND [name]=N'img_three' AND (system_type_id<>TYPE_ID(N'nvarchar') OR max_length<>1000))
+        ALTER TABLE review.star ALTER COLUMN img_three nvarchar(500) NULL;
+END;
+GO
+
 IF COL_LENGTH(N'review.star', N'img_one_public_id') IS NULL
     ALTER TABLE review.star ADD img_one_public_id nvarchar(255) NULL;
 IF COL_LENGTH(N'review.star', N'img_two_public_id') IS NULL

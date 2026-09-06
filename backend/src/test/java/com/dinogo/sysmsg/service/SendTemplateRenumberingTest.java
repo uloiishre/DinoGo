@@ -71,6 +71,23 @@ class SendTemplateRenumberingTest {
                 replacement -> "OA-002".equals(replacement.getMsgFunction())));
     }
 
+    @Test
+    void replacesAndRenumbersTemplateWhenTargetChangesWithoutCheckingSentHistory() {
+        SendEntity template = template();
+        when(sends.findById(10)).thenReturn(java.util.Optional.of(template));
+        when(numbers.generateMsgFunction("OS")).thenReturn("OS-001");
+        SendTemplateUpdateRequest request = update();
+        request.setMsgType("OS");
+
+        service.updateTemplate(10, request, 3);
+
+        verify(sends, never()).existsByMsgFunctionAndSendStatus(any(), any());
+        verify(numbers).generateMsgFunction("OS");
+        verify(sends).delete(template);
+        verify(sends).save(org.mockito.ArgumentMatchers.argThat(
+                replacement -> "OS-001".equals(replacement.getMsgFunction())));
+    }
+
     private SendEntity template() {
         return new SendEntity(1, "OA-001", "label", "title", "content", SendStatus.SAVE);
     }

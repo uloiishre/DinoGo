@@ -227,6 +227,7 @@ const fallbackCoupons = [
 ]
 
 const coupons = ref([])
+const upcomingStatusLabel = '即將開始'
 
 const toDateInput = (date) => {
   const year = date.getFullYear()
@@ -392,9 +393,9 @@ const statusTabs = computed(() => [
     count: coupons.value.filter((coupon) => displayStatus(coupon) === '進行中').length,
   },
   {
-    label: '接下來的活動',
+    label: upcomingStatusLabel,
     value: 'DRAFT',
-    count: coupons.value.filter((coupon) => displayStatus(coupon) === '接下來').length,
+    count: coupons.value.filter((coupon) => displayStatus(coupon) === upcomingStatusLabel).length,
   },
   {
     label: '已結束',
@@ -412,7 +413,7 @@ const filteredCoupons = computed(() => {
     const matchesStatus =
       selectedStatus.value === 'ALL' ||
       (selectedStatus.value === 'ACTIVE' && currentStatus === '進行中') ||
-      (selectedStatus.value === 'DRAFT' && currentStatus === '接下來') ||
+      (selectedStatus.value === 'DRAFT' && currentStatus === upcomingStatusLabel) ||
       (selectedStatus.value === 'ENDED' && ['已結束', '已取消'].includes(currentStatus))
     const matchesKeyword =
       !keyword ||
@@ -476,7 +477,7 @@ const formatDateTime = (value) =>
 
 const statusClass = (status) => {
   if (status === '進行中') return 'is-active'
-  if (status === '接下來') return 'is-draft'
+  if (status === upcomingStatusLabel) return 'is-draft'
   return 'is-ended'
 }
 
@@ -484,7 +485,7 @@ const displayStatus = (coupon) => {
   if (coupon.status === 'DISABLED') return '已取消'
   const now = Date.now()
   if (new Date(coupon.endAt).getTime() <= now) return '已結束'
-  if (new Date(coupon.startAt).getTime() > now) return '接下來'
+  if (new Date(coupon.startAt).getTime() > now) return upcomingStatusLabel
   return '進行中'
 }
 
@@ -1016,7 +1017,9 @@ onUnmounted(() => {
               </div>
             </div>
             <span>{{ coupon.type }}</span>
-            <span>{{ productScopeText(coupon) }}</span>
+            <span class="product-scope-cell" :title="productScopeText(coupon)">
+              {{ productScopeText(coupon) }}
+            </span>
             <strong>
               {{ discountText(coupon) }}
               <small>滿 {{ formatCurrency(coupon.minPurchaseAmount) }} 可用</small>
@@ -1609,14 +1612,14 @@ h2 {
 }
 
 .coupon-table {
-  min-width: 1120px;
+  min-width: 1260px;
 }
 
 .coupon-table-head,
 .coupon-row {
   display: grid;
   grid-template-columns:
-    minmax(190px, 1.5fr) minmax(82px, 0.62fr) minmax(84px, 0.62fr) minmax(100px, 0.72fr)
+    minmax(190px, 1.4fr) minmax(82px, 0.58fr) minmax(150px, 1fr) minmax(100px, 0.72fr)
     minmax(82px, 0.55fr) minmax(112px, 0.75fr) minmax(64px, 0.42fr) minmax(86px, 0.55fr) minmax(
       170px,
       1.05fr
@@ -1696,6 +1699,16 @@ h2 {
   white-space: nowrap;
 }
 
+.coupon-row > .product-scope-cell {
+  align-content: center;
+  overflow: visible;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: break-word;
+}
+
 .coupon-name-cell {
   grid-template-columns: 42px minmax(0, 1fr);
   align-items: center;
@@ -1728,10 +1741,14 @@ h2 {
 
 .status-badge {
   width: fit-content;
+  min-width: 44px;
   border-radius: 2px;
-  padding: 2px 6px;
+  padding: 2px 8px;
   font-size: 11px;
   font-weight: 600;
+  line-height: 1.45;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .status-badge.is-active {

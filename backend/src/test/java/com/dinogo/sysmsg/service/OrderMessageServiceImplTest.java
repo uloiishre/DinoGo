@@ -53,6 +53,8 @@ class OrderMessageServiceImplTest {
         when(numbers.generateMsgFunction("AS")).thenReturn("AS-001");
 
         assertEquals(1, service.createOrderEventMessages(request(45)).size());
+        verify(records, times(1)).existsByOrderIdAndOrderStatusAndMsgtoMemberId(45, "PAID", 7);
+        verify(records, times(1)).existsByOrderIdAndOrderStatusAndMsgtoSellerId(45, "PAID", 5);
         verify(recordService).createOrderRecord(any(), org.mockito.ArgumentMatchers.isNull(),
                 org.mockito.ArgumentMatchers.eq(5), org.mockito.ArgumentMatchers.eq(45),
                 org.mockito.ArgumentMatchers.eq("PAID"));
@@ -87,6 +89,26 @@ class OrderMessageServiceImplTest {
     }
 
     @Test
+    void cashOnDeliveryProcessingCreatesCustomerAndSellerPlacedMessages() {
+        OrderSysmsgResponse snapshot = new OrderSysmsgResponse(
+                62, "ORD-62", 7, 5, "PROCESSING", List.of(),
+                new BigDecimal("1680.00"), 1, "任意顯示名稱", "CASH_ON_DELIVERY",
+                LocalDateTime.now(), null, null);
+        when(orders.getOrderForSysmsg(62)).thenReturn(snapshot);
+        when(numbers.generateMsgFunction("AC")).thenReturn("AC-001");
+        when(numbers.generateMsgFunction("AS")).thenReturn("AS-001");
+
+        assertEquals(2, service.createOrderEventMessages(request(62)).size());
+        verify(recordService).createOrderRecord(any(), org.mockito.ArgumentMatchers.eq(7),
+                org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.eq(62),
+                org.mockito.ArgumentMatchers.eq("PROCESSING"));
+        verify(recordService).createOrderRecord(any(), org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq(5), org.mockito.ArgumentMatchers.eq(62),
+                org.mockito.ArgumentMatchers.eq("PROCESSING"));
+        verify(numbers).generateMsgFunction("AS");
+    }
+
+    @Test
     void fullyProcessedDuplicateEventIsIdempotentSuccess() {
         when(orders.getOrderForSysmsg(61)).thenReturn(order(61, "SHIPPED"));
         when(records.existsByOrderIdAndOrderStatusAndMsgtoMemberId(61, "SHIPPED", 7))
@@ -103,7 +125,7 @@ class OrderMessageServiceImplTest {
         LocalDateTime now = LocalDateTime.now();
         OrderSysmsgResponse snapshot = new OrderSysmsgResponse(
                 70, "ORD-70", 7, 5, "COMPLETED", List.of(),
-                new BigDecimal("100.00"), 1, "信用卡", now, null, null,
+                new BigDecimal("100.00"), 1, "信用卡", "CREDIT_CARD", now, null, null,
                 "COMPLETED", "SUCCESS", now.minusDays(2), "DELIVERED",
                 now.minusDays(1), now.minusHours(1), now);
         when(orders.getOrderForSysmsg(70)).thenReturn(snapshot);

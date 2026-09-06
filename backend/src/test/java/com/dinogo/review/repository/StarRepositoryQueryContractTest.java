@@ -47,6 +47,10 @@ class StarRepositoryQueryContractTest {
         assertTrue(sql.contains("inner join review.history"));
         assertTrue(sql.contains("h.seller_id = :sellerid"));
         assertTrue(sql.contains("count_big(distinct s.product_id)"));
+        assertTrue(sql.contains("inner join catalog.product"));
+        assertTrue(sql.contains("p.seller_id = :sellerid"));
+        assertTrue(sql.contains("p.status = 1"));
+        assertTrue(sql.contains("p.sold_count > 0"));
     }
 }
 //review-end，總共1次修改，第1次//

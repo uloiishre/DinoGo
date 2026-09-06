@@ -48,6 +48,7 @@ public final class ModuleDataMapper {
         target.setTotalAmount(source.totalAmount());
         target.setPaymentMethodId(source.paymentMethodId());
         target.setMethodName(source.methodName());
+        target.setMethodCode(source.methodCode());
         target.setCreatedAt(source.createdAt());
         target.setStatus(source.status());
         target.setCancelReason(source.cancelReason());
