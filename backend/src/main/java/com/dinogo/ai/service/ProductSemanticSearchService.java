@@ -6,6 +6,7 @@ import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,7 +23,7 @@ public class ProductSemanticSearchService {
     private static final double MINIMUM_SEMANTIC_SCORE = 0.30d;
     private final VectorStoreStateService stateService;
     private final ObjectMapper objectMapper;
-    private final RestClient restClient = RestClient.builder().baseUrl("https://api.openai.com/v1").build();
+    private final RestClient restClient;
     private final String apiKey;
     private final String model;
 
@@ -31,6 +32,10 @@ public class ProductSemanticSearchService {
             @Value("${OPENAI_API_KEY:}") String environmentApiKey,
             @Value("${app.ai.openai.model:gpt-4.1-mini}") String model) {
         this.stateService = stateService; this.objectMapper = objectMapper;
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(java.time.Duration.ofSeconds(3));
+        factory.setReadTimeout(java.time.Duration.ofSeconds(8));
+        this.restClient = RestClient.builder().baseUrl("https://api.openai.com/v1").requestFactory(factory).build();
         this.apiKey = configuredApiKey == null || configuredApiKey.isBlank() ? environmentApiKey : configuredApiKey;
         this.model = model;
     }
