@@ -11,7 +11,7 @@
 | 設定 | Docker 內預設值 | 用途 |
 | --- | --- | --- |
 | `OPENAI_API_KEY` | 空字串 | 呼叫 OpenAI、建立索引與語意搜尋所需的 Key。正式啟用時必填。 |
-| `APP_AI_OPENAI_ENABLED` | `false` | Compose 中保留的 AI 設定旗標；目前購物顧問實際是否可呼叫 OpenAI 仍以 API Key 是否存在為準。 |
+| `APP_AI_OPENAI_ENABLED` | `false` | OpenAI feature gate；只有設為 `true` 且 API Key 存在時，購物顧問才會呼叫 OpenAI 或建立索引。 |
 | `APP_AI_OPENAI_MODEL` | `gpt-4.1-mini` | 需求解析使用的模型。請設定為帳號可用且支援目前 Responses 呼叫方式的模型。 |
 | `AI_VECTOR_STORE_STATE_PATH` | `/app/data/ai-vector-store.json` | 保存目前 OpenAI Vector Store ID 的狀態檔位置。 |
 | `ai_vector_store_data` | 掛載至 `/app/data` | Docker named volume；容器重啟後保留狀態檔。 |
@@ -35,14 +35,29 @@ AI_VECTOR_STORE_STATE_PATH=/app/data/ai-vector-store.json
 
 ## 啟動與確認
 
-在 repository 根目錄、確認 `.env` 已備妥後執行：
+在 repository 根目錄、確認 `.env` 已備妥後執行。Cloudflare Tunnel Server 必須使用既有 overlay；不要只執行 base Compose，避免 SQL Server 產生非預期的 host exposure：
 
 ```bash
-docker compose config
-docker compose up -d --build
-docker compose ps
-docker compose logs --tail=200 backend
+docker compose -p dinogo \
+  -f compose.yml \
+  -f compose.tunnel.yml \
+  -f compose.team.yml \
+  config -q
+
+docker compose -p dinogo \
+  -f compose.yml \
+  -f compose.tunnel.yml \
+  -f compose.team.yml \
+  up -d --build
+
+docker compose -p dinogo \
+  -f compose.yml \
+  -f compose.tunnel.yml \
+  -f compose.team.yml \
+  ps
 ```
+
+未提供團隊 LAN SQL Server access 的主機可省略 `-f compose.team.yml`。Team mode 只允許 `${MSSQL_BIND_IP}:${MSSQL_HOST_PORT:-9434}:1433`，不得使用公開 host 1433。
 
 `docker compose config` 可先確認環境變數是否已被展開；不要將其輸出貼到公開管道，避免意外暴露 secret。
 
