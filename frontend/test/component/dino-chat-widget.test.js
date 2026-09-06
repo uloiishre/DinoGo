@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 const { apiMock, getMemberOrdersMock } = vi.hoisted(() => ({
   apiMock: {
     get: vi.fn(),
+    post: vi.fn(),
   },
   getMemberOrdersMock: vi.fn(),
 }))

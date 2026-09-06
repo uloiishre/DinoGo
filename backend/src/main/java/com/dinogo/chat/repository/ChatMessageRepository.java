@@ -1,0 +1,12 @@
+package com.dinogo.chat.repository;
+
+import java.util.List;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.dinogo.chat.entity.ChatMessage;
+
+public interface ChatMessageRepository extends JpaRepository<ChatMessage, Integer> {
+
+    List<ChatMessage> findByConversationConversationIdOrderByCreatedAtAscMessageIdAsc(Integer conversationId);
+}

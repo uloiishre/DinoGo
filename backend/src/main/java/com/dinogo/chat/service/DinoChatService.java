@@ -3,14 +3,11 @@ package com.dinogo.chat.service;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import com.dinogo.catalog.entity.Product;
@@ -27,6 +24,8 @@ import com.dinogo.chat.entity.ChatConversation;
 import com.dinogo.chat.entity.ChatMessage;
 import com.dinogo.chat.entity.ChatMessageType;
 import com.dinogo.chat.entity.ChatSenderRole;
+import com.dinogo.chat.repository.ChatConversationRepository;
+import com.dinogo.chat.repository.ChatMessageRepository;
 import com.dinogo.member.entity.Member;
 import com.dinogo.member.repository.MemberRepository;
 import com.dinogo.sales.entity.Order;
@@ -35,29 +34,31 @@ import com.dinogo.seller.entity.Seller;
 import com.dinogo.seller.repository.SellerRepository;
 
 @Service
+@Transactional(readOnly = true)
 public class DinoChatService {
 
     private static final String CLOUDINARY_HOST = "res.cloudinary.com";
 
+    private final ChatConversationRepository conversationRepository;
+    private final ChatMessageRepository messageRepository;
     private final ProductRepository productRepository;
     private final ProductImageRepository productImageRepository;
     private final ProductSkuRepository skuRepository;
     private final OrderRepository orderRepository;
     private final SellerRepository sellerRepository;
     private final MemberRepository memberRepository;
-    private final AtomicInteger conversationSequence = new AtomicInteger(1);
-    private final AtomicInteger messageSequence = new AtomicInteger(1);
-    private final ConcurrentHashMap<Integer, ChatConversation> conversations = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, Integer> conversationIdsByBuyerSeller = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Integer, List<ChatMessage>> messagesByConversationId = new ConcurrentHashMap<>();
 
     public DinoChatService(
+            ChatConversationRepository conversationRepository,
+            ChatMessageRepository messageRepository,
             ProductRepository productRepository,
             ProductImageRepository productImageRepository,
             ProductSkuRepository skuRepository,
             OrderRepository orderRepository,
             SellerRepository sellerRepository,
             MemberRepository memberRepository) {
+        this.conversationRepository = conversationRepository;
+        this.messageRepository = messageRepository;
         this.productRepository = productRepository;
         this.productImageRepository = productImageRepository;
         this.skuRepository = skuRepository;
@@ -66,38 +67,35 @@ public class DinoChatService {
         this.memberRepository = memberRepository;
     }
 
+    @Transactional
     public ChatConversationResponse getOrCreateConversation(Integer memberId, ChatContextRequest request) {
         Integer sellerId = resolveSellerId(memberId, request);
-        ChatConversation conversation = getOrCreateMemoryConversation(memberId, sellerId);
+        ChatConversation conversation = getOrCreatePersistentConversation(memberId, sellerId);
         return toConversationResponse(conversation, ChatSenderRole.BUYER);
     }
 
     public List<ChatConversationResponse> listConversations(Integer memberId) {
         Seller seller = sellerRepository.findByMember_MemberId(memberId).orElse(null);
         if (seller != null && "ACTIVE".equals(seller.getStatus())) {
-            return conversations.values().stream()
-                    .filter(conversation -> seller.getSellerId().equals(conversation.getSellerId()))
-                    .sorted(latestConversationComparator())
+            return conversationRepository.findBySellerIdOrderByUpdatedAtDescConversationIdDesc(seller.getSellerId()).stream()
                     .map(conversation -> toConversationResponse(conversation, ChatSenderRole.SELLER))
                     .toList();
         }
-        return conversations.values().stream()
-                .filter(conversation -> memberId.equals(conversation.getBuyerId()))
-                .sorted(latestConversationComparator())
+        return conversationRepository.findByBuyerIdOrderByUpdatedAtDescConversationIdDesc(memberId).stream()
                 .map(conversation -> toConversationResponse(conversation, ChatSenderRole.BUYER))
                 .toList();
     }
 
     public List<ChatMessageResponse> listMessages(Integer memberId, Integer conversationId) {
         requireParticipant(memberId, conversationId);
-        return messagesByConversationId.getOrDefault(conversationId, List.of()).stream()
-                .sorted(Comparator.comparing(ChatMessage::getCreatedAt).thenComparing(ChatMessage::getMessageId))
+        return messageRepository.findByConversationConversationIdOrderByCreatedAtAscMessageIdAsc(conversationId).stream()
                 .map(this::toMessageResponse)
                 .toList();
     }
 
-    public synchronized ChatConversationResponse openConversation(Integer memberId, Integer conversationId) {
-        ChatConversation conversation = requireConversation(conversationId);
+    @Transactional
+    public ChatConversationResponse openConversation(Integer memberId, Integer conversationId) {
+        ChatConversation conversation = requireConversationForUpdate(conversationId);
         ChatSenderRole role = requireParticipant(memberId, conversation);
         if (role == ChatSenderRole.BUYER) {
             conversation.setBuyerUnreadCount(0);
@@ -105,18 +103,19 @@ public class DinoChatService {
             conversation.setSellerUnreadCount(0);
         }
         conversation.setUpdatedAt(LocalDateTime.now());
+        conversationRepository.save(conversation);
         return toConversationResponse(conversation, role);
     }
 
-    public synchronized ChatMessageResponse sendMessage(Integer memberId, Integer conversationId, ChatMessageRequest request) {
-        ChatConversation conversation = requireConversation(conversationId);
+    @Transactional
+    public ChatMessageResponse sendMessage(Integer memberId, Integer conversationId, ChatMessageRequest request) {
+        ChatConversation conversation = requireConversationForUpdate(conversationId);
         ChatSenderRole senderRole = requireParticipant(memberId, conversation);
         ChatMessageType messageType = request.messageType() == null ? ChatMessageType.TEXT : request.messageType();
         validateMessageRequest(memberId, conversation, messageType, request);
 
         LocalDateTime now = LocalDateTime.now();
         ChatMessage message = new ChatMessage();
-        message.setMessageId(messageSequence.getAndIncrement());
         message.setConversation(conversation);
         message.setSenderMemberId(memberId);
         message.setSenderRole(senderRole);
@@ -129,8 +128,8 @@ public class DinoChatService {
         message.setOrderId(request.orderId());
         message.setCreatedAt(now);
 
-        messagesByConversationId.computeIfAbsent(conversationId, ignored -> new ArrayList<>()).add(message);
-        conversation.setLastMessage(message);
+        ChatMessage saved = messageRepository.save(message);
+        conversation.setLastMessage(saved);
         conversation.setLatestMessageAt(now);
         conversation.setUpdatedAt(now);
         if (senderRole == ChatSenderRole.BUYER) {
@@ -138,20 +137,19 @@ public class DinoChatService {
         } else {
             conversation.setBuyerUnreadCount(conversation.getBuyerUnreadCount() + 1);
         }
-        return toMessageResponse(message);
+        conversationRepository.save(conversation);
+        return toMessageResponse(saved);
     }
 
     public Integer getTotalUnread(Integer memberId) {
         Seller seller = sellerRepository.findByMember_MemberId(memberId).orElse(null);
         if (seller != null && "ACTIVE".equals(seller.getStatus())) {
-            return conversations.values().stream()
-                    .filter(conversation -> seller.getSellerId().equals(conversation.getSellerId()))
+            return conversationRepository.findBySellerIdOrderByUpdatedAtDescConversationIdDesc(seller.getSellerId()).stream()
                     .map(ChatConversation::getSellerUnreadCount)
                     .filter(Objects::nonNull)
                     .reduce(0, Integer::sum);
         }
-        return conversations.values().stream()
-                .filter(conversation -> memberId.equals(conversation.getBuyerId()))
+        return conversationRepository.findByBuyerIdOrderByUpdatedAtDescConversationIdDesc(memberId).stream()
                 .map(ChatConversation::getBuyerUnreadCount)
                 .filter(Objects::nonNull)
                 .reduce(0, Integer::sum);
@@ -164,26 +162,21 @@ public class DinoChatService {
         return List.of(conversation.getBuyerId(), seller.getMemberId());
     }
 
-    private synchronized ChatConversation getOrCreateMemoryConversation(Integer buyerId, Integer sellerId) {
-        String key = buyerId + ":" + sellerId;
-        Integer existingId = conversationIdsByBuyerSeller.get(key);
-        if (existingId != null) {
-            return requireConversation(existingId);
-        }
+    private ChatConversation getOrCreatePersistentConversation(Integer buyerId, Integer sellerId) {
+        return conversationRepository.findByBuyerIdAndSellerIdForUpdate(buyerId, sellerId)
+                .orElseGet(() -> createConversation(buyerId, sellerId));
+    }
 
+    private ChatConversation createConversation(Integer buyerId, Integer sellerId) {
         LocalDateTime now = LocalDateTime.now();
         ChatConversation created = new ChatConversation();
-        created.setConversationId(conversationSequence.getAndIncrement());
         created.setBuyerId(buyerId);
         created.setSellerId(sellerId);
         created.setBuyerUnreadCount(0);
         created.setSellerUnreadCount(0);
         created.setCreatedAt(now);
         created.setUpdatedAt(now);
-        conversations.put(created.getConversationId(), created);
-        conversationIdsByBuyerSeller.put(key, created.getConversationId());
-        messagesByConversationId.put(created.getConversationId(), new ArrayList<>());
-        return created;
+        return conversationRepository.save(created);
     }
 
     private Integer resolveSellerId(Integer memberId, ChatContextRequest request) {
@@ -216,11 +209,13 @@ public class DinoChatService {
     }
 
     private ChatConversation requireConversation(Integer conversationId) {
-        ChatConversation conversation = conversations.get(conversationId);
-        if (conversation == null) {
-            throw new IllegalArgumentException("Conversation not found.");
-        }
-        return conversation;
+        return conversationRepository.findById(conversationId)
+                .orElseThrow(() -> new IllegalArgumentException("Conversation not found."));
+    }
+
+    private ChatConversation requireConversationForUpdate(Integer conversationId) {
+        return conversationRepository.findByConversationIdForUpdate(conversationId)
+                .orElseThrow(() -> new IllegalArgumentException("Conversation not found."));
     }
 
     private ChatConversation requireParticipant(Integer memberId, Integer conversationId) {
@@ -346,15 +341,6 @@ public class DinoChatService {
                 order.getOrderNo(),
                 order.getStatus().name(),
                 order.getTotalAmount());
-    }
-
-    private Comparator<ChatConversation> latestConversationComparator() {
-        return Comparator
-                .comparing((ChatConversation conversation) -> conversation.getLatestMessageAt() == null
-                        ? conversation.getCreatedAt()
-                        : conversation.getLatestMessageAt())
-                .reversed()
-                .thenComparing(ChatConversation::getConversationId, Comparator.reverseOrder());
     }
 
     private String latestText(ChatMessage message) {

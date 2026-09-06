@@ -52,6 +52,7 @@ const chatError = ref('')
 const chatSending = ref(false)
 let socket = null
 let reconnectTimer = null
+let socketConnecting = false
 let pendingSocketPayloads = []
 
 const activeChatUnread = computed(() =>
@@ -97,24 +98,36 @@ async function initializeChat() {
     chatError.value = '登入後即可使用聊聊。'
     return
   }
-  connectSocket()
+  void connectSocket()
   await Promise.all([loadConversations(), loadUnreadCount()])
 }
 
-function connectSocket() {
-  if (!authStore.token || socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) return
-  const base = (import.meta.env?.VITE_API_URL || 'http://localhost:8080/api').replace(/\/api\/?$/, '')
-  const wsBase = base.replace(/^http/, 'ws')
-  socket = new WebSocket(`${wsBase}/ws/dino-chat?token=${encodeURIComponent(authStore.token)}`)
-  socket.onopen = flushPendingSocketMessages
-  socket.onmessage = handleSocketMessage
-  socket.onclose = () => {
-    socket = null
-    if (chatSending.value) {
-      chatError.value = 'WebSocket 連線中斷，訊息尚未送出。'
-      chatSending.value = false
+async function connectSocket() {
+  if (!authStore.isAuthenticated || socketConnecting || socket?.readyState === WebSocket.OPEN || socket?.readyState === WebSocket.CONNECTING) return
+  socketConnecting = true
+  try {
+    const { data } = await api.post('/chat/ws-ticket')
+    if (!data?.ticket) throw new Error('Missing WebSocket ticket.')
+    const base = (import.meta.env?.VITE_API_URL || 'http://localhost:8080/api').replace(/\/api\/?$/, '')
+    const wsBase = base.replace(/^http/, 'ws')
+    socket = new WebSocket(`${wsBase}/ws/dino-chat?ticket=${encodeURIComponent(data.ticket)}`)
+    socket.onopen = () => {
+      socketConnecting = false
+      flushPendingSocketMessages()
     }
-    if (authStore.isAuthenticated) reconnectTimer = window.setTimeout(connectSocket, 2500)
+    socket.onmessage = handleSocketMessage
+    socket.onclose = () => {
+      socketConnecting = false
+      socket = null
+      if (chatSending.value) {
+        chatError.value = 'WebSocket 連線中斷，訊息尚未送出。'
+        chatSending.value = false
+      }
+      if (authStore.isAuthenticated) reconnectTimer = window.setTimeout(connectSocket, 2500)
+    }
+  } catch {
+    socketConnecting = false
+    chatError.value = '目前無法建立聊聊連線。'
   }
 }
 
@@ -146,7 +159,7 @@ function handleSocketMessage(event) {
 }
 
 function sendSocketMessage(payload) {
-  connectSocket()
+  void connectSocket()
   if (socket?.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify(payload))
     return

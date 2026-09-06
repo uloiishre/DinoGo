@@ -1,79 +1,70 @@
 package com.dinogo.chat.service;
 
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import com.dinogo.chat.dto.QuickResponseRequest;
 import com.dinogo.chat.dto.QuickResponseResponse;
 import com.dinogo.chat.entity.ChatQuickResponseTemplate;
+import com.dinogo.chat.repository.ChatQuickResponseTemplateRepository;
 import com.dinogo.seller.service.CurrentSellerService;
 
 @Service
+@Transactional(readOnly = true)
 public class QuickResponseService {
 
     private final CurrentSellerService currentSellerService;
-    private final AtomicInteger templateSequence = new AtomicInteger(1);
-    private final ConcurrentHashMap<Integer, ChatQuickResponseTemplate> templates = new ConcurrentHashMap<>();
+    private final ChatQuickResponseTemplateRepository templateRepository;
 
-    public QuickResponseService(CurrentSellerService currentSellerService) {
+    public QuickResponseService(
+            CurrentSellerService currentSellerService,
+            ChatQuickResponseTemplateRepository templateRepository) {
         this.currentSellerService = currentSellerService;
+        this.templateRepository = templateRepository;
     }
 
     public List<QuickResponseResponse> list(Integer memberId) {
         Integer sellerId = currentSellerService.requireActiveSellerId(memberId);
-        return templates.values().stream()
-                .filter(template -> sellerId.equals(template.getSellerId()))
-                .sorted(Comparator
-                        .comparing(ChatQuickResponseTemplate::getUpdatedAt)
-                        .reversed()
-                        .thenComparing(ChatQuickResponseTemplate::getTemplateId, Comparator.reverseOrder()))
+        return templateRepository.findBySellerIdOrderByUpdatedAtDescTemplateIdDesc(sellerId).stream()
                 .map(QuickResponseResponse::from)
                 .toList();
     }
 
+    @Transactional
     public QuickResponseResponse create(Integer memberId, QuickResponseRequest request) {
         Integer sellerId = currentSellerService.requireActiveSellerId(memberId);
         LocalDateTime now = LocalDateTime.now();
         ChatQuickResponseTemplate template = new ChatQuickResponseTemplate();
-        template.setTemplateId(templateSequence.getAndIncrement());
         template.setSellerId(sellerId);
         template.setCreatedAt(now);
         template.setUpdatedAt(now);
         apply(template, request);
-        templates.put(template.getTemplateId(), template);
-        return QuickResponseResponse.from(template);
+        return QuickResponseResponse.from(templateRepository.save(template));
     }
 
+    @Transactional
     public QuickResponseResponse update(Integer memberId, Integer templateId, QuickResponseRequest request) {
         Integer sellerId = currentSellerService.requireActiveSellerId(memberId);
-        ChatQuickResponseTemplate template = templates.get(templateId);
-        if (template == null) {
-            throw new IllegalArgumentException("Quick response not found.");
-        }
-        if (!sellerId.equals(template.getSellerId())) {
-            throw new IllegalArgumentException("No permission to update this quick response.");
-        }
+        ChatQuickResponseTemplate template = requireSellerTemplate(templateId, sellerId);
         apply(template, request);
         template.setUpdatedAt(LocalDateTime.now());
-        return QuickResponseResponse.from(template);
+        return QuickResponseResponse.from(templateRepository.save(template));
     }
 
+    @Transactional
     public void delete(Integer memberId, Integer templateId) {
         Integer sellerId = currentSellerService.requireActiveSellerId(memberId);
-        ChatQuickResponseTemplate template = templates.get(templateId);
-        if (template == null) {
-            throw new IllegalArgumentException("Quick response not found.");
-        }
-        if (!sellerId.equals(template.getSellerId())) {
-            throw new IllegalArgumentException("No permission to delete this quick response.");
-        }
-        templates.remove(templateId);
+        ChatQuickResponseTemplate template = requireSellerTemplate(templateId, sellerId);
+        templateRepository.delete(template);
+    }
+
+    private ChatQuickResponseTemplate requireSellerTemplate(Integer templateId, Integer sellerId) {
+        return templateRepository.findByTemplateIdAndSellerId(templateId, sellerId)
+                .orElseThrow(() -> new IllegalArgumentException("Quick response not found."));
     }
 
     private void apply(ChatQuickResponseTemplate template, QuickResponseRequest request) {

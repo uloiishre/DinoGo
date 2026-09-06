@@ -16,7 +16,9 @@ import com.dinogo.chat.dto.ChatContextRequest;
 import com.dinogo.chat.dto.ChatConversationResponse;
 import com.dinogo.chat.dto.ChatMessageResponse;
 import com.dinogo.chat.dto.ChatUnreadCountResponse;
+import com.dinogo.chat.dto.ChatWebSocketTicketResponse;
 import com.dinogo.chat.service.DinoChatService;
+import com.dinogo.chat.service.DinoChatWebSocketAuthService;
 import com.dinogo.security.AuthenticatedMember;
 import com.dinogo.sysmsg.dto.response.SysmsgImageAssetResponse;
 import com.dinogo.sysmsg.service.SysmsgImageService;
@@ -28,10 +30,15 @@ import jakarta.validation.Valid;
 public class DinoChatController {
 
     private final DinoChatService chatService;
+    private final DinoChatWebSocketAuthService webSocketAuthService;
     private final SysmsgImageService imageService;
 
-    public DinoChatController(DinoChatService chatService, SysmsgImageService imageService) {
+    public DinoChatController(
+            DinoChatService chatService,
+            DinoChatWebSocketAuthService webSocketAuthService,
+            SysmsgImageService imageService) {
         this.chatService = chatService;
+        this.webSocketAuthService = webSocketAuthService;
         this.imageService = imageService;
     }
 
@@ -64,6 +71,11 @@ public class DinoChatController {
     @GetMapping("/unread-count")
     public ChatUnreadCountResponse unreadCount(@AuthenticationPrincipal AuthenticatedMember member) {
         return new ChatUnreadCountResponse(chatService.getTotalUnread(member.memberId()));
+    }
+
+    @PostMapping("/ws-ticket")
+    public ChatWebSocketTicketResponse issueWebSocketTicket(@AuthenticationPrincipal AuthenticatedMember member) {
+        return webSocketAuthService.issueTicket(member.memberId());
     }
 
     @PostMapping("/images")

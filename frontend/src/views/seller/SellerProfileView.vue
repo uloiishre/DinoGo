@@ -42,6 +42,7 @@ const sellerChatSending = ref(false)
 const sellerChatBodyRef = ref(null)
 let sellerSocket = null
 let sellerReconnectTimer = null
+let sellerSocketConnecting = false
 let sellerPendingSocketPayloads = []
 
 const openLogoPicker = () => {
@@ -221,24 +222,36 @@ const apiErrorMessage = (error, fallback) => {
 }
 
 const initializeSellerChat = async () => {
-  connectSellerSocket()
+  void connectSellerSocket()
   await loadSellerConversations()
 }
 
-const connectSellerSocket = () => {
-  if (!authStore.token || sellerSocket?.readyState === WebSocket.OPEN || sellerSocket?.readyState === WebSocket.CONNECTING) return
-  const base = (import.meta.env?.VITE_API_URL || 'http://localhost:8080/api').replace(/\/api\/?$/, '')
-  const wsBase = base.replace(/^http/, 'ws')
-  sellerSocket = new WebSocket(`${wsBase}/ws/dino-chat?token=${encodeURIComponent(authStore.token)}`)
-  sellerSocket.onopen = flushSellerPendingSocketMessages
-  sellerSocket.onmessage = handleSellerSocketMessage
-  sellerSocket.onclose = () => {
-    sellerSocket = null
-    if (sellerChatSending.value) {
-      sellerChatError.value = 'WebSocket 連線中斷，訊息尚未送出。'
-      sellerChatSending.value = false
+const connectSellerSocket = async () => {
+  if (!authStore.isAuthenticated || sellerSocketConnecting || sellerSocket?.readyState === WebSocket.OPEN || sellerSocket?.readyState === WebSocket.CONNECTING) return
+  sellerSocketConnecting = true
+  try {
+    const { data } = await api.post('/chat/ws-ticket')
+    if (!data?.ticket) throw new Error('Missing WebSocket ticket.')
+    const base = (import.meta.env?.VITE_API_URL || 'http://localhost:8080/api').replace(/\/api\/?$/, '')
+    const wsBase = base.replace(/^http/, 'ws')
+    sellerSocket = new WebSocket(`${wsBase}/ws/dino-chat?ticket=${encodeURIComponent(data.ticket)}`)
+    sellerSocket.onopen = () => {
+      sellerSocketConnecting = false
+      flushSellerPendingSocketMessages()
     }
-    if (authStore.isAuthenticated) sellerReconnectTimer = window.setTimeout(connectSellerSocket, 2500)
+    sellerSocket.onmessage = handleSellerSocketMessage
+    sellerSocket.onclose = () => {
+      sellerSocketConnecting = false
+      sellerSocket = null
+      if (sellerChatSending.value) {
+        sellerChatError.value = 'WebSocket 連線中斷，訊息尚未送出。'
+        sellerChatSending.value = false
+      }
+      if (authStore.isAuthenticated) sellerReconnectTimer = window.setTimeout(connectSellerSocket, 2500)
+    }
+  } catch {
+    sellerSocketConnecting = false
+    sellerChatError.value = '目前無法建立聊聊連線。'
   }
 }
 
@@ -269,7 +282,7 @@ const handleSellerSocketMessage = (event) => {
 }
 
 const sendSellerSocketMessage = (payload) => {
-  connectSellerSocket()
+  void connectSellerSocket()
   if (sellerSocket?.readyState === WebSocket.OPEN) {
     sellerSocket.send(JSON.stringify(payload))
     return
