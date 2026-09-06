@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Size;
 
 public record ChatMessageRequest(
         ChatMessageType messageType,
-        @Size(max = 2000) String content,
+        @Size(max = 1000) String content,
         @Size(max = 500) String imageUrl,
         @Size(max = 255) String imagePublicId,
         Integer productId,

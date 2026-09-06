@@ -15,13 +15,12 @@ import jakarta.persistence.LockModeType;
 
 public interface ChatConversationRepository extends JpaRepository<ChatConversation, Integer> {
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("""
-            SELECT conversation
-            FROM ChatConversation conversation
-            WHERE conversation.buyerId = :buyerId
-              AND conversation.sellerId = :sellerId
-            """)
+    @Query(value = """
+            SELECT *
+            FROM chat.Conversation WITH (UPDLOCK, HOLDLOCK)
+            WHERE buyer_id = :buyerId
+              AND seller_id = :sellerId
+            """, nativeQuery = true)
     Optional<ChatConversation> findByBuyerIdAndSellerIdForUpdate(
             @Param("buyerId") Integer buyerId,
             @Param("sellerId") Integer sellerId);

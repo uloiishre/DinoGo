@@ -655,7 +655,7 @@ onUnmounted(() => {
 
       <form class="dino-chat__composer" @submit.prevent="handleSubmit">
         <label class="visually-hidden" for="dino-chat-input">輸入訊息</label>
-        <input id="dino-chat-input" ref="chatInputRef" v-model="inputMessage" type="text" :placeholder="helperPlaceholder" :disabled="isLoading || (activeTab === 'chat' && (!authStore.isAuthenticated || !activeConversation))" />
+        <input id="dino-chat-input" ref="chatInputRef" v-model="inputMessage" type="text" maxlength="1000" :placeholder="helperPlaceholder" :disabled="isLoading || (activeTab === 'chat' && (!authStore.isAuthenticated || !activeConversation))" />
         <button type="submit" aria-label="送出訊息" :disabled="isLoading || chatSending || (activeTab === 'chat' && (!authStore.isAuthenticated || !activeConversation))"><i class="bi bi-send" aria-hidden="true"></i></button>
       </form>
     </section>

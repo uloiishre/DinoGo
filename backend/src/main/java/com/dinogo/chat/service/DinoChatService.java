@@ -38,6 +38,7 @@ import com.dinogo.seller.repository.SellerRepository;
 public class DinoChatService {
 
     private static final String CLOUDINARY_HOST = "res.cloudinary.com";
+    private static final int MAX_MESSAGE_CONTENT_LENGTH = 1000;
 
     private final ChatConversationRepository conversationRepository;
     private final ChatMessageRepository messageRepository;
@@ -248,6 +249,9 @@ public class DinoChatService {
 
         if (!hasText && !hasImage && !hasProduct && !hasOrder) {
             throw new IllegalArgumentException("Message content is required.");
+        }
+        if (request.content() != null && request.content().length() > MAX_MESSAGE_CONTENT_LENGTH) {
+            throw new IllegalArgumentException("Message content must be 1000 characters or fewer.");
         }
         if (messageType == ChatMessageType.IMAGE && !hasImage) {
             throw new IllegalArgumentException("Image URL is required.");
