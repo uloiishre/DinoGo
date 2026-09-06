@@ -26,6 +26,22 @@ export const uploadSellerLogo = (file) => {
   })
 }
 
+export const getSellerQuickResponses = () => {
+  return api.get('/seller/chat/quick-responses')
+}
+
+export const createSellerQuickResponse = (payload) => {
+  return api.post('/seller/chat/quick-responses', payload)
+}
+
+export const updateSellerQuickResponse = (templateId, payload) => {
+  return api.put(`/seller/chat/quick-responses/${templateId}`, payload)
+}
+
+export const deleteSellerQuickResponse = (templateId) => {
+  return api.delete(`/seller/chat/quick-responses/${templateId}`)
+}
+
 export const resolveSellerLogoUrl = (url) => {
   if (!url) {
     return ''
