@@ -287,6 +287,22 @@ function updateReviewStar(nextStar) {
   )
 }
 
+function contactSeller() {
+  if (!order.value) return
+  window.dispatchEvent(
+    new CustomEvent('dinogo-chat:open', {
+      detail: {
+        contextType: 'order',
+        orderId: order.value.orderId,
+        sellerId: order.value.sellerId,
+        orderNo: order.value.orderNo,
+        statusLabel: displayStatus.value.label,
+        totalAmount: order.value.totalAmount,
+      },
+    }),
+  )
+}
+
 onMounted(() => {
   void loadOrder().then(loadOrderReviewStars)
   window.addEventListener('focus', refreshOrderSilently)
@@ -312,6 +328,10 @@ onUnmounted(() => {
         </div>
 
         <div class="header-actions">
+          <button v-if="order" class="contact-seller-button" type="button" @click="contactSeller">
+            <i class="bi bi-chat-dots" aria-hidden="true"></i>
+            聯絡賣家
+          </button>
           <button
             v-if="canCancelOrder"
             class="cancel-order-button"
@@ -619,6 +639,25 @@ onUnmounted(() => {
   background: var(--color-surface);
   border: 1px solid var(--color-danger);
   border-radius: var(--radius-md);
+}
+
+.contact-seller-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  color: var(--color-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  background: var(--color-surface);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+}
+
+.contact-seller-button:hover {
+  color: var(--color-surface);
+  background: var(--color-primary);
 }
 
 .cancel-order-button:hover:not(:disabled) {

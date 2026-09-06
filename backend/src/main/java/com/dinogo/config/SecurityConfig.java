@@ -31,6 +31,7 @@ public class SecurityConfig {
                                 .formLogin(formLogin -> formLogin.disable())
                                 .authorizeHttpRequests(authorize -> authorize
                                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                                                .requestMatchers("/ws/dino-chat").permitAll()
                                                 .requestMatchers("/api/auth/**").permitAll()
                                                 .requestMatchers("/error").permitAll()
                                                 .requestMatchers(HttpMethod.POST, "/api/ecpay/callback").permitAll()
@@ -84,6 +85,7 @@ public class SecurityConfig {
                                                                 // 收件地址包含個資，只允許已登入會員存取。
                                                                 "/api/addresses/**",
                                                                 "/api/member/**",
+                                                                "/api/chat/**",
                                                                 "/api/sysmsg/**")
                                                 .authenticated()
                                                 // 評論資格與資料歸屬由 Review 模組以 JWT principal 驗證；

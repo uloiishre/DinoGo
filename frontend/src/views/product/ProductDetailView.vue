@@ -654,6 +654,47 @@ const goToStore = (sellerId) => {
     },
   })
 }
+const openSellerChat = async () => {
+  if (!authStore.isAuthenticated) {
+    await router.push({
+      name: 'Login',
+      query: {
+        redirect: route.fullPath,
+      },
+    })
+    return
+  }
+
+  if (!product.value?.sellerId || !seller.value) return
+
+  window.dispatchEvent(
+    new CustomEvent('dinogo-chat:open', {
+      detail: {
+        contextType: 'product',
+        sellerId: product.value.sellerId,
+        productId: product.value.productId,
+        skuId: selectedSku.value?.skuId ?? null,
+        productName: product.value.productName,
+        skuText: selectedSku.value ? buildSkuText(selectedSku.value) : '',
+        price: selectedSku.value?.price ?? product.value.basePrice,
+        imageUrl: selectedImage.value,
+      },
+    }),
+  )
+}
+
+function buildSkuText(sku) {
+  const first = formatSpec(sku.spec1Name, sku.spec1Value)
+  const second = formatSpec(sku.spec2Name, sku.spec2Value)
+  if (!first) return second || ''
+  if (!second) return first
+  return `${first} / ${second}`
+}
+
+function formatSpec(name, value) {
+  if (!value) return ''
+  return name ? `${name}: ${value}` : value
+}
 const claimCoupon = async (couponId) => {
   if (!authStore.isAuthenticated) {
     await router.push({
@@ -1190,6 +1231,10 @@ onUnmounted(() => {
                   </div>
 
                   <div class="seller-actions">
+                    <button type="button" class="seller-chat-button" @click="openSellerChat">
+                      <i class="bi bi-chat-dots"></i>
+                      聊聊
+                    </button>
                     <button
                       type="button"
                       class="seller-store-button"
@@ -2708,34 +2753,5 @@ onUnmounted(() => {
   .coupon-claim-button {
     width: 100%;
   }
-}
-.seller-actions {
-  display: block;
-  width: 100%;
-  margin-top: 16px;
-}
-
-.seller-store-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-
-  width: 100%;
-  min-height: 40px;
-  padding: 8px 14px;
-
-  color: #fff;
-  background: var(--color-primary);
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-md);
-
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.seller-store-button:hover {
-  opacity: 0.9;
 }
 </style>

@@ -83,6 +83,21 @@ function itemQuantity(item) {
   return Number(item?.quantity ?? 1)
 }
 
+async function contactSeller(order) {
+  window.dispatchEvent(
+    new CustomEvent('dinogo-chat:open', {
+      detail: {
+        contextType: 'order',
+        orderId: order.orderId,
+        sellerId: order.sellerId,
+        orderNo: order.orderNo,
+        statusLabel: getOrderDisplayStatus(order).label,
+        totalAmount: order.totalAmount,
+      },
+    }),
+  )
+}
+
 onMounted(loadOrders)
 </script>
 
@@ -181,6 +196,12 @@ onMounted(loadOrders)
             <div class="order-card__actions">
               <strong
                 >訂單金額 <b>{{ formatCurrency(order.totalAmount) }}</b></strong
+              ><button
+                class="btn btn-sm order-contact-button"
+                type="button"
+                :aria-label="`聯絡賣家詢問訂單 ${order.orderNo}`"
+                @click="contactSeller(order)"
+                >聯絡賣家</button
               ><RouterLink
                 class="btn btn-sm order-detail-button"
                 :to="{ name: 'MemberOrderDetail', params: { id: order.orderId } }"
@@ -462,6 +483,18 @@ onMounted(loadOrders)
   padding: var(--space-2) var(--space-4);
   color: var(--color-surface);
   font-weight: 600;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+.order-contact-button {
+  padding: var(--space-2) var(--space-4);
+  color: var(--color-primary);
+  font-weight: 600;
+  background: var(--color-surface);
+  border-color: var(--color-primary);
+}
+.order-contact-button:hover {
+  color: var(--color-surface);
   background: var(--color-primary);
   border-color: var(--color-primary);
 }
