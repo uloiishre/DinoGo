@@ -7,6 +7,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
@@ -27,6 +28,7 @@ public class ShoppingAdvisorLlmClient {
     private final String model;
     private final boolean enabled;
 
+    @Autowired
     public ShoppingAdvisorLlmClient(ObjectMapper objectMapper,
             @Value("${app.ai.openai.api-key:}") String configuredApiKey,
             @Value("${OPENAI_API_KEY:}") String environmentApiKey,
