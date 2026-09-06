@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,7 @@ public class ProductSemanticSearchService {
     private final String model;
     private final boolean enabled;
 
+    @Autowired
     public ProductSemanticSearchService(VectorStoreStateService stateService, ObjectMapper objectMapper,
             @Value("${app.ai.openai.api-key:}") String configuredApiKey,
             @Value("${OPENAI_API_KEY:}") String environmentApiKey,
