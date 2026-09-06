@@ -35,7 +35,30 @@ AI_VECTOR_STORE_STATE_PATH=/app/data/ai-vector-store.json
 
 ## 啟動與確認
 
-在 repository 根目錄、確認 `.env` 已備妥後執行。Cloudflare Tunnel Server 必須使用既有 overlay；不要只執行 base Compose，避免 SQL Server 產生非預期的 host exposure：
+在 repository 根目錄、確認 `.env` 已備妥後執行。Cloudflare Tunnel Server 必須使用既有 overlay；不要只執行 base Compose，避免 SQL Server 產生非預期的 host exposure。
+
+### Tunnel-only Server
+
+```bash
+docker compose -p dinogo \
+  -f compose.yml \
+  -f compose.tunnel.yml \
+  config -q
+
+docker compose -p dinogo \
+  -f compose.yml \
+  -f compose.tunnel.yml \
+  up -d --build
+
+docker compose -p dinogo \
+  -f compose.yml \
+  -f compose.tunnel.yml \
+  ps
+```
+
+### Tunnel + Team LAN SQL Server Server
+
+只有需要提供團隊 LAN SQL Server access 的 Server，才加入 `compose.team.yml`：
 
 ```bash
 docker compose -p dinogo \
@@ -57,7 +80,7 @@ docker compose -p dinogo \
   ps
 ```
 
-未提供團隊 LAN SQL Server access 的主機可省略 `-f compose.team.yml`。Team mode 只允許 `${MSSQL_BIND_IP}:${MSSQL_HOST_PORT:-9434}:1433`，不得使用公開 host 1433。
+Team mode 只允許 `${MSSQL_BIND_IP}:${MSSQL_HOST_PORT:-9434}:1433`，不得使用公開 host 1433。
 
 `docker compose config` 可先確認環境變數是否已被展開；不要將其輸出貼到公開管道，避免意外暴露 secret。
 
@@ -134,8 +157,16 @@ Content-Type: application/json
 
 後端日誌可用下列指令查看：
 
+Tunnel-only Server：
+
 ```bash
-docker compose logs -f backend
+docker compose -p dinogo -f compose.yml -f compose.tunnel.yml logs -f backend
+```
+
+Tunnel + Team LAN SQL Server Server：
+
+```bash
+docker compose -p dinogo -f compose.yml -f compose.tunnel.yml -f compose.team.yml logs -f backend
 ```
 
 關鍵訊息包括 `Semantic product search skipped`、`Semantic product search failed`、`AI shopping criteria parsing failed` 與索引 API 的錯誤回應。

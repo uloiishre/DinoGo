@@ -33,14 +33,24 @@ public class ProductSemanticSearchService {
             @Value("${OPENAI_API_KEY:}") String environmentApiKey,
             @Value("${app.ai.openai.model:gpt-4.1-mini}") String model,
             @Value("${app.ai.openai.enabled:false}") boolean enabled) {
-        this.stateService = stateService; this.objectMapper = objectMapper;
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(java.time.Duration.ofSeconds(3));
-        factory.setReadTimeout(java.time.Duration.ofSeconds(8));
-        this.restClient = RestClient.builder().baseUrl("https://api.openai.com/v1").requestFactory(factory).build();
+        this(stateService, objectMapper, configuredApiKey, environmentApiKey, model, enabled, createRestClient());
+    }
+
+    ProductSemanticSearchService(VectorStoreStateService stateService, ObjectMapper objectMapper,
+            String configuredApiKey, String environmentApiKey, String model, boolean enabled, RestClient restClient) {
+        this.stateService = stateService;
+        this.objectMapper = objectMapper;
+        this.restClient = restClient;
         this.apiKey = configuredApiKey == null || configuredApiKey.isBlank() ? environmentApiKey : configuredApiKey;
         this.model = model;
         this.enabled = enabled;
+    }
+
+    private static RestClient createRestClient() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(java.time.Duration.ofSeconds(3));
+        factory.setReadTimeout(java.time.Duration.ofSeconds(8));
+        return RestClient.builder().baseUrl("https://api.openai.com/v1").requestFactory(factory).build();
     }
 
     public List<Integer> searchProductIds(String query) {

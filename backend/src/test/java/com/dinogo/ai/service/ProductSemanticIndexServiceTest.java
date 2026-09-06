@@ -44,7 +44,7 @@ class ProductSemanticIndexServiceTest {
                 .thenReturn(new PageImpl<>(List.of(last), PageRequest.of(1, 100), 101));
 
         ProductSemanticIndexService service = new ProductSemanticIndexService(productService, "test-key", "", vectorStoreStateService,
-                RestClient.builder().baseUrl("http://openai.test").build());
+                RestClient.builder().baseUrl("http://openai.test").build(), true);
 
         assertEquals(List.of(first, last), service.loadAllActiveProducts());
     }
@@ -53,7 +53,7 @@ class ProductSemanticIndexServiceTest {
     void keepsFailedCleanupPendingAndRemovesItAfterTheNextSuccessfulRetry() {
         RestClient.Builder builder = RestClient.builder().baseUrl("http://openai.test");
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        ProductSemanticIndexService service = new ProductSemanticIndexService(productService, "test-key", "", vectorStoreStateService, builder.build());
+        ProductSemanticIndexService service = new ProductSemanticIndexService(productService, "test-key", "", vectorStoreStateService, builder.build(), true);
         var target = new VectorStoreStateService.CleanupTarget("vs-old", List.of("file-old"));
         var state = new VectorStoreStateService.VectorStoreState("vs-active", List.of("file-active"), List.of(target));
 
@@ -72,9 +72,23 @@ class ProductSemanticIndexServiceTest {
     void stopsPollingBeforeStartingARequestThatCannotFitWithinTheDeadline() {
         RestClient.Builder builder = RestClient.builder().baseUrl("http://openai.test");
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        ProductSemanticIndexService service = new ProductSemanticIndexService(productService, "test-key", "", vectorStoreStateService, builder.build());
+        ProductSemanticIndexService service = new ProductSemanticIndexService(productService, "test-key", "", vectorStoreStateService, builder.build(), true);
 
         assertEquals("timeout", service.waitForAllCompletion("vs-new", List.of("file-new"), Instant.now().plusSeconds(10)));
+        server.verify();
+    }
+
+    @Test
+    void disabledRebuildDoesNotCallOpenAiOrLoadProducts() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://openai.test");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        ProductSemanticIndexService service = new ProductSemanticIndexService(productService, "test-key", "",
+                vectorStoreStateService, builder.build(), false);
+
+        var result = service.rebuild();
+
+        assertEquals("disabled", result.status());
+        org.mockito.Mockito.verifyNoInteractions(productService, vectorStoreStateService);
         server.verify();
     }
 
