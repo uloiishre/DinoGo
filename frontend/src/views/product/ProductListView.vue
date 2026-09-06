@@ -597,6 +597,10 @@ onMounted(() => {
             </div>
 
             <div class="toolbar-actions">
+              <RouterLink :to="{ name: 'AiShoppingAdvisor' }" class="ai-advisor-link">
+                <i class="bi bi-stars"></i>
+                問 AI 幫我挑
+              </RouterLink>
               <div class="sort-selector">
                 <label for="sort"> 排序： </label>
 
@@ -1163,6 +1167,19 @@ onMounted(() => {
   align-items: center;
 
   gap: 18px;
+}
+
+.ai-advisor-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: #175b49;
+  background: #dff5ec;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
 }
 
 .sort-selector,

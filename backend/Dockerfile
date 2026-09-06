@@ -21,7 +21,7 @@ WORKDIR /app
 
 RUN groupadd --system app \
     && useradd --system --gid app --home-dir /app --shell /usr/sbin/nologin app \
-    && mkdir -p /app/uploads \
+    && mkdir -p /app/uploads /app/data \
     && chown -R app:app /app
 
 COPY --from=build --chown=app:app /workspace/app.jar /app/app.jar
